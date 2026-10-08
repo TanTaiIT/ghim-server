@@ -1,0 +1,3 @@
+# Prisma dùng file này để chặn việc chạy migration của một hệ CSDL khác lên đây.
+# Đừng sửa tay.
+provider = "postgresql"

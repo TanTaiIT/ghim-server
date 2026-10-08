@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+# Huỷ lượt chạy cũ khi có commit mới trên cùng nhánh — không để hàng đợi CI xếp sau những
+# bản dựng đã lỗi thời.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Prisma client là code SINH RA, không commit — thiếu bước này thì typecheck đỏ vì
+      # `@prisma/client` chưa có model nào.
+      - run: pnpm exec prisma generate
+
+      - run: pnpm run format:check
+      - run: pnpm run lint
+      - run: pnpm run typecheck
+      - run: pnpm run test
+      - run: pnpm run build
+
+  # Thứ chỉ DB thật trả lời được: CHECK, partial unique, exclusion, và migration SQL viết tay có
+  # khớp `schema.prisma` hay không. Postgres là service của job — DB dùng một lần.
+  db:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: ghim
+          POSTGRES_PASSWORD: ghim
+          POSTGRES_DB: ghim_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ghim -d ghim_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      NODE_ENV: test
+      TEST_DATABASE_URL: postgresql://ghim:ghim@localhost:5432/ghim_test
+      DATABASE_URL: postgresql://ghim:ghim@localhost:5432/ghim_test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma generate
+
+      # globalSetup áp mọi migration (`migrate deploy`) lên DB trống rồi mới chạy test.
+      - run: pnpm run test:db
+
+      # Migration đã áp phải khớp đúng `schema.prisma`. Lệch = SQL viết tay sai tên index /
+      # constraint, và `migrate dev` lần sau sẽ tự sinh lệnh DROP để "sửa".
+      - run: pnpm run db:drift

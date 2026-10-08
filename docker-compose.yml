@@ -1,0 +1,44 @@
+# Hạ tầng cho môi trường DEV. Production dùng managed service, không phải file này.
+# Cổng 5435/5436 chứ không 5433/5434: booking đã giữ hai cổng đó, chạy hai dự án cùng máy không giẫm nhau.
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: ghim
+      POSTGRES_PASSWORD: ghim
+      # Hậu tố `_dev` bắt buộc (src/config/database-guard.ts). Chỉ có tác dụng khi volume còn trống.
+      POSTGRES_DB: ghim_dev
+    ports:
+      - '5435:5432'
+    volumes:
+      # Từ image postgres:18, thư mục dữ liệu khuyến nghị là /var/lib/postgresql.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      # App chờ DB SẴN SÀNG, không chỉ chờ container "đang chạy": Postgres mất vài giây khởi
+      # tạo, và `prisma migrate` chạy trong khoảng đó sẽ hỏng vì connection refused.
+      test: ['CMD-SHELL', 'pg_isready -U ghim -d ghim_dev']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # DB cho `pnpm test:db` — container RIÊNG, không phải một DB nữa trong container dev: bộ test xoá
+  # sạch bảng trước mỗi ca, nên nó không được có đường nào chạm tới dữ liệu dev. `tmpfs` = dữ liệu
+  # nằm trong RAM, tắt container là mất, và ghi nhanh hơn hẳn đĩa.
+  postgres-test:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: ghim
+      POSTGRES_PASSWORD: ghim
+      POSTGRES_DB: ghim_test
+    ports:
+      - '5436:5432'
+    tmpfs:
+      - /var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ghim -d ghim_test']
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+volumes:
+  pgdata:

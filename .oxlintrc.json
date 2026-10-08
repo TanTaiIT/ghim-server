@@ -1,0 +1,43 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "import", "promise", "node"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "perf": "warn",
+    "pedantic": "off"
+  },
+  "env": {
+    "es2024": true,
+    "node": true
+  },
+  "rules": {
+    "no-console": "warn",
+    "typescript/consistent-type-imports": "error",
+    "typescript/no-explicit-any": "error",
+    "unicorn/prefer-node-protocol": "error",
+    "eslint/no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_"
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["tests/**/*.ts"],
+      "rules": {
+        "no-console": "off"
+      }
+    },
+    {
+      "files": ["prisma/**/*.ts", "prisma.config.ts"],
+      "rules": {
+        "import/no-unassigned-import": "off",
+        "eslint/no-await-in-loop": "off"
+      }
+    }
+  ],
+  "ignorePatterns": ["dist/**", "coverage/**", "node_modules/**"]
+}

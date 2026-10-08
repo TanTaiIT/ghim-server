@@ -1,0 +1,23 @@
+// Quy ước trong file này:
+//   - Tên bảng/cột trong DB là snake_case (@map/@@map), code đọc camelCase.
+//   - Thời điểm luôn timestamptz. Postgres lưu mốc tuyệt đối, việc đổi sang Asia/Ho_Chi_Minh
+//     là của tầng hiển thị — lưu `timestamp` trần là mất múi giờ ngay lúc ghi.
+//   - Giá là BigInt, đơn vị ĐỒNG, không âm; 0 = cho tặng. Không Float.
+//   - Id uuid v7: tăng theo thời gian nên index ghi dồn về cuối thay vì rải ngẫu nhiên như v4.
+//   - KHÔNG multi-tenant: một sàn dùng chung. Phạm vi xem theo nhóm là luật nghiệp vụ của module
+//     `listing`, không phải cách ly dữ liệu như `shop_id` của booking.
+//   - Trạng thái tin, cờ tạm ẩn và lý do hạn chế hiển thị là BA cột riêng — gộp làm một là lặp lại
+//     lỗi "Đã ẩn" của hệ thống cũ (THIET-KE-HE-THONG.md phần 4, 15, 19).
+//
+// Chưa có model nào: bảng đầu tiên vào cùng module `identity` (đợt 1, xem CLAUDE.md).
+
+generator client {
+  provider        = "prisma-client-js"
+  // Khai được index có WHERE ngay trong schema (Prisma ≥ 7.4) — thiếu cờ này thì index viết tay
+  // trong SQL bị `migrate dev` coi là lệch và tự sinh lệnh DROP ở migration kế tiếp.
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}

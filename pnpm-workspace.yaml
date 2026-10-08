@@ -1,0 +1,11 @@
+# Chính sách supply-chain của pnpm: MẶC ĐỊNH chặn mọi install script, chỉ mở cho từng gói
+# được liệt kê ở đây. Mỗi dòng thêm vào là một quyết định có ý thức, không phải một lượt
+# `pnpm approve-builds` bấm cho xong.
+allowBuilds:
+  esbuild: true
+  # Native addon — install script chỉ tải prebuild về, chỉ biên dịch khi nền tảng không có sẵn.
+  argon2: true
+  # Prisma: client sinh code từ schema, engines tải binary query engine.
+  '@prisma/client': true
+  '@prisma/engines': true
+  prisma: true
