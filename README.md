@@ -3,8 +3,24 @@
 Backend cho **Ghim — sàn rao vặt**, bản làm lại trên Fastify 5 + Prisma 7 + PostgreSQL 18, cùng
 công nghệ với dự án `../booking`.
 
-- Luật nghiệp vụ: `../../Vue/docs/new-source/THIET-KE-HE-THONG.md` (bản thiết kế duy nhất).
+- Bản thiết kế cho người đọc: [`docs/THIET-KE-HE-THONG.md`](docs/THIET-KE-HE-THONG.md) (+ `.pdf`).
+- Luật để code, theo đợt: `openspec/changes/` · đã làm xong: `openspec/specs/` — `pnpm run spec:list`
+  để xem, `openspec view` để xem bảng tổng.
 - Luật code, cấu trúc thư mục, kế hoạch module: [`CLAUDE.md`](CLAUDE.md).
+
+## Làm một tính năng mới (OpenSpec)
+
+Trong Claude Code, mở thư mục này làm workspace rồi:
+
+1. `/opsx:explore` — bàn khi chưa rõ nên làm gì (không sửa file nào).
+2. `/opsx:propose <mô tả>` — tạo `openspec/changes/<tên>/` gồm proposal, specs, design, tasks. Đọc và
+   duyệt trước khi code.
+3. `/opsx:apply` — làm theo tasks, đánh dấu từng việc xong.
+4. `pnpm run check`, `pnpm test:db`, `pnpm run build` xanh → `/opsx:archive` gộp spec vào
+   `openspec/specs/`.
+
+Cần CLI `openspec` trên PATH, cùng phiên bản trong `package.json`:
+`npm i -g @fission-ai/openspec@1.14.1`.
 
 Hiện trạng: **mới có bộ khung** — hạ tầng HTTP, lỗi, response, Swagger, health check, test và CI.
 Chưa có bảng nào trong DB; module đầu tiên là `identity` (đợt 1).

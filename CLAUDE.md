@@ -10,9 +10,13 @@ Ghim là **sàn rao vặt**: người dùng đăng tin bán đồ, người khá
 không giữ tiền, không giao hàng. Có hai nơi đăng tin: **sàn chung** (cả nước) và **nhóm** (trường,
 công ty, cộng đồng). Máy duyệt trước, người duyệt phần máy không chắc.
 
-- **Bản thiết kế duy nhất** (gọi tắt **TK**): `../../Vue/docs/new-source/THIET-KE-HE-THONG.md`.
-  Mọi luật nghiệp vụ và mọi con số nằm ở đó. File này chỉ nói luật đó đặt ở **đâu trong code**.
-  TK và code lệch nhau → hỏi, đừng tự chọn một bên.
+- **Bản thiết kế** (gọi tắt **TK**): `docs/THIET-KE-HE-THONG.md` (+ `.pdf`) — bản đọc cho người
+  không làm kỹ thuật: vì sao, ví dụ, từ điển.
+- **Hợp đồng để code**: `openspec/changes/` — mọi luật của TK đã viết thành requirement + scenario,
+  mỗi change một phần, xếp theo đợt. `openspec/specs/` — phần đã làm xong. Xem mục **Quy trình
+  OpenSpec**. File này chỉ nói luật đặt ở **đâu trong code**. TK, change và code lệch nhau → hỏi, đừng
+  tự chọn một bên. Hai luật đụng nhau → thứ tự ưu tiên ở TK phần 4 (pháp lý → không tự xử việc của mình
+  → máy không phạt → người dùng biết vì sao → tiện lợi).
 - **Hệ thống cũ**: `../../Vue/` (Express + MongoDB + agenda). Đọc để biết dữ liệu nào phải chuyển
   sang và tích hợp nào đang chạy; **không** chép pattern của nó sang đây.
 - Hai cửa, một backend:
@@ -42,7 +46,10 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
 - Test: **Vitest**, HTTP qua `app.inject()`. `pnpm test` không chạm DB; `pnpm test:db` chạy trên
   Postgres thật (container `postgres-test`).
 - Lint/format: **oxlint + Prettier** (không phải ESLint). Không tự đổi rule.
-- Skill cho agent: `.claude/skills/prisma-*` (nguồn `skills-lock.json`, chép từ booking).
+- Spec-driven: **OpenSpec 1.14.1** (`@fission-ai/openspec`, ghim cứng phiên bản), lệnh `/opsx:*` —
+  xem mục **Quy trình OpenSpec**.
+- Skill cho agent: `.claude/skills/openspec-*` và `.claude/commands/opsx/` (sinh bởi
+  `openspec update`), `.claude/skills/prisma-*` (nguồn `skills-lock.json`, chép từ booking).
 - **(chưa có)** — phải hỏi trước vì cần chọn thư viện / dịch vụ:
   - Job nền thay agenda (TK 26). Chạy trên Postgres, idempotent, khoá trùm cả lượt chạy.
   - Realtime cho nhắn tin (hệ thống cũ dùng socket.io).
@@ -53,6 +60,11 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
 ## Cấu trúc thư mục (BẮT BUỘC tuân theo)
 
 ```
+openspec/
+  config.yaml                 ← bối cảnh dự án + luật cho từng artifact của change
+  specs/<capability>/spec.md  ← hành vi ĐANG chạy (chỉ sửa qua archive một change)
+  changes/<tên>/              ← change đang làm: proposal, specs (delta), design, tasks
+  changes/archive/            ← change đã xong, giữ làm lịch sử
 prisma/
   schema.prisma               ← schema đang chạy
   migrations/                 ← KHÔNG sửa migration đã apply
@@ -84,23 +96,35 @@ tests/*.db.test.ts            ← chạy trên Postgres thật (`pnpm test:db`),
 
 ### Module theo TK phần 30 — thứ tự xây theo TK phần 29
 
-| Đợt | Module         | Phần TK    | Sở hữu (chỉ module này được GHI)                                                   |
-| --- | -------------- | ---------- | ---------------------------------------------------------------------------------- |
-| 1   | `identity`     | 7, 8       | Tài khoản, email chuẩn hoá + dấu băm, phiên đăng nhập, Google, 2 lớp, dấu thiết bị |
-| 1   | `platform`     | 5, 6, 28   | Master, quyền staff theo danh mục, **bảng con số có phiên bản**                    |
-| 1   | `group`        | 9, 10      | Nhóm, chế độ, thành viên + đường vào, huy hiệu, đơn vị con, chủ nhóm               |
-| 1   | `category`     | 11         | Danh mục, mẫu thông tin, trần giá, giá tham chiếu, mức rủi ro                      |
-| 2   | `listing`      | 12, 18, 19 | **Trạng thái tin**, nháp, nơi đăng, ngày hiển thị, cờ tạm ẩn                       |
-| 2   | `trust`        | 20, 21, 22 | Mức tin cậy, hạn mức, tin sạch, gậy, khiếu nại, ân xá                              |
-| 3   | `media`        | 25         | Ảnh, nhãn "chưa xác nhận", băm ảnh, danh sách trắng                                |
-| 3   | `screening`    | 13, 14     | **Kết quả máy**, cụm từ cấm, luật + trọng số, lý do hạn chế `machine`              |
-| 4   | `review`       | 16, 17, 23 | **Việc** và hàng chờ, nhận việc 10 phút, quyết định của người, hậu kiểm, báo cáo   |
-| 6   | `messaging`    | 24         | Hội thoại, tin nhắn, chặn người                                                    |
-| 6   | `notification` | 24         | Hộp thư, đẩy thông báo, nhóm bật/tắt                                               |
-| 7   | `ops`          | 25, 26     | Outbox dispatcher, job theo lịch, dọn dữ liệu, tạm giữ bằng chứng                  |
+| Đợt  | Module         | Phần TK    | Sở hữu (chỉ module này được GHI)                                                   |
+| ---- | -------------- | ---------- | ---------------------------------------------------------------------------------- |
+| 1    | `identity`     | 7, 8       | Tài khoản, email chuẩn hoá + dấu băm, phiên đăng nhập, Google, 2 lớp, dấu thiết bị |
+| 1    | `platform`     | 5, 6, 28   | Master, quyền staff theo danh mục, **bảng con số có phiên bản**                    |
+| 1    | `group`        | 9, 10      | Nhóm, chế độ, thành viên + đường vào, huy hiệu, đơn vị con, chủ nhóm               |
+| 1    | `category`     | 11         | Danh mục, mẫu thông tin, trần giá, giá tham chiếu, mức rủi ro                      |
+| 2    | `media`        | 25         | Ảnh, nhãn "chưa xác nhận", dọn ảnh (kiểm ảnh thuộc `screening`)                    |
+| 2    | `listing`      | 12, 18, 19 | **Trạng thái tin**, nháp, nơi đăng, ngày hiển thị, cờ tạm ẩn                       |
+| 2, 5 | `trust`        | 20, 21, 22 | Mức tin cậy, hạn mức, tin sạch (đợt 2); gậy, khiếu nại, ân xá (đợt 5)              |
+| 3    | `screening`    | 13, 14     | **Kết quả máy**, cụm từ cấm, luật + trọng số, kiểm ảnh, lý do hạn chế `machine`    |
+| 4    | `review`       | 16, 17, 23 | **Việc** và hàng chờ, nhận việc 10 phút, quyết định của người, hậu kiểm, báo cáo   |
+| 6    | `messaging`    | 24         | Hội thoại, tin nhắn, chặn người                                                    |
+| 6    | `notification` | 24         | Hộp thư, đẩy thông báo, nhóm bật/tắt                                               |
+| 7    | `ops`          | 25, 26     | Outbox dispatcher, job theo lịch, dọn dữ liệu, tạm giữ bằng chứng                  |
 
-Gậy (đợt 5) nằm trong `trust`. Endpoint của bàn vận hành nằm trong module sở hữu dữ liệu, đăng ký
-dưới tiền tố `/api/v1/ops/...` — không có module `ops-*` gom route của người khác.
+`media` lên đợt 2 (TK 29 xếp ở đợt 3) vì nháp tin đăng đã cần ảnh; chỉ phần **kiểm** ảnh ở đợt 3.
+Endpoint của bàn vận hành nằm trong module sở hữu dữ liệu, đăng ký dưới tiền tố `/api/v1/ops/...` —
+không có module `ops-*` gom route của người khác.
+
+**Thứ tự change — làm và archive đúng thứ tự này** (change sau thêm requirement vào capability của
+change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-groups` → `add-categories` · đợt 2
+`add-media` → `add-listings` → `add-trust-tiers` · đợt 3 `add-screening` · đợt 4 `add-review-queues` →
+`add-reports` · đợt 5 `add-strikes` · đợt 6 `add-messaging` → `add-notifications` · đợt 7
+`add-data-retention`.
+
+- `add-platform-roles` và `add-categories` cần nhau (quyền staff gắn theo danh mục; danh mục cần staff soạn
+  mẫu): làm chung một lượt, archive theo thứ tự trên.
+- Việc chạy theo lịch đã cần từ đợt 1 (dọn đăng ký dở dang, nhóm thiếu chủ quá 30 ngày) dù `ops` ở đợt 7:
+  chọn thư viện job nền trước khi làm đợt 1.
 
 Module mẫu để bám theo: chưa có trong repo này. Bám `../booking/src/modules/customer/` (repository,
 service thuần, route có guard) và `../booking/src/modules/admin-shop/` (transaction nhiều bước +
@@ -182,6 +206,36 @@ Mỗi luật dưới đây là một cam kết ở TK phần 27; số trong ngo�
     khai", "sàn chung") là luật của `listing` và `group`, đi qua **một** hàm quyết ai xem được tin
     (TK 19, cuối phần).
 
+## Quy trình OpenSpec (BẮT BUỘC)
+
+Bốn nơi, mỗi nơi trả lời một câu hỏi:
+
+| Nơi                 | Trả lời                                                           |
+| ------------------- | ----------------------------------------------------------------- |
+| TK                  | Vì sao, ví dụ, từ điển — bản đọc cho người không làm kỹ thuật     |
+| `openspec/changes/` | Hệ thống SẼ làm gì: luật của TK viết thành requirement + scenario |
+| `openspec/specs/`   | Hệ thống ĐANG làm gì: chỉ hành vi đã có code và test              |
+| `CLAUDE.md`         | Viết code thế nào: tầng, lỗi, response, migration, test           |
+
+- **Làm một phần của TK**: change đã có sẵn proposal + specs (xem **Thứ tự change** ở mục Module).
+  Trả lời các **Câu hỏi mở** trong proposal trước, rồi `/opsx:apply <tên>` → agent viết nốt design,
+  tasks → **người dùng duyệt** → code → kiểm tra xanh → `/opsx:archive`. Không code khi chưa duyệt.
+- **Đổi một luật**: sửa TK và delta spec của change tương ứng trong cùng một lượt. Luật đã archive thì
+  sửa bằng một change mới (`/opsx:propose`). Chưa rõ nên làm gì thì `/opsx:explore`.
+- **Không đổi hành vi** (refactor, công cụ, tài liệu, nâng phiên bản) → không cần change.
+- Capability đặt theo module: `<module>/<capability>` (vd `identity/registration`). Hạ tầng dùng chung:
+  `http/`, `runtime/`, `health/`. Đang có: `http/api-contract`, `health/health-check`,
+  `runtime/environment-guard`.
+- Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
+- Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
+  cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.
+- `pnpm run spec:validate` (`--strict`) nằm trong `pnpm run check` và CI.
+- `.claude/skills/openspec-*` và `.claude/commands/opsx/` do `openspec update` sinh — không sửa tay.
+  Skill gọi lệnh `openspec` trần nên CLI phải có trên PATH: nâng phiên bản thì đổi cả
+  `package.json` lẫn bản global (`npm i -g @fission-ai/openspec@<bản>`), rồi `openspec update`.
+- Lệnh mở rộng (`/opsx:new`, `/opsx:ff`, `/opsx:verify`…): `openspec config profile` rồi
+  `openspec update`.
+
 ## Migration (Prisma)
 
 - Đổi `schema.prisma` → `pnpm exec prisma format` → `pnpm exec prisma validate` →
@@ -222,12 +276,14 @@ Mỗi luật dưới đây là một cam kết ở TK phần 27; số trong ngo�
   (`prismaErrorCode` / `sqlStateOf` trong `tests/db-helpers.ts`).
 - Mỗi cam kết ở TK phần 27 thuộc đợt đang làm phải có test — kể cả các ca **thiếu, sai, hết chỗ,
   quá hạn** (TK 29).
-- `pnpm run check` (typecheck + lint + test), `pnpm test:db` và `pnpm run build` phải pass trước khi
-  coi task hoàn thành.
+- `pnpm run check` (typecheck + lint + test + spec:validate), `pnpm test:db` và `pnpm run build` phải
+  pass trước khi coi task hoàn thành.
 
 ## Quy trình khi generate code
 
-1. Đọc phần TK tương ứng, rồi module mẫu của booking, để bám convention.
+1. Đổi hành vi thì phải có change OpenSpec đã được duyệt. Đọc proposal, specs, design, tasks của
+   change, rồi module mẫu của booking, để bám convention. Cần hiểu vì sao một luật như vậy thì đọc
+   phần TK mà proposal trích.
 2. Nếu đổi `schema.prisma`: làm theo mục **Migration**.
 3. `pnpm run lint:fix`, rồi `pnpm exec prettier --write <file đã sửa>`.
 4. `pnpm run check` và `pnpm test:db`, có lỗi thì fix.

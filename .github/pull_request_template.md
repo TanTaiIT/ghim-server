@@ -1,6 +1,9 @@
 ## Thay đổi
 
-<!-- Làm gì, vì sao. Ghi phần TK (THIET-KE-HE-THONG.md) và cam kết ở phần 27 mà thay đổi này đáp ứng. -->
+<!-- Làm gì, vì sao. Ghi change OpenSpec (openspec/changes/<tên>) mà PR này làm, hoặc "không đổi hành vi". -->
+
+- Change OpenSpec:
+- [ ] Mọi scenario của change đã có test tương ứng; đổi luật thì đã sửa cả `docs/THIET-KE-HE-THONG.md`
 
 ## Kiểm tra
 

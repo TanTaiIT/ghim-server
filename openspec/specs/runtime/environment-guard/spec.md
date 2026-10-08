@@ -1,0 +1,53 @@
+# runtime/environment-guard Specification
+
+## Purpose
+
+Chặn từ lúc khởi động mọi cấu hình có thể làm mất dữ liệu thật: thiếu biến môi trường, trỏ nhầm DB của
+môi trường khác, hoặc chạy lệnh xoá dữ liệu trên production.
+
+## Requirements
+
+### Requirement: Thiếu hoặc sai cấu hình thì không khởi động
+
+App SHALL từ chối khởi động khi thiếu chuỗi kết nối DB hoặc một biến môi trường có giá trị không hợp lệ,
+và báo đúng tên biến sai — không khởi động rồi hỏng ở request đầu tiên.
+
+#### Scenario: Thiếu chuỗi kết nối DB
+
+- **WHEN** app khởi động mà không có `DATABASE_URL`
+- **THEN** app dừng ngay với lỗi nêu `DATABASE_URL`
+
+#### Scenario: Môi trường không hợp lệ
+
+- **WHEN** app khởi động với `NODE_ENV=staging`
+- **THEN** app dừng ngay với lỗi "Biến môi trường không hợp lệ"
+
+### Requirement: Mỗi môi trường một DB
+
+Tên DB SHALL khớp môi trường: development dùng DB tên kết thúc bằng `_dev`, test dùng `_test`, production
+dùng DB không mang hai hậu tố đó. App và công cụ migration SHALL từ chối chạy khi lệch.
+
+#### Scenario: Development trỏ vào DB production
+
+- **WHEN** app chạy với `NODE_ENV=development` và DB tên `ghim`
+- **THEN** app từ chối khởi động với lỗi đòi DB kết thúc bằng `_dev`
+
+#### Scenario: Production trỏ vào DB test
+
+- **WHEN** app chạy với `NODE_ENV=production` và DB tên `ghim_test`
+- **THEN** app từ chối khởi động
+
+#### Scenario: Bỏ trống môi trường
+
+- **WHEN** app chạy không khai `NODE_ENV` và DB tên `ghim_prod`
+- **THEN** app coi là development và từ chối khởi động vì DB không kết thúc bằng `_dev`
+
+### Requirement: Production không chạy lệnh xoá dữ liệu
+
+Trên production, công cụ migration SHALL chỉ cho áp migration đã có; các lệnh reset DB, sinh migration từ
+độ lệch, đẩy schema trực tiếp và ghi dữ liệu mồi SHALL bị từ chối trước khi chạm DB.
+
+#### Scenario: Reset DB trên production
+
+- **WHEN** người vận hành chạy lệnh reset DB với `NODE_ENV=production`
+- **THEN** lệnh bị từ chối và DB không bị chạm tới

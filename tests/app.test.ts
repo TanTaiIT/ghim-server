@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { buildApp } from '../src/app.js';
 
@@ -56,5 +56,36 @@ describe('Hạ tầng HTTP', () => {
     const res = await app.inject({ method: 'GET', url: '/health' });
 
     expect(res.headers['x-content-type-options']).toBe('nosniff');
+  });
+});
+
+describe('Tài liệu API', () => {
+  it('ngoài production: /docs mở được', async () => {
+    const res = await app.inject({ method: 'GET', url: '/docs' });
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  /*
+   * `isProduction` chốt lúc nạp `env.ts`, nên phải nạp lại cả cây module với env production —
+   * không có cách nào bật nó cho riêng một app đã dựng.
+   */
+  it('production: /docs không tồn tại', async () => {
+    vi.resetModules();
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('DATABASE_URL', 'postgresql://ghim:ghim@localhost:5432/ghim');
+    vi.stubEnv('LOG_LEVEL', 'error');
+    try {
+      const { buildApp: buildProductionApp } = await import('../src/app.js');
+      const production = await buildProductionApp();
+      const res = await production.inject({ method: 'GET', url: '/docs' });
+      await production.close();
+
+      expect(res.statusCode).toBe(404);
+      expect(res.json().error.code).toBe('NOT_FOUND');
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
   });
 });

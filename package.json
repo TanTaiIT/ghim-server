@@ -32,7 +32,9 @@
     "db:reset": "prisma migrate reset",
     "db:up": "docker compose up -d --wait postgres",
     "db:test:up": "docker compose up -d --wait postgres-test",
-    "check": "pnpm run typecheck && pnpm run lint && pnpm run test"
+    "spec:validate": "openspec validate --all --strict --no-interactive",
+    "spec:list": "openspec list && openspec list --specs",
+    "check": "pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run spec:validate"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",
@@ -51,6 +53,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@fission-ai/openspec": "1.14.1",
     "@types/node": "^24.13.6",
     "@vitest/coverage-v8": "^5.0.1",
     "dotenv": "^18.0.3",

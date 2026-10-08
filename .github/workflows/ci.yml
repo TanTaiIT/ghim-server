@@ -31,6 +31,9 @@ jobs:
       - run: pnpm exec prisma generate
 
       - run: pnpm run format:check
+      # Spec và change phải đúng định dạng OpenSpec: một requirement thiếu scenario hay một delta
+      # trỏ vào capability không tồn tại sẽ lặng lẽ biến mất lúc archive.
+      - run: pnpm run spec:validate
       - run: pnpm run lint
       - run: pnpm run typecheck
       - run: pnpm run test

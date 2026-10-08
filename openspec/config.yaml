@@ -1,0 +1,65 @@
+schema: spec-driven
+
+context: |
+  Language: vi
+  All artifacts must be written in vi.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+
+  Dự án: backend của Ghim — sàn rao vặt, bản làm lại. Fastify 5 + TypeScript strict + Zod 4 +
+  Prisma 7 + PostgreSQL 18, Vitest, oxlint, pnpm. Một tiến trình, nhiều module có ranh giới cứng.
+
+  Bốn nơi, mỗi nơi trả lời một câu hỏi:
+  - TK = docs/THIET-KE-HE-THONG.md (+ .pdf): bản đọc cho người không làm kỹ thuật — vì sao, ví dụ, từ
+    điển. Trích theo số phần (vd "TK 20", "TK 27 cam kết 14").
+  - openspec/changes/: phần TK CHƯA làm, đã viết thành requirement + scenario — mỗi change một phần,
+    xếp theo đợt TK 29 (`goal` trong `.openspec.yaml`). Đây là hợp đồng cho người code.
+  - openspec/specs/: phần ĐÃ làm — chỉ hành vi đã có code và test; chỉ đổi qua archive một change.
+  - CLAUDE.md: viết code thế nào (tầng, lỗi, response, migration, test).
+  Đổi một luật: sửa TK và delta spec của change tương ứng trong cùng một lượt. Luật đã archive thì sửa
+  bằng một change mới. Archive theo thứ tự đợt: change sau thêm requirement vào capability do change
+  trước tạo.
+
+  Khi hai luật đụng nhau, luật đứng trước thắng (TK phần 4):
+  1. An toàn pháp lý.
+  2. Không ai tự xử việc của mình — chỉ master được.
+  3. Máy không phạt.
+  4. Người dùng biết vì sao.
+  5. Sự tiện lợi.
+  Đụng nhau mà thứ tự này không phân xử được thì hỏi người dùng, rồi ghi quyết định vào TK.
+
+  Capability đặt theo module trong src/modules: `<module>/<capability>` (vd `identity/registration`,
+  `listing/lifecycle`). Hạ tầng dùng chung: `http/...`, `runtime/...`, `health/...`.
+  Module dự kiến (CLAUDE.md mục Module): identity, platform, group, category, media, listing, trust,
+  screening, review, messaging, notification, ops.
+
+rules:
+  proposal:
+    - Mục Why trích phần TK và các cam kết ở TK phần 27 mà change đáp ứng; ghi đợt theo TK phần 29.
+    - Ghi rõ phần nào của TK cố ý CHƯA làm trong change này.
+    - Cần thư viện hay dịch vụ ngoài chưa có trong package.json (email, job nền, kho ảnh, realtime, push) thì dừng và hỏi người dùng, không tự chọn.
+    - TK không nói rõ hoặc tự mâu thuẫn thì hỏi người dùng; không tự sửa luật hay con số của TK.
+    - Change không đổi hành vi (refactor, công cụ, tài liệu) đặt skip_specs true thay vì bịa requirement.
+  specs:
+    - Mỗi scenario lỗi ghi HTTP status và error.code (vd 409 CONFLICT, 403 ACCOUNT_LOCKED).
+    - Có scenario cho các ca thiếu, sai, hết chỗ, quá hạn — không chỉ đường suôn sẻ (TK 29).
+    - Con số lấy từ TK phần 28 và ghi là giá trị khởi đầu của bảng con số, vd "tối đa 10 tin sống (giá trị khởi đầu)".
+    - Với dấu hiệu gian lận, spec hứa câu chung ba phần — lý do ở mức nhóm ("tin cần kiểm tra an toàn thêm"), thời gian chờ ước tính, nút liên hệ hỗ trợ kèm mã tra cứu — và không bao giờ nêu tín hiệu cụ thể (TK nguyên tắc 8, TK 13).
+    - Không ghi tên bảng, tên hàm, tên thư viện — spec là hợp đồng hành vi.
+  design:
+    - Ghi module sở hữu từng bảng và từng loại quyết định; tác động chéo đi qua outbox (CLAUDE.md luật 11, 12).
+    - Liệt kê bảng, cột, enum, index, partial unique, CHECK; mỗi ràng buộc chỉ DB trả lời được phải có test DB.
+    - Nói rõ migration có mất dữ liệu không, có SQL viết tay không.
+  tasks:
+    - Mỗi nhóm task mang test của chính nó — unit test cho calc và service, test DB cho ràng buộc DB, test HTTP qua app.inject — không dồn test về nhóm cuối.
+    - Nhóm cuối chỉ là kiểm tra tích hợp — pnpm run check, pnpm test:db, pnpm run build, pnpm db:drift.
+    - Cập nhật CLAUDE.md (trạng thái module, các mục "(chưa có)") trong cùng nhóm làm ra thay đổi đó.
+
+operations:
+  apply:
+    guidance:
+      - Làm theo CLAUDE.md mục "Quy trình khi generate code"; không cài package mới khi chưa hỏi.
+      - Đổi schema.prisma thì theo mục Migration của CLAUDE.md — đọc SQL sinh ra trước khi áp.
+  archive:
+    guidance:
+      - Chỉ archive khi pnpm run check, pnpm test:db và pnpm run build đều qua.
+      - Sau archive chạy pnpm exec prettier --write openspec rồi pnpm run spec:validate.
