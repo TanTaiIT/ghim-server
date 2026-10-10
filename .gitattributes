@@ -1,0 +1,7 @@
+# Working copy luôn LF: prettier bắt endOfLine=lf, còn core.autocrlf=true trên Windows checkout ra
+# CRLF nên format:check đỏ trên mọi file chưa ai đụng. Index vốn đã toàn LF; dòng này chỉ chốt phía checkout.
+* text=auto eol=lf
+*.pdf binary
+*.png binary
+*.jpg binary
+*.ico binary
