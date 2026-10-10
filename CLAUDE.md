@@ -34,7 +34,9 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
   KHÔNG dùng `any`. Không có file `.js` trong `src/`.
   - Đang bật: `@fastify/helmet`, `@fastify/cors`, `@fastify/rate-limit` (tắt khi `NODE_ENV=test`),
     `@fastify/swagger` + `@fastify/swagger-ui` (`/docs`, tắt ở production).
-  - Đã cài, **chưa nối** (chờ module `identity`): `@fastify/jwt`, `@fastify/cookie`, `argon2`.
+  - Đã cài, **chưa nối** (chờ module `identity`): `@fastify/jwt`, `@fastify/cookie`, `argon2`,
+    `google-auth-library`, `otplib`, `nodemailer` (+ `@types/nodemailer`), `pg-boss` — vai trò từng gói ở
+    mục **Hạ tầng đã chốt** bên dưới.
 - DB: **PostgreSQL 18 + Prisma 7**, driver adapter `@prisma/adapter-pg`, preview `partialIndexes`.
   - `prisma/schema.prisma` là nguồn sự thật của schema đang chạy. **Chưa có model nào.**
   - Chuỗi kết nối nằm ở `prisma.config.ts`, KHÔNG nằm trong `datasource` của schema.
@@ -50,12 +52,28 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
   xem mục **Quy trình OpenSpec**.
 - Skill cho agent: `.claude/skills/openspec-*` và `.claude/commands/opsx/` (sinh bởi
   `openspec update`), `.claude/skills/prisma-*` (nguồn `skills-lock.json`, chép từ booking).
-- **(chưa có)** — phải hỏi trước vì cần chọn thư viện / dịch vụ:
-  - Job nền thay agenda (TK 26). Chạy trên Postgres, idempotent, khoá trùm cả lượt chạy.
-  - Realtime cho nhắn tin (hệ thống cũ dùng socket.io).
-  - Gửi email (mã xác nhận), đăng nhập Google, kho ảnh + chữ ký tải thẳng, push (FCM), DeviceCheck
-    của Apple, kiểm ảnh nhạy cảm, theo dõi lỗi (hệ thống cũ dùng Sentry).
+- **Hạ tầng đã chốt** (08/10/2026) — gói đã cài, nối khi module đầu tiên cần tới:
+  - Job nền thay agenda (TK 26): **pg-boss** trên chính Postgres, schema `pgboss` riêng — không nằm
+    trong `public` nên `prisma migrate` và `db:drift` không thấy; pg-boss tự tạo bảng khi `start()`.
+    Không thêm Redis. Bản đầu một tiến trình; pg-boss khoá theo job nên ngày chạy nhiều tiến trình
+    không phải đổi gì.
+  - Gửi email (mã xác nhận, đổi email): **nodemailer** qua SMTP, đứng sau một interface `Mailer` ở
+    `src/lib/mailer.ts` **(chưa có)** để test thay bằng mailer giả. Dev: **Mailpit** trong
+    docker-compose (`pnpm mail:up`; SMTP `localhost:1025`, hộp thư `http://localhost:8025`).
+    Production: SMTP của nhà cung cấp (Resend / Postmark / SES) — chọn khi deploy, code không đổi.
+  - Đăng nhập Google: **google-auth-library** verify ID token do app gửi lên; không có OAuth redirect
+    phía server.
+  - Hai lớp cho master, staff: **otplib** (TOTP, ứng dụng tạo mã bất kỳ).
+  - Danh sách email dùng một lần (TK 7): hạt giống từ dự án mã nguồn mở `disposable-email-domains`
+    (file `domains.txt` công khai trên GitHub), nạp vào bảng của `identity`; job pg-boss hằng tuần tải bản
+    mới và chỉ thêm — không đụng miền master đã thêm hay đã bỏ, tải lỗi thì giữ danh sách cũ. Danh sách
+    mật khẩu hay gặp: file tĩnh trong repo (10.000 mật khẩu phổ biến nhất của SecLists), không cập nhật
+    lúc chạy. Cả hai nằm ở `src/modules/identity/data/` **(chưa có)**.
+  - **DeviceCheck của Apple: HOÃN.** Bản đầu iOS chỉ dùng mã theo nhà phát triển cộng tín hiệu phụ
+    (TK 8); thêm DeviceCheck bằng một change riêng khi có tài khoản Apple Developer. Ghi ở TK 29 mục hoãn.
   - **Không có SMS** — TK quyết định số 7.
+- **(chưa có)** — vẫn phải hỏi trước vì chưa chọn: realtime cho nhắn tin (hệ thống cũ dùng socket.io),
+  kho ảnh + chữ ký tải thẳng, push (FCM), kiểm ảnh nhạy cảm, theo dõi lỗi (hệ thống cũ dùng Sentry).
 
 ## Cấu trúc thư mục (BẮT BUỘC tuân theo)
 
@@ -124,7 +142,7 @@ change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-grou
 - `add-platform-roles` và `add-categories` cần nhau (quyền staff gắn theo danh mục; danh mục cần staff soạn
   mẫu): làm chung một lượt, archive theo thứ tự trên.
 - Việc chạy theo lịch đã cần từ đợt 1 (dọn đăng ký dở dang, nhóm thiếu chủ quá 30 ngày) dù `ops` ở đợt 7:
-  chọn thư viện job nền trước khi làm đợt 1.
+  dùng pg-boss ngay từ `add-identity`; `ops` sau này chỉ gom dispatcher outbox và lịch dọn dữ liệu.
 
 Module mẫu để bám theo: chưa có trong repo này. Bám `../booking/src/modules/customer/` (repository,
 service thuần, route có guard) và `../booking/src/modules/admin-shop/` (transaction nhiều bước +

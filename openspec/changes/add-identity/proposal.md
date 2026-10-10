@@ -35,6 +35,9 @@ khoản master và staff luôn đăng nhập hai lớp), **32** (xác minh giấ
 - Chủ nhóm phải chuyển chủ trước khi xoá tài khoản → `add-groups`.
 - Mọi hạn lưu dữ liệu (tài khoản đã xoá 90 ngày, dấu thiết bị 180 ngày, dấu băm email 2 năm) →
   `add-data-retention`.
+- Nhận ra iPhone đã bị xác nhận lạm dụng sau khi gỡ và cài lại app (cần DeviceCheck của Apple) → một change
+  riêng khi có tài khoản Apple Developer (TK 29, mục hoãn). Change này trên iOS chỉ có mã theo nhà phát triển
+  và tín hiệu phụ.
 
 ## Capabilities
 
@@ -59,16 +62,24 @@ Không có.
 - Module `identity` (mới). Bàn vận hành dùng thêm `account-lock`, `device-registry`, `id-verification`.
 - Nối các package đã cài sẵn: `@fastify/jwt`, `@fastify/cookie`, `argon2`. Thêm biến môi trường cho khoá
   JWT và khoá HMAC băm email (khoá này nằm ngoài DB — CLAUDE.md luật 20).
-- **Phải chọn trước khi làm** (CLAUDE.md: hỏi trước khi thêm package / dịch vụ): dịch vụ gửi email, cách
-  xác minh token Google, ứng dụng tạo mã cho đăng nhập hai lớp, DeviceCheck của Apple.
-- **Câu hỏi mở** — TK không nói, cần người dùng chốt trước khi viết design:
-  - Luật mật khẩu (độ dài, chặn mật khẩu phổ biến), quên mật khẩu, đăng xuất, xem và thu hồi thiết bị.
-    Gợi ý: làm như booking.
-  - Đăng nhập trên thiết bị thứ 21 thì từ chối hay đẩy phiên cũ nhất ra.
-  - "Tài khoản thứ 4 trên một máy" xếp theo gì khi một tài khoản cũ quay lại đăng tin. Gợi ý: theo thời
-    điểm tài khoản đăng tin lần đầu trên máy đó.
-  - Nguồn danh sách miền email dùng một lần (TK 29, câu hỏi mở 2).
-  - Trong 90 ngày chờ xoá hẳn, email của tài khoản đã xoá có đăng ký lại được ngay không.
-  - Mã tra cứu (TK 8, TK 13, chốt 08/10) sinh theo gì — mỗi tin bị giữ, hay mỗi đánh dấu của tài khoản — và
-    module nào cấp. Câu báo chung có từ `add-screening` (đợt 3), nên trước đó người bị đánh dấu chưa có mã để
-    gửi hỗ trợ.
+- **Đã chọn** (08/10/2026, chi tiết ở CLAUDE.md mục Stack › Hạ tầng đã chốt): gửi email qua SMTP bằng
+  `nodemailer` (dev dùng Mailpit); verify ID token Google bằng `google-auth-library`; hai lớp TOTP bằng
+  `otplib`; job nền `pg-boss` cho việc dọn đăng ký dở dang. DeviceCheck của Apple hoãn — change này chỉ
+  dùng mã theo nhà phát triển trên iOS, cộng tín hiệu phụ theo TK 8.
+- **Câu hỏi mở đã chốt** (08/10/2026) — mỗi câu đã thành requirement trong delta spec và ghi vào TK 7, TK 8:
+  - Mật khẩu 8–128 ký tự, chặn danh sách mật khẩu hay gặp đi kèm phần mềm (không cần master cập nhật). Quên
+    mật khẩu bằng mã gửi email theo cùng luật mã xác nhận, trả lời giống nhau dù email có tài khoản hay
+    không, đặt lại xong thu hồi mọi phiên. Đổi mật khẩu cần mật khẩu cũ, thu hồi mọi phiên khác. Đăng xuất
+    thu hồi phiên hiện tại. Xem danh sách thiết bị, thu hồi từng cái hoặc tất cả trừ cái đang dùng. Phiên
+    không hoạt động 30 ngày thì hết hạn. (Không còn mẫu `booking` để chép; luật ghi thẳng ở `sessions`.)
+  - Thiết bị thứ 21 (staff, master: thứ 4): đăng nhập vẫn thành công, phiên ít hoạt động nhất bị thu hồi.
+  - "Tài khoản thứ 4 trên một máy" xếp theo lần đăng tin đầu tiên trên máy; đánh dấu tính lại mỗi lượt gửi
+    tin, nên tài khoản cũ quay lại giữ chỗ và chỗ trống ra thì tài khoản thứ 4 tự hết bị đánh dấu.
+  - Danh sách email dùng một lần: hạt giống từ danh sách công khai do cộng đồng duy trì (nguồn cụ thể ở
+    CLAUDE.md), tự cập nhật hằng tuần, master thêm hoặc bỏ; cập nhật tự động không đụng phần master đã sửa;
+    so theo đuôi miền; báo rõ lý do vì là lỗi tự sửa được.
+  - Email của tài khoản đã xoá chưa đăng ký lại được trong 90 ngày chờ xoá hẳn (`EMAIL_PENDING_DELETION` kèm
+    ngày); hết hạn thì như email mới.
+  - Mã tra cứu: mỗi đánh dấu một mã, do `identity` cấp ngay lúc đánh dấu, không mang thông tin gì; `screening`
+    (đợt 3) chỉ nhúng mã vào câu báo chung khi giữ tin. Trước đợt 3 đánh dấu chưa gây hệ quả nào nên chưa cần
+    đưa mã ra cho người dùng.

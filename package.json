@@ -32,6 +32,7 @@
     "db:reset": "prisma migrate reset",
     "db:up": "docker compose up -d --wait postgres",
     "db:test:up": "docker compose up -d --wait postgres-test",
+    "mail:up": "docker compose up -d --wait mailpit",
     "spec:validate": "openspec validate --all --strict --no-interactive",
     "spec:list": "openspec list && openspec list --specs",
     "check": "pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run spec:validate"
@@ -49,12 +50,17 @@
     "argon2": "^0.45.1",
     "fastify": "^5.12.5",
     "fastify-type-provider-zod": "^7.0.0",
+    "google-auth-library": "^11.1.0",
+    "nodemailer": "^10.0.16",
+    "otplib": "^13.5.0",
+    "pg-boss": "^12.37.0",
     "pino": "^10.3.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@fission-ai/openspec": "1.14.1",
     "@types/node": "^24.13.6",
+    "@types/nodemailer": "^8.0.2",
     "@vitest/coverage-v8": "^5.0.1",
     "dotenv": "^18.0.3",
     "oxlint": "1.84.0",

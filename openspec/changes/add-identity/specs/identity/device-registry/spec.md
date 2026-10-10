@@ -42,6 +42,24 @@ máy". Việc đánh dấu MUST NOT chặn đăng nhập hay chặn cả máy.
   một tài khoản mới gửi tin từ máy đó
 - **THEN** tài khoản mới không bị đánh dấu
 
+### Requirement: Chỗ trên một máy xếp theo lần đăng tin đầu tiên
+
+Thứ tự ba chỗ trên một máy SHALL tính theo lần đăng tin đầu tiên của mỗi tài khoản trên máy đó: tài khoản
+cũ quay lại đăng tin vẫn giữ chỗ của mình, tài khoản đến sau mới là bên nằm ngoài ba chỗ. Đánh dấu SHALL
+được tính lại ở mỗi lượt gửi tin.
+
+#### Scenario: Tài khoản cũ quay lại đăng tin
+
+- **WHEN** A, B, C rồi D lần lượt đăng tin lần đầu từ một máy trong 90 ngày, D đang bị đánh dấu, và A gửi
+  tin tiếp từ máy đó
+- **THEN** A không bị đánh dấu và D vẫn bị đánh dấu
+
+#### Scenario: Tài khoản thứ tư hết bị đánh dấu khi một chỗ trống ra
+
+- **WHEN** D đang bị đánh dấu vì A, B, C đứng trước, lượt đăng tin gần nhất của A đã quá 90 ngày, và D gửi
+  tin tiếp từ máy đó
+- **THEN** D hết bị đánh dấu "nhiều tài khoản trên một máy"
+
 ### Requirement: Đánh dấu tài khoản bắt đầu đăng tin sau khi máy có tài khoản bị khoá
 
 Tài khoản đăng tin lần đầu trên một máy SAU KHI một tài khoản khác trên máy đó bị khoá SHALL bị đánh dấu
@@ -65,10 +83,18 @@ trước lúc khoá MUST NOT bị đánh dấu.
 
 ### Requirement: Gỡ đánh dấu qua hỗ trợ
 
-Người bị đánh dấu SHALL liên hệ được hỗ trợ bằng mã tra cứu đi kèm câu báo chung của dấu hiệu gian lận (vd vừa
-mua lại máy cũ); response cho chính người đó MUST NOT nhắc tới thiết bị (TK 8, TK 13). Master hoặc staff có việc
-hỗ trợ nhập mã tra cứu SHALL thấy lý do cụ thể — loại đánh dấu, không có mã thiết bị — và gỡ được đánh dấu cho
-tài khoản đó, kèm lý do.
+Mỗi đánh dấu SHALL có một mã tra cứu riêng, cấp ngay lúc đánh dấu; mã MUST NOT mang thông tin về loại đánh
+dấu, tài khoản hay thiết bị. Người bị đánh dấu SHALL liên hệ được hỗ trợ bằng mã tra cứu đi kèm câu báo chung
+của dấu hiệu gian lận (vd vừa mua lại máy cũ); response cho chính người đó MUST NOT nhắc tới thiết bị (TK 8,
+TK 13). Master hoặc staff có việc hỗ trợ nhập mã tra cứu SHALL thấy lý do cụ thể — loại đánh dấu, không có mã
+thiết bị — và gỡ được đánh dấu cho tài khoản đó, kèm lý do.
+
+#### Scenario: Mỗi đánh dấu một mã
+
+- **WHEN** một tài khoản bị đánh dấu "nhiều tài khoản trên một máy" rồi bị đánh dấu thêm "dùng máy của tài
+  khoản bị khoá"
+- **THEN** hai đánh dấu có hai mã tra cứu khác nhau, và nhập mã nào thì staff có việc hỗ trợ chỉ thấy đánh
+  dấu đó
 
 #### Scenario: Hỗ trợ tra mã tra cứu
 
@@ -112,13 +138,3 @@ X"; mã thiết bị MUST NOT xuất hiện trong bất kỳ response nào.
 
 - **WHEN** staff xem thông tin một tài khoản dùng chung máy với tài khoản khác
 - **THEN** response nêu tài khoản dùng chung máy và không chứa mã thiết bị
-
-### Requirement: Máy đã bị xác nhận lạm dụng vẫn bị nhận ra sau khi cài lại app
-
-Trên iPhone, nơi mã máy đổi khi gỡ và cài lại app, máy đã bị xác nhận lạm dụng SHALL vẫn bị nhận ra sau khi
-cài lại app.
-
-#### Scenario: Gỡ và cài lại app
-
-- **WHEN** một iPhone đã bị đánh dấu lạm dụng gỡ app, cài lại và một tài khoản mới gửi tin từ máy đó
-- **THEN** tài khoản mới bị đánh dấu như các tài khoản trước trên máy

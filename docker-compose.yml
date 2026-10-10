@@ -40,5 +40,23 @@ services:
       timeout: 5s
       retries: 15
 
+  # Hộp thư DEV cho mã xác nhận email (`pnpm mail:up`): nhận mọi thư gửi tới SMTP 1025 và hiện ở
+  # http://localhost:8025, không thư nào ra ngoài — gõ email thật khi thử cũng không ai nhận được.
+  # Production dùng SMTP của nhà cung cấp thật; code chỉ thấy một chuỗi kết nối SMTP nên không đổi.
+  mailpit:
+    image: axllent/mailpit:v1.31.4
+    ports:
+      - '1025:1025'
+      - '8025:8025'
+    environment:
+      # Nhận mọi user/pass để chuỗi kết nối dev có cùng hình dạng (có xác thực) với production.
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    healthcheck:
+      test: ['CMD', '/mailpit', 'readyz']
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
 volumes:
   pgdata:

@@ -8,7 +8,9 @@ email và không dùng SMS ở bất kỳ bước nào (TK 7).
 ### Requirement: Đăng ký bằng email và mật khẩu
 
 Người dùng SHALL tạo được tài khoản bằng email và mật khẩu. Tài khoản mới ở trạng thái "chưa xác nhận",
-và hệ thống gửi một mã xác nhận tới email đó.
+và hệ thống gửi một mã xác nhận tới email đó. Mật khẩu hợp lệ SHALL dài từ 8 tới 128 ký tự (giá trị khởi
+đầu) và MUST NOT nằm trong danh sách mật khẩu hay gặp đi kèm phần mềm; lỗi mật khẩu nói rõ cách sửa vì đây
+không phải dấu hiệu gian lận.
 
 #### Scenario: Đăng ký thành công
 
@@ -19,6 +21,16 @@ và hệ thống gửi một mã xác nhận tới email đó.
 
 - **WHEN** khách gửi yêu cầu đăng ký không có email
 - **THEN** response có HTTP 400 `VALIDATION_ERROR`
+
+#### Scenario: Mật khẩu quá ngắn
+
+- **WHEN** khách đăng ký với mật khẩu 7 ký tự
+- **THEN** response có HTTP 400 `PASSWORD_WEAK` kèm câu nêu độ dài tối thiểu
+
+#### Scenario: Mật khẩu hay gặp
+
+- **WHEN** khách đăng ký với mật khẩu `12345678`
+- **THEN** response có HTTP 400 `PASSWORD_WEAK` kèm câu nói mật khẩu này quá phổ biến
 
 ### Requirement: Không dùng SMS, số điện thoại không bắt buộc
 
@@ -114,18 +126,40 @@ có sau chuẩn hoá MUST bị từ chối.
 
 ### Requirement: Chặn email dùng một lần
 
-Email thuộc danh sách miền email dùng một lần SHALL bị từ chối khi đăng ký. Master SHALL cập nhật được danh
-sách này mà không cần phát hành lại phần mềm.
+Email thuộc danh sách miền email dùng một lần SHALL bị từ chối khi đăng ký, so theo đuôi miền nên miền con
+của một miền bị chặn cũng bị chặn. Lý do từ chối SHALL được nói rõ, vì đây là lỗi người dùng tự sửa được.
 
 #### Scenario: Đăng ký bằng email tạm
 
 - **WHEN** khách đăng ký bằng một email thuộc miền trong danh sách dùng một lần
+- **THEN** response có HTTP 400 `EMAIL_DISPOSABLE` kèm câu bảo dùng email thường
+
+#### Scenario: Miền con của miền bị chặn
+
+- **WHEN** `tempmail.example` nằm trong danh sách và khách đăng ký bằng `a@mx.tempmail.example`
 - **THEN** response có HTTP 400 `EMAIL_DISPOSABLE`
+
+### Requirement: Danh sách miền dùng một lần gồm hạt giống công khai và phần master sửa tay
+
+Danh sách SHALL gồm hạt giống lấy từ một danh sách công khai do cộng đồng duy trì, cập nhật tự động hằng
+tuần (giá trị khởi đầu), cộng với các miền master thêm tay. Master SHALL thêm hoặc bỏ được một miền mà
+không cần phát hành lại phần mềm. Lượt cập nhật tự động MUST NOT xoá miền master đã thêm, MUST NOT thêm lại
+miền master đã bỏ, và thất bại thì giữ nguyên danh sách đang có.
 
 #### Scenario: Master thêm một miền mới
 
 - **WHEN** master thêm một miền vào danh sách
 - **THEN** lượt đăng ký kế tiếp bằng email thuộc miền đó bị từ chối với HTTP 400 `EMAIL_DISPOSABLE`
+
+#### Scenario: Master bỏ một miền bị liệt kê oan
+
+- **WHEN** master bỏ một miền có trong hạt giống rồi lượt cập nhật tự động kế tiếp chạy
+- **THEN** email thuộc miền đó đăng ký được, và sau lượt cập nhật miền đó vẫn không bị chặn
+
+#### Scenario: Cập nhật tự động giữ phần master đã thêm
+
+- **WHEN** master đã thêm một miền không có trong hạt giống và lượt cập nhật tự động chạy
+- **THEN** miền đó vẫn bị chặn sau khi cập nhật
 
 ### Requirement: Dọn đăng ký dở dang
 

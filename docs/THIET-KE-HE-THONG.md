@@ -84,7 +84,7 @@
 - **App Ghim** trên điện thoại: người dùng mua bán, nhắn tin; chủ nhóm và điều hành viên quản lý nhóm ngay trong app.
 - **Bàn vận hành** là trang web nội bộ: master và staff xử tin bị giữ, hậu kiểm, xử báo cáo, quản lý danh mục. Tách khỏi app để sửa công cụ quản lý không phải chờ phát hành lại app.
 
-**Dịch vụ bên ngoài:** kho lưu ảnh, gửi thông báo lên điện thoại, gửi email, đăng nhập bằng Google, DeviceCheck của Apple. **Không dùng SMS.**
+**Dịch vụ bên ngoài:** kho lưu ảnh, gửi thông báo lên điện thoại, gửi email, đăng nhập bằng Google; DeviceCheck của Apple thêm ở bản sau (phần 29). **Không dùng SMS.**
 
 ---
 
@@ -216,10 +216,18 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 2. Xong là tài khoản ở **mức T0** và đăng tin được ngay (phần 20).
 
 - **Chỉ xác thực bằng email.** Hệ thống không gửi SMS.
-- **Email dùng một lần bị chặn** (danh sách các miền email tạm do master cập nhật).
+- **Email dùng một lần bị chặn.** Danh sách miền lấy hạt giống từ một danh sách công khai do cộng đồng duy trì và tự cập nhật hằng tuần; master thêm miền mới hoặc bỏ miền bị liệt kê oan, và lượt cập nhật tự động không đụng tới phần master đã sửa. Chặn theo đuôi miền nên miền con cũng bị chặn. Bị chặn thì app nói thẳng lý do: đây là lỗi tự sửa được, không phải dấu hiệu gian lận.
 - **Mỗi email chỉ một tài khoản.** Email được **chuẩn hoá** trước khi so và trước khi băm: chữ thường; bỏ phần sau dấu "+"; với Gmail bỏ dấu chấm và coi googlemail.com là gmail.com. Không chuẩn hoá thì thêm "+1" vào email là có ngay tài khoản mới.
 - **Số điện thoại không bắt buộc.** Ai muốn người mua gọi được thì thêm vào hồ sơ; số không được xác thực và hiện kèm nhãn **"chưa xác minh"**.
 - Chưa xác nhận email thì chưa đăng tin, chưa nhắn tin được.
+
+**Mật khẩu và thiết bị đăng nhập**
+
+- Mật khẩu dài **8–128 ký tự** và không nằm trong danh sách mật khẩu hay gặp đi kèm phần mềm. Đây là lỗi tự sửa được nên app nói rõ vì sao bị từ chối.
+- **Quên mật khẩu:** nhận mã về email theo cùng luật với mã xác nhận; hệ thống trả lời giống hệt nhau dù email có tài khoản hay không, để không ai dò được email nào đã đăng ký. Đặt lại xong thì **mọi thiết bị phải đăng nhập lại**.
+- **Đổi mật khẩu** khi đang đăng nhập cần mật khẩu cũ; các thiết bị khác bị đăng xuất, thiết bị đang dùng giữ nguyên.
+- Đăng nhập quá số thiết bị cho phép thì **vẫn vào được**, thiết bị lâu không dùng nhất bị đăng xuất để nhường chỗ — người thật hiếm khi nhớ mình còn đăng nhập ở đâu, từ chối chỉ làm khó đúng người đó.
+- Người dùng xem được danh sách thiết bị đang đăng nhập (tên thiết bị, lần dùng cuối) và đăng xuất từng cái hoặc tất cả trừ cái đang dùng. Thiết bị **30 ngày** không dùng thì tự hết phiên.
 
 **Hồ sơ**
 
@@ -236,17 +244,22 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 - **Không xoá được** khi đang có gậy nặng, gậy nghiêm trọng, đang bị khoá, hoặc đang là chủ nhóm (phải chuyển chủ trước).
 - **Có báo cáo đang mở vẫn xoá được** — giữ người dùng lại trái ý họ là sai, và dễ vướng quyền xoá dữ liệu cá nhân. Tài khoản ẩn 90 ngày; trong khoảng đó báo cáo vẫn được xử trên bản lưu. Báo cáo đúng thì gậy vẫn được ghi, đi theo email: xoá tài khoản không thoát được án.
 - Xoá thì tin ẩn ngay; sau **90 ngày** xoá hẳn tin, ảnh, hồ sơ. Hội thoại chỉ ẩn phía người xoá — người kia vẫn đọc được.
+- Trong 90 ngày chờ xoá hẳn, **email đó chưa đăng ký lại được**: tài khoản còn nằm đó dưới dạng ẩn, nên luật mỗi email một tài khoản vẫn áp; app báo ngày được đăng ký lại.
 - **Đăng ký lại bằng cùng email** (sau chuẩn hoá) thì **kế thừa gậy còn hiệu lực**. Hệ thống chỉ giữ một **dấu băm** của email, tạo bằng một khoá bí mật nằm ngoài cơ sở dữ liệu, giữ 2 năm cùng gậy: đủ để nhận ra email khi có người đăng ký lại, nhưng không ai dò ngược ra được email gốc.
 
 **Xác minh giấy tờ:** tính năng phụ. Người dùng tự nguyện nộp; master hoặc staff được giao việc này duyệt. Kết quả chỉ được lưu lại — **không** chặn ai dùng app, **không** ảnh hưởng đăng tin, mức tin cậy, hạn mức hay máy duyệt. Số giấy tờ không bao giờ hiện ra ngoài.
 
-| Con số                               | Giá trị                             |
-| ------------------------------------ | ----------------------------------- |
-| Mã xác nhận email có hiệu lực        | 10 phút                             |
-| Nhập sai mã quá … lần thì mã bị huỷ  | 5 lần                               |
-| Chờ giữa hai lần xin gửi lại mã      | 60 giây                             |
-| Tài khoản đăng ký dở dang bị xoá sau | 7 ngày                              |
-| Thiết bị đăng nhập cùng lúc tối đa   | 20 (người dùng) · 3 (staff, master) |
+| Con số                                          | Giá trị                                        |
+| ----------------------------------------------- | ---------------------------------------------- |
+| Mã xác nhận email có hiệu lực                   | 10 phút                                        |
+| Nhập sai mã quá … lần thì mã bị huỷ             | 5 lần                                          |
+| Chờ giữa hai lần xin gửi lại mã                 | 60 giây                                        |
+| Tài khoản đăng ký dở dang bị xoá sau            | 7 ngày                                         |
+| Thiết bị đăng nhập cùng lúc tối đa              | 20 (người dùng) · 3 (staff, master)            |
+| Mật khẩu                                        | 8–128 ký tự, không nằm trong danh sách hay gặp |
+| Thiết bị không dùng tự hết phiên sau            | 30 ngày                                        |
+| Danh sách email dùng một lần tự cập nhật        | hằng tuần                                      |
+| Email của tài khoản đã xoá đăng ký lại được sau | 90 ngày                                        |
 
 > **Chỉ xác thực bằng email: được gì, mất gì.** Được: đăng ký nhanh, không tốn tiền SMS. Mất: một người có nhiều email là có nhiều tài khoản. Hệ thống bù bằng bốn lớp: tài khoản mới chỉ hiển thị hạn chế (phần 15) · dấu thiết bị (phần 8) · gậy đi theo email (ở trên) · chặn email dùng một lần. Không lớp nào là tường tuyệt đối; cộng lại thì lập tài khoản mới không còn đáng công.
 
@@ -261,8 +274,9 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 - Mỗi khi một tài khoản **đăng tin**, hệ thống ghi lại **dấu thiết bị** của máy đó.
 - Đếm số tài khoản **đã đăng tin** từ máy đó trong **90 ngày** gần nhất. Không đếm mọi tài khoản từng đăng nhập: điện thoại cũ qua tay nhiều chủ, mà Ghim lại là nơi bán điện thoại cũ.
 - **Ba tài khoản đầu** trên một máy đăng bình thường. Từ **tài khoản thứ 4**, mọi tin của tài khoản đó **luôn giữ cho người**. Không chặn đăng, không chặn cả máy — người dùng thật của máy không bị ảnh hưởng.
+- Thứ tự tính theo **lần đăng tin đầu tiên** của mỗi tài khoản trên máy đó: tài khoản cũ quay lại đăng tin vẫn giữ chỗ của mình, tài khoản đến sau mới là bên nằm ngoài ba chỗ. Đánh dấu được tính lại ở mỗi lượt gửi tin, nên khi một tài khoản cũ quá 90 ngày không đăng tin, tài khoản thứ 4 tự hết bị đánh dấu.
 - Tài khoản **bắt đầu đăng tin trên một máy sau khi** một tài khoản khác trên máy đó nhận gậy hay bị khoá: tin cũng luôn giữ cho người, tới khi gậy đó hết hạn hoặc tài khoản kia được mở khoá. Nhờ vậy không ai thoát gậy bằng cách lập tài khoản mới ngay trên máy mình, còn người nhà đã đăng tin từ trước thì không bị liên luỵ — với họ, việc dùng chung máy chỉ là một dấu hiệu rủi ro 30 điểm (phần 14).
-- Người dùng thấy **câu chung của mọi dấu hiệu chống gian lận** (phần 13), không nhắc tới thiết bị — nói rõ chỉ giúp kẻ gian biết phải khôi phục cài đặt gốc. Câu có nút **liên hệ hỗ trợ kèm mã tra cứu**; hỗ trợ nhập mã là thấy lý do cụ thể. Người vừa mua lại máy cũ được xác nhận thì thoát diện giữ.
+- Người dùng thấy **câu chung của mọi dấu hiệu chống gian lận** (phần 13), không nhắc tới thiết bị — nói rõ chỉ giúp kẻ gian biết phải khôi phục cài đặt gốc. Câu có nút **liên hệ hỗ trợ kèm mã tra cứu**; hỗ trợ nhập mã là thấy lý do cụ thể. Mỗi đánh dấu có một mã riêng, cấp ngay lúc đánh dấu; mã không nói gì về loại đánh dấu hay thiết bị. Người vừa mua lại máy cũ được xác nhận thì thoát diện giữ.
 
 **Dấu thiết bị còn dùng ở đâu**
 
@@ -272,10 +286,10 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 
 **Giới hạn kỹ thuật cần biết trước**
 
-| Máy     | Dấu thiết bị bền tới đâu                                                                                                                                                                                                                                                                                                                      |
-| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Android | Khá ổn: mã máy chỉ đổi khi khôi phục cài đặt gốc.                                                                                                                                                                                                                                                                                             |
-| iPhone  | Yếu hơn: mã mà app đọc được đổi khi gỡ app rồi cài lại, nên cài lại app là bộ đếm về 0. Vì vậy dùng thêm tín hiệu phụ — địa chỉ mạng và thời điểm đăng ký — và dùng **DeviceCheck** của Apple để đánh dấu những máy đã bị xác nhận lạm dụng. DeviceCheck chỉ lưu được vài bit: đủ để đánh dấu "máy này có vấn đề", không đủ để đếm tài khoản. |
+| Máy     | Dấu thiết bị bền tới đâu                                                                                                                                                                                                                                                                                                                                            |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Android | Khá ổn: mã máy chỉ đổi khi khôi phục cài đặt gốc.                                                                                                                                                                                                                                                                                                                   |
+| iPhone  | Yếu hơn: mã mà app đọc được đổi khi gỡ app rồi cài lại, nên cài lại app là bộ đếm về 0. Vì vậy dùng thêm tín hiệu phụ — địa chỉ mạng và thời điểm đăng ký — và, ở bản sau (phần 29), dùng **DeviceCheck** của Apple để đánh dấu những máy đã bị xác nhận lạm dụng. DeviceCheck chỉ lưu được vài bit: đủ để đánh dấu "máy này có vấn đề", không đủ để đếm tài khoản. |
 
 **Quyền riêng tư:** dữ liệu thiết bị giữ **180 ngày** rồi xoá; chỉ dùng để chống gian lận, và ghi rõ như vậy trong chính sách quyền riêng tư.
 
@@ -976,19 +990,19 @@ Mỗi dòng kiểm chứng được — người kiểm thử dùng làm danh s�
 
 Master chỉnh dần theo kết quả hậu kiểm, không cần phát hành lại phần mềm.
 
-| Nhóm                      | Con số                                                                                                                                                                                                                                                |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tài khoản                 | Mã email 10 phút · sai 5 lần · gửi lại sau 60 giây · đăng ký dở xoá sau 7 ngày · 20 thiết bị đăng nhập (staff, master: 3) · đổi email 1 lần mỗi 30 ngày                                                                                               |
-| Thiết bị                  | Tối đa 3 tài khoản đăng tin trên một máy trong 90 ngày · dữ liệu thiết bị giữ 180 ngày                                                                                                                                                                |
-| Mức tin cậy               | T1: 7 ngày + 1 tin sạch · T2: 30 ngày + 5 tin sạch · T3: 90 ngày + 20 tin sạch · tối đa 3 tin sạch mỗi 7 ngày · đã bán thành tin sạch sau 2 ngày và có người hỏi mua                                                                                  |
-| Hạn mức T0 / T1 / T2 / T3 | Tin sống 10 / 20 / 50 / 100 · lượt gửi mỗi giờ 3 / 5 / 10 / 20 · hội thoại mới mỗi ngày 10 / 20 / 50 / 100 · người ngoài 2 tin sống mỗi nhóm                                                                                                          |
-| Máy duyệt                 | Dải Thấp dưới 30 · Vừa 30–59 · Cao từ 60 · giá bất thường cần 30 tin mẫu · giá tham chiếu cao từ 2 triệu · đăng dồn 10 / 30 lượt mỗi ngày · ảnh quá 5 phút thì giữ · 3 lượt dò cổng cứng trong 24 giờ thì chờ 24 giờ · cụm từ cấm mới chạy thử 7 ngày |
-| Hàng chờ                  | Máy giữ 24 giờ · báo cáo 72 giờ · khiếu nại 7 ngày · hạn chế do máy 72 giờ · chuyển từ nhóm 72 giờ · mẫu 7 ngày · nhận việc giữ 10 phút · nhắc master sau 72 giờ                                                                                      |
-| Hậu kiểm                  | 100% tin điểm 45–59 · 20% tin T0, T1 · 5% tin còn lại · 5% quyết định "đạt" của người duyệt · báo master khi làm xong dưới 80%                                                                                                                        |
-| Gậy                       | Thường 1 điểm, 90 ngày · nặng 2 điểm, 180 ngày · từ 3 điểm khoá đăng tin · khiếu nại 14 ngày (nghiêm trọng 30 ngày) · khoá vĩnh viễn: master xem lại mỗi 2 năm                                                                                        |
-| Báo cáo                   | 10 báo cáo mỗi giờ · tạm ẩn khi 3 người, 3 máy, từ T1, trong 24 giờ · điểm báo cáo dưới −3 không tính tạm ẩn, dưới −6 mất quyền 30 ngày                                                                                                               |
-| Tin đăng                  | Hiện 30 ngày · nhắc trước 7 ngày · gia hạn trong 7 ngày cuối (hạn mới = hạn cũ + 30 ngày) · tối đa 6 ảnh                                                                                                                                              |
-| Nhóm                      | Đơn tự huỷ 21 ngày · chờ 7 ngày sau từ chối · 3 đơn chờ mỗi người · lời mời 14 ngày · lời chuyển chủ 14 ngày · mã nhóm 6 ký tự · thiếu chủ tối đa 30 ngày                                                                                             |
+| Nhóm                      | Con số                                                                                                                                                                                                                                                                                                              |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tài khoản                 | Mã email 10 phút · sai 5 lần · gửi lại sau 60 giây · đăng ký dở xoá sau 7 ngày · 20 thiết bị đăng nhập (staff, master: 3) · thiết bị không dùng hết phiên sau 30 ngày · mật khẩu 8–128 ký tự · đổi email 1 lần mỗi 30 ngày · email đã xoá đăng ký lại sau 90 ngày · danh sách email dùng một lần cập nhật hằng tuần |
+| Thiết bị                  | Tối đa 3 tài khoản đăng tin trên một máy trong 90 ngày · dữ liệu thiết bị giữ 180 ngày                                                                                                                                                                                                                              |
+| Mức tin cậy               | T1: 7 ngày + 1 tin sạch · T2: 30 ngày + 5 tin sạch · T3: 90 ngày + 20 tin sạch · tối đa 3 tin sạch mỗi 7 ngày · đã bán thành tin sạch sau 2 ngày và có người hỏi mua                                                                                                                                                |
+| Hạn mức T0 / T1 / T2 / T3 | Tin sống 10 / 20 / 50 / 100 · lượt gửi mỗi giờ 3 / 5 / 10 / 20 · hội thoại mới mỗi ngày 10 / 20 / 50 / 100 · người ngoài 2 tin sống mỗi nhóm                                                                                                                                                                        |
+| Máy duyệt                 | Dải Thấp dưới 30 · Vừa 30–59 · Cao từ 60 · giá bất thường cần 30 tin mẫu · giá tham chiếu cao từ 2 triệu · đăng dồn 10 / 30 lượt mỗi ngày · ảnh quá 5 phút thì giữ · 3 lượt dò cổng cứng trong 24 giờ thì chờ 24 giờ · cụm từ cấm mới chạy thử 7 ngày                                                               |
+| Hàng chờ                  | Máy giữ 24 giờ · báo cáo 72 giờ · khiếu nại 7 ngày · hạn chế do máy 72 giờ · chuyển từ nhóm 72 giờ · mẫu 7 ngày · nhận việc giữ 10 phút · nhắc master sau 72 giờ                                                                                                                                                    |
+| Hậu kiểm                  | 100% tin điểm 45–59 · 20% tin T0, T1 · 5% tin còn lại · 5% quyết định "đạt" của người duyệt · báo master khi làm xong dưới 80%                                                                                                                                                                                      |
+| Gậy                       | Thường 1 điểm, 90 ngày · nặng 2 điểm, 180 ngày · từ 3 điểm khoá đăng tin · khiếu nại 14 ngày (nghiêm trọng 30 ngày) · khoá vĩnh viễn: master xem lại mỗi 2 năm                                                                                                                                                      |
+| Báo cáo                   | 10 báo cáo mỗi giờ · tạm ẩn khi 3 người, 3 máy, từ T1, trong 24 giờ · điểm báo cáo dưới −3 không tính tạm ẩn, dưới −6 mất quyền 30 ngày                                                                                                                                                                             |
+| Tin đăng                  | Hiện 30 ngày · nhắc trước 7 ngày · gia hạn trong 7 ngày cuối (hạn mới = hạn cũ + 30 ngày) · tối đa 6 ảnh                                                                                                                                                                                                            |
+| Nhóm                      | Đơn tự huỷ 21 ngày · chờ 7 ngày sau từ chối · 3 đơn chờ mỗi người · lời mời 14 ngày · lời chuyển chủ 14 ngày · mã nhóm 6 ký tự · thiếu chủ tối đa 30 ngày                                                                                                                                                           |
 
 ---
 
@@ -1002,12 +1016,14 @@ Master chỉnh dần theo kết quả hậu kiểm, không cần phát hành l�
 - **Tìm kiếm theo nội dung** — hiện tìm theo tiêu đề và mô tả.
 - **Xác thực số điện thoại** — bật sau thì thêm vào dữ kiện của mức tin cậy; ma trận không đổi.
 - **Đọc chữ trong ảnh** — giới hạn đã biết của máy duyệt hiện tại.
+- **DeviceCheck của Apple** — bản đầu iOS chỉ dùng mã theo nhà phát triển và tín hiệu phụ (phần 8); bộ đếm tài khoản trên một máy vẫn chạy, chỉ thiếu dấu "máy đã lạm dụng" bền qua lần cài lại app. Thêm khi có tài khoản Apple Developer.
 
 **Còn mở, cần chốt trước khi chạy thật**
 
 1. **Danh mục luôn duyệt tay giữ 100% tin** — đủ staff không? Phương án hạ: chỉ giữ tin của T0–T1; T2–T3 hiển thị hạn chế và hậu kiểm trong 24 giờ.
-2. **Danh sách email dùng một lần** — lấy từ nguồn nào, ai cập nhật.
-3. **Rà soát pháp lý** — dấu băm email, dấu thiết bị, bảng lưu trữ, giữ hội thoại làm bằng chứng.
+2. **Rà soát pháp lý** — dấu băm email, dấu thiết bị, bảng lưu trữ, giữ hội thoại làm bằng chứng.
+
+Đã chốt 08/10/2026 và chuyển vào phần 7: nguồn danh sách email dùng một lần (hạt giống công khai, tự cập nhật hằng tuần, master thêm hoặc bỏ).
 
 **Thứ tự xây**
 
@@ -1044,7 +1060,7 @@ Mỗi đợt xong khi mọi cam kết ở phần 27 thuộc đợt đó có các
 **Định danh và chống gian lận**
 
 - Email chuẩn hoá trước khi so trùng và trước khi băm; dấu băm dùng **HMAC** với khoá bí mật nằm ngoài cơ sở dữ liệu.
-- Dấu thiết bị: Android dùng mã máy ổn định tới khi khôi phục cài đặt gốc; iOS dùng mã theo nhà phát triển cộng **DeviceCheck** để đánh dấu máy lạm dụng, kèm địa chỉ mạng và thời điểm đăng ký làm tín hiệu phụ.
+- Dấu thiết bị: Android dùng mã máy ổn định tới khi khôi phục cài đặt gốc; iOS dùng mã theo nhà phát triển, kèm địa chỉ mạng và thời điểm đăng ký làm tín hiệu phụ; **DeviceCheck** để đánh dấu máy lạm dụng thêm ở bản sau (phần 29).
 - Tài khoản mang quyền staff, master: đăng nhập hai lớp bằng ứng dụng tạo mã, tối đa 3 phiên.
 
 **Ảnh**

@@ -34,6 +34,7 @@ Chưa có bảng nào trong DB; module đầu tiên là `identity` (đợt 1).
 
 ```bash
 pnpm install
+pnpm exec prisma generate   # Prisma 7 không tự sinh client khi install; thiếu bước này `pnpm dev` chết ở import `@prisma/client`
 cp .env.development.example .env.development
 pnpm db:up          # Postgres dev ở cổng 5435
 pnpm dev            # http://localhost:3100
