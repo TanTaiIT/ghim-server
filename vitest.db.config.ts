@@ -26,6 +26,10 @@ export default defineConfig({
       NODE_ENV: 'test',
       DATABASE_URL: process.env.TEST_DATABASE_URL,
       LOG_LEVEL: 'warn',
+      JWT_SECRET: 'test-jwt-secret-du-ba-muoi-hai-ky-tu-0001',
+      IDENTITY_HASH_KEY: 'test-identity-hash-key-du-ba-muoi-hai-ky-tu-01',
+      SECRETS_ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+      MAIL_FROM: 'Ghim test <no-reply@ghim.test>',
     },
   },
 });

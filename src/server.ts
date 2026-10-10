@@ -12,11 +12,12 @@ async function main(): Promise<void> {
   let shuttingDown = false;
 
   /*
-   * Tắt theo thứ tự: HTTP trước, DB sau.
+   * Tắt theo thứ tự: HTTP trước, việc nền giữa, DB sau.
    *
    * `app.close()` ngừng nhận kết nối mới và đợi request đang chạy xong. Đóng Prisma trước thì
    * đúng những request đang dở dang sẽ vấp lỗi kết nối — biến một lượt deploy êm thành một loạt
-   * 500 cho người dùng đang thao tác.
+   * 500 cho người dùng đang thao tác. Việc nền đóng sau HTTP vì request có thể vừa xếp một việc,
+   * và trước Prisma vì handler của việc vẫn ghi DB.
    */
   const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
     if (shuttingDown) return;
@@ -31,6 +32,7 @@ async function main(): Promise<void> {
 
     try {
       await app.close();
+      await app.jobs.stop();
       await prisma.$disconnect();
       logger.info('Đã đóng sạch');
       process.exit(0);
@@ -55,6 +57,12 @@ async function main(): Promise<void> {
     process.exit(1);
   });
 
+  // Việc nền lên trước cổng HTTP: request đầu tiên có thể xếp việc ngay, và lỗi kết nối của
+  // pg-boss lộ ra lúc khởi động chứ không phải ở lượt gửi thư đầu tiên.
+  await app.jobs.start();
+  // Bảng rỗng = lần chạy đầu: không có danh sách thì lượt đăng ký đầu tiên bằng email tạm sẽ lọt.
+  const seeded = await app.identity.seedDisposableDomainsIfEmpty();
+  if (seeded > 0) logger.info({ seeded }, 'Đã nạp hạt giống miền email dùng một lần');
   await app.listen({ port: env.PORT, host: '0.0.0.0' });
 }
 

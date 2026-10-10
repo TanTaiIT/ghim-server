@@ -25,7 +25,7 @@
 
 Quy ước: `CLAUDE.md` mục Luật riêng của Ghim và Migration.
 
-- [ ] Khoá chính `String @id @default(uuid(7)) @db.Uuid`
+- [ ] Khoá chính `String @id @default(dbgenerated("uuidv7()")) @db.Uuid` (Postgres 18 sinh, không sinh ở client)
 - [ ] Bảng thuộc đúng MỘT module, và chỉ module đó ghi vào nó
 - [ ] Tên bảng / cột snake_case qua `@@map` / `@map`
 - [ ] Giá `BigInt` (đồng, không âm); thời điểm `@db.Timestamptz(3)`

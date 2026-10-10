@@ -1,6 +1,6 @@
 # CLAUDE.md — Ghim (bản làm lại)
 
-> File này mô tả code **như nó đang là** (đối chiếu `package.json` và `src/` ngày 08/10/2026).
+> File này mô tả code **như nó đang là** (đối chiếu `package.json` và `src/` ngày 10/10/2026).
 > Code và file lệch nhau → sửa file này cho đúng, đừng bẻ code theo một dòng đã cũ.
 > Mục ghi **(chưa có)** là quy tắc cho phần sắp làm: đừng import đường dẫn đó, nó chưa tồn tại.
 
@@ -34,11 +34,15 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
   KHÔNG dùng `any`. Không có file `.js` trong `src/`.
   - Đang bật: `@fastify/helmet`, `@fastify/cors`, `@fastify/rate-limit` (tắt khi `NODE_ENV=test`),
     `@fastify/swagger` + `@fastify/swagger-ui` (`/docs`, tắt ở production).
-  - Đã cài, **chưa nối** (chờ module `identity`): `@fastify/jwt`, `@fastify/cookie`, `argon2`,
-    `google-auth-library`, `otplib`, `nodemailer` (+ `@types/nodemailer`), `pg-boss` — vai trò từng gói ở
-    mục **Hạ tầng đã chốt** bên dưới.
+  - Đã nối: `pg-boss` (`src/lib/jobs.ts`, start/stop trong `server.ts`), `nodemailer`
+    (`src/lib/mailer.ts`, sau interface `Mailer`), `@fastify/jwt` + `@fastify/cookie`
+    (`src/common/auth/auth.plugin.ts`), `argon2` (`password.calc.ts`), `google-auth-library`
+    (`google.verifier.ts`, sau interface `GoogleTokenVerifier`), `otplib` (hai lớp trong
+    `identity.service.ts`). Không còn gói nào cài mà chưa dùng.
 - DB: **PostgreSQL 18 + Prisma 7**, driver adapter `@prisma/adapter-pg`, preview `partialIndexes`.
-  - `prisma/schema.prisma` là nguồn sự thật của schema đang chạy. **Chưa có model nào.**
+  - `prisma/schema.prisma` là nguồn sự thật của schema đang chạy. Đang có 9 bảng (8 của `identity` +
+    `outbox_events`) qua hai migration `init_identity` và `session_prev_refresh_hash`; khoá chính
+    `uuidv7()` do Postgres sinh; CHECK viết tay nằm cuối file migration và được nhắc bằng `///` ở model.
   - Chuỗi kết nối nằm ở `prisma.config.ts`, KHÔNG nằm trong `datasource` của schema.
   - Client: **đúng một instance** ở `src/lib/prisma.ts`.
 - Validation + OpenAPI: **Zod 4** + `fastify-type-provider-zod` — một schema cho validate, kiểu
@@ -56,19 +60,26 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
   - Job nền thay agenda (TK 26): **pg-boss** trên chính Postgres, schema `pgboss` riêng — không nằm
     trong `public` nên `prisma migrate` và `db:drift` không thấy; pg-boss tự tạo bảng khi `start()`.
     Không thêm Redis. Bản đầu một tiến trình; pg-boss khoá theo job nên ngày chạy nhiều tiến trình
-    không phải đổi gì.
-  - Gửi email (mã xác nhận, đổi email): **nodemailer** qua SMTP, đứng sau một interface `Mailer` ở
-    `src/lib/mailer.ts` **(chưa có)** để test thay bằng mailer giả. Dev: **Mailpit** trong
-    docker-compose (`pnpm mail:up`; SMTP `localhost:1025`, hộp thư `http://localhost:8025`).
-    Production: SMTP của nhà cung cấp (Resend / Postmark / SES) — chọn khi deploy, code không đổi.
+    không phải đổi gì. Đã nối: `src/lib/jobs.ts` (`createJobs` → `start`/`stop`/`schedule`, cron theo
+    `Asia/Ho_Chi_Minh`, `singletonKey` mặc định = tên việc); module khai việc của mình trong
+    `<module>.jobs.ts` với tên `<module>.<việc>`, gọi sau `jobs.start()` trong `server.ts`.
+  - Gửi email (mã xác nhận, đổi email): **nodemailer** qua `SMTP_URL`, đứng sau interface `Mailer` ở
+    `src/lib/mailer.ts` (`createSmtpMailer`, `createFakeMailer` cho test). `SMTP_URL` bắt buộc ngoài
+    test vì mã xác nhận không bao giờ vào log — dev dùng **Mailpit** trong docker-compose
+    (`pnpm mail:up`; SMTP `localhost:1025`, hộp thư `http://localhost:8025`). Production: SMTP của
+    nhà cung cấp (Resend / Postmark / SES) — chọn khi deploy, code không đổi.
   - Đăng nhập Google: **google-auth-library** verify ID token do app gửi lên; không có OAuth redirect
-    phía server.
-  - Hai lớp cho master, staff: **otplib** (TOTP, ứng dụng tạo mã bất kỳ).
-  - Danh sách email dùng một lần (TK 7): hạt giống từ dự án mã nguồn mở `disposable-email-domains`
-    (file `domains.txt` công khai trên GitHub), nạp vào bảng của `identity`; job pg-boss hằng tuần tải bản
-    mới và chỉ thêm — không đụng miền master đã thêm hay đã bỏ, tải lỗi thì giữ danh sách cũ. Danh sách
-    mật khẩu hay gặp: file tĩnh trong repo (10.000 mật khẩu phổ biến nhất của SecLists), không cập nhật
-    lúc chạy. Cả hai nằm ở `src/modules/identity/data/` **(chưa có)**.
+    phía server. Đứng sau `GoogleTokenVerifier` (`google.verifier.ts`); `GOOGLE_CLIENT_IDS` trống =
+    tắt (dev), production bắt buộc.
+  - Hai lớp cho master, staff: **otplib** (TOTP, ứng dụng tạo mã bất kỳ). Bí mật mã hoá AES-256-GCM
+    (`src/common/crypto/secrets.ts`); `requireMaster` và `requireOps` đều đòi `second_factor_at` trên
+    phiên — kể cả master, kể cả khi chưa thiết lập.
+  - Danh sách email dùng một lần (TK 7): hạt giống `src/modules/identity/data/disposable-domains.seed.txt`
+    (dự án `disposable-email-domains`, ~96k miền), nạp khi bảng rỗng lúc khởi động
+    (`identity.seedDisposableDomainsIfEmpty` trong `server.ts`); việc `identity.refresh-disposable-domains`
+    hằng tuần tải `DISPOSABLE_DOMAINS_URL` và chỉ thêm — không đụng miền master đã thêm hay đã bỏ (bia mộ
+    `removed_at`), tải lỗi thì giữ danh sách cũ. Danh sách mật khẩu hay gặp:
+    `src/modules/identity/data/common-passwords.txt` (10.000 của SecLists), không cập nhật lúc chạy.
   - **DeviceCheck của Apple: HOÃN.** Bản đầu iOS chỉ dùng mã theo nhà phát triển cộng tín hiệu phụ
     (TK 8); thêm DeviceCheck bằng một change riêng khi có tài khoản Apple Developer. Ghi ở TK 29 mục hoãn.
   - **Không có SMS** — TK quyết định số 7.
@@ -89,20 +100,32 @@ prisma/
 prisma.config.ts
 src/
   app.ts                      ← buildApp(): plugin, đăng ký route
-  server.ts
+  server.ts                   ← listen + jobs.start(); tắt theo thứ tự HTTP → jobs → Prisma
   config/{env,database-guard}.ts
-  lib/{prisma,logger}.ts
+  lib/{prisma,logger,mailer,jobs}.ts
   common/
+    auth/{auth.plugin,actor,privilege-source}.ts ← guard dùng chung: authenticate, requireVerifiedEmail,
+                                requireMaster, requireOps(scope); `Actor` trên request; `PrivilegeSource`
+                                (quyền staff — bản mặc định `noStaffPrivilegeSource`, `platform` thay sau)
+    config/runtime-config.ts  ← `RuntimeConfig.get(key)`: con số TK 28, bản tĩnh chờ `platform`
+    crypto/secrets.ts         ← AES-256-GCM (`SecretBox`), SHA-256, HMAC tách scope, token ngẫu nhiên
     errors/{app-error,error-handler}.ts
+    outbox/outbox.ts          ← `appendEvents(tx, events)`: sự kiện chéo module, cùng transaction
     plugins/swagger.ts
     schemas/{response,pagination,money}.ts   ← money.ts chỉ có `priceSchema`
+    time/time.ts              ← định dạng ngày / giờ theo Asia/Ho_Chi_Minh cho câu báo người dùng
     utils/defined.ts
   modules/<module>/
-    <module>.routes.ts        ← route + schema (body/params/querystring/response) + guard
-    <module>.service.ts       ← business logic
-    <module>.repository.ts    ← toàn bộ truy vấn Prisma, kể cả transaction
+    <module>.routes.ts        ← chỉ đăng ký plugin con; route thật tách theo mối quan tâm:
+    <module>.<quan-tâm>.routes.ts  ← vd identity.auth / identity.me / identity.ops — route + schema + guard
+    <module>.service.ts       ← business logic, factory `createXService(deps)`
+    <module>.repository.ts    ← toàn bộ truy vấn Prisma, kể cả transaction + ghi outbox
     <module>.schema.ts        ← Zod schema + hằng/tập giá trị của module
-    <module>.calc.ts          ← (nếu có) hàm tính toán thuần, không chạm DB
+    <module>.calc.ts / <tên>.calc.ts ← hàm tính toán thuần, không chạm DB (vd email.calc, device.calc)
+    <module>.jobs.ts          ← (nếu có) việc nền của module: `registerXJobs(jobs, deps)`
+    <module>.mail.ts          ← (nếu có) mẫu thư thuần văn bản
+    data/                     ← (nếu có) file tĩnh đi kèm, đọc bằng `new URL('./data/…', import.meta.url)`;
+                                tsc không chép nên `pnpm run build` có bước `build:data` chép `src/**/data` sang dist
   cli/                        ← (chưa có) script chạy tay, vd tạo master
 tests/*.test.ts               ← phẳng, không chia thư mục con; không chạm DB
 tests/*.db.test.ts            ← chạy trên Postgres thật (`pnpm test:db`), tiện ích ở `tests/db-helpers.ts`
@@ -110,7 +133,9 @@ tests/*.db.test.ts            ← chạy trên Postgres thật (`pnpm test:db`),
 
 - **Không có tầng controller**: handler trong `routes.ts` gọi service rồi trả response.
 - **Không có `<module>.types.ts`**: DTO chính là response schema Zod trong `<module>.schema.ts`.
-- Tên module kebab-case, **số ít**. Đang có: `health`.
+- Tên module kebab-case, **số ít**. Đang có: `health`, `identity`.
+- `buildApp({ deps })` nhận repository, jobs, mailer, googleVerifier, privilegeSource, config, clock —
+  bỏ trống là bản thật; test HTTP truyền bản giả từ `tests/fakes/` và vẫn chạy đúng app thật.
 
 ### Module theo TK phần 30 — thứ tự xây theo TK phần 29
 
@@ -144,9 +169,9 @@ change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-grou
 - Việc chạy theo lịch đã cần từ đợt 1 (dọn đăng ký dở dang, nhóm thiếu chủ quá 30 ngày) dù `ops` ở đợt 7:
   dùng pg-boss ngay từ `add-identity`; `ops` sau này chỉ gom dispatcher outbox và lịch dọn dữ liệu.
 
-Module mẫu để bám theo: chưa có trong repo này. Bám `../booking/src/modules/customer/` (repository,
-service thuần, route có guard) và `../booking/src/modules/admin-shop/` (transaction nhiều bước +
-nhật ký trong cùng transaction) — bỏ phần `shopId`, Ghim không multi-tenant.
+Module mẫu để bám theo: **`src/modules/identity/`** — repository với transaction + outbox, service
+factory nhận deps (đồng hồ, config, jobs…), route tách theo mối quan tâm, calc thuần có test riêng,
+jobs với handler thuần. `../booking` không có trong workspace này; chỉ còn là nguồn gốc của stack.
 
 ## Quy tắc code chung (BẮT BUỘC)
 
@@ -187,8 +212,9 @@ Mỗi luật dưới đây là một cam kết ở TK phần 27; số trong ngo�
     của chủ hoặc nhận sự kiện — không `prisma.<bảng của module khác>.update` ở đâu cả.
 12. **Tác động chéo đi qua outbox** ghi trong **cùng transaction** với thay đổi gốc (30). Bên nghe phải
     chịu được nhận trùng. Gọi đồng bộ chỉ ba chỗ: `listing` hỏi `trust` hạn chế/hạn mức, `listing`
-    gọi `screening` chấm chữ lúc gửi, mọi module hỏi `identity` "người này là ai". **(chưa có)** bảng
-    outbox và dispatcher (`ops`).
+    gọi `screening` chấm chữ lúc gửi, mọi module hỏi `identity` "người này là ai". Bảng `outbox_events`
+    và `appendEvent(tx, type, payload)` ở `src/common/outbox/outbox.ts` đã có — hàm chỉ nhận `tx` nên
+    không gọi được ngoài transaction; dispatcher đọc và phát **(chưa có)**, thuộc `ops`.
 13. **Trạng thái tin, cờ tạm ẩn, lý do hạn chế là ba thứ riêng** (15, 18, 19). Lý do hạn chế là một
     tập (`machine`, `new_account`, `strike`), mỗi lý do đặt/gỡ độc lập. Đường chuyển trạng thái tin
     là **bảng thuần** trong `listing.calc.ts` **(chưa có)**, có unit test cho mọi mũi tên của sơ đồ TK
@@ -207,6 +233,10 @@ Mỗi luật dưới đây là một cam kết ở TK phần 27; số trong ngo�
     không cộng trừ, lưu kèm dấu băm dữ kiện và phiên bản bảng con số (20). Mỗi luật có unit test.
 19. **Mọi con số ở TK phần 28 đọc từ bảng con số có phiên bản** (`platform`), không hardcode trong
     code. Kết quả máy và mức tin cậy ghi lại phiên bản đã dùng. Trong test thì dựng bảng con số giả.
+    Tới khi `platform` có bảng, code đọc qua `RuntimeConfig.get('<module>.<khoá>')` ở
+    `src/common/config/runtime-config.ts` — bản tĩnh mang giá trị khởi đầu, test đè từng khoá bằng
+    `createStaticRuntimeConfig({ … })`; service chỉ thấy interface nên bản đọc bảng thay vào không
+    đụng service.
 20. **Email**: chuẩn hoá (chữ thường, bỏ `+tag`, Gmail bỏ dấu chấm, `googlemail.com` → `gmail.com`)
     bằng **một** hàm trước khi so trùng và trước khi băm. Dấu băm là HMAC, khoá nằm ngoài DB (biến
     môi trường của module `identity`).
@@ -243,7 +273,9 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
 - **Không đổi hành vi** (refactor, công cụ, tài liệu, nâng phiên bản) → không cần change.
 - Capability đặt theo module: `<module>/<capability>` (vd `identity/registration`). Hạ tầng dùng chung:
   `http/`, `runtime/`, `health/`. Đang có: `http/api-contract`, `health/health-check`,
-  `runtime/environment-guard`.
+  `runtime/environment-guard`, và 8 capability của `identity/` (registration, sessions, profile,
+  email-change, account-lock, account-deletion, device-registry, id-verification) — archive từ
+  `add-identity` ngày 10/10/2026.
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.
@@ -281,14 +313,20 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
 
 - App (`env.ts`) và Prisma CLI (`prisma.config.ts`) cùng gọi `databaseEnvironmentIssue`: `NODE_ENV`
   và hậu tố tên DB lệch nhau → từ chối khởi động. Không nới chốt này để "chạy tạm".
-- Cổng app mặc định **3100**; Postgres 5435/5436 — booking giữ 3000 và 5433/5434.
+- Cổng app mặc định **3100**; Postgres 5435/5436 — booking giữ 3000 và 5433/5434. Dev còn cần Mailpit
+  (`pnpm mail:up`, SMTP 1025 / hộp thư 8025) vì `SMTP_URL` bắt buộc ngoài test.
+- Biến của `identity` (`JWT_SECRET`, `IDENTITY_HASH_KEY`, `SECRETS_ENCRYPTION_KEY`, `SMTP_URL`,
+  `MAIL_FROM`, `GOOGLE_CLIENT_IDS`, `DISPOSABLE_DOMAINS_URL`): ý nghĩa và ràng buộc ở `env.ts`; test
+  nhận giá trị giả từ `vitest.config.ts` / `vitest.db.config.ts`, không từ file env.
 
 ## Testing
 
 - Vitest, file phẳng `tests/*.test.ts`. Env cho test khai trong `vitest.config.ts` /
   `vitest.db.config.ts`, **không** có `.env.test`.
-- Suite mặc định **không chạm DB**: service test dùng repository giả; HTTP test dùng `buildApp()` +
-  `app.inject()`, không mở cổng.
+- Suite mặc định **không chạm DB**: service test dùng repository giả; HTTP test dùng
+  `buildApp({ repository, jobs, mailer, clock, … })` + `app.inject()`, không mở cổng. Bản giả ở
+  `tests/fakes/` (repository trong bộ nhớ giữ đúng unique / partial unique, jobs giả có `runAll()`),
+  tiện ích bàn vận hành ở `tests/ops-helpers.ts`. Đồng hồ tiêm được: "30 ngày sau" là một phép cộng.
 - Test DB: `tests/*.db.test.ts`, chạy bằng `pnpm db:test:up` rồi `pnpm test:db`. Ràng buộc chỉ DB trả
   lời được (partial unique "một việc mở mỗi tin", CHECK, EXCLUDE) phải có test ở đây, kiểm đúng mã lỗi
   (`prismaErrorCode` / `sqlStateOf` trong `tests/db-helpers.ts`).

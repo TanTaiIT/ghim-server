@@ -1,0 +1,166 @@
+import type { FastifyInstance } from 'fastify';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+import { buildApp } from '../src/app.js';
+import type { OpsScope } from '../src/common/auth/privilege-source.js';
+import {
+  createFakeIdentityRepository,
+  type FakeIdentityRepository,
+} from './fakes/identity-repository.fake.js';
+import { createFakeJobs } from './fakes/jobs.fake.js';
+import { scopedPrivilegeSource, seedAccount, tokenFor } from './ops-helpers.js';
+
+/* Sáu scenario của spec `id-verification`, và số giấy tờ không xuất hiện ở bất kỳ response nào. */
+const NOW = new Date('2026-10-10T09:00:00+07:00');
+const DOCUMENT_NUMBER = '079123456789';
+
+let app: FastifyInstance;
+let repository: FakeIdentityRepository;
+let reviewerToken: string;
+let otherStaffToken: string;
+const scopes = new Map<string, Set<OpsScope>>();
+
+beforeAll(async () => {
+  repository = createFakeIdentityRepository();
+  app = await buildApp({
+    repository,
+    jobs: createFakeJobs(),
+    privilegeSource: scopedPrivilegeSource(scopes),
+    clock: () => NOW,
+  });
+  await app.ready();
+  const ctx = { app, repository, now: NOW };
+  const reviewer = await seedAccount(ctx);
+  scopes.set(reviewer.id, new Set(['id_verification']));
+  reviewerToken = await tokenFor(ctx, reviewer.id);
+  const other = await seedAccount(ctx);
+  scopes.set(other.id, new Set(['support']));
+  otherStaffToken = await tokenFor(ctx, other.id);
+});
+
+afterAll(() => app.close());
+
+const ctx = () => ({ app, repository, now: NOW });
+
+const submit = (
+  token: string,
+  payload: object = {
+    documentType: 'cccd',
+    documentNumber: DOCUMENT_NUMBER,
+    fullName: 'Nguyễn Văn A',
+  },
+) =>
+  app.inject({
+    method: 'POST',
+    url: '/api/v1/me/id-verification',
+    headers: { authorization: `Bearer ${token}` },
+    payload,
+  });
+
+const list = (token: string, query = '') =>
+  app.inject({
+    method: 'GET',
+    url: `/api/v1/ops/id-verifications${query}`,
+    headers: { authorization: `Bearer ${token}` },
+  });
+
+const decide = (id: string, token: string, payload: object) =>
+  app.inject({
+    method: 'POST',
+    url: `/api/v1/ops/id-verifications/${id}/decision`,
+    headers: { authorization: `Bearer ${token}` },
+    payload,
+  });
+
+describe('POST /me/id-verification', () => {
+  it('nộp giấy tờ → 201 chờ duyệt; số giấy tờ được mã hoá, không nằm trong response', async () => {
+    const user = await seedAccount(ctx());
+    const token = await tokenFor(ctx(), user.id);
+    const res = await submit(token);
+    expect(res.statusCode).toBe(201);
+    expect(res.json().data).toMatchObject({
+      accountId: user.id,
+      status: 'pending',
+      documentType: 'cccd',
+    });
+    expect(JSON.stringify(res.json())).not.toContain(DOCUMENT_NUMBER);
+    const row = [...repository.verifications.values()].find((v) => v.accountId === user.id);
+    expect(row?.documentNumberEnc).not.toContain(DOCUMENT_NUMBER);
+  });
+
+  it('nộp tiếp khi đang có hồ sơ chờ duyệt → 409 CONFLICT', async () => {
+    const user = await seedAccount(ctx());
+    const token = await tokenFor(ctx(), user.id);
+    await submit(token);
+    const res = await submit(token);
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error.code).toBe('CONFLICT');
+  });
+});
+
+describe('/ops/id-verifications', () => {
+  it('staff không được giao việc duyệt giấy tờ → 403 FORBIDDEN ở cả danh sách và quyết định', async () => {
+    expect((await list(otherStaffToken)).json().error.code).toBe('FORBIDDEN');
+    expect(
+      (
+        await decide('00000000-0000-7000-8000-000000000000', otherStaffToken, {
+          status: 'verified',
+        })
+      ).json().error.code,
+    ).toBe('FORBIDDEN');
+  });
+
+  it('staff được giao việc duyệt → hồ sơ chuyển sang đã xác minh; duyệt lần hai → 409', async () => {
+    const user = await seedAccount(ctx());
+    const { id } = (await submit(await tokenFor(ctx(), user.id))).json().data;
+    const pending = await list(reviewerToken, '?status=pending');
+    expect(pending.json().data.items.map((row: { id: string }) => row.id)).toContain(id);
+    expect(JSON.stringify(pending.json())).not.toContain(DOCUMENT_NUMBER);
+
+    const res = await decide(id, reviewerToken, { status: 'verified' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data).toMatchObject({
+      status: 'verified',
+      reviewedAt: NOW.toISOString(),
+      reason: null,
+    });
+    expect((await decide(id, reviewerToken, { status: 'verified' })).statusCode).toBe(409);
+  });
+
+  it('từ chối không có lý do → 400; có lý do → bị từ chối, và người đó vẫn dùng app như trước', async () => {
+    const user = await seedAccount(ctx());
+    const userToken = await tokenFor(ctx(), user.id);
+    const { id } = (await submit(userToken)).json().data;
+    expect((await decide(id, reviewerToken, { status: 'rejected' })).json().error.code).toBe(
+      'VALIDATION_ERROR',
+    );
+
+    const res = await decide(id, reviewerToken, { status: 'rejected', reason: 'Ảnh mờ' });
+    expect(res.json().data).toMatchObject({ status: 'rejected', reason: 'Ảnh mờ' });
+
+    const me = await app.inject({
+      method: 'GET',
+      url: '/api/v1/me',
+      headers: { authorization: `Bearer ${userToken}` },
+    });
+    expect(me.statusCode).toBe(200);
+    expect(JSON.stringify(me.json())).not.toMatch(/verification|giấy tờ|rejected/i);
+    expect((await submit(userToken)).statusCode).toBe(201);
+  });
+
+  it('hồ sơ công khai của người đã xác minh không chứa số giấy tờ', async () => {
+    const user = await seedAccount(ctx());
+    const { id } = (await submit(await tokenFor(ctx(), user.id))).json().data;
+    await decide(id, reviewerToken, { status: 'verified' });
+    const profile = await app.inject({ method: 'GET', url: `/api/v1/users/${user.id}` });
+    expect(profile.statusCode).toBe(200);
+    expect(JSON.stringify(profile.json())).not.toContain(DOCUMENT_NUMBER);
+  });
+
+  it('hồ sơ không có → 404', async () => {
+    expect(
+      (await decide('00000000-0000-7000-8000-000000000000', reviewerToken, { status: 'verified' }))
+        .statusCode,
+    ).toBe(404);
+  });
+});

@@ -3,13 +3,16 @@
 //   - Thời điểm luôn timestamptz. Postgres lưu mốc tuyệt đối, việc đổi sang Asia/Ho_Chi_Minh
 //     là của tầng hiển thị — lưu `timestamp` trần là mất múi giờ ngay lúc ghi.
 //   - Giá là BigInt, đơn vị ĐỒNG, không âm; 0 = cho tặng. Không Float.
-//   - Id uuid v7: tăng theo thời gian nên index ghi dồn về cuối thay vì rải ngẫu nhiên như v4.
+//   - Id uuid v7 do Postgres 18 sinh (`uuidv7()`): tăng theo thời gian nên index ghi dồn về cuối
+//     thay vì rải ngẫu nhiên như v4.
 //   - KHÔNG multi-tenant: một sàn dùng chung. Phạm vi xem theo nhóm là luật nghiệp vụ của module
 //     `listing`, không phải cách ly dữ liệu như `shop_id` của booking.
 //   - Trạng thái tin, cờ tạm ẩn và lý do hạn chế hiển thị là BA cột riêng — gộp làm một là lặp lại
 //     lỗi "Đã ẩn" của hệ thống cũ (THIET-KE-HE-THONG.md phần 4, 15, 19).
-//
-// Chưa có model nào: bảng đầu tiên vào cùng module `identity` (đợt 1, xem CLAUDE.md).
+//   - CHECK viết tay nằm trong migration; model nào có CHECK thì ghi `///` ngay trên model, tên
+//     constraint trùng tên trong SQL để `pnpm db:drift` và người đọc đối chiếu được.
+//   - Cột "ai làm" (`locked_by`, `cleared_by`, `reviewed_by`, `removed_by`) là uuid trần, không FK:
+//     nhật ký phải còn nguyên khi tài khoản người làm bị xoá hẳn.
 
 generator client {
   provider        = "prisma-client-js"
@@ -20,4 +23,267 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+// ── IDENTITY: ENUM ───────────────────────────────────────────────────────────────────────────────
+
+enum AccountStatus {
+  pending_verification
+  active
+  locked
+  deleted
+
+  @@map("account_status")
+}
+
+enum AccountRole {
+  user
+  master
+
+  @@map("account_role")
+}
+
+enum CodePurpose {
+  email_verify
+  password_reset
+  email_change
+
+  @@map("code_purpose")
+}
+
+enum SessionRevokeReason {
+  logout
+  evicted
+  password_changed
+  password_reset
+  revoked_by_user
+  account_locked
+  account_deleted
+  refresh_reuse
+
+  @@map("session_revoke_reason")
+}
+
+enum AccountFlagKind {
+  many_accounts_on_device
+  device_of_locked_account
+
+  @@map("account_flag_kind")
+}
+
+enum DisposableDomainSource {
+  seed
+  manual
+
+  @@map("disposable_domain_source")
+}
+
+enum IdVerificationStatus {
+  pending
+  verified
+  rejected
+
+  @@map("id_verification_status")
+}
+
+// ── IDENTITY: BẢNG ───────────────────────────────────────────────────────────────────────────────
+
+/// CHECK tay (migration init_identity):
+///   accounts_credential_check: password_hash IS NOT NULL OR google_sub IS NOT NULL
+///   accounts_locked_check:     (status = 'locked')  = (locked_at IS NOT NULL)
+///   accounts_deleted_check:    (status = 'deleted') = (deleted_at IS NOT NULL)
+model Account {
+  id                String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  /// Email như người dùng gõ — chỉ để gửi thư. So trùng luôn dùng `emailNormalized`.
+  email             String
+  emailNormalized   String        @unique @map("email_normalized")
+  /// HMAC-SHA256 với `IDENTITY_HASH_KEY`: `trust` nối gậy qua lần đăng ký lại mà không giữ email.
+  emailHash         String        @map("email_hash")
+  passwordHash      String?       @map("password_hash")
+  googleSub         String?       @unique @map("google_sub")
+  status            AccountStatus @default(pending_verification)
+  role              AccountRole   @default(user)
+  displayName       String        @map("display_name")
+  avatarUrl         String?       @map("avatar_url")
+  phone             String?
+  totpSecretEnc     String?       @map("totp_secret_enc")
+  totpEnabledAt     DateTime?     @map("totp_enabled_at") @db.Timestamptz(3)
+  lockedReason      String?       @map("locked_reason")
+  lockedAt          DateTime?     @map("locked_at") @db.Timestamptz(3)
+  lockedBy          String?       @map("locked_by") @db.Uuid
+  deletedAt         DateTime?     @map("deleted_at") @db.Timestamptz(3)
+  emailChangedAt    DateTime?     @map("email_changed_at") @db.Timestamptz(3)
+  passwordChangedAt DateTime?     @map("password_changed_at") @db.Timestamptz(3)
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  verificationCodes VerificationCode[]
+  sessions          Session[]
+  devicePosts       DevicePost[]
+  deviceClearances  DeviceClearance[]
+  flags             AccountFlag[]
+  idVerifications   IdVerification[]
+
+  @@index([emailHash])
+  @@index([status, createdAt])
+  @@index([status, deletedAt])
+  @@map("accounts")
+}
+
+/// CHECK tay (migration init_identity):
+///   verification_codes_attempts_check: attempts >= 0
+///   verification_codes_target_check:   purpose <> 'email_change' OR target_email IS NOT NULL
+model VerificationCode {
+  id          String      @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  accountId   String      @map("account_id") @db.Uuid
+  purpose     CodePurpose
+  /// DB chỉ giữ HMAC của mã: lộ bảng không lộ mã đang sống.
+  codeHash    String      @map("code_hash")
+  /// Chỉ `email_change` có: email mới đang chờ xác nhận, email cũ vẫn là email đăng nhập.
+  targetEmail String?     @map("target_email")
+  attempts    Int         @default(0)
+  expiresAt   DateTime    @map("expires_at") @db.Timestamptz(3)
+  consumedAt  DateTime?   @map("consumed_at") @db.Timestamptz(3)
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  // Một mã sống mỗi mục đích: xin mã mới = đánh dấu consumed_at cho mã cũ rồi tạo mã mới trong
+  // cùng transaction. DB là chốt cuối, service không được coi kiểm trước là đủ.
+  @@unique([accountId, purpose], where: raw("consumed_at IS NULL"), map: "verification_codes_live_key")
+  @@map("verification_codes")
+}
+
+/// CHECK tay (migration init_identity):
+///   sessions_revoke_check: (revoked_at IS NULL) = (revoke_reason IS NULL)
+model Session {
+  id                   String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  accountId            String               @map("account_id") @db.Uuid
+  /// SHA-256 của refresh token; token thật chỉ nằm ở thiết bị. Xoay mỗi lần refresh.
+  refreshTokenHash     String               @unique @map("refresh_token_hash")
+  /// Băm của token vừa bị xoay: ai dùng lại nó là token đã lộ → thu hồi cả phiên (design 4).
+  prevRefreshTokenHash String?              @map("prev_refresh_token_hash")
+  deviceName           String               @map("device_name")
+  ip                   String?
+  userAgent            String?              @map("user_agent")
+  /// Có giá trị = phiên này đã qua lớp thứ hai; `requireOps` từ chối phiên thiếu nó.
+  secondFactorAt       DateTime?            @map("second_factor_at") @db.Timestamptz(3)
+  createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  lastActiveAt         DateTime             @default(now()) @map("last_active_at") @db.Timestamptz(3)
+  /// Hết hạn trượt: last_active_at + 30 ngày (giá trị khởi đầu), cập nhật khi refresh.
+  expiresAt            DateTime             @map("expires_at") @db.Timestamptz(3)
+  revokedAt            DateTime?            @map("revoked_at") @db.Timestamptz(3)
+  revokeReason         SessionRevokeReason? @map("revoke_reason")
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  // Đếm phiên đang sống và tìm phiên ít hoạt động nhất để đẩy ra — một index phục vụ cả hai.
+  @@index([accountId, revokedAt, lastActiveAt])
+  @@index([prevRefreshTokenHash])
+  @@map("sessions")
+}
+
+/// CHECK tay (migration init_identity):
+///   device_posts_order_check: last_posted_at >= first_posted_at
+model DevicePost {
+  /// HMAC của mã thiết bị app gửi lên; mã thật không bao giờ vào DB hay response.
+  deviceHash    String   @map("device_hash")
+  accountId     String   @map("account_id") @db.Uuid
+  firstPostedAt DateTime @map("first_posted_at") @db.Timestamptz(3)
+  lastPostedAt  DateTime @map("last_posted_at") @db.Timestamptz(3)
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@id([deviceHash, accountId])
+  @@index([accountId])
+  @@map("device_posts")
+}
+
+model DeviceClearance {
+  id         String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  deviceHash String   @map("device_hash")
+  accountId  String   @map("account_id") @db.Uuid
+  clearedAt  DateTime @default(now()) @map("cleared_at") @db.Timestamptz(3)
+  clearedBy  String   @map("cleared_by") @db.Uuid
+  reason     String
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceHash, accountId])
+  @@map("device_clearances")
+}
+
+/// CHECK tay (migration init_identity):
+///   account_flags_cleared_check: (cleared_at IS NULL) = (cleared_reason IS NULL)
+///   account_flags_related_check: kind <> 'device_of_locked_account' OR related_account_id IS NOT NULL
+model AccountFlag {
+  id               String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  accountId        String          @map("account_id") @db.Uuid
+  kind             AccountFlagKind
+  deviceHash       String          @map("device_hash")
+  /// Tài khoản bị khoá mà đánh dấu `device_of_locked_account` nói tới; uuid trần vì chỉ để tra
+  /// cứu, không FK — tài khoản kia bị xoá hẳn thì đánh dấu vẫn còn đọc được.
+  relatedAccountId String?         @map("related_account_id") @db.Uuid
+  /// 8 ký tự Crockford base32 từ 5 byte ngẫu nhiên: không mang thông tin gì về loại, tài khoản
+  /// hay thiết bị — người dùng chỉ đưa mã này cho hỗ trợ.
+  lookupCode       String          @unique @map("lookup_code")
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  clearedAt        DateTime?       @map("cleared_at") @db.Timestamptz(3)
+  clearedBy        String?         @map("cleared_by") @db.Uuid
+  clearedReason    String?         @map("cleared_reason")
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, kind, deviceHash], where: raw("cleared_at IS NULL"), map: "account_flags_open_key")
+  @@index([accountId])
+  @@map("account_flags")
+}
+
+model DisposableDomain {
+  domain    String                 @id
+  source    DisposableDomainSource
+  addedAt   DateTime               @default(now()) @map("added_at") @db.Timestamptz(3)
+  /// Bia mộ: master bỏ một miền thì giữ dòng với removed_at để lượt cập nhật tự động không
+  /// hồi sinh nó (INSERT … ON CONFLICT DO NOTHING vấp dòng này).
+  removedAt DateTime?              @map("removed_at") @db.Timestamptz(3)
+  removedBy String?                @map("removed_by") @db.Uuid
+
+  @@index([domain], where: raw("removed_at IS NULL"), map: "disposable_domains_active_idx")
+  @@map("disposable_domains")
+}
+
+/// CHECK tay (migration init_identity):
+///   id_verifications_reason_check: status <> 'rejected' OR reason IS NOT NULL
+model IdVerification {
+  id                String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  accountId         String               @map("account_id") @db.Uuid
+  documentType      String               @map("document_type")
+  /// AES-256-GCM bằng `SECRETS_ENCRYPTION_KEY`; không response nào trả số giấy tờ.
+  documentNumberEnc String               @map("document_number_enc")
+  fullName          String               @map("full_name")
+  status            IdVerificationStatus @default(pending)
+  reviewedBy        String?              @map("reviewed_by") @db.Uuid
+  reviewedAt        DateTime?            @map("reviewed_at") @db.Timestamptz(3)
+  reason            String?
+  createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId], where: raw("status = 'pending'"), map: "id_verifications_pending_key")
+  @@map("id_verifications")
+}
+
+// ── HẠ TẦNG DÙNG CHUNG ───────────────────────────────────────────────────────────────────────────
+
+/// Không module nghiệp vụ nào sở hữu (như `_prisma_migrations`): module ghi qua
+/// `appendEvent(tx, …)` trong cùng transaction với thay đổi gốc; dispatcher đọc thuộc `ops`.
+model OutboxEvent {
+  id          String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  type        String
+  payload     Json      @db.JsonB
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  publishedAt DateTime? @map("published_at") @db.Timestamptz(3)
+
+  @@index([createdAt], where: raw("published_at IS NULL"), map: "outbox_events_unpublished_idx")
+  @@map("outbox_events")
 }

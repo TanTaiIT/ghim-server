@@ -11,12 +11,62 @@ import {
 } from 'fastify-type-provider-zod';
 
 import { corsOrigin, env, isTest } from './config/env.js';
+import { registerAuth } from './common/auth/auth.plugin.js';
+import { noStaffPrivilegeSource, type PrivilegeSource } from './common/auth/privilege-source.js';
+import { createStaticRuntimeConfig, type RuntimeConfig } from './common/config/runtime-config.js';
+import { createSecretBox } from './common/crypto/secrets.js';
 import { errorHandler } from './common/errors/error-handler.js';
 import { registerSwagger } from './common/plugins/swagger.js';
+import { createJobs, type Jobs } from './lib/jobs.js';
 import { logger } from './lib/logger.js';
+import { createFakeMailer, createSmtpMailer, type Mailer } from './lib/mailer.js';
+import { prisma } from './lib/prisma.js';
 import { healthRoutes } from './modules/health/health.routes.js';
+import {
+  createGoogleTokenVerifier,
+  type GoogleTokenVerifier,
+} from './modules/identity/google.verifier.js';
+import { registerIdentityJobs } from './modules/identity/identity.jobs.js';
+import {
+  createIdentityRepository,
+  type IdentityRepository,
+} from './modules/identity/identity.repository.js';
+import { identityRoutes } from './modules/identity/identity.routes.js';
+import {
+  createIdentityService,
+  type IdentityService,
+} from './modules/identity/identity.service.js';
 
 const API_PREFIX = '/api/v1';
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    /** Việc nền của tiến trình — `server.ts` start sau khi dựng app, stop khi tắt. */
+    jobs: Jobs;
+    /** Cửa "người này là ai" và các việc khởi động của identity (nạp hạt giống miền). */
+    identity: IdentityService;
+  }
+}
+
+/**
+ * Mọi thứ có trạng thái ngoài tiến trình, thay được bằng bản giả: test HTTP truyền repository
+ * trong bộ nhớ, jobs giả, mailer giả, đồng hồ cố định — và vẫn chạy đúng app thật (plugin,
+ * schema, guard, error handler). Bỏ trống là bản thật (design 15).
+ */
+export interface AppDeps {
+  repository: IdentityRepository;
+  jobs: Jobs;
+  mailer: Mailer;
+  googleVerifier: GoogleTokenVerifier;
+  privilegeSource: PrivilegeSource;
+  config: RuntimeConfig;
+  clock: () => Date;
+}
+
+/** `SMTP_URL` chỉ được trống ở test (env.ts), và ở test thì thư vào mảng. */
+function defaultMailer(): Mailer {
+  return env.SMTP_URL ? createSmtpMailer(env.SMTP_URL, env.MAIL_FROM) : createFakeMailer();
+}
 
 /**
  * Dựng app nhưng KHÔNG listen — `server.ts` mới mở cổng.
@@ -24,7 +74,24 @@ const API_PREFIX = '/api/v1';
  * Tách như vậy để test gọi `fastify.inject()` trên đúng app thật mà không chiếm cổng nào: chạy
  * song song bao nhiêu file test cũng được, và không có lượt dọn cổng nào phải nhớ.
  */
-export async function buildApp(): Promise<FastifyInstance> {
+export async function buildApp(overrides: Partial<AppDeps> = {}): Promise<FastifyInstance> {
+  const deps: AppDeps = {
+    repository: overrides.repository ?? createIdentityRepository(prisma),
+    jobs: overrides.jobs ?? createJobs(env.DATABASE_URL),
+    mailer: overrides.mailer ?? defaultMailer(),
+    googleVerifier: overrides.googleVerifier ?? createGoogleTokenVerifier(env.GOOGLE_CLIENT_IDS),
+    privilegeSource: overrides.privilegeSource ?? noStaffPrivilegeSource,
+    config: overrides.config ?? createStaticRuntimeConfig(),
+    clock: overrides.clock ?? (() => new Date()),
+  };
+  const secrets = createSecretBox(env.SECRETS_ENCRYPTION_KEY);
+  const identity = createIdentityService({ ...deps, hashKey: env.IDENTITY_HASH_KEY, secrets });
+  await registerIdentityJobs(deps.jobs, {
+    ...deps,
+    secrets,
+    disposableDomainsUrl: env.DISPOSABLE_DOMAINS_URL,
+  });
+
   const app = Fastify({
     loggerInstance: logger,
     /*
@@ -65,6 +132,14 @@ export async function buildApp(): Promise<FastifyInstance> {
   }
 
   await registerSwagger(app);
+  await registerAuth(app, {
+    resolver: identity,
+    privilegeSource: deps.privilegeSource,
+    jwtSecret: env.JWT_SECRET,
+    accessTokenMinutes: deps.config.get('identity.accessTokenMinutes'),
+  });
+  app.decorate('jobs', deps.jobs);
+  app.decorate('identity', identity);
 
   /*
    * Trả id ra HEADER, không chỉ ghi vào log.
@@ -78,6 +153,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   await app.register(healthRoutes);
+  await app.register(identityRoutes, { prefix: API_PREFIX, identity, config: deps.config });
 
   return app;
 }

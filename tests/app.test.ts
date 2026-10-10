@@ -75,6 +75,9 @@ describe('Tài liệu API', () => {
     vi.stubEnv('NODE_ENV', 'production');
     vi.stubEnv('DATABASE_URL', 'postgresql://ghim:ghim@localhost:5432/ghim');
     vi.stubEnv('LOG_LEVEL', 'error');
+    // Production bắt buộc hai biến này (env.ts); các khoá còn lại đã có từ vitest.config.ts.
+    vi.stubEnv('SMTP_URL', 'smtps://user:pass@smtp.example.com:465');
+    vi.stubEnv('GOOGLE_CLIENT_IDS', 'ios-id.apps.googleusercontent.com');
     try {
       const { buildApp: buildProductionApp } = await import('../src/app.js');
       const production = await buildProductionApp();

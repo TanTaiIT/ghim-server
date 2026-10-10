@@ -17,15 +17,24 @@ export class AppError extends Error {
   }
 }
 
+/**
+ * `code` đổi được cho lỗi NGƯỜI DÙNG TỰ SỬA ĐƯỢC mà client cần rẽ nhánh: `PASSWORD_WEAK` hiện gợi
+ * ý mật khẩu, `EMAIL_DISPOSABLE` bảo dùng email thường, `CODE_EXPIRED` mở nút gửi lại mã.
+ */
 export class BadRequestError extends AppError {
-  constructor(message = 'Yêu cầu không hợp lệ') {
-    super(400, 'BAD_REQUEST', message);
+  constructor(message = 'Yêu cầu không hợp lệ', code = 'BAD_REQUEST') {
+    super(400, code, message);
   }
 }
 
+/**
+ * `code` đổi được vì client phải phân biệt "đăng nhập lại" với "refresh rồi gọi lại":
+ * `SESSION_REVOKED` / `SESSION_EXPIRED` xoá token và về màn đăng nhập, còn `UNAUTHORIZED` trần
+ * (access token hết hạn, thiếu header) chỉ cần refresh.
+ */
 export class UnauthorizedError extends AppError {
-  constructor(message = 'Chưa đăng nhập') {
-    super(401, 'UNAUTHORIZED', message);
+  constructor(message = 'Chưa đăng nhập', code = 'UNAUTHORIZED') {
+    super(401, code, message);
   }
 }
 
@@ -46,9 +55,10 @@ export class NotFoundError extends AppError {
   }
 }
 
+/** `code` đổi được: `EMAIL_TAKEN` mở màn đăng nhập, `EMAIL_PENDING_DELETION` hiện ngày được đăng ký lại. */
 export class ConflictError extends AppError {
-  constructor(message = 'Dữ liệu đã tồn tại') {
-    super(409, 'CONFLICT', message);
+  constructor(message = 'Dữ liệu đã tồn tại', code = 'CONFLICT') {
+    super(409, code, message);
   }
 }
 
