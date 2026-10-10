@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createIdentityRepository } from '../src/modules/identity/identity.repository.js';
 import { prisma, truncateAll } from './db-helpers.js';
+import { TEST_AUDIT } from './fakes/audit.fake.js';
 
 /* Luật 12: khoá, thu hồi phiên và dòng outbox phải cùng một transaction — rollback là mất cả ba. */
 const NOW = new Date('2026-10-10T09:00:00+07:00');
@@ -47,6 +48,7 @@ describe('lockAccount trên Postgres thật', () => {
       lockedBy: master.id,
       at: NOW,
       events: [{ type: 'identity.account.locked', payload: { accountId: user.id, reason: 'Thử' } }],
+      audit: TEST_AUDIT,
     });
 
     expect(await prisma.account.findUnique({ where: { id: user.id } })).toMatchObject({
@@ -72,6 +74,7 @@ describe('lockAccount trên Postgres thật', () => {
         lockedBy: '00000000-0000-7000-8000-000000000001',
         at: NOW,
         events: [{ type: 'identity.account.locked', payload: { accountId: 'x' } }],
+        audit: TEST_AUDIT,
       }),
     ).rejects.toMatchObject({ code: 'P2025' });
     expect(await prisma.outboxEvent.count()).toBe(0);

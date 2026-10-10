@@ -1,7 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { buildApp } from '../src/app.js';
 import { createFakeMailer, type FakeMailer } from '../src/lib/mailer.js';
 import { hashPassword } from '../src/modules/identity/password.calc.js';
 import {
@@ -9,6 +8,8 @@ import {
   type FakeIdentityRepository,
 } from './fakes/identity-repository.fake.js';
 import { createFakeJobs, type FakeJobs } from './fakes/jobs.fake.js';
+import { TEST_AUDIT } from './fakes/audit.fake.js';
+import { buildTestApp } from './fakes/app.js';
 
 /* Spec `profile` (5 scenario) và spec `email-change` (4 scenario). */
 const START = new Date('2026-10-10T09:00:00+07:00');
@@ -27,7 +28,12 @@ beforeAll(async () => {
   repository = createFakeIdentityRepository();
   jobs = createFakeJobs();
   mailer = createFakeMailer();
-  app = await buildApp({ repository, jobs, mailer, clock: () => now });
+  app = await buildTestApp({
+    repositories: { identity: repository },
+    jobs,
+    mailer,
+    clock: () => now,
+  });
   await app.ready();
 });
 
@@ -61,6 +67,7 @@ async function account(
       lockedBy: row.id,
       at: now,
       events: [],
+      audit: TEST_AUDIT,
     });
   }
   if (overrides.status === 'deleted') {
@@ -167,6 +174,7 @@ describe('GET / PATCH /me', () => {
       clear: { ids: [], clearedBy: null, clearedReason: '' },
       at: now,
       events: [],
+      audit: TEST_AUDIT,
     });
     const res = await api('GET', '/me', { token: await login(email) });
     expect(res.statusCode).toBe(200);
@@ -253,7 +261,7 @@ describe('đổi email', () => {
         await api('POST', '/me/email-change', { token, payload: { email: 'Lan+x@gmail.com' } })
       ).json().error.code,
     ).toBe('EMAIL_TAKEN');
-    await repository.addManualDomain({ domain: 'tempmail.example', at: now });
+    await repository.addManualDomain({ domain: 'tempmail.example', at: now, audit: TEST_AUDIT });
     expect(
       (
         await api('POST', '/me/email-change', { token, payload: { email: 'a@tempmail.example' } })

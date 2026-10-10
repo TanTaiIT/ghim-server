@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createFakeIdentityRepository } from './fakes/identity-repository.fake.js';
+import { TEST_AUDIT } from './fakes/audit.fake.js';
 
 /*
  * Bản giả phải vấp đúng những chốt mà `identity.db.test.ts` chứng minh DB giữ — unique và partial
@@ -107,6 +108,7 @@ describe('createFakeIdentityRepository — unique như DB', () => {
       clear: { ids: [], clearedBy: null, clearedReason: '' },
       at: NOW,
       events: [],
+      audit: TEST_AUDIT,
     });
     await expect(
       repo.applyFlagChanges({
@@ -114,6 +116,7 @@ describe('createFakeIdentityRepository — unique như DB', () => {
         clear: { ids: [], clearedBy: null, clearedReason: '' },
         at: NOW,
         events: [],
+        audit: TEST_AUDIT,
       }),
     ).rejects.toMatchObject({ code: 'P2002' });
     await expect(
@@ -122,6 +125,7 @@ describe('createFakeIdentityRepository — unique như DB', () => {
         clear: { ids: [], clearedBy: null, clearedReason: '' },
         at: NOW,
         events: [],
+        audit: TEST_AUDIT,
       }),
     ).rejects.toMatchObject({ code: 'P2002' });
   });

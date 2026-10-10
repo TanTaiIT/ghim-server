@@ -1,7 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { buildApp } from '../src/app.js';
 import { hashPassword } from '../src/modules/identity/password.calc.js';
 import {
   createFakeIdentityRepository,
@@ -9,6 +8,7 @@ import {
 } from './fakes/identity-repository.fake.js';
 import { createFakeJobs } from './fakes/jobs.fake.js';
 import { seedAccount, tokenFor } from './ops-helpers.js';
+import { buildTestApp } from './fakes/app.js';
 
 /* Spec `account-deletion`: tự xoá, chặn khi bị khoá; đăng ký lại trong / sau 90 ngày ở registration.http.test.ts. */
 const NOW = new Date('2026-10-10T09:00:00+07:00');
@@ -21,7 +21,11 @@ let passwordHash: string;
 beforeAll(async () => {
   passwordHash = await hashPassword(PASSWORD);
   repository = createFakeIdentityRepository();
-  app = await buildApp({ repository, jobs: createFakeJobs(), clock: () => NOW });
+  app = await buildTestApp({
+    repositories: { identity: repository },
+    jobs: createFakeJobs(),
+    clock: () => NOW,
+  });
   await app.ready();
 });
 

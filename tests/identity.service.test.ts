@@ -6,6 +6,7 @@ import { createSecretBox } from '../src/common/crypto/secrets.js';
 import { createIdentityService } from '../src/modules/identity/identity.service.js';
 import { createFakeIdentityRepository } from './fakes/identity-repository.fake.js';
 import { createFakeJobs } from './fakes/jobs.fake.js';
+import { TEST_AUDIT } from './fakes/audit.fake.js';
 
 const NOW = new Date('2026-10-10T09:00:00+07:00');
 const DAY_MS = 86_400_000;
@@ -53,6 +54,7 @@ async function seedAccount(
       lockedBy: account.id,
       at: NOW,
       events: [],
+      audit: TEST_AUDIT,
     });
   } else if (status === 'deleted') {
     await repository.softDeleteAccount({ accountId: account.id, at: NOW, events: [] });

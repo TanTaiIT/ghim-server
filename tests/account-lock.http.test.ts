@@ -1,8 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { buildApp } from '../src/app.js';
-import type { OpsScope } from '../src/common/auth/privilege-source.js';
 import { toOk } from '../src/common/schemas/response.js';
 import { hashPassword } from '../src/modules/identity/password.calc.js';
 import {
@@ -10,7 +8,10 @@ import {
   type FakeIdentityRepository,
 } from './fakes/identity-repository.fake.js';
 import { createFakeJobs } from './fakes/jobs.fake.js';
-import { scopedPrivilegeSource, seedAccount, tokenFor } from './ops-helpers.js';
+import { createFakePrivilegeSource } from './fakes/privilege-source.fake.js';
+import { seedAccount, tokenFor } from './ops-helpers.js';
+import { TEST_AUDIT } from './fakes/audit.fake.js';
+import { buildTestApp } from './fakes/app.js';
 
 /* Bảy scenario của spec `account-lock`, cộng mở khoá đóng đánh dấu liên quan. */
 const NOW = new Date('2026-10-10T09:00:00+07:00');
@@ -20,15 +21,15 @@ let app: FastifyInstance;
 let repository: FakeIdentityRepository;
 let passwordHash: string;
 let masterToken: string;
-const scopes = new Map<string, Set<OpsScope>>();
+const privilegeSource = createFakePrivilegeSource();
 
 beforeAll(async () => {
   passwordHash = await hashPassword(PASSWORD);
   repository = createFakeIdentityRepository();
-  app = await buildApp({
-    repository,
+  app = await buildTestApp({
+    repositories: { identity: repository },
     jobs: createFakeJobs(),
-    privilegeSource: scopedPrivilegeSource(scopes),
+    privilegeSource,
     clock: () => NOW,
   });
   app.get('/__test/me', { preHandler: [app.authenticate] }, async (request) => toOk(request.actor));
@@ -83,6 +84,16 @@ describe('POST /ops/accounts/:id/lock', () => {
       type: 'identity.account.locked',
       payload: { accountId: user.id, reason: 'Lừa đảo nhiều lần' },
     });
+    // Spec audit-log: đúng một dòng — master đó, hành động khoá, tài khoản bị khoá, lý do.
+    expect(repository.audit.filter((row) => row.targetId === user.id)).toMatchObject([
+      {
+        actorRole: 'master',
+        action: 'identity.account.lock',
+        targetType: 'account',
+        reason: 'Lừa đảo nhiều lần',
+        createdAt: NOW,
+      },
+    ]);
   });
 
   it('bỏ trống lý do → 400 VALIDATION_ERROR, tài khoản không đổi', async () => {
@@ -91,11 +102,12 @@ describe('POST /ops/accounts/:id/lock', () => {
     expect(res.statusCode).toBe(400);
     expect(res.json().error.code).toBe('VALIDATION_ERROR');
     expect((await repository.findAccountById(user.id))?.status).toBe('active');
+    expect(repository.audit.some((row) => row.targetId === user.id)).toBe(false);
   });
 
   it('staff (không phải master) thử khoá → 403 FORBIDDEN', async () => {
     const staff = await seedAccount(ctx());
-    scopes.set(staff.id, new Set(['support']));
+    privilegeSource.grant(staff.id, ['support']);
     const staffToken = await tokenFor(ctx(), staff.id);
     const user = await seedAccount(ctx());
     expect((await lock(user.id, staffToken, { reason: 'x' })).json().error.code).toBe('FORBIDDEN');
@@ -161,6 +173,7 @@ describe('tài khoản bị khoá', () => {
       clear: { ids: [], clearedBy: null, clearedReason: '' },
       at: NOW,
       events: [],
+      audit: TEST_AUDIT,
     });
     await unlock(a.id, masterToken);
     expect(await repository.findOpenFlags(b.id)).toEqual([]);

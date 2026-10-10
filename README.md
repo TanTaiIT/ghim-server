@@ -41,8 +41,16 @@ cp .env.development.example .env.development   # đã có sẵn khoá dev cho id
 pnpm db:up          # Postgres dev ở cổng 5435
 pnpm mail:up        # Mailpit: SMTP 1025, hộp thư http://localhost:8025 — mã xác nhận chỉ xem được ở đây
 pnpm db:migrate     # áp migration lên DB dev
-pnpm dev            # http://localhost:3100 — lần đầu nạp ~96k miền email dùng một lần (vài giây)
+pnpm dev            # http://localhost:3100 — lần đầu nạp ~96k miền email dùng một lần, bảng con số
+                    # phiên bản 1 và 34 tỉnh / 3.321 phường (vài giây)
+MASTER_PASSWORD='<mật khẩu>' pnpm cli:create-master --email <email> --name "Quản trị Ghim"
 ```
+
+Master chỉ tạo được bằng lệnh trên (không có route HTTP nào), và hệ thống có đúng một master. Đăng nhập
+bằng email / mật khẩu đó, rồi thiết lập lớp thứ hai (`POST /api/v1/me/two-factor/setup` → `/confirm`)
+trước khi bàn vận hành mở. Master mất ứng dụng tạo mã: `pnpm cli:reset-2fa --email <email>` gỡ lớp
+thứ hai và thu hồi mọi phiên. Quên mật khẩu thì đi "quên mật khẩu" như mọi người (ở dev, mã nằm trong
+Mailpit).
 
 - `GET /health` — tiến trình còn sống không (không chạm DB)
 - `GET /health/ready` — nối được DB chưa (503 nếu chưa)
@@ -52,16 +60,24 @@ pnpm dev            # http://localhost:3100 — lần đầu nạp ~96k miền e
 
 ## Lệnh
 
-| Lệnh                                  | Làm gì                                                      |
-| ------------------------------------- | ----------------------------------------------------------- |
-| `pnpm dev`                            | Chạy dev, tự nạp lại khi sửa code                           |
-| `pnpm run check`                      | typecheck + lint + test (không cần DB)                      |
-| `pnpm db:test:up` → `pnpm test:db`    | Test trên Postgres thật (container riêng, cổng 5436, tmpfs) |
-| `pnpm mail:up`                        | Mailpit cho thư ở dev (SMTP 1025, hộp thư 8025)             |
-| `pnpm run build` → `pnpm start:local` | Build rồi chạy bản build với env dev                        |
-| `pnpm db:migrate`                     | Tạo và áp migration trên DB dev                             |
-| `pnpm db:drift`                       | Kiểm migration đã áp có khớp `schema.prisma` không          |
-| `pnpm db:studio`                      | Mở Prisma Studio                                            |
+| Lệnh                                  | Làm gì                                                         |
+| ------------------------------------- | -------------------------------------------------------------- |
+| `pnpm dev`                            | Chạy dev, tự nạp lại khi sửa code                              |
+| `pnpm run check`                      | typecheck + lint + test (không cần DB)                         |
+| `pnpm db:test:up` → `pnpm test:db`    | Test trên Postgres thật (container riêng, cổng 5436, tmpfs)    |
+| `pnpm mail:up`                        | Mailpit cho thư ở dev (SMTP 1025, hộp thư 8025)                |
+| `pnpm run build` → `pnpm start:local` | Build rồi chạy bản build với env dev                           |
+| `pnpm db:migrate`                     | Tạo và áp migration trên DB dev                                |
+| `pnpm db:drift`                       | Kiểm migration đã áp có khớp `schema.prisma` không             |
+| `pnpm db:studio`                      | Mở Prisma Studio                                               |
+| `pnpm cli:create-master`              | Tạo master (một lần, chỉ khi chưa có)                          |
+| `pnpm cli:reset-2fa`                  | Gỡ lớp thứ hai + thu hồi phiên của một tài khoản               |
+| `pnpm cli:build-regions`              | Sinh lại `category/data/regions.json` từ provinces.open-api.vn |
+
+**Cập nhật địa giới hành chính**: `pnpm cli:build-regions` tải API, trộn tên cũ cấp tỉnh từ
+`src/modules/category/data/province-former-names.json` (biên soạn tay) và dừng nếu dữ liệu lệch kỳ vọng.
+Đọc diff của `regions.json` rồi commit. DB đã có khu vực thì không tự nạp lại — cập nhật DB đang chạy là
+một migration dữ liệu riêng. Tên cũ cấp phường chưa có nguồn: cột có sẵn, file đang để trống.
 
 Production chỉ chạy `pnpm db:deploy` (hoặc `pnpm db:deploy:prod` từ máy có `.env.production`) rồi
 `pnpm start`. Image Docker: `Dockerfile` (nhiều tầng, chạy bằng user `node`, cổng 3100).

@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import type { AuditLog } from '@prisma/client';
+
 import { FLAG_CLEARED_REASONS } from '../../src/modules/identity/identity.schema.js';
 import type {
   Account,
@@ -14,16 +16,8 @@ import type {
   Session,
   VerificationCode,
 } from '../../src/modules/identity/identity.repository.js';
-
-/** Cùng `code` với Prisma để service và test rẽ nhánh giống nhau giữa bản giả và DB thật. */
-export class FakeUniqueViolation extends Error {
-  readonly code = 'P2002';
-
-  constructor(target: string) {
-    super(`Unique constraint failed on ${target}`);
-    this.name = 'FakeUniqueViolation';
-  }
-}
+import { createFakeAuditLog, type FakeAuditLog } from './audit.fake.js';
+import { uniqueViolation } from './unique-violation.js';
 
 export interface FakeIdentityRepository extends IdentityRepository {
   readonly accounts: Map<string, Account>;
@@ -35,6 +29,8 @@ export interface FakeIdentityRepository extends IdentityRepository {
   readonly domains: Map<string, DisposableDomain>;
   readonly verifications: Map<string, IdVerification>;
   readonly events: OutboxEventInput[];
+  /** Dòng nhật ký đã ghi, theo thứ tự — test assert "đúng một dòng, đúng người làm". */
+  readonly audit: AuditLog[];
 }
 
 /**
@@ -49,10 +45,12 @@ const byId = <T>(map: Map<string, T>, id: string): T => {
 };
 
 const assertUnique = (target: string, taken: boolean): void => {
-  if (taken) throw new FakeUniqueViolation(target);
+  if (taken) throw uniqueViolation(target);
 };
 
-export function createFakeIdentityRepository(): FakeIdentityRepository {
+export function createFakeIdentityRepository({
+  auditLog = createFakeAuditLog(),
+}: { auditLog?: FakeAuditLog } = {}): FakeIdentityRepository {
   const accounts = new Map<string, Account>();
   const codes = new Map<string, VerificationCode>();
   const sessions = new Map<string, Session>();
@@ -62,6 +60,7 @@ export function createFakeIdentityRepository(): FakeIdentityRepository {
   const domains = new Map<string, DisposableDomain>();
   const verifications = new Map<string, IdVerification>();
   const events: OutboxEventInput[] = [];
+  const audit = auditLog.rows;
 
   const revokeSessions = ({ accountId, reason, at, exceptId }: RevokeSessionsInput): number => {
     let count = 0;
@@ -107,6 +106,7 @@ export function createFakeIdentityRepository(): FakeIdentityRepository {
     domains,
     verifications,
     events,
+    audit,
 
     findAccountById: async (id) => accounts.get(id) ?? null,
     findAccountByEmail: async (emailNormalized) =>
@@ -155,12 +155,13 @@ export function createFakeIdentityRepository(): FakeIdentityRepository {
         if (session.accountId === id) sessions.delete(sessionId);
       }
     },
-    async lockAccount({ accountId, reason, lockedBy, at, events: batch }) {
+    async lockAccount({ accountId, reason, lockedBy, at, events: batch, audit: entry }) {
       updateAccount(accountId, { status: 'locked', lockedAt: at, lockedReason: reason, lockedBy });
       revokeSessions({ accountId, reason: 'account_locked', at });
       events.push(...batch);
+      auditLog.append(entry, at);
     },
-    async unlockAccount({ accountId, unlockedBy, at, events: batch }) {
+    async unlockAccount({ accountId, unlockedBy, at, events: batch, audit: entry }) {
       updateAccount(accountId, {
         status: 'active',
         lockedAt: null,
@@ -179,6 +180,7 @@ export function createFakeIdentityRepository(): FakeIdentityRepository {
         });
       }
       events.push(...batch);
+      auditLog.append(entry, at);
     },
     async softDeleteAccount({ accountId, at, events: batch }) {
       updateAccount(accountId, { status: 'deleted', deletedAt: at });
@@ -235,11 +237,27 @@ export function createFakeIdentityRepository(): FakeIdentityRepository {
       at,
       events: batch,
     }) {
-      if (consumeCodeId)
-        codes.set(consumeCodeId, { ...byId(codes, consumeCodeId), consumedAt: at });
+      if (consumeCodeId) {
+        const code = byId(codes, consumeCodeId);
+        if (code.consumedAt !== null) return false;
+        codes.set(consumeCodeId, { ...code, consumedAt: at });
+      }
       updateAccount(accountId, patch);
       if (revoke) revokeSessions({ ...revoke, accountId, at });
       events.push(...batch);
+      return true;
+    },
+    // Không có `await` giữa đọc và ghi: trong bộ nhớ, đó là phép tăng nguyên tử như ở DB.
+    async recordWrongCode({ id, maxAttempts, at }) {
+      const code = byId(codes, id);
+      const attempts = code.attempts + 1;
+      const cancelled = attempts >= maxAttempts;
+      codes.set(id, {
+        ...code,
+        attempts,
+        consumedAt: cancelled && code.consumedAt === null ? at : code.consumedAt,
+      });
+      return { attempts, cancelled };
     },
     async deleteCodesExpiredBefore(before) {
       let count = 0;
@@ -275,6 +293,24 @@ export function createFakeIdentityRepository(): FakeIdentityRepository {
     findSessionByPreviousRefreshHash: async (prevRefreshTokenHash) =>
       [...sessions.values()].find((row) => row.prevRefreshTokenHash === prevRefreshTokenHash) ??
       null,
+    async rotateRefreshToken({ sessionId, expectedHash, nextHash, at, expiresAt }) {
+      const session = sessions.get(sessionId);
+      if (!session || session.revokedAt !== null || session.refreshTokenHash !== expectedHash) {
+        return false;
+      }
+      assertUnique(
+        'sessions.refresh_token_hash',
+        [...sessions.values()].some((row) => row.refreshTokenHash === nextHash),
+      );
+      sessions.set(sessionId, {
+        ...session,
+        refreshTokenHash: nextHash,
+        prevRefreshTokenHash: expectedHash,
+        lastActiveAt: at,
+        expiresAt,
+      });
+      return true;
+    },
     async updateSession(id, patch) {
       const next = { ...byId(sessions, id), ...patch };
       assertUnique(
@@ -342,7 +378,7 @@ export function createFakeIdentityRepository(): FakeIdentityRepository {
       [...flags.values()].filter((row) => row.accountId === accountId && row.clearedAt === null),
     findFlagByLookupCode: async (lookupCode) =>
       [...flags.values()].find((row) => row.lookupCode === lookupCode) ?? null,
-    async applyFlagChanges({ create, clear, at, events: batch }) {
+    async applyFlagChanges({ create, clear, at, events: batch, audit: entry }) {
       for (const flag of create) {
         assertUnique(
           'account_flags.lookup_code',
@@ -379,6 +415,7 @@ export function createFakeIdentityRepository(): FakeIdentityRepository {
         });
       }
       events.push(...batch);
+      if (entry) auditLog.append(entry, at);
     },
 
     findBlockedDomains: async (list) =>
@@ -390,19 +427,21 @@ export function createFakeIdentityRepository(): FakeIdentityRepository {
       const all = [...domains.values()].toSorted((a, b) => a.domain.localeCompare(b.domain));
       return { items: all.slice(skip, skip + take), total: all.length };
     },
-    async addManualDomain({ domain, at }) {
+    async addManualDomain({ domain, at, audit: entry }) {
       const existing = domains.get(domain);
       const row: DisposableDomain = existing
         ? { ...existing, source: 'manual', removedAt: null, removedBy: null }
         : { domain, source: 'manual', addedAt: at, removedAt: null, removedBy: null };
       domains.set(domain, row);
+      auditLog.append(entry, at);
       return row;
     },
-    async removeDisposableDomain({ domain, removedBy, at }) {
+    async removeDisposableDomain({ domain, removedBy, at, audit: entry }) {
       const existing = domains.get(domain);
       if (!existing || existing.removedAt !== null) return null;
       const row = { ...existing, removedAt: at, removedBy };
       domains.set(domain, row);
+      auditLog.append(entry, at);
       return row;
     },
     async seedDisposableDomains(list, at) {
@@ -452,10 +491,12 @@ export function createFakeIdentityRepository(): FakeIdentityRepository {
         .toSorted((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
       return { items: all.slice(skip, skip + take), total: all.length };
     },
-    async updateIdVerification(id, patch) {
+    async updateIdVerification(id, patch, entry) {
       const next = { ...byId(verifications, id), ...patch };
       verifications.set(id, next);
+      auditLog.append(entry, patch.reviewedAt ?? new Date(0));
       return next;
     },
+    findMaster: async () => [...accounts.values()].find((row) => row.role === 'master') ?? null,
   };
 }

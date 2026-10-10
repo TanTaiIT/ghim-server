@@ -1,13 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { buildApp } from '../src/app.js';
 import { createFakeMailer, type FakeMailer } from '../src/lib/mailer.js';
 import {
   createFakeIdentityRepository,
   type FakeIdentityRepository,
 } from './fakes/identity-repository.fake.js';
 import { createFakeJobs, type FakeJobs } from './fakes/jobs.fake.js';
+import { TEST_AUDIT } from './fakes/audit.fake.js';
+import { buildTestApp } from './fakes/app.js';
 
 /*
  * Mọi scenario của bốn requirement đầu spec `registration` + requirement đăng ký lại của
@@ -28,7 +29,12 @@ beforeAll(async () => {
   repository = createFakeIdentityRepository();
   jobs = createFakeJobs();
   mailer = createFakeMailer();
-  app = await buildApp({ repository, jobs, mailer, clock: () => now });
+  app = await buildTestApp({
+    repositories: { identity: repository },
+    jobs,
+    mailer,
+    clock: () => now,
+  });
   await app.ready();
 });
 
@@ -172,7 +178,9 @@ describe('POST /auth/register', () => {
   });
 
   describe('email dùng một lần', () => {
-    beforeAll(() => repository.addManualDomain({ domain: 'tempmail.example', at: START }));
+    beforeAll(() =>
+      repository.addManualDomain({ domain: 'tempmail.example', at: START, audit: TEST_AUDIT }),
+    );
 
     it('miền trong danh sách → 400 EMAIL_DISPOSABLE bảo dùng email thường', async () => {
       const res = await register({ email: 'a@tempmail.example' });

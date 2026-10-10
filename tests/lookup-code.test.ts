@@ -5,7 +5,8 @@ import {
   generateLookupCode,
   normalizeLookupCode,
 } from '../src/modules/identity/lookup-code.calc.js';
-import { foldName, isReservedName } from '../src/modules/identity/reserved-names.js';
+import { fold } from '../src/common/text/fold.js';
+import { isReservedName } from '../src/modules/identity/reserved-names.js';
 
 describe('generateLookupCode', () => {
   it('8 ký tự Crockford, không bao giờ có I, L, O, U', () => {
@@ -43,7 +44,7 @@ describe('isReservedName', () => {
     },
   );
 
-  it('foldName bỏ dấu kể cả đ', () => {
-    expect(foldName('Đặng Thị Lành')).toBe('DANG THI LANH');
+  it('fold bỏ dấu kể cả đ', () => {
+    expect(fold('Đặng Thị Lành')).toBe('DANG THI LANH');
   });
 });

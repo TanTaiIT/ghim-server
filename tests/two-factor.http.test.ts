@@ -2,8 +2,6 @@ import type { FastifyInstance } from 'fastify';
 import { generate } from 'otplib';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { buildApp } from '../src/app.js';
-import type { PrivilegeSource } from '../src/common/auth/privilege-source.js';
 import { toOk } from '../src/common/schemas/response.js';
 import { hashPassword } from '../src/modules/identity/password.calc.js';
 import {
@@ -11,6 +9,8 @@ import {
   type FakeIdentityRepository,
 } from './fakes/identity-repository.fake.js';
 import { createFakeJobs } from './fakes/jobs.fake.js';
+import { createFakePrivilegeSource } from './fakes/privilege-source.fake.js';
+import { buildTestApp } from './fakes/app.js';
 
 /*
  * Requirement hai lớp của spec `sessions`, với `otplib` sinh mã thật từ bí mật trong URI và
@@ -22,16 +22,17 @@ const PASSWORD = 'ghim-rao-vat-2026!';
 let app: FastifyInstance;
 let repository: FakeIdentityRepository;
 let passwordHash: string;
-const staff = new Set<string>();
-const privilegeSource: PrivilegeSource = {
-  hasStaffScope: async (accountId) => staff.has(accountId),
-  isStaff: async (accountId) => staff.has(accountId),
-};
+const privilegeSource = createFakePrivilegeSource();
 
 beforeAll(async () => {
   passwordHash = await hashPassword(PASSWORD);
   repository = createFakeIdentityRepository();
-  app = await buildApp({ repository, jobs: createFakeJobs(), privilegeSource, clock: () => NOW });
+  app = await buildTestApp({
+    repositories: { identity: repository },
+    jobs: createFakeJobs(),
+    privilegeSource,
+    clock: () => NOW,
+  });
   app.get(
     '/__test/ops',
     { preHandler: [app.authenticate, app.requireOps('support')] },
@@ -57,7 +58,7 @@ async function account(role: 'user' | 'master' | 'staff') {
     at: NOW,
   });
   if (role === 'master') await repository.updateAccount(row.id, { role: 'master' });
-  if (role === 'staff') staff.add(row.id);
+  if (role === 'staff') privilegeSource.grant(row.id, ['support']);
   return { ...row, email };
 }
 

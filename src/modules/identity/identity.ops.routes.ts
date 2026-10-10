@@ -134,7 +134,9 @@ export const identityOpsRoutes: FastifyPluginAsyncZod<IdentityOpsRoutesOptions> 
       response: { 201: ok(disposableDomainSchema), 403: errorResponse },
     },
     handler: async (request, reply) =>
-      reply.status(201).send(toOk(await identity.addDisposableDomain(request.body.domain))),
+      reply
+        .status(201)
+        .send(toOk(await identity.addDisposableDomain(actorOf(request), request.body.domain))),
   });
 
   app.delete('/ops/disposable-domains/:domain', {
@@ -147,7 +149,7 @@ export const identityOpsRoutes: FastifyPluginAsyncZod<IdentityOpsRoutesOptions> 
       response: { 200: ok(emptySchema), 403: errorResponse, 404: errorResponse },
     },
     handler: async (request) => {
-      await identity.removeDisposableDomain(request.params.domain, actorOf(request).accountId);
+      await identity.removeDisposableDomain(actorOf(request), request.params.domain);
       return toOk(null);
     },
   });

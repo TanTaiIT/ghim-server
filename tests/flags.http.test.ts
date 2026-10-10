@@ -1,14 +1,15 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { buildApp } from '../src/app.js';
-import type { OpsScope } from '../src/common/auth/privilege-source.js';
 import {
   createFakeIdentityRepository,
   type FakeIdentityRepository,
 } from './fakes/identity-repository.fake.js';
 import { createFakeJobs } from './fakes/jobs.fake.js';
-import { scopedPrivilegeSource, seedAccount, tokenFor } from './ops-helpers.js';
+import { createFakePrivilegeSource } from './fakes/privilege-source.fake.js';
+import { seedAccount, tokenFor } from './ops-helpers.js';
+import { TEST_AUDIT } from './fakes/audit.fake.js';
+import { buildTestApp } from './fakes/app.js';
 
 /* Hai requirement hỗ trợ của spec device-registry qua HTTP: tra mã, gỡ, không lộ mã thiết bị, 403 theo việc. */
 const NOW = new Date('2026-10-10T09:00:00+07:00');
@@ -17,23 +18,25 @@ let app: FastifyInstance;
 let repository: FakeIdentityRepository;
 let supportToken: string;
 let categoryStaffToken: string;
-const scopes = new Map<string, Set<OpsScope>>();
+let supportId: string;
+const privilegeSource = createFakePrivilegeSource();
 
 beforeAll(async () => {
   repository = createFakeIdentityRepository();
-  app = await buildApp({
-    repository,
+  app = await buildTestApp({
+    repositories: { identity: repository },
     jobs: createFakeJobs(),
-    privilegeSource: scopedPrivilegeSource(scopes),
+    privilegeSource,
     clock: () => NOW,
   });
   await app.ready();
   const ctx = { app, repository, now: NOW };
   const support = await seedAccount(ctx);
-  scopes.set(support.id, new Set(['support']));
+  privilegeSource.grant(support.id, ['support']);
+  supportId = support.id;
   supportToken = await tokenFor(ctx, support.id);
   const categoryStaff = await seedAccount(ctx);
-  scopes.set(categoryStaff.id, new Set(['id_verification']));
+  privilegeSource.grant(categoryStaff.id, ['id_verification']);
   categoryStaffToken = await tokenFor(ctx, categoryStaff.id);
 });
 
@@ -58,6 +61,7 @@ async function flaggedAccount(): Promise<{ accountId: string; lookupCode: string
     clear: { ids: [], clearedBy: null, clearedReason: '' },
     at: NOW,
     events: [],
+    audit: TEST_AUDIT,
   });
   const [flag] = await repository.findOpenFlags(user.id);
   return { accountId: user.id, lookupCode: flag?.lookupCode ?? '' };
@@ -113,6 +117,12 @@ describe('POST /ops/flags/:lookupCode/clear', () => {
       true,
     );
     expect((await get(lookupCode, supportToken)).json().data.clearedReason).toBe('Máy mua lại');
+    // Staff ghi nhật ký dưới tài khoản cá nhân của chính mình (spec audit-log).
+    expect(
+      repository.audit.filter(
+        (row) => row.action === 'identity.flag.clear' && row.targetId === accountId,
+      ),
+    ).toMatchObject([{ actorId: supportId, actorRole: 'user', reason: 'Máy mua lại' }]);
     expect((await clear(lookupCode, supportToken, { reason: 'lại' })).statusCode).toBe(409);
   });
 

@@ -6,3 +6,5 @@ pnpm-lock.yaml
 .agents
 .claude
 skills-lock.json
+# Sinh bằng `pnpm cli:build-regions` — định dạng lại là diff vô nghĩa ở mỗi lần cập nhật địa giới.
+src/modules/category/data/regions.json

@@ -1,7 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-
-import { buildApp } from '../src/app.js';
+import { buildTestApp } from './fakes/app.js';
 
 /**
  * Test HTTP qua `app.inject()` — chạy đúng app thật (plugin, schema, error handler) nhưng
@@ -13,7 +12,7 @@ import { buildApp } from '../src/app.js';
 let app: FastifyInstance;
 
 beforeAll(async () => {
-  app = await buildApp();
+  app = await buildTestApp();
   await app.ready();
 });
 
@@ -79,7 +78,8 @@ describe('Tài liệu API', () => {
     vi.stubEnv('SMTP_URL', 'smtps://user:pass@smtp.example.com:465');
     vi.stubEnv('GOOGLE_CLIENT_IDS', 'ios-id.apps.googleusercontent.com');
     try {
-      const { buildApp: buildProductionApp } = await import('../src/app.js');
+      // Qua bản giả để không chạm DB; `fakes/app.js` nạp lại `src/app.js` dưới env production.
+      const { buildTestApp: buildProductionApp } = await import('./fakes/app.js');
       const production = await buildProductionApp();
       const res = await production.inject({ method: 'GET', url: '/docs' });
       await production.close();

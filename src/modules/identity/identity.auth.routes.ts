@@ -33,7 +33,6 @@ export interface IdentityAuthRoutesOptions {
 type Client = (typeof CLIENTS)[number];
 
 const TAGS = ['Auth'];
-const SECONDS_PER_MINUTE = 60;
 const SECONDS_PER_DAY = 86_400;
 
 /** Tên thiết bị cho danh sách phiên: app gửi lên thì dùng, không thì rút từ user-agent, không nữa thì tên chung. */
@@ -48,29 +47,29 @@ export const identityAuthRoutes: FastifyPluginAsyncZod<IdentityAuthRoutesOptions
   app,
   { identity, config },
 ) => {
+  // Ba con số dưới đây đọc ở mỗi lượt, không lúc đăng ký route: chúng nằm trong bảng con số có
+  // phiên bản, master đổi thì có hiệu lực ngay (spec config-versions, rà soát 10/10/2026).
   const sensitive = {
-    rateLimit: { max: config.get('identity.authRateLimitPerMinute'), timeWindow: '1 minute' },
+    rateLimit: { max: () => config.get('identity.authRateLimitPerMinute'), timeWindow: '1 minute' },
   };
-  const accessTokenSeconds = config.get('identity.accessTokenMinutes') * SECONDS_PER_MINUTE;
-  const refreshCookieSeconds = config.get('identity.sessionIdleDays') * SECONDS_PER_DAY;
 
   /**
    * Access token ký ở đây chứ không trong service: service không biết Fastify. Web nhận refresh
    * token qua cookie httpOnly để JavaScript của trang không đọc được; app giữ trong kho an toàn.
    */
   const issueTokens = (reply: FastifyReply, opened: SessionOpened, client: Client) => {
-    const accessToken = app.jwt.sign({ sid: opened.sessionId });
+    const { token: accessToken, expiresInSeconds } = app.signAccessToken(opened.sessionId);
     if (client === 'web') {
       void reply.setCookie(REFRESH_COOKIE, opened.refreshToken, {
         httpOnly: true,
         secure: true,
         sameSite: 'strict',
         path: REFRESH_COOKIE_PATH,
-        maxAge: refreshCookieSeconds,
+        maxAge: config.get('identity.sessionIdleDays') * SECONDS_PER_DAY,
       });
-      return toOk({ accessToken, refreshToken: null, expiresIn: accessTokenSeconds });
+      return toOk({ accessToken, refreshToken: null, expiresIn: expiresInSeconds });
     }
-    return toOk({ accessToken, refreshToken: opened.refreshToken, expiresIn: accessTokenSeconds });
+    return toOk({ accessToken, refreshToken: opened.refreshToken, expiresIn: expiresInSeconds });
   };
 
   app.post('/auth/register', {
@@ -166,8 +165,19 @@ export const identityAuthRoutes: FastifyPluginAsyncZod<IdentityAuthRoutesOptions
     schema: {
       tags: TAGS,
       summary: 'Xoay refresh token, lấy access token mới (body cho app, cookie cho web)',
+      description: [
+        'Mỗi lượt cấp refresh token mới; token cũ gửi lại sau đó bị coi là bị lộ và thu hồi cả phiên.',
+        'App: gom mọi lượt làm mới thành MỘT (dùng chung một promise). Nhận 409 REFRESH_CONFLICT nghĩa là',
+        'một lượt khác vừa làm mới trước — chờ và dùng kết quả của lượt đó, KHÔNG gửi lại token cũ.',
+        'Web (cookie): lượt thắng đã đặt cookie mới cho mọi tab; tab nhận 409 gửi lại một lần là được.',
+      ].join(' '),
       body: refreshBodySchema,
-      response: { 200: ok(tokensSchema), 401: errorResponse, 403: errorResponse },
+      response: {
+        200: ok(tokensSchema),
+        401: errorResponse,
+        403: errorResponse,
+        409: errorResponse,
+      },
     },
     handler: async (request, reply) => {
       const fromCookie = request.cookies[REFRESH_COOKIE];

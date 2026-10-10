@@ -1,7 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { buildApp } from '../src/app.js';
 import { toOk } from '../src/common/schemas/response.js';
 import type {
   GoogleIdentity,
@@ -13,6 +12,8 @@ import {
   type FakeIdentityRepository,
 } from './fakes/identity-repository.fake.js';
 import { createFakeJobs } from './fakes/jobs.fake.js';
+import { TEST_AUDIT } from './fakes/audit.fake.js';
+import { buildTestApp } from './fakes/app.js';
 
 /* Requirement Google của spec `registration`: bản verifier giả trả identity theo token đã đăng ký. */
 const NOW = new Date('2026-10-10T09:00:00+07:00');
@@ -26,8 +27,8 @@ const verifier: GoogleTokenVerifier = {
 
 beforeAll(async () => {
   repository = createFakeIdentityRepository();
-  app = await buildApp({
-    repository,
+  app = await buildTestApp({
+    repositories: { identity: repository },
     jobs: createFakeJobs(),
     googleVerifier: verifier,
     clock: () => NOW,
@@ -129,6 +130,7 @@ describe('POST /auth/google', () => {
       lockedBy: 'm',
       at: NOW,
       events: [],
+      audit: TEST_AUDIT,
     });
     expect((await google('tok-khoa')).json().error.code).toBe('ACCOUNT_LOCKED');
   });

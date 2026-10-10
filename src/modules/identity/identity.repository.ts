@@ -14,6 +14,7 @@ import type {
   VerificationCode,
 } from '@prisma/client';
 
+import { appendAudit, type AuditEntry } from '../../common/audit/audit.js';
 import { appendEvents, type OutboxEventInput } from '../../common/outbox/outbox.js';
 import { FLAG_CLEARED_REASONS } from './identity.schema.js';
 
@@ -68,6 +69,8 @@ export interface LockAccountInput {
   lockedBy: string;
   at: Date;
   events: OutboxEventInput[];
+  /** Spec audit-log: không ghi được nhật ký thì khoá không xảy ra — cùng transaction. */
+  audit: AuditEntry;
 }
 
 export interface UnlockAccountInput {
@@ -75,6 +78,7 @@ export interface UnlockAccountInput {
   unlockedBy: string;
   at: Date;
   events: OutboxEventInput[];
+  audit: AuditEntry;
 }
 
 export interface SoftDeleteAccountInput {
@@ -139,6 +143,15 @@ export type SessionPatch = Partial<
   >
 >;
 
+export interface RotateRefreshInput {
+  sessionId: string;
+  /** Băm của token client gửi lên — lượt ghi chỉ khớp khi nó vẫn là token đang dùng. */
+  expectedHash: string;
+  nextHash: string;
+  at: Date;
+  expiresAt: Date;
+}
+
 export interface LockedOnDevice {
   accountId: string;
   lockedAt: Date;
@@ -161,6 +174,8 @@ export interface FlagChanges {
   clear: { ids: string[]; clearedBy: string | null; clearedReason: string };
   at: Date;
   events: OutboxEventInput[];
+  /** `null` khi hệ thống tự tính lại đánh dấu; người gỡ thì bắt buộc. */
+  audit: AuditEntry | null;
 }
 
 export interface PageQuery {
@@ -197,7 +212,12 @@ export interface IdentityRepository {
   findAccountByGoogleSub(googleSub: string): Promise<Account | null>;
   createAccount(data: NewAccount): Promise<Account>;
   updateAccount(id: string, patch: AccountPatch): Promise<Account>;
-  applyAccountChange(input: AccountChangeInput): Promise<void>;
+  /**
+   * `false` khi mã trong `consumeCodeId` không còn sống — một lượt khác vừa tiêu nó, hoặc lượt đoán
+   * sai thứ N vừa huỷ nó. Khi đó KHÔNG gì được ghi: tiêu mã là lượt ghi có điều kiện đứng đầu
+   * transaction, nên hai lượt nhập đúng cùng lúc chỉ một lượt đổi được tài khoản.
+   */
+  applyAccountChange(input: AccountChangeInput): Promise<boolean>;
   /** Xoá HẲN — chỉ cho đăng ký dở dang quá hạn; cascade kéo theo mã, phiên, dấu thiết bị. */
   deleteUnverifiedAccountsBefore(createdBefore: Date): Promise<number>;
   /** Xoá HẲN một tài khoản đã qua 90 ngày chờ — giải phóng email cho lượt đăng ký mới. */
@@ -210,6 +230,16 @@ export interface IdentityRepository {
   /** Tiêu mã sống cùng mục đích (nếu có) rồi tạo mã mới — một mã sống mỗi mục đích. */
   issueCode(data: NewCode): Promise<VerificationCode>;
   updateCode(id: string, patch: CodePatch): Promise<VerificationCode>;
+  /**
+   * Cộng một lần sai bằng phép tăng của DB rồi huỷ mã khi chạm trần, cùng transaction. Đọc số lần
+   * sai rồi ghi lại thì các lượt đoán song song cùng đọc ra một số cũ và vượt trần (rà soát
+   * 10/10/2026); phép tăng giữ khoá dòng nên mỗi lượt thấy đúng số của mình.
+   */
+  recordWrongCode(input: {
+    id: string;
+    maxAttempts: number;
+    at: Date;
+  }): Promise<{ attempts: number; cancelled: boolean }>;
   deleteCodesExpiredBefore(before: Date): Promise<number>;
 
   createSession(data: NewSession): Promise<Session>;
@@ -217,6 +247,12 @@ export interface IdentityRepository {
   findSessionByRefreshHash(refreshTokenHash: string): Promise<Session | null>;
   findSessionByPreviousRefreshHash(prevRefreshTokenHash: string): Promise<Session | null>;
   updateSession(id: string, patch: SessionPatch): Promise<Session>;
+  /**
+   * Xoay token làm mới bằng lượt ghi có điều kiện (token đang dùng vẫn là `expectedHash`, phiên chưa
+   * thu hồi). Đọc rồi ghi đè thì hai lượt làm mới cùng lúc đều "thắng" và một client cầm token hỏng
+   * (change fix-session-refresh-race). `false` = lượt khác vừa xoay trước, hoặc phiên vừa bị thu hồi.
+   */
+  rotateRefreshToken(input: RotateRefreshInput): Promise<boolean>;
   /** Phiên chưa thu hồi, mới hoạt động trước. */
   listActiveSessions(accountId: string): Promise<Session[]>;
   revokeSessions(input: RevokeSessionsInput): Promise<number>;
@@ -235,11 +271,16 @@ export interface IdentityRepository {
   findBlockedDomains(domains: string[]): Promise<string[]>;
   listDisposableDomains(query: PageQuery): Promise<Page<DisposableDomain>>;
   /** Thêm tay; miền đã là bia mộ thì sống lại dưới dạng `manual`. */
-  addManualDomain(input: { domain: string; at: Date }): Promise<DisposableDomain>;
+  addManualDomain(input: {
+    domain: string;
+    at: Date;
+    audit: AuditEntry;
+  }): Promise<DisposableDomain>;
   removeDisposableDomain(input: {
     domain: string;
     removedBy: string;
     at: Date;
+    audit: AuditEntry;
   }): Promise<DisposableDomain | null>;
   /** Chỉ thêm miền chưa có dòng — không đụng miền master đã thêm hay đã bỏ. Trả số dòng mới. */
   seedDisposableDomains(domains: string[], at: Date): Promise<number>;
@@ -251,7 +292,13 @@ export interface IdentityRepository {
   listIdVerifications(
     query: PageQuery & { status?: IdVerificationStatus },
   ): Promise<Page<IdVerification>>;
-  updateIdVerification(id: string, patch: IdVerificationPatch): Promise<IdVerification>;
+  updateIdVerification(
+    id: string,
+    patch: IdVerificationPatch,
+    audit: AuditEntry,
+  ): Promise<IdVerification>;
+  /** Tài khoản master — tối đa một (spec master-accounts). */
+  findMaster(): Promise<Account | null>;
 }
 
 // ── PRISMA ──────────────────────────────────────────────────────────────────────────────────────
@@ -285,14 +332,16 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
     applyAccountChange: ({ accountId, patch, consumeCodeId, revokeSessions, at, events }) =>
       prisma.$transaction(async (tx) => {
         if (consumeCodeId) {
-          await tx.verificationCode.update({
-            where: { id: consumeCodeId },
+          const { count } = await tx.verificationCode.updateMany({
+            where: { id: consumeCodeId, consumedAt: null },
             data: { consumedAt: at },
           });
+          if (count === 0) return false;
         }
         await tx.account.update({ where: { id: accountId }, data: patch });
         if (revokeSessions) await revokeSessionsIn(tx, { ...revokeSessions, accountId, at });
         await appendEvents(tx, events);
+        return true;
       }),
     async deleteUnverifiedAccountsBefore(createdBefore) {
       const { count } = await prisma.account.deleteMany({
@@ -303,7 +352,7 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
     async purgeAccount(id) {
       await prisma.account.delete({ where: { id } });
     },
-    lockAccount: ({ accountId, reason, lockedBy, at, events }) =>
+    lockAccount: ({ accountId, reason, lockedBy, at, events, audit }) =>
       prisma.$transaction(async (tx) => {
         await tx.account.update({
           where: { id: accountId },
@@ -311,8 +360,9 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
         });
         await revokeSessionsIn(tx, { accountId, reason: 'account_locked', at });
         await appendEvents(tx, events);
+        await appendAudit(tx, audit);
       }),
-    unlockAccount: ({ accountId, unlockedBy, at, events }) =>
+    unlockAccount: ({ accountId, unlockedBy, at, events, audit }) =>
       prisma.$transaction(async (tx) => {
         await tx.account.update({
           where: { id: accountId },
@@ -327,6 +377,7 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
           },
         });
         await appendEvents(tx, events);
+        await appendAudit(tx, audit);
       }),
     softDeleteAccount: ({ accountId, at, events }) =>
       prisma.$transaction(async (tx) => {
@@ -349,6 +400,19 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
         return tx.verificationCode.create({ data: { ...data, createdAt: at } });
       }),
     updateCode: (id, patch) => prisma.verificationCode.update({ where: { id }, data: patch }),
+    recordWrongCode: ({ id, maxAttempts, at }) =>
+      prisma.$transaction(async (tx) => {
+        const { attempts, consumedAt } = await tx.verificationCode.update({
+          where: { id },
+          data: { attempts: { increment: 1 } },
+          select: { attempts: true, consumedAt: true },
+        });
+        if (attempts < maxAttempts) return { attempts, cancelled: false };
+        if (consumedAt === null) {
+          await tx.verificationCode.update({ where: { id }, data: { consumedAt: at } });
+        }
+        return { attempts, cancelled: true };
+      }),
     async deleteCodesExpiredBefore(before) {
       const { count } = await prisma.verificationCode.deleteMany({
         where: { OR: [{ expiresAt: { lt: before } }, { consumedAt: { lt: before } }] },
@@ -364,6 +428,18 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
     findSessionByPreviousRefreshHash: (prevRefreshTokenHash) =>
       prisma.session.findFirst({ where: { prevRefreshTokenHash } }),
     updateSession: (id, patch) => prisma.session.update({ where: { id }, data: patch }),
+    async rotateRefreshToken({ sessionId, expectedHash, nextHash, at, expiresAt }) {
+      const { count } = await prisma.session.updateMany({
+        where: { id: sessionId, refreshTokenHash: expectedHash, revokedAt: null },
+        data: {
+          refreshTokenHash: nextHash,
+          prevRefreshTokenHash: expectedHash,
+          lastActiveAt: at,
+          expiresAt,
+        },
+      });
+      return count === 1;
+    },
     listActiveSessions: (accountId) =>
       prisma.session.findMany({
         where: { accountId, revokedAt: null },
@@ -400,7 +476,7 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
     findOpenFlags: (accountId) =>
       prisma.accountFlag.findMany({ where: { accountId, clearedAt: null } }),
     findFlagByLookupCode: (lookupCode) => prisma.accountFlag.findUnique({ where: { lookupCode } }),
-    applyFlagChanges: ({ create, clear, at, events }) =>
+    applyFlagChanges: ({ create, clear, at, events, audit }) =>
       prisma.$transaction(async (tx) => {
         if (create.length > 0) {
           await tx.accountFlag.createMany({
@@ -414,6 +490,7 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
           });
         }
         await appendEvents(tx, events);
+        if (audit) await appendAudit(tx, audit);
       }),
 
     async findBlockedDomains(domains) {
@@ -431,19 +508,26 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
       ]);
       return { items, total };
     },
-    addManualDomain: ({ domain, at }) =>
-      prisma.disposableDomain.upsert({
-        where: { domain },
-        create: { domain, source: 'manual', addedAt: at },
-        update: { source: 'manual', removedAt: null, removedBy: null },
+    addManualDomain: ({ domain, at, audit }) =>
+      prisma.$transaction(async (tx) => {
+        const row = await tx.disposableDomain.upsert({
+          where: { domain },
+          create: { domain, source: 'manual', addedAt: at },
+          update: { source: 'manual', removedAt: null, removedBy: null },
+        });
+        await appendAudit(tx, audit);
+        return row;
       }),
-    async removeDisposableDomain({ domain, removedBy, at }) {
-      const { count } = await prisma.disposableDomain.updateMany({
-        where: { domain, removedAt: null },
-        data: { removedAt: at, removedBy },
-      });
-      return count === 0 ? null : prisma.disposableDomain.findUnique({ where: { domain } });
-    },
+    removeDisposableDomain: ({ domain, removedBy, at, audit }) =>
+      prisma.$transaction(async (tx) => {
+        const { count } = await tx.disposableDomain.updateMany({
+          where: { domain, removedAt: null },
+          data: { removedAt: at, removedBy },
+        });
+        if (count === 0) return null;
+        await appendAudit(tx, audit);
+        return tx.disposableDomain.findUnique({ where: { domain } });
+      }),
     async seedDisposableDomains(domains, at) {
       // Hạt giống ~100k dòng: chia lô để không vượt trần 65535 tham số của một câu lệnh Postgres.
       const batches: string[][] = [];
@@ -475,7 +559,12 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
       ]);
       return { items, total };
     },
-    updateIdVerification: (id, patch) =>
-      prisma.idVerification.update({ where: { id }, data: patch }),
+    updateIdVerification: (id, patch, audit) =>
+      prisma.$transaction(async (tx) => {
+        const row = await tx.idVerification.update({ where: { id }, data: patch });
+        await appendAudit(tx, audit);
+        return row;
+      }),
+    findMaster: () => prisma.account.findFirst({ where: { role: 'master' } }),
   };
 }

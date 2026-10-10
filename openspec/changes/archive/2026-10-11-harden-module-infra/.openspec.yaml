@@ -1,0 +1,5 @@
+schema: spec-driven
+created: 2026-10-10
+goal: 'Hạ tầng trước add-groups, rà soát 10/10/2026: bộ phát outbox chịu tải,
+  bản giả khớp DB, tách identity, ghép module'
+skip_specs: true

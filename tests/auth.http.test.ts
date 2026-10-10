@@ -1,14 +1,15 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { buildApp } from '../src/app.js';
-import type { OpsScope, PrivilegeSource } from '../src/common/auth/privilege-source.js';
 import { toOk } from '../src/common/schemas/response.js';
 import {
   createFakeIdentityRepository,
   type FakeIdentityRepository,
 } from './fakes/identity-repository.fake.js';
 import { createFakeJobs } from './fakes/jobs.fake.js';
+import { createFakePrivilegeSource } from './fakes/privilege-source.fake.js';
+import { TEST_AUDIT } from './fakes/audit.fake.js';
+import { buildTestApp } from './fakes/app.js';
 
 /*
  * Guard chạy trên app THẬT (JWT, cookie, error handler) với repository giả và đồng hồ cố định.
@@ -20,21 +21,32 @@ const DAY_MS = 86_400_000;
 
 let app: FastifyInstance;
 let repository: FakeIdentityRepository;
-const staffScopes = new Map<string, Set<OpsScope>>();
-const privilegeSource: PrivilegeSource = {
-  hasStaffScope: async (accountId, scope) => staffScopes.get(accountId)?.has(scope) ?? false,
-  isStaff: async (accountId) => staffScopes.has(accountId),
-};
+const privilegeSource = createFakePrivilegeSource();
 
 const whoami = async (request: { actor: unknown }) => toOk(request.actor);
 
 beforeAll(async () => {
   repository = createFakeIdentityRepository();
-  app = await buildApp({ repository, jobs: createFakeJobs(), privilegeSource, clock: () => NOW });
+  app = await buildTestApp({
+    repositories: { identity: repository },
+    jobs: createFakeJobs(),
+    privilegeSource,
+    clock: () => NOW,
+  });
   app.get('/__test/me', { preHandler: [app.authenticate] }, whoami);
   app.get('/__test/verified', { preHandler: [app.authenticate, app.requireVerifiedEmail] }, whoami);
   app.get('/__test/master', { preHandler: [app.authenticate, app.requireMaster] }, whoami);
   app.get('/__test/ops', { preHandler: [app.authenticate, app.requireOps('support')] }, whoami);
+  app.get(
+    '/__test/categories/:id',
+    {
+      preHandler: [
+        app.authenticate,
+        app.requireCategoryOps((request) => (request.params as { id: string }).id),
+      ],
+    },
+    whoami,
+  );
   await app.ready();
 });
 
@@ -69,6 +81,7 @@ async function account(
       lockedBy: row.id,
       at: NOW,
       events: [],
+      audit: TEST_AUDIT,
     });
   }
   return patched;
@@ -180,7 +193,7 @@ describe('requireOps', () => {
 
   it('staff có việc nhưng phiên chưa qua lớp thứ hai → 403 TWO_FACTOR_REQUIRED', async () => {
     const { id } = await account();
-    staffScopes.set(id, new Set(['support']));
+    privilegeSource.grant(id, ['support']);
     const res = await call('/__test/ops', await token(id));
     expect(res.statusCode).toBe(403);
     expect(res.json().error.code).toBe('TWO_FACTOR_REQUIRED');
@@ -188,7 +201,7 @@ describe('requireOps', () => {
 
   it('staff chỉ có việc khác → 403 FORBIDDEN', async () => {
     const { id } = await account();
-    staffScopes.set(id, new Set(['id_verification']));
+    privilegeSource.grant(id, ['id_verification']);
     const res = await call('/__test/ops', await token(id, { secondFactorAt: NOW }));
     expect(res.json().error.code).toBe('FORBIDDEN');
   });
@@ -205,9 +218,39 @@ describe('requireOps', () => {
 
   it('staff có việc và đã qua lớp thứ hai → 200', async () => {
     const { id } = await account();
-    staffScopes.set(id, new Set(['support']));
+    privilegeSource.grant(id, ['support']);
     expect((await call('/__test/ops', await token(id, { secondFactorAt: NOW }))).statusCode).toBe(
       200,
     );
+  });
+});
+
+describe('quyền treo và quyền theo danh mục', () => {
+  it('staff đang treo → 403 STAFF_PERMISSION_SUSPENDED ở mọi guard ops; trả lại thì qua', async () => {
+    const { id } = await account();
+    privilegeSource.grant(id, ['support'], ['cat-1']);
+    privilegeSource.suspend(id);
+    const bearer = await token(id, { secondFactorAt: NOW });
+    expect((await call('/__test/ops', bearer)).json().error.code).toBe(
+      'STAFF_PERMISSION_SUSPENDED',
+    );
+    expect((await call('/__test/categories/cat-1', bearer)).json().error.code).toBe(
+      'STAFF_PERMISSION_SUSPENDED',
+    );
+    privilegeSource.restore(id);
+    expect((await call('/__test/ops', bearer)).statusCode).toBe(200);
+  });
+
+  it('requireCategoryOps: đúng danh mục được giao → 200, danh mục khác → 403 FORBIDDEN, master → 200', async () => {
+    const { id } = await account();
+    privilegeSource.grant(id, [], ['cat-1']);
+    const bearer = await token(id, { secondFactorAt: NOW });
+    expect((await call('/__test/categories/cat-1', bearer)).statusCode).toBe(200);
+    expect((await call('/__test/categories/cat-2', bearer)).json().error.code).toBe('FORBIDDEN');
+    const master = await account({ role: 'master' });
+    expect(
+      (await call('/__test/categories/cat-2', await token(master.id, { secondFactorAt: NOW })))
+        .statusCode,
+    ).toBe(200);
   });
 });

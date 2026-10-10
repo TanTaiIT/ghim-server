@@ -1,23 +1,31 @@
 /**
- * Việc của bàn vận hành mà staff được giao theo từng loại (TK 5). `platform` là chủ danh sách
- * này; `identity` mới cần hai việc đầu. Thêm việc = thêm vào tuple, `add-platform-roles` nối bảng.
+ * Ba việc toàn hệ thống mà master giao thêm cho staff (TK 5): hỗ trợ người dùng, xử báo cáo về
+ * người, duyệt giấy tờ. Tuple này là mặt HTTP của enum `staff_scope`; `platform` sở hữu dữ liệu.
  */
-export const OPS_SCOPES = ['support', 'id_verification'] as const;
+export const OPS_SCOPES = ['support', 'user_reports', 'id_verification'] as const;
 export type OpsScope = (typeof OPS_SCOPES)[number];
 
+/** `suspended` vẫn là "mang quyền staff" (hai lớp, trần 3 phiên) nhưng không làm được gì ở bàn vận hành. */
+export type PermissionState = 'none' | 'active' | 'suspended';
+
 /**
- * Cổng hỏi quyền staff. Quyền là dữ liệu của `platform` (chưa có), nên `identity` không đọc bảng
- * mà hỏi qua interface này; `add-platform-roles` thay bản mặc định bằng bản đọc bảng quyền.
- * Master không đi qua đây — vai `master` là cột của `accounts`, guard kiểm trực tiếp.
+ * Cổng hỏi quyền staff. Dữ liệu là của `platform`; `identity` và guard chỉ hỏi qua đây, không đọc
+ * bảng. Master không đi qua đây — vai `master` là cột của `accounts`, guard kiểm trực tiếp.
  */
 export interface PrivilegeSource {
+  permissionState(accountId: string): Promise<PermissionState>;
+  /** Có việc toàn hệ thống `scope` và quyền đang hiệu lực. */
   hasStaffScope(accountId: string, scope: OpsScope): Promise<boolean>;
-  /** Có BẤT KỲ việc nào: quyết định hai lớp bắt buộc và trần 3 phiên lúc đăng nhập. */
+  /** Phụ trách danh mục `categoryId` và quyền đang hiệu lực. */
+  hasCategoryScope(accountId: string, categoryId: string): Promise<boolean>;
+  /** Có quyền staff, kể cả đang treo: quyết định hai lớp bắt buộc và trần 3 phiên lúc đăng nhập. */
   isStaff(accountId: string): Promise<boolean>;
 }
 
-/** Bản mặc định tới khi `platform` có bảng: chưa ai là staff. */
+/** Không ai là staff — cho test và cho lúc chưa nối `platform`. */
 export const noStaffPrivilegeSource: PrivilegeSource = {
+  permissionState: async () => 'none',
   hasStaffScope: async () => false,
+  hasCategoryScope: async () => false,
   isStaff: async () => false,
 };

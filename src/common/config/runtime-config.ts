@@ -1,31 +1,15 @@
-/**
- * Mọi con số ở TK phần 28 đi qua đây (CLAUDE.md luật 19). Bảng con số có phiên bản thuộc
- * `platform` (chưa có); tới lúc đó `add-platform-roles` thay bản tĩnh này bằng bản đọc bảng —
- * service không đổi dòng nào vì chỉ thấy `RuntimeConfig`.
- *
- * Giá trị dưới là GIÁ TRỊ KHỞI ĐẦU của bảng, đúng TK 28; đổi một con số là đổi TK trước.
- */
-export const RUNTIME_CONFIG_DEFAULTS = {
-  // TK 28 — Tài khoản
-  'identity.codeTtlMinutes': 10,
-  'identity.codeMaxAttempts': 5,
-  'identity.resendCooldownSeconds': 60,
-  'identity.unverifiedPurgeDays': 7,
-  'identity.sessionCapUser': 20,
-  'identity.sessionCapPrivileged': 3,
-  'identity.sessionIdleDays': 30,
-  'identity.accessTokenMinutes': 15,
-  'identity.passwordMinLength': 8,
-  'identity.passwordMaxLength': 128,
-  'identity.emailChangeIntervalDays': 30,
-  'identity.deletedEmailHoldDays': 90,
-  'identity.authRateLimitPerMinute': 10,
-  // TK 28 — Thiết bị
-  'identity.deviceSlots': 3,
-  'identity.deviceWindowDays': 90,
-} as const;
+import { CONFIG_KEYS, type RuntimeConfigKey } from './config-keys.js';
 
-export type RuntimeConfigKey = keyof typeof RUNTIME_CONFIG_DEFAULTS;
+export type { RuntimeConfigKey };
+
+/**
+ * Mọi con số ở TK phần 28 đi qua đây (CLAUDE.md luật 19). Sổ đăng ký `config-keys.ts` là nguồn
+ * của khoá và giá trị khởi đầu; bản thật đọc phiên bản hiện hành của `platform`
+ * (`createVersionedRuntimeConfig`), bản tĩnh dưới đây cho test và cho lúc chưa có DB.
+ */
+export const RUNTIME_CONFIG_DEFAULTS: Record<RuntimeConfigKey, number> = Object.fromEntries(
+  Object.entries(CONFIG_KEYS).map(([key, spec]) => [key, spec.initial]),
+) as Record<RuntimeConfigKey, number>;
 
 export interface RuntimeConfig {
   get(key: RuntimeConfigKey): number;
@@ -42,8 +26,8 @@ export function createStaticRuntimeConfig(
   return {
     get(key) {
       const value = values[key];
-      // Bản đọc bảng sau này nhận khoá từ dữ liệu, không chỉ từ code: khoá lạ phải nổ chứ
-      // không trả undefined rồi thành NaN ở một phép so sánh cách đó ba hàm.
+      // Bản đọc bảng nhận khoá từ dữ liệu, không chỉ từ code: khoá lạ phải nổ chứ không trả
+      // undefined rồi thành NaN ở một phép so sánh cách đó ba hàm.
       if (value === undefined) throw new Error(`Khoá cấu hình không tồn tại: ${key}`);
       return value;
     },

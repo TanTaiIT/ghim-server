@@ -62,7 +62,7 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
     Không thêm Redis. Bản đầu một tiến trình; pg-boss khoá theo job nên ngày chạy nhiều tiến trình
     không phải đổi gì. Đã nối: `src/lib/jobs.ts` (`createJobs` → `start`/`stop`/`schedule`, cron theo
     `Asia/Ho_Chi_Minh`, `singletonKey` mặc định = tên việc); module khai việc của mình trong
-    `<module>.jobs.ts` với tên `<module>.<việc>`, gọi sau `jobs.start()` trong `server.ts`.
+    `<module>.jobs.ts` với tên `<module>.<việc>`, nối qua `jobs` của định nghĩa module (`<module>.module.ts`).
   - Gửi email (mã xác nhận, đổi email): **nodemailer** qua `SMTP_URL`, đứng sau interface `Mailer` ở
     `src/lib/mailer.ts` (`createSmtpMailer`, `createFakeMailer` cho test). `SMTP_URL` bắt buộc ngoài
     test vì mã xác nhận không bao giờ vào log — dev dùng **Mailpit** trong docker-compose
@@ -99,26 +99,36 @@ prisma/
   migrations/                 ← KHÔNG sửa migration đã apply
 prisma.config.ts
 src/
-  app.ts                      ← buildApp(): plugin, đăng ký route
-  server.ts                   ← listen + jobs.start(); tắt theo thứ tự HTTP → jobs → Prisma
+  app.ts                      ← buildApp(): plugin, dựng module theo thứ tự phụ thuộc, lặp danh sách module
+  server.ts                   ← nối bên nghe outbox, jobs.start(), `startup` của từng module, bật bộ phát,
+                                listen; tắt theo thứ tự HTTP → bộ phát → jobs → Prisma
   config/{env,database-guard}.ts
   lib/{prisma,logger,mailer,jobs}.ts
   common/
+    audit/audit.ts            ← `appendAudit(tx, entry)`: nhật ký bàn vận hành, cùng transaction với thay đổi
     auth/{auth.plugin,actor,privilege-source}.ts ← guard dùng chung: authenticate, requireVerifiedEmail,
-                                requireMaster, requireOps(scope); `Actor` trên request; `PrivilegeSource`
-                                (quyền staff — bản mặc định `noStaffPrivilegeSource`, `platform` thay sau)
-    config/runtime-config.ts  ← `RuntimeConfig.get(key)`: con số TK 28, bản tĩnh chờ `platform`
+                                requireMaster, requireOps(scope), requireCategoryOps(categoryIdOf); `Actor`
+                                trên request; `PrivilegeSource` (bản thật: `createPlatformPrivilegeSource`)
+    config/config-keys.ts     ← sổ đăng ký mọi con số TK 28: kiểu, giá trị khởi đầu, nhóm
+    config/runtime-config.ts  ← `RuntimeConfig.get(key)`; bản tĩnh cho test và CLI
     crypto/secrets.ts         ← AES-256-GCM (`SecretBox`), SHA-256, HMAC tách scope, token ngẫu nhiên
     errors/{app-error,error-handler}.ts
     outbox/outbox.ts          ← `appendEvents(tx, events)`: sự kiện chéo module, cùng transaction
+    module/app-module.ts      ← `AppModule`: route, bên nghe outbox, việc nền, bước khởi động của một module
+    outbox/dispatcher.ts      ← bộ phát: nhận lô `FOR UPDATE SKIP LOCKED` có hạn giữ, thử lại lùi dần
     plugins/swagger.ts
     schemas/{response,pagination,money}.ts   ← money.ts chỉ có `priceSchema`
+    text/fold.ts              ← bỏ dấu + hoa + gộp khoảng trắng: tên dành riêng, tìm khu vực
     time/time.ts              ← định dạng ngày / giờ theo Asia/Ho_Chi_Minh cho câu báo người dùng
-    utils/defined.ts
+    utils/{defined,sequential}.ts
   modules/<module>/
+    <module>.module.ts        ← `create<Module>Module(deps)` → `{ service, module: AppModule }`
     <module>.routes.ts        ← chỉ đăng ký plugin con; route thật tách theo mối quan tâm:
     <module>.<quan-tâm>.routes.ts  ← vd identity.auth / identity.me / identity.ops — route + schema + guard
-    <module>.service.ts       ← business logic, factory `createXService(deps)`
+    <module>.service.ts       ← business logic, factory `createXService(deps)`; quá 500 dòng thì tách
+                                theo mối quan tâm như route (vd `identity.{auth,account,ops}.service.ts`
+                                + `identity.shared.ts`), `createXService` ghép lại, interface không đổi
+    <module>.events.ts        ← (nếu có) bên nghe outbox của module
     <module>.repository.ts    ← toàn bộ truy vấn Prisma, kể cả transaction + ghi outbox
     <module>.schema.ts        ← Zod schema + hằng/tập giá trị của module
     <module>.calc.ts / <tên>.calc.ts ← hàm tính toán thuần, không chạm DB (vd email.calc, device.calc)
@@ -126,16 +136,25 @@ src/
     <module>.mail.ts          ← (nếu có) mẫu thư thuần văn bản
     data/                     ← (nếu có) file tĩnh đi kèm, đọc bằng `new URL('./data/…', import.meta.url)`;
                                 tsc không chép nên `pnpm run build` có bước `build:data` chép `src/**/data` sang dist
-  cli/                        ← (chưa có) script chạy tay, vd tạo master
+  cli/                        ← script chạy tay, không qua HTTP: `create-master`, `reset-two-factor`
+                                (dùng `cli-identity.ts`), `build-regions` (sinh `category/data/regions.json`)
 tests/*.test.ts               ← phẳng, không chia thư mục con; không chạm DB
 tests/*.db.test.ts            ← chạy trên Postgres thật (`pnpm test:db`), tiện ích ở `tests/db-helpers.ts`
 ```
 
 - **Không có tầng controller**: handler trong `routes.ts` gọi service rồi trả response.
 - **Không có `<module>.types.ts`**: DTO chính là response schema Zod trong `<module>.schema.ts`.
-- Tên module kebab-case, **số ít**. Đang có: `health`, `identity`.
-- `buildApp({ deps })` nhận repository, jobs, mailer, googleVerifier, privilegeSource, config, clock —
-  bỏ trống là bản thật; test HTTP truyền bản giả từ `tests/fakes/` và vẫn chạy đúng app thật.
+- Tên module kebab-case, **số ít**. Đang có: `health`, `identity`, `platform`, `category`.
+- `buildApp(overrides)` nhận `repositories: { identity, platform, category }` và hạ tầng dùng chung
+  (jobs, mailer, googleVerifier, privilegeSource, config, clock) — bỏ trống là bản thật.
+  `privilegeSource` và `config` mặc định là bản thật của `platform` dựng trên repository của nó, nên
+  test truyền repository giả vẫn đi đúng đường production. Service của module tra qua `app.modules`
+  (`app.modules.platform`…); `app.moduleList` là danh sách định nghĩa theo thứ tự dựng. Test HTTP dùng
+  `buildTestApp` (`tests/fakes/app.ts`), cùng hình dạng overrides.
+- **Thêm một module mới**: viết `<module>.module.ts` trả `{ service, module }` (route, và nếu có: bên
+  nghe outbox, việc nền, bước khởi động); thêm repository vào `Repositories` và bản giả vào
+  `buildTestApp`; thêm service vào `AppServices`; dựng nó trong `buildApp` đúng chỗ theo thứ tự phụ
+  thuộc và thêm vào `moduleList`. `server.ts` không phải sửa.
 
 ### Module theo TK phần 30 — thứ tự xây theo TK phần 29
 
@@ -159,13 +178,17 @@ Endpoint của bàn vận hành nằm trong module sở hữu dữ liệu, đăn
 không có module `ops-*` gom route của người khác.
 
 **Thứ tự change — làm và archive đúng thứ tự này** (change sau thêm requirement vào capability của
-change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-groups` → `add-categories` · đợt 2
+change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-categories` → `fix-session-refresh-race` →
+`harden-module-infra` (năm change này đã archive 10–11/10/2026) → `add-groups` · đợt 2
 `add-media` → `add-listings` → `add-trust-tiers` · đợt 3 `add-screening` · đợt 4 `add-review-queues` →
 `add-reports` · đợt 5 `add-strikes` · đợt 6 `add-messaging` → `add-notifications` · đợt 7
 `add-data-retention`.
 
 - `add-platform-roles` và `add-categories` cần nhau (quyền staff gắn theo danh mục; danh mục cần staff soạn
-  mẫu): làm chung một lượt, archive theo thứ tự trên.
+  mẫu) nên làm chung một lượt và archive trước `add-groups`; `add-groups` chỉ thêm requirement vào
+  `identity/` và `group/`, không đụng `category/`, nên đổi thứ tự không lệch spec nào.
+- `fix-session-refresh-race` và `harden-module-infra` là kết quả rà soát 10/10/2026 sau ba module đầu, đã
+  archive trước `add-groups`: module mới dựng trên hạ tầng đã sửa.
 - Việc chạy theo lịch đã cần từ đợt 1 (dọn đăng ký dở dang, nhóm thiếu chủ quá 30 ngày) dù `ops` ở đợt 7:
   dùng pg-boss ngay từ `add-identity`; `ops` sau này chỉ gom dispatcher outbox và lịch dọn dữ liệu.
 
@@ -214,7 +237,15 @@ Mỗi luật dưới đây là một cam kết ở TK phần 27; số trong ngo�
     chịu được nhận trùng. Gọi đồng bộ chỉ ba chỗ: `listing` hỏi `trust` hạn chế/hạn mức, `listing`
     gọi `screening` chấm chữ lúc gửi, mọi module hỏi `identity` "người này là ai". Bảng `outbox_events`
     và `appendEvent(tx, type, payload)` ở `src/common/outbox/outbox.ts` đã có — hàm chỉ nhận `tx` nên
-    không gọi được ngoài transaction; dispatcher đọc và phát **(chưa có)**, thuộc `ops`.
+    không gọi được ngoài transaction. Bộ phát `src/common/outbox/dispatcher.ts` do `server.ts` bật (10
+    giây/lượt) nhận lô bằng `FOR UPDATE SKIP LOCKED` kèm hạn giữ 60 giây, nên nhiều tiến trình chạy cùng
+    lúc không phát trùng. Bên nghe ném thì sự kiện giữ lại, `attempts` + `last_error`, và
+    `next_attempt_at` lùi dần (10 giây × 2^n, trần 1 giờ) — sự kiện hỏng không chặn sự kiện mới; từ lần
+    thử thứ 10 lỗi lên `error`. Không bao giờ bỏ sự kiện: sửa xong nguyên nhân thì đặt
+    `next_attempt_at = now()` là phát lại ngay. Bên nghe đăng ký ở `<module>.events.ts`, nối qua
+    `listeners` của định nghĩa module (vd `platform.events.ts` treo quyền khi khoá); bên nghe phải
+    idempotent và **không dựa vào thứ tự** giữa các sự kiện. `ops` (đợt 7) nhận lại và mở rộng; hợp
+    đồng bên nghe không đổi.
 13. **Trạng thái tin, cờ tạm ẩn, lý do hạn chế là ba thứ riêng** (15, 18, 19). Lý do hạn chế là một
     tập (`machine`, `new_account`, `strike`), mỗi lý do đặt/gỡ độc lập. Đường chuyển trạng thái tin
     là **bảng thuần** trong `listing.calc.ts` **(chưa có)**, có unit test cho mọi mũi tên của sơ đồ TK
@@ -232,18 +263,24 @@ Mỗi luật dưới đây là một cam kết ở TK phần 27; số trong ngo�
 18. **Mức tin cậy là hàm thuần** của dữ kiện (`trust.calc.ts` **(chưa có)**), tính lại từ đầu chứ
     không cộng trừ, lưu kèm dấu băm dữ kiện và phiên bản bảng con số (20). Mỗi luật có unit test.
 19. **Mọi con số ở TK phần 28 đọc từ bảng con số có phiên bản** (`platform`), không hardcode trong
-    code. Kết quả máy và mức tin cậy ghi lại phiên bản đã dùng. Trong test thì dựng bảng con số giả.
-    Tới khi `platform` có bảng, code đọc qua `RuntimeConfig.get('<module>.<khoá>')` ở
-    `src/common/config/runtime-config.ts` — bản tĩnh mang giá trị khởi đầu, test đè từng khoá bằng
-    `createStaticRuntimeConfig({ … })`; service chỉ thấy interface nên bản đọc bảng thay vào không
-    đụng service.
+    code. Kết quả máy và mức tin cậy ghi lại phiên bản đã dùng. Code đọc qua
+    `RuntimeConfig.get('<module>.<khoá>')`; bản thật `createVersionedRuntimeConfig` (`platform`) giữ
+    phiên bản hiện hành của `config_versions` trong bộ nhớ, làm mới sau 5 giây hoặc ngay khi chính
+    tiến trình ghi. Thêm con số = thêm khoá vào `src/common/config/config-keys.ts` (kiểu, giá trị khởi
+    đầu, nhóm TK 28); lần khởi động kế tiếp tự tạo phiên bản mới (người tạo: hệ thống) thêm đúng khoá
+    đó, nên mọi phiên bản luôn mang trọn bộ con số. Con số đọc lúc đăng ký route hay plugin là bị
+    đóng băng tới lần khởi động sau — luôn đọc `config.get` ở lượt dùng (vd `app.signAccessToken`).
+    Test đè từng khoá bằng `createStaticRuntimeConfig({ … })`.
 20. **Email**: chuẩn hoá (chữ thường, bỏ `+tag`, Gmail bỏ dấu chấm, `googlemail.com` → `gmail.com`)
     bằng **một** hàm trước khi so trùng và trước khi băm. Dấu băm là HMAC, khoá nằm ngoài DB (biến
     môi trường của module `identity`).
 21. **Dấu thiết bị** (8): chỉ dùng chống gian lận, giữ 180 ngày. Response cho người duyệt chỉ có câu
     "dùng chung thiết bị với tài khoản X", **không bao giờ** có mã máy.
 22. **Dữ liệu có hạn lưu** (25). Tạm giữ bằng chứng thắng mọi hạn lưu. Nhật ký quyết định giữ mãi
-    nhưng không chứa nội dung tin.
+    nhưng không chứa nội dung tin. Mọi thay đổi dữ liệu do master / staff làm ghi một dòng
+    `appendAudit(tx, entry)` trong **cùng transaction** (repository nhận `audit` như nhận `events`;
+    service dựng dòng từ `Actor` qua `auditActor`). Trigger `audit_log_immutable` chặn UPDATE / DELETE;
+    `details` chỉ mang mã và số. Chỉ `platform` có cửa đọc (`GET /ops/audit`, master).
 23. **Giá** là `BigInt` đồng, không âm, qua `priceSchema` (`src/common/schemas/money.ts`). `0` = cho
     tặng. Không khai giá bằng `z.number()` trần.
 24. **Thời gian**: thời điểm lưu `@db.Timestamptz(3)`. Việc "theo ngày" (nhắc lúc 9 giờ sáng) tính
@@ -273,9 +310,11 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
 - **Không đổi hành vi** (refactor, công cụ, tài liệu, nâng phiên bản) → không cần change.
 - Capability đặt theo module: `<module>/<capability>` (vd `identity/registration`). Hạ tầng dùng chung:
   `http/`, `runtime/`, `health/`. Đang có: `http/api-contract`, `health/health-check`,
-  `runtime/environment-guard`, và 8 capability của `identity/` (registration, sessions, profile,
+  `runtime/environment-guard`, 8 capability của `identity/` (registration, sessions, profile,
   email-change, account-lock, account-deletion, device-registry, id-verification) — archive từ
-  `add-identity` ngày 10/10/2026.
+  `add-identity` ngày 10/10/2026; 4 của `platform/` (master-accounts, staff-permissions, config-versions,
+  audit-log) và 2 của `category/` (category-catalog, regions) — archive từ `add-platform-roles` và
+  `add-categories` cùng ngày.
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.
@@ -324,9 +363,19 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
 - Vitest, file phẳng `tests/*.test.ts`. Env cho test khai trong `vitest.config.ts` /
   `vitest.db.config.ts`, **không** có `.env.test`.
 - Suite mặc định **không chạm DB**: service test dùng repository giả; HTTP test dùng
-  `buildApp({ repository, jobs, mailer, clock, … })` + `app.inject()`, không mở cổng. Bản giả ở
-  `tests/fakes/` (repository trong bộ nhớ giữ đúng unique / partial unique, jobs giả có `runAll()`),
-  tiện ích bàn vận hành ở `tests/ops-helpers.ts`. Đồng hồ tiêm được: "30 ngày sau" là một phép cộng.
+  `buildTestApp({ repositories: { … }, … })` (`tests/fakes/app.ts`: repository giả cho mọi module, jobs
+  giả, đồng hồ đứng yên) +
+  `app.inject()`, không mở cổng. Bản giả ở `tests/fakes/` (repository trong bộ nhớ giữ đúng unique /
+  partial unique, jobs giả có `runAll()`, `createFakePrivilegeSource` khi chỉ cần guard). Ba
+  repository giả nhận chung một `createFakeAuditLog()` — như bảng `audit_log` dùng chung — khi test
+  đọc nhật ký xuyên module. Bản giả ném đúng `Prisma.PrismaClientKnownRequestError` qua
+  `uniqueViolation(target)` (`tests/fakes/unique-violation.ts`), nên error handler trả cùng mã như
+  production. Tiện ích bàn vận hành ở `tests/ops-helpers.ts`. Đồng hồ tiêm được: "30 ngày sau" là một
+  phép cộng.
+- **Hợp đồng repository**: `tests/<module>-repository.contract.ts` chứa ca tuần tự mà bản giả và
+  Postgres phải trả giống nhau (unique, khoá lạc quan, tiêu mã một lần…); `repository-contracts.test.ts`
+  chạy chúng trên bản giả, `repository-contracts.db.test.ts` trên Postgres. Thêm ràng buộc mà service
+  dựa vào thì thêm ca vào hợp đồng — bản giả lệch là test đỏ ở một trong hai phía.
 - Test DB: `tests/*.db.test.ts`, chạy bằng `pnpm db:test:up` rồi `pnpm test:db`. Ràng buộc chỉ DB trả
   lời được (partial unique "một việc mở mỗi tin", CHECK, EXCLUDE) phải có test ở đây, kiểm đúng mã lỗi
   (`prismaErrorCode` / `sqlStateOf` trong `tests/db-helpers.ts`).

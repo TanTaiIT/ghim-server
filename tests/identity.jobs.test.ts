@@ -11,6 +11,7 @@ import {
   type SendMailJob,
 } from '../src/modules/identity/identity.jobs.js';
 import { createFakeIdentityRepository } from './fakes/identity-repository.fake.js';
+import { TEST_AUDIT } from './fakes/audit.fake.js';
 
 const NOW = new Date('2026-10-10T09:00:00+07:00');
 const DAY_MS = 86_400_000;
@@ -70,12 +71,13 @@ const build = (fetchText: (url: string) => Promise<string>) => {
 describe('identity.refresh-disposable-domains', () => {
   it('tải được thì chỉ THÊM miền mới; miền master đã thêm và bia mộ master đã bỏ giữ nguyên', async () => {
     const { repository, run } = build(async () => 'tempmail.example\noan.example\nmoi.example\n');
-    await repository.addManualDomain({ domain: 'tay.example', at: NOW });
+    await repository.addManualDomain({ domain: 'tay.example', at: NOW, audit: TEST_AUDIT });
     await repository.seedDisposableDomains(['oan.example'], NOW);
     await repository.removeDisposableDomain({
       domain: 'oan.example',
       removedBy: 'master',
       at: NOW,
+      audit: TEST_AUDIT,
     });
 
     await run();

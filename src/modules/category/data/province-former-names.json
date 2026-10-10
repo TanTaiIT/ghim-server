@@ -1,0 +1,138 @@
+{
+  "Hà Nội": {
+    "formerNames": [],
+    "aliases": ["HN", "Hà Tây"]
+  },
+  "Cao Bằng": {
+    "formerNames": [],
+    "aliases": []
+  },
+  "Tuyên Quang": {
+    "formerNames": ["Hà Giang"],
+    "aliases": []
+  },
+  "Lào Cai": {
+    "formerNames": ["Yên Bái"],
+    "aliases": []
+  },
+  "Điện Biên": {
+    "formerNames": [],
+    "aliases": []
+  },
+  "Lai Châu": {
+    "formerNames": [],
+    "aliases": []
+  },
+  "Sơn La": {
+    "formerNames": [],
+    "aliases": []
+  },
+  "Thái Nguyên": {
+    "formerNames": ["Bắc Kạn"],
+    "aliases": []
+  },
+  "Lạng Sơn": {
+    "formerNames": [],
+    "aliases": []
+  },
+  "Quảng Ninh": {
+    "formerNames": [],
+    "aliases": ["Hạ Long"]
+  },
+  "Bắc Ninh": {
+    "formerNames": ["Bắc Giang"],
+    "aliases": []
+  },
+  "Phú Thọ": {
+    "formerNames": ["Vĩnh Phúc", "Hòa Bình"],
+    "aliases": ["Việt Trì"]
+  },
+  "Hải Phòng": {
+    "formerNames": ["Hải Dương"],
+    "aliases": ["HP"]
+  },
+  "Hưng Yên": {
+    "formerNames": ["Thái Bình"],
+    "aliases": []
+  },
+  "Ninh Bình": {
+    "formerNames": ["Hà Nam", "Nam Định"],
+    "aliases": []
+  },
+  "Thanh Hóa": {
+    "formerNames": [],
+    "aliases": []
+  },
+  "Nghệ An": {
+    "formerNames": [],
+    "aliases": ["Vinh"]
+  },
+  "Hà Tĩnh": {
+    "formerNames": [],
+    "aliases": []
+  },
+  "Quảng Trị": {
+    "formerNames": ["Quảng Bình"],
+    "aliases": ["Đông Hà"]
+  },
+  "Huế": {
+    "formerNames": ["Thừa Thiên Huế"],
+    "aliases": []
+  },
+  "Đà Nẵng": {
+    "formerNames": ["Quảng Nam"],
+    "aliases": ["ĐN", "Hội An"]
+  },
+  "Quảng Ngãi": {
+    "formerNames": ["Kon Tum"],
+    "aliases": []
+  },
+  "Gia Lai": {
+    "formerNames": ["Bình Định"],
+    "aliases": ["Quy Nhơn", "Pleiku"]
+  },
+  "Đắk Lắk": {
+    "formerNames": ["Phú Yên"],
+    "aliases": ["Buôn Ma Thuột", "Tuy Hòa"]
+  },
+  "Khánh Hòa": {
+    "formerNames": ["Ninh Thuận"],
+    "aliases": ["Nha Trang"]
+  },
+  "Lâm Đồng": {
+    "formerNames": ["Đắk Nông", "Bình Thuận"],
+    "aliases": ["Đà Lạt", "Phan Thiết"]
+  },
+  "Đồng Nai": {
+    "formerNames": ["Bình Phước"],
+    "aliases": ["Biên Hòa"]
+  },
+  "Tây Ninh": {
+    "formerNames": ["Long An"],
+    "aliases": []
+  },
+  "Hồ Chí Minh": {
+    "formerNames": ["Bình Dương", "Bà Rịa - Vũng Tàu"],
+    "aliases": ["Sài Gòn", "TPHCM", "HCM", "Vũng Tàu", "Thủ Dầu Một"]
+  },
+  "Đồng Tháp": {
+    "formerNames": ["Tiền Giang"],
+    "aliases": ["Mỹ Tho", "Cao Lãnh"]
+  },
+  "Vĩnh Long": {
+    "formerNames": ["Bến Tre", "Trà Vinh"],
+    "aliases": []
+  },
+  "An Giang": {
+    "formerNames": ["Kiên Giang"],
+    "aliases": ["Phú Quốc", "Rạch Giá", "Long Xuyên"]
+  },
+  "Cần Thơ": {
+    "formerNames": ["Sóc Trăng", "Hậu Giang"],
+    "aliases": []
+  },
+  "Cà Mau": {
+    "formerNames": ["Bạc Liêu"],
+    "aliases": []
+  }
+}

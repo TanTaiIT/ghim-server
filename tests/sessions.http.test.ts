@@ -1,8 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { buildApp } from '../src/app.js';
-import type { PrivilegeSource } from '../src/common/auth/privilege-source.js';
 import { createStaticRuntimeConfig } from '../src/common/config/runtime-config.js';
 import { toOk } from '../src/common/schemas/response.js';
 import { hashPassword } from '../src/modules/identity/password.calc.js';
@@ -11,6 +9,9 @@ import {
   type FakeIdentityRepository,
 } from './fakes/identity-repository.fake.js';
 import { createFakeJobs } from './fakes/jobs.fake.js';
+import { createFakePrivilegeSource } from './fakes/privilege-source.fake.js';
+import { TEST_AUDIT } from './fakes/audit.fake.js';
+import { buildTestApp } from './fakes/app.js';
 
 /*
  * Requirement đăng nhập, trần phiên, hết hạn trượt, đăng xuất, xem / thu hồi thiết bị của spec
@@ -25,17 +26,13 @@ let now = START;
 let app: FastifyInstance;
 let repository: FakeIdentityRepository;
 let passwordHash: string;
-const staff = new Set<string>();
-const privilegeSource: PrivilegeSource = {
-  hasStaffScope: async (accountId) => staff.has(accountId),
-  isStaff: async (accountId) => staff.has(accountId),
-};
+const privilegeSource = createFakePrivilegeSource();
 
 beforeAll(async () => {
   passwordHash = await hashPassword(PASSWORD);
   repository = createFakeIdentityRepository();
-  app = await buildApp({
-    repository,
+  app = await buildTestApp({
+    repositories: { identity: repository },
     jobs: createFakeJobs(),
     privilegeSource,
     clock: () => now,
@@ -81,6 +78,7 @@ async function account(
       lockedBy: row.id,
       at: now,
       events: [],
+      audit: TEST_AUDIT,
     });
   }
   return { ...row, email };
@@ -213,7 +211,7 @@ describe('trần phiên và hết hạn trượt', () => {
 
   it('tài khoản mang quyền staff (trần 1) đăng nhập máy thứ 2 → máy 1 bị đẩy', async () => {
     const { id, email } = await account();
-    staff.add(id);
+    privilegeSource.grant(id, ['support']);
     const first = await tokens(email, 'Máy 1');
     advance(1000);
     await tokens(email, 'Máy 2');

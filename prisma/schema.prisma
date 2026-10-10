@@ -123,6 +123,7 @@ model Account {
   deviceClearances  DeviceClearance[]
   flags             AccountFlag[]
   idVerifications   IdVerification[]
+  staffPermission   StaffPermission?
 
   @@index([emailHash])
   @@index([status, createdAt])
@@ -276,14 +277,239 @@ model IdVerification {
 // ── HẠ TẦNG DÙNG CHUNG ───────────────────────────────────────────────────────────────────────────
 
 /// Không module nghiệp vụ nào sở hữu (như `_prisma_migrations`): module ghi qua
-/// `appendEvent(tx, …)` trong cùng transaction với thay đổi gốc; dispatcher đọc thuộc `ops`.
+/// `appendEvents(tx, …)` trong cùng transaction với thay đổi gốc; bộ phát tối thiểu ở
+/// `src/common/outbox/dispatcher.ts` đọc, gọi bên nghe, đánh dấu `published_at`; `ops` nhận lại sau.
 model OutboxEvent {
-  id          String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  type        String
-  payload     Json      @db.JsonB
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  publishedAt DateTime? @map("published_at") @db.Timestamptz(3)
+  id            String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  type          String
+  payload       Json      @db.JsonB
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  publishedAt   DateTime? @map("published_at") @db.Timestamptz(3)
+  /// Số lần bên nghe ném; sự kiện không bao giờ bị bỏ, chỉ để người trực thấy cái nào kẹt.
+  attempts      Int       @default(0)
+  lastError     String?   @map("last_error")
+  /// Giờ hẹn phát / thử lại: bên nghe ném thì lùi dần (10 giây × 2^n, trần 1 giờ), để sự kiện hỏng
+  /// không chặn sự kiện mới. Đặt về now() bằng tay là phát lại ngay.
+  nextAttemptAt DateTime  @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  /// Hạn giữ của bộ phát đang xử lô (FOR UPDATE SKIP LOCKED): tiến trình chết giữa lượt thì quá hạn
+  /// là lô được nhận lại — bên nghe vốn phải idempotent.
+  lockedUntil   DateTime? @map("locked_until") @db.Timestamptz(3)
 
-  @@index([createdAt], where: raw("published_at IS NULL"), map: "outbox_events_unpublished_idx")
+  @@index([nextAttemptAt], where: raw("published_at IS NULL"), map: "outbox_events_due_idx")
   @@map("outbox_events")
+}
+
+/// Nhật ký thao tác ghi của master và staff (TK cam kết 3, 31): hạ tầng dùng chung như outbox —
+/// module ghi qua `appendAudit(tx, …)` trong transaction của mình, `platform` sở hữu cửa đọc.
+/// Trigger tay (migration init_platform_category): audit_log_immutable chặn UPDATE / DELETE.
+model AuditLog {
+  id         String      @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  actorId    String      @map("actor_id") @db.Uuid
+  actorRole  AccountRole @map("actor_role")
+  /// `<module>.<đối tượng>.<việc>` — vd `identity.account.lock`.
+  action     String
+  targetType String      @map("target_type")
+  targetId   String      @map("target_id")
+  reason     String?
+  /// Chỉ mã (mã tin, phiên bản…), không bao giờ tiêu đề, mô tả, giá, ảnh của tin.
+  details    Json?       @db.JsonB
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([actorId, createdAt])
+  @@index([targetType, targetId, createdAt])
+  @@index([createdAt])
+  @@map("audit_log")
+}
+
+// ── PLATFORM: ENUM ───────────────────────────────────────────────────────────────────────────────
+
+enum StaffScope {
+  support
+  user_reports
+  id_verification
+
+  @@map("staff_scope")
+}
+
+enum StaffPermissionStatus {
+  active
+  suspended
+
+  @@map("staff_permission_status")
+}
+
+// ── PLATFORM: BẢNG ───────────────────────────────────────────────────────────────────────────────
+
+/// CHECK tay (migration init_platform_category):
+///   staff_permissions_suspended_at_check:     (status = 'suspended') = (suspended_at IS NOT NULL)
+///   staff_permissions_suspended_reason_check: (status = 'suspended') = (suspended_reason IS NOT NULL)
+model StaffPermission {
+  accountId       String                @id @map("account_id") @db.Uuid
+  /// Ba việc toàn hệ thống (TK 5); phạm vi theo danh mục nằm ở `staff_category_grants`.
+  scopes          StaffScope[]
+  status          StaffPermissionStatus @default(active)
+  suspendedReason String?               @map("suspended_reason")
+  suspendedAt     DateTime?             @map("suspended_at") @db.Timestamptz(3)
+  grantedBy       String                @map("granted_by") @db.Uuid
+  grantedAt       DateTime              @map("granted_at") @db.Timestamptz(3)
+  updatedAt       DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  account    Account              @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  categories StaffCategoryGrant[]
+
+  @@map("staff_permissions")
+}
+
+model StaffCategoryGrant {
+  accountId  String @map("account_id") @db.Uuid
+  categoryId String @map("category_id") @db.Uuid
+
+  permission StaffPermission @relation(fields: [accountId], references: [accountId], onDelete: Cascade)
+  category   Category        @relation(fields: [categoryId], references: [id])
+
+  @@id([accountId, categoryId])
+  @@index([categoryId])
+  @@map("staff_category_grants")
+}
+
+/// CHECK tay (migration init_platform_category): config_versions_version_check: version >= 1
+model ConfigVersion {
+  version   Int      @id
+  /// Toàn bộ khoá của registry `config-keys.ts` → giá trị; một phiên bản là một bộ đầy đủ.
+  values    Json     @db.JsonB
+  note      String?
+  createdBy String   @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@map("config_versions")
+}
+
+// ── CATEGORY: ENUM ───────────────────────────────────────────────────────────────────────────────
+
+enum CategoryStatus {
+  active
+  disabled
+
+  @@map("category_status")
+}
+
+enum RiskLevel {
+  low
+  medium
+  high
+
+  @@map("risk_level")
+}
+
+enum GroupReview {
+  group
+  platform
+
+  @@map("group_review")
+}
+
+// ── CATEGORY: BẢNG ───────────────────────────────────────────────────────────────────────────────
+
+/// CHECK tay (migration init_platform_category):
+///   categories_settings_version_check: settings_version >= 1
+///   categories_template_version_check: template_version IS NULL OR template_version >= 1
+model Category {
+  id              String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  name            String         @unique
+  status          CategoryStatus @default(active)
+  /// Trỏ vào dòng hiện hành của `category_setting_versions`; mỗi lần đổi cài đặt tăng một.
+  settingsVersion Int            @default(1) @map("settings_version")
+  /// Null = chưa phát hành mẫu nào.
+  templateVersion Int?           @map("template_version")
+  createdBy       String         @map("created_by") @db.Uuid
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  settingVersions  CategorySettingVersion[]
+  templateVersions TemplateVersion[]
+  draft            TemplateDraft?
+  staffGrants      StaffCategoryGrant[]
+
+  @@map("categories")
+}
+
+/// CHECK tay (migration init_platform_category):
+///   category_setting_versions_price_cap_check:       price_cap IS NULL OR price_cap >= 0
+///   category_setting_versions_reference_price_check: reference_price IS NULL OR reference_price >= 0
+///   category_setting_versions_reference_le_cap_check: price_cap IS NULL OR reference_price IS NULL OR reference_price <= price_cap
+model CategorySettingVersion {
+  categoryId     String      @map("category_id") @db.Uuid
+  version        Int
+  /// Đồng, BigInt; null = không trần (TK 11, chốt 10/10/2026).
+  priceCap       BigInt?     @map("price_cap")
+  referencePrice BigInt?     @map("reference_price")
+  riskLevel      RiskLevel   @default(low) @map("risk_level")
+  alwaysManual   Boolean     @default(false) @map("always_manual")
+  groupReview    GroupReview @default(group) @map("group_review")
+  changedBy      String      @map("changed_by") @db.Uuid
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([categoryId, version])
+  @@map("category_setting_versions")
+}
+
+/// CHECK tay (migration init_platform_category): template_drafts_draft_version_check: draft_version >= 1
+model TemplateDraft {
+  categoryId   String   @id @map("category_id") @db.Uuid
+  /// Mảng mục `{ name, label, type, required, options? }` — kiểm bằng Zod lúc ghi.
+  fields       Json     @db.JsonB
+  /// Khoá lạc quan: hai người cùng sửa thì người sau nhận 409 và tải lại.
+  draftVersion Int      @default(1) @map("draft_version")
+  updatedBy    String   @map("updated_by") @db.Uuid
+  updatedAt    DateTime @map("updated_at") @db.Timestamptz(3)
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@map("template_drafts")
+}
+
+/// Bất biến sau khi phát hành: không có route ghi, tin đăng giữ số phiên bản này mãi (TK 11).
+model TemplateVersion {
+  categoryId  String   @map("category_id") @db.Uuid
+  version     Int
+  fields      Json     @db.JsonB
+  publishedBy String   @map("published_by") @db.Uuid
+  publishedAt DateTime @map("published_at") @db.Timestamptz(3)
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([categoryId, version])
+  @@map("template_versions")
+}
+
+/// Mã số chính thức (provinces.open-api.vn) — ổn định cho `listing` tham chiếu; tên cũ và tên gọi
+/// tắt biên soạn tay từ hệ thống cũ. `search_text` = mọi tên đã bỏ dấu, để tìm bằng LIKE.
+model Province {
+  code        Int      @id
+  name        String
+  fullName    String   @map("full_name")
+  formerNames String[] @map("former_names")
+  aliases     String[]
+  searchText  String   @map("search_text")
+
+  wards Ward[]
+
+  @@map("provinces")
+}
+
+model Ward {
+  code         Int      @id
+  provinceCode Int      @map("province_code")
+  name         String
+  /// Chưa có nguồn dữ liệu (10/10/2026): cột có sẵn, bổ sung dần bằng script sinh.
+  formerNames  String[] @map("former_names")
+  searchText   String   @map("search_text")
+
+  province Province @relation(fields: [provinceCode], references: [code])
+
+  @@unique([provinceCode, name])
+  @@index([provinceCode])
+  @@map("wards")
 }

@@ -2,6 +2,7 @@ import cookie from '@fastify/cookie';
 import jwt from '@fastify/jwt';
 import type { FastifyInstance, FastifyRequest, preHandlerAsyncHookHandler } from 'fastify';
 
+import type { RuntimeConfig } from '../config/runtime-config.js';
 import { ForbiddenError, UnauthorizedError } from '../errors/app-error.js';
 import type { Actor, ActorResolver } from './actor.js';
 import type { OpsScope, PrivilegeSource } from './privilege-source.js';
@@ -13,8 +14,17 @@ declare module 'fastify' {
     requireVerifiedEmail: preHandlerAsyncHookHandler;
     /** Chỉ master, và phiên phải có lớp thứ hai — mọi route master đều là bàn vận hành. */
     requireMaster: preHandlerAsyncHookHandler;
-    /** Master luôn qua; người khác phải có việc `scope`; cả hai phải có lớp thứ hai trên phiên. */
+    /** Master luôn qua; người khác phải có việc `scope` đang hiệu lực; cả hai phải có lớp thứ hai. */
     requireOps: (scope: OpsScope) => preHandlerAsyncHookHandler;
+    /** Như `requireOps` nhưng theo danh mục lấy từ request (thường là `params.id`). */
+    requireCategoryOps: (
+      categoryIdOf: (request: FastifyRequest) => string,
+    ) => preHandlerAsyncHookHandler;
+    /**
+     * Ký access token cho một phiên với hạn đọc từ bảng con số NGAY lúc ký — master đổi hạn thì lượt
+     * đăng nhập kế tiếp nhận hạn mới, không chờ khởi động lại (spec config-versions).
+     */
+    signAccessToken: (sessionId: string) => { token: string; expiresInSeconds: number };
   }
 
   interface FastifyRequest {
@@ -33,8 +43,10 @@ export interface AuthDeps {
   resolver: ActorResolver;
   privilegeSource: PrivilegeSource;
   jwtSecret: string;
-  accessTokenMinutes: number;
+  config: RuntimeConfig;
 }
+
+const SECONDS_PER_MINUTE = 60;
 
 function actorOf(request: FastifyRequest): Actor {
   // Lỗi lập trình, không phải lỗi người dùng: route khai guard mà quên `authenticate` đứng trước.
@@ -56,16 +68,40 @@ function requireSecondFactor(actor: Actor): void {
  * Guard đăng nhập dùng chung cho mọi module, gọi thẳng trong `buildApp` (không qua `register`)
  * để decorator nằm ở root và route nào cũng thấy. Access token chỉ là giấy thông hành 15 phút
  * mang `sid`; mọi request có đăng nhập đều tra phiên trong DB qua `resolver`, nên thu hồi có hiệu
- * lực ngay (design 4).
+ * lực ngay (design 4). Quyền staff hỏi `PrivilegeSource` mỗi lần — thu quyền cũng có hiệu lực ngay.
  */
 export async function registerAuth(app: FastifyInstance, deps: AuthDeps): Promise<void> {
   await app.register(cookie);
+  // Hạn mặc định chỉ là lưới an toàn cho lượt `app.jwt.sign` trần; đường thật là `signAccessToken`.
   await app.register(jwt, {
     secret: deps.jwtSecret,
-    sign: { expiresIn: `${deps.accessTokenMinutes}m` },
+    sign: { expiresIn: `${deps.config.get('identity.accessTokenMinutes')}m` },
+  });
+
+  app.decorate('signAccessToken', (sessionId: string) => {
+    const expiresInSeconds = deps.config.get('identity.accessTokenMinutes') * SECONDS_PER_MINUTE;
+    return {
+      token: app.jwt.sign({ sid: sessionId }, { expiresIn: expiresInSeconds }),
+      expiresInSeconds,
+    };
   });
 
   app.decorateRequest('actor', null);
+
+  /** Master qua ngay; staff phải đang hiệu lực VÀ có phạm vi; treo thì nói rõ là treo. */
+  const assertOps = async (actor: Actor, inScope: () => Promise<boolean>): Promise<void> => {
+    if (actor.role !== 'master') {
+      const state = await deps.privilegeSource.permissionState(actor.accountId);
+      if (state === 'suspended') {
+        throw new ForbiddenError(
+          'Quyền staff của bạn đang treo — liên hệ master',
+          'STAFF_PERMISSION_SUSPENDED',
+        );
+      }
+      if (state === 'none' || !(await inScope())) throw new ForbiddenError();
+    }
+    requireSecondFactor(actor);
+  };
 
   app.decorate('authenticate', async (request) => {
     let sid: string;
@@ -92,9 +128,16 @@ export async function registerAuth(app: FastifyInstance, deps: AuthDeps): Promis
 
   app.decorate('requireOps', (scope: OpsScope) => async (request: FastifyRequest) => {
     const actor = actorOf(request);
-    const privileged =
-      actor.role === 'master' || (await deps.privilegeSource.hasStaffScope(actor.accountId, scope));
-    if (!privileged) throw new ForbiddenError();
-    requireSecondFactor(actor);
+    await assertOps(actor, () => deps.privilegeSource.hasStaffScope(actor.accountId, scope));
   });
+
+  app.decorate(
+    'requireCategoryOps',
+    (categoryIdOf: (request: FastifyRequest) => string) => async (request: FastifyRequest) => {
+      const actor = actorOf(request);
+      await assertOps(actor, () =>
+        deps.privilegeSource.hasCategoryScope(actor.accountId, categoryIdOf(request)),
+      );
+    },
+  );
 }

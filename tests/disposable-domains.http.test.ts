@@ -1,12 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { buildApp } from '../src/app.js';
 import {
   createFakeIdentityRepository,
   type FakeIdentityRepository,
 } from './fakes/identity-repository.fake.js';
 import { createFakeJobs } from './fakes/jobs.fake.js';
+import { buildTestApp } from './fakes/app.js';
 
 const NOW = new Date('2026-10-10T09:00:00+07:00');
 const DAY_MS = 86_400_000;
@@ -44,7 +44,11 @@ async function tokenFor(role: 'user' | 'master'): Promise<string> {
 
 beforeAll(async () => {
   repository = createFakeIdentityRepository();
-  app = await buildApp({ repository, jobs: createFakeJobs(), clock: () => NOW });
+  app = await buildTestApp({
+    repositories: { identity: repository },
+    jobs: createFakeJobs(),
+    clock: () => NOW,
+  });
   await app.ready();
   masterToken = await tokenFor('master');
   userToken = await tokenFor('user');
@@ -90,6 +94,11 @@ describe('/ops/disposable-domains', () => {
 
     expect((await call('DELETE', '/tempmail.example', masterToken)).statusCode).toBe(200);
     expect((await call('DELETE', '/tempmail.example', masterToken)).statusCode).toBe(404);
+    expect(
+      repository.audit
+        .filter((row) => row.targetId === 'tempmail.example')
+        .map((row) => row.action),
+    ).toEqual(['identity.disposable_domain.add', 'identity.disposable_domain.remove']);
   });
 
   it('miền sai định dạng → 400 VALIDATION_ERROR', async () => {

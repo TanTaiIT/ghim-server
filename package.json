@@ -34,6 +34,9 @@
     "db:up": "docker compose up -d --wait postgres",
     "db:test:up": "docker compose up -d --wait postgres-test",
     "mail:up": "docker compose up -d --wait mailpit",
+    "cli:create-master": "tsx --env-file-if-exists=.env.development src/cli/create-master.ts",
+    "cli:reset-2fa": "tsx --env-file-if-exists=.env.development src/cli/reset-two-factor.ts",
+    "cli:build-regions": "tsx src/cli/build-regions.ts",
     "spec:validate": "openspec validate --all --strict --no-interactive",
     "spec:list": "openspec list && openspec list --specs",
     "check": "pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run spec:validate"

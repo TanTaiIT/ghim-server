@@ -1,11 +1,11 @@
 import type { FastifyInstance } from 'fastify';
 
-import type { OpsScope } from '../src/common/auth/privilege-source.js';
 import type { FakeIdentityRepository } from './fakes/identity-repository.fake.js';
+import { TEST_AUDIT } from './fakes/audit.fake.js';
 
 /**
  * Dựng tài khoản + phiên có sẵn lớp thứ hai rồi ký access token — cho test bàn vận hành không
- * phải đi hết luồng đăng nhập / TOTP ở mỗi ca. Quyền staff do test gắn vào `PrivilegeSource` giả.
+ * phải đi hết luồng đăng nhập / TOTP ở mỗi ca. Quyền staff do test gắn vào `FakePrivilegeSource`.
  */
 export interface OpsTestAccess {
   app: FastifyInstance;
@@ -44,6 +44,7 @@ export async function seedAccount(
       lockedBy: row.id,
       at: now,
       events: [],
+      audit: TEST_AUDIT,
     });
   }
   return { ...row, email };
@@ -65,12 +66,4 @@ export async function tokenFor(
     at: now,
   });
   return app.jwt.sign({ sid: session.id });
-}
-
-export function scopedPrivilegeSource(scopes: Map<string, Set<OpsScope>>) {
-  return {
-    hasStaffScope: async (accountId: string, scope: OpsScope) =>
-      scopes.get(accountId)?.has(scope) ?? false,
-    isStaff: async (accountId: string) => scopes.has(accountId),
-  };
 }

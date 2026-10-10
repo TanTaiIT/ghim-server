@@ -12,49 +12,80 @@ import {
 
 import { corsOrigin, env, isTest } from './config/env.js';
 import { registerAuth } from './common/auth/auth.plugin.js';
-import { noStaffPrivilegeSource, type PrivilegeSource } from './common/auth/privilege-source.js';
-import { createStaticRuntimeConfig, type RuntimeConfig } from './common/config/runtime-config.js';
+import type { PrivilegeSource } from './common/auth/privilege-source.js';
+import type { RuntimeConfig } from './common/config/runtime-config.js';
 import { createSecretBox } from './common/crypto/secrets.js';
 import { errorHandler } from './common/errors/error-handler.js';
+import type { AppModule } from './common/module/app-module.js';
 import { registerSwagger } from './common/plugins/swagger.js';
+import { sequentially } from './common/utils/sequential.js';
 import { createJobs, type Jobs } from './lib/jobs.js';
 import { logger } from './lib/logger.js';
 import { createFakeMailer, createSmtpMailer, type Mailer } from './lib/mailer.js';
 import { prisma } from './lib/prisma.js';
+import { createCategoryModule } from './modules/category/category.module.js';
+import {
+  createCategoryRepository,
+  type CategoryRepository,
+} from './modules/category/category.repository.js';
+import type { CategoryService } from './modules/category/category.service.js';
 import { healthRoutes } from './modules/health/health.routes.js';
 import {
   createGoogleTokenVerifier,
   type GoogleTokenVerifier,
 } from './modules/identity/google.verifier.js';
-import { registerIdentityJobs } from './modules/identity/identity.jobs.js';
+import { createIdentityModule } from './modules/identity/identity.module.js';
 import {
   createIdentityRepository,
   type IdentityRepository,
 } from './modules/identity/identity.repository.js';
-import { identityRoutes } from './modules/identity/identity.routes.js';
+import type { IdentityService } from './modules/identity/identity.service.js';
+import { createPlatformModule } from './modules/platform/platform.module.js';
 import {
-  createIdentityService,
-  type IdentityService,
-} from './modules/identity/identity.service.js';
+  createPlatformRepository,
+  type PlatformRepository,
+} from './modules/platform/platform.repository.js';
+import {
+  createPlatformPrivilegeSource,
+  createVersionedRuntimeConfig,
+  type PlatformService,
+  type VersionedRuntimeConfig,
+} from './modules/platform/platform.service.js';
 
 const API_PREFIX = '/api/v1';
+
+/** Service của từng module theo tên, cho `server.ts` và test gọi thẳng. */
+export interface AppServices {
+  identity: IdentityService;
+  platform: PlatformService;
+  category: CategoryService;
+}
+
+export interface Repositories {
+  identity: IdentityRepository;
+  platform: PlatformRepository;
+  category: CategoryRepository;
+}
 
 declare module 'fastify' {
   interface FastifyInstance {
     /** Việc nền của tiến trình — `server.ts` start sau khi dựng app, stop khi tắt. */
     jobs: Jobs;
-    /** Cửa "người này là ai" và các việc khởi động của identity (nạp hạt giống miền). */
-    identity: IdentityService;
+    /** Service của từng module theo tên — một decorate cho mọi module, không một cái mỗi module. */
+    modules: AppServices;
+    /** Định nghĩa module theo thứ tự dựng: `server.ts` lặp qua để nối bên nghe outbox và chạy khởi động. */
+    moduleList: readonly AppModule[];
   }
 }
 
 /**
  * Mọi thứ có trạng thái ngoài tiến trình, thay được bằng bản giả: test HTTP truyền repository
  * trong bộ nhớ, jobs giả, mailer giả, đồng hồ cố định — và vẫn chạy đúng app thật (plugin,
- * schema, guard, error handler). Bỏ trống là bản thật (design 15).
+ * schema, guard, error handler). Bỏ trống là bản thật (design 15). Repository của mọi module nằm
+ * chung một chỗ; phần còn lại là hạ tầng dùng chung.
  */
 export interface AppDeps {
-  repository: IdentityRepository;
+  repositories: Repositories;
   jobs: Jobs;
   mailer: Mailer;
   googleVerifier: GoogleTokenVerifier;
@@ -63,9 +94,28 @@ export interface AppDeps {
   clock: () => Date;
 }
 
+export type AppOverrides = Partial<Omit<AppDeps, 'repositories'>> & {
+  repositories?: Partial<Repositories>;
+};
+
 /** `SMTP_URL` chỉ được trống ở test (env.ts), và ở test thì thư vào mảng. */
 function defaultMailer(): Mailer {
   return env.SMTP_URL ? createSmtpMailer(env.SMTP_URL, env.MAIL_FROM) : createFakeMailer();
+}
+
+/**
+ * Bảng con số thật đọc từ `config_versions`, nạp NGAY lúc dựng app: `registerAuth` cần hạn access
+ * token trước khi có request nào. Bảng rỗng (lần chạy đầu, trước khi `server.ts` nạp phiên bản 1)
+ * thì dùng giá trị khởi đầu của sổ đăng ký — cùng con số, nên không có khoảng lệch.
+ */
+async function resolveConfig(
+  override: RuntimeConfig | undefined,
+  platformRepository: PlatformRepository,
+): Promise<{ config: RuntimeConfig; versioned: VersionedRuntimeConfig | null }> {
+  if (override) return { config: override, versioned: null };
+  const versioned = createVersionedRuntimeConfig(platformRepository);
+  await versioned.load();
+  return { config: versioned, versioned };
 }
 
 /**
@@ -74,22 +124,43 @@ function defaultMailer(): Mailer {
  * Tách như vậy để test gọi `fastify.inject()` trên đúng app thật mà không chiếm cổng nào: chạy
  * song song bao nhiêu file test cũng được, và không có lượt dọn cổng nào phải nhớ.
  */
-export async function buildApp(overrides: Partial<AppDeps> = {}): Promise<FastifyInstance> {
+export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyInstance> {
+  const repositories: Repositories = {
+    identity: overrides.repositories?.identity ?? createIdentityRepository(prisma),
+    platform: overrides.repositories?.platform ?? createPlatformRepository(prisma),
+    category: overrides.repositories?.category ?? createCategoryRepository(prisma),
+  };
+  const { config, versioned } = await resolveConfig(overrides.config, repositories.platform);
   const deps: AppDeps = {
-    repository: overrides.repository ?? createIdentityRepository(prisma),
+    repositories,
     jobs: overrides.jobs ?? createJobs(env.DATABASE_URL),
     mailer: overrides.mailer ?? defaultMailer(),
     googleVerifier: overrides.googleVerifier ?? createGoogleTokenVerifier(env.GOOGLE_CLIENT_IDS),
-    privilegeSource: overrides.privilegeSource ?? noStaffPrivilegeSource,
-    config: overrides.config ?? createStaticRuntimeConfig(),
+    privilegeSource:
+      overrides.privilegeSource ?? createPlatformPrivilegeSource(repositories.platform),
+    config,
     clock: overrides.clock ?? (() => new Date()),
   };
-  const secrets = createSecretBox(env.SECRETS_ENCRYPTION_KEY);
-  const identity = createIdentityService({ ...deps, hashKey: env.IDENTITY_HASH_KEY, secrets });
-  await registerIdentityJobs(deps.jobs, {
+
+  // Thứ tự dựng là thứ tự phụ thuộc: `platform` cần cửa đọc của `identity` và `category`.
+  const identity = createIdentityModule({
     ...deps,
-    secrets,
+    repository: repositories.identity,
+    secrets: createSecretBox(env.SECRETS_ENCRYPTION_KEY),
+    hashKey: env.IDENTITY_HASH_KEY,
     disposableDomainsUrl: env.DISPOSABLE_DOMAINS_URL,
+  });
+  const category = createCategoryModule({ repository: repositories.category, clock: deps.clock });
+  const platform = createPlatformModule({
+    repository: repositories.platform,
+    identity: identity.service,
+    categories: category.service,
+    clock: deps.clock,
+    ...(versioned ? { runtimeConfig: versioned } : {}),
+  });
+  const moduleList: readonly AppModule[] = [identity.module, category.module, platform.module];
+  await sequentially(moduleList, async (appModule) => {
+    await appModule.jobs?.(deps.jobs);
   });
 
   const app = Fastify({
@@ -133,13 +204,18 @@ export async function buildApp(overrides: Partial<AppDeps> = {}): Promise<Fastif
 
   await registerSwagger(app);
   await registerAuth(app, {
-    resolver: identity,
+    resolver: identity.service,
     privilegeSource: deps.privilegeSource,
     jwtSecret: env.JWT_SECRET,
-    accessTokenMinutes: deps.config.get('identity.accessTokenMinutes'),
+    config: deps.config,
   });
   app.decorate('jobs', deps.jobs);
-  app.decorate('identity', identity);
+  app.decorate('modules', {
+    identity: identity.service,
+    platform: platform.service,
+    category: category.service,
+  });
+  app.decorate('moduleList', moduleList);
 
   /*
    * Trả id ra HEADER, không chỉ ghi vào log.
@@ -153,7 +229,9 @@ export async function buildApp(overrides: Partial<AppDeps> = {}): Promise<Fastif
   });
 
   await app.register(healthRoutes);
-  await app.register(identityRoutes, { prefix: API_PREFIX, identity, config: deps.config });
+  await sequentially(moduleList, async (appModule) => {
+    await app.register(appModule.routes, { prefix: API_PREFIX });
+  });
 
   return app;
 }

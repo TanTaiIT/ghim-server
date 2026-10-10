@@ -1,14 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { buildApp } from '../src/app.js';
-import type { OpsScope } from '../src/common/auth/privilege-source.js';
 import {
   createFakeIdentityRepository,
   type FakeIdentityRepository,
 } from './fakes/identity-repository.fake.js';
 import { createFakeJobs } from './fakes/jobs.fake.js';
-import { scopedPrivilegeSource, seedAccount, tokenFor } from './ops-helpers.js';
+import { createFakePrivilegeSource } from './fakes/privilege-source.fake.js';
+import { seedAccount, tokenFor } from './ops-helpers.js';
+import { buildTestApp } from './fakes/app.js';
 
 /* Sáu scenario của spec `id-verification`, và số giấy tờ không xuất hiện ở bất kỳ response nào. */
 const NOW = new Date('2026-10-10T09:00:00+07:00');
@@ -18,23 +18,23 @@ let app: FastifyInstance;
 let repository: FakeIdentityRepository;
 let reviewerToken: string;
 let otherStaffToken: string;
-const scopes = new Map<string, Set<OpsScope>>();
+const privilegeSource = createFakePrivilegeSource();
 
 beforeAll(async () => {
   repository = createFakeIdentityRepository();
-  app = await buildApp({
-    repository,
+  app = await buildTestApp({
+    repositories: { identity: repository },
     jobs: createFakeJobs(),
-    privilegeSource: scopedPrivilegeSource(scopes),
+    privilegeSource,
     clock: () => NOW,
   });
   await app.ready();
   const ctx = { app, repository, now: NOW };
   const reviewer = await seedAccount(ctx);
-  scopes.set(reviewer.id, new Set(['id_verification']));
+  privilegeSource.grant(reviewer.id, ['id_verification']);
   reviewerToken = await tokenFor(ctx, reviewer.id);
   const other = await seedAccount(ctx);
-  scopes.set(other.id, new Set(['support']));
+  privilegeSource.grant(other.id, ['support']);
   otherStaffToken = await tokenFor(ctx, other.id);
 });
 
@@ -125,6 +125,15 @@ describe('/ops/id-verifications', () => {
       reason: null,
     });
     expect((await decide(id, reviewerToken, { status: 'verified' })).statusCode).toBe(409);
+    // Một dòng cho lượt duyệt thành công, không dòng nào cho lượt 409.
+    expect(repository.audit.filter((row) => row.targetId === id)).toMatchObject([
+      {
+        actorRole: 'user',
+        action: 'identity.id_verification.decide',
+        targetType: 'id_verification',
+        details: { status: 'verified' },
+      },
+    ]);
   });
 
   it('từ chối không có lý do → 400; có lý do → bị từ chối, và người đó vẫn dùng app như trước', async () => {

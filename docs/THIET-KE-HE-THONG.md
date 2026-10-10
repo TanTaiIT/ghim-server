@@ -49,22 +49,22 @@
 
 ## 1. Những quyết định đã chốt
 
-| #   | Quyết định                                                                                                                                                         |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | **Máy duyệt trước.** Tin đạt chuẩn lên bảng ngay, không qua người. Máy không chắc thì **giữ cho người**. Quá hạn mà chưa ai xử thì **vẫn giữ**, không tự mở.       |
-| 2   | **Máy không bao giờ từ chối, không bao giờ phạt.** Máy chỉ có hai lối ra: cho qua (hiển thị đầy đủ hoặc hạn chế), hoặc giữ cho người.                              |
-| 3   | **Sàn chung do master quản**, chia cho **staff theo danh mục**. Staff xử phần máy giữ lại và hậu kiểm.                                                             |
-| 4   | **Master toàn quyền.** Quyết định của master là cuối cùng; không có cơ chế kiểm soát master; mọi thao tác ghi nhật ký. Một master chính, một dự phòng, cùng quyền. |
-| 5   | **Staff là một quyền** master gắn lên tài khoản cá nhân của một người, không phải tài khoản riêng.                                                                 |
-| 6   | **Không ai, trừ master, xử việc của chính mình** — tính cả tài khoản dùng chung thiết bị với mình.                                                                 |
-| 7   | **Chỉ xác thực bằng email.** Không gửi SMS, số điện thoại không bắt buộc.                                                                                          |
-| 8   | **Tài khoản mới chỉ được hiển thị hạn chế** ở nơi công khai, tới khi đủ 7 ngày tuổi và có một tin sạch.                                                            |
-| 9   | **Một máy tối đa 3 tài khoản đăng tin** trong 90 ngày. Từ tài khoản thứ 4, tin luôn chờ người duyệt — giữ lại chứ không chặn.                                      |
-| 10  | **Chỉ master lập nhóm.**                                                                                                                                           |
-| 11  | **Huy hiệu nhóm** chỉ cho thành viên đã được nhóm xét vào.                                                                                                         |
-| 12  | **Phạt bằng gậy có hạn.** Mức tin cậy quyết định đăng được bao nhiêu và hiển thị rộng tới đâu.                                                                     |
-| 13  | **Tối đa 6 ảnh** mỗi tin.                                                                                                                                          |
-| 14  | **Xác minh giấy tờ là tính năng phụ**, không tham gia luồng chính.                                                                                                 |
+| #   | Quyết định                                                                                                                                                                                                                              |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Máy duyệt trước.** Tin đạt chuẩn lên bảng ngay, không qua người. Máy không chắc thì **giữ cho người**. Quá hạn mà chưa ai xử thì **vẫn giữ**, không tự mở.                                                                            |
+| 2   | **Máy không bao giờ từ chối, không bao giờ phạt.** Máy chỉ có hai lối ra: cho qua (hiển thị đầy đủ hoặc hạn chế), hoặc giữ cho người.                                                                                                   |
+| 3   | **Sàn chung do master quản**, chia cho **staff theo danh mục**. Staff xử phần máy giữ lại và hậu kiểm.                                                                                                                                  |
+| 4   | **Master toàn quyền.** Quyết định của master là cuối cùng; không có cơ chế kiểm soát master; mọi thao tác ghi nhật ký. **Đúng một master**, do đội kỹ thuật tạo một lần; không có luồng thay hay bỏ master trong app (chốt 10/10/2026). |
+| 5   | **Staff là một quyền** master gắn lên tài khoản cá nhân của một người, không phải tài khoản riêng.                                                                                                                                      |
+| 6   | **Không ai, trừ master, xử việc của chính mình** — tính cả tài khoản dùng chung thiết bị với mình.                                                                                                                                      |
+| 7   | **Chỉ xác thực bằng email.** Không gửi SMS, số điện thoại không bắt buộc.                                                                                                                                                               |
+| 8   | **Tài khoản mới chỉ được hiển thị hạn chế** ở nơi công khai, tới khi đủ 7 ngày tuổi và có một tin sạch.                                                                                                                                 |
+| 9   | **Một máy tối đa 3 tài khoản đăng tin** trong 90 ngày. Từ tài khoản thứ 4, tin luôn chờ người duyệt — giữ lại chứ không chặn.                                                                                                           |
+| 10  | **Chỉ master lập nhóm.**                                                                                                                                                                                                                |
+| 11  | **Huy hiệu nhóm** chỉ cho thành viên đã được nhóm xét vào.                                                                                                                                                                              |
+| 12  | **Phạt bằng gậy có hạn.** Mức tin cậy quyết định đăng được bao nhiêu và hiển thị rộng tới đâu.                                                                                                                                          |
+| 13  | **Tối đa 6 ảnh** mỗi tin.                                                                                                                                                                                                               |
+| 14  | **Xác minh giấy tờ là tính năng phụ**, không tham gia luồng chính.                                                                                                                                                                      |
 
 ---
 
@@ -103,7 +103,7 @@
 | Sàn chung · Nhóm          | Hai nơi đăng tin (phần 2). Chỉ master lập nhóm.                                                                                                            |
 | Người ngoài               | Người gửi tin vào một nhóm mà mình không phải thành viên.                                                                                                  |
 | Huy hiệu nhóm             | Dòng "Thành viên nhóm X" trên tin sàn chung của một thành viên.                                                                                            |
-| Master                    | Người quản lý cao nhất, toàn quyền. Một chính, một dự phòng.                                                                                               |
+| Master                    | Người quản lý cao nhất, toàn quyền. Đúng một người.                                                                                                        |
 | Staff                     | Người được master gắn quyền xử tin sàn của một vài danh mục, trên chính tài khoản cá nhân của họ.                                                          |
 | Chủ nhóm · Điều hành viên | Người chịu trách nhiệm một nhóm (đúng một người) · người chủ nhóm giao việc duyệt tin, quản lý thành viên.                                                 |
 | Thiếu chủ nhóm            | Nhóm vừa mất chủ nhóm, chờ giao chủ mới, tối đa 30 ngày.                                                                                                   |
@@ -160,9 +160,9 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 
 **Master**
 
-- Một tài khoản chính, một dự phòng, **cùng quyền**. Do đội kỹ thuật tạo trực tiếp, không đăng ký qua app.
+- **Đúng một tài khoản master**, do đội kỹ thuật tạo trực tiếp một lần, không đăng ký qua app. Không có luồng thay hay bỏ master trong app; mất máy tạo mã thì đội kỹ thuật đặt lại hai lớp bằng công cụ chạy tay (chốt 10/10/2026).
 - Bắt buộc đăng nhập hai lớp bằng ứng dụng tạo mã; tối đa 3 phiên đăng nhập cùng lúc.
-- **Toàn quyền** trên mọi phần của hệ thống; quyết định là cuối cùng, không khiếu nại lên ai khác. Mọi thao tác vào nhật ký.
+- **Toàn quyền** trên mọi phần của hệ thống; quyết định là cuối cùng, không khiếu nại lên ai khác. Mọi thao tác **ghi** vào nhật ký (thao tác chỉ đọc và thao tác bị từ chối thì không); chỉ master đọc nhật ký.
 - Tài khoản master không đăng tin, không vào nhóm. Người làm master muốn bán đồ thì dùng tài khoản cá nhân như mọi người.
 
 **Staff**
@@ -172,6 +172,7 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 - Master có thể giao thêm ba việc toàn hệ thống: **hỗ trợ người dùng**, **xử báo cáo về người** (việc an toàn), **duyệt giấy tờ xác minh**.
 - Tài khoản mang quyền staff bắt buộc đăng nhập hai lớp, tối đa 3 phiên.
 - Tài khoản bị khoá hoặc đang có gậy thì **quyền staff tự treo**, việc đang nhận trả về hàng chờ. Hết gậy hay mở khoá thì master quyết có trả lại không.
+- Quyền staff phải **tường minh và đầy đủ**: master gắn đúng danh mục và đúng việc toàn hệ thống, không có "mọi danh mục". Staff có thể chỉ mang việc toàn hệ thống mà không có danh mục nào. Chỉ gắn được cho tài khoản đang hoạt động và đã xác nhận email. Quyền đang treo vẫn là quyền staff: vẫn đòi hai lớp và trần 3 phiên (chốt 10/10/2026).
 
 **Trong một nhóm**
 
@@ -428,6 +429,11 @@ _Các con số chỉ để minh hoạ; master đặt giá trị thật._
 - **Mẫu thông tin**: staff phụ trách danh mục soạn, master phát hành. Tin đã đăng giữ nguyên mẫu lúc đăng. Tên một mục thông tin không bao giờ đổi sau khi phát hành; nhãn hiển thị thì đổi được.
 - **Khu vực**: 34 tỉnh, thành và 3.321 phường, xã sau sáp nhập; tìm được bằng tên cũ. Khu vực dùng để lọc và tìm đồ gần mình, không quyết định ai duyệt. Tin lên sàn chung bắt buộc có tỉnh và phường; tin trong nhóm thì tuỳ.
 - **Giá**: số nguyên từ 0 trở lên, đơn vị đồng. **Giá 0 nghĩa là cho tặng**; app hiện "Miễn phí".
+- **Danh mục phẳng**, không có cấp cha / con. Tên danh mục đổi được, mã danh mục không đổi (chốt 10/10/2026).
+- **Trần giá và giá tham chiếu là tuỳ chọn**: không đặt trần nghĩa là danh mục không có trần; đặt cả hai thì giá tham chiếu không vượt trần. Mức rủi ro mặc định thấp, luôn duyệt tay mặc định tắt.
+- **Cài đặt cho máy duyệt không công khai** (nguyên tắc 8): app chỉ đọc tên danh mục và mẫu thông tin; trần giá, giá tham chiếu, mức rủi ro, luôn duyệt tay, ai duyệt tin nhóm chỉ bàn vận hành thấy. Mỗi lần đổi cài đặt là một phiên bản cài đặt mới của danh mục, để kết quả máy ghi lại phiên bản đã dùng (cam kết 33).
+- **Mẫu thông tin**: mỗi mục có tên (không đổi và không dùng lại cho mục khác kiểu), nhãn, kiểu (chữ, số, chọn một, chọn nhiều) và cờ bắt buộc; bản sau bỏ được mục. Tin đăng theo phiên bản cũ hiện nhãn của phiên bản đó. Mỗi danh mục một bản nháp chung cho staff phụ trách và master; chỉ master phát hành hoặc bỏ bản nháp. Danh mục ban đầu do master nhập qua bàn vận hành, không có sẵn.
+- **Khu vực**: mã đơn vị lấy theo mã chính thức; tìm bỏ dấu, không phân biệt hoa thường, không sửa lỗi chính tả. Tên cũ cấp tỉnh có sẵn; tên cũ cấp phường bổ sung dần theo dữ liệu.
 
 ---
 
@@ -988,7 +994,7 @@ Mỗi dòng kiểm chứng được — người kiểm thử dùng làm danh s�
 
 ## 28. Bảng con số khởi đầu
 
-Master chỉnh dần theo kết quả hậu kiểm, không cần phát hành lại phần mềm.
+Master chỉnh dần theo kết quả hậu kiểm, không cần phát hành lại phần mềm. Bảng con số có phiên bản giữ đúng các con số ở phần này, mỗi con số có tên theo `phần.tên`; con số của danh mục (trần giá, giá tham chiếu, mức rủi ro) nằm trong phiên bản cài đặt của từng danh mục; hạn lưu (phần 25) và điểm dấu hiệu (phần 14) vào bảng khi phần đó được xây. Chỉ kiểm từng con số (đúng kiểu, không âm, phần trăm 0–100), không kiểm ràng buộc chéo. Đổi con số có thể kèm ghi chú, có hiệu lực ngay, không hẹn giờ (chốt 10/10/2026).
 
 | Nhóm                      | Con số                                                                                                                                                                                                                                                                                                              |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

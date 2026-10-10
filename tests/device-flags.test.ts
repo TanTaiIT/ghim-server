@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Actor } from '../src/common/auth/actor.js';
 import { createFakeIdentityRepository } from './fakes/identity-repository.fake.js';
 import { buildIdentityService } from './identity.service.test.js';
+import { TEST_AUDIT } from './fakes/audit.fake.js';
 
 /*
  * `recordListingSubmission` trên repository giả: ba requirement đánh dấu của spec device-registry
@@ -139,6 +140,7 @@ describe('recordListingSubmission — máy của tài khoản bị khoá và g�
       lockedBy: MASTER_ID,
       at: at(SECOND_MS),
       events: [],
+      audit: TEST_AUDIT,
     });
 
     await post(repository, ids.B ?? '', 'may-1', at(2 * SECOND_MS));

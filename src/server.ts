@@ -1,4 +1,6 @@
 import { buildApp } from './app.js';
+import { createOutboxDispatcher } from './common/outbox/dispatcher.js';
+import { sequentially } from './common/utils/sequential.js';
 import { env } from './config/env.js';
 import { logger } from './lib/logger.js';
 import { prisma } from './lib/prisma.js';
@@ -8,6 +10,8 @@ const SHUTDOWN_TIMEOUT_MS = 10_000;
 
 async function main(): Promise<void> {
   const app = await buildApp();
+  const dispatcher = createOutboxDispatcher(prisma);
+  for (const appModule of app.moduleList) appModule.listeners?.(dispatcher);
 
   let shuttingDown = false;
 
@@ -32,6 +36,7 @@ async function main(): Promise<void> {
 
     try {
       await app.close();
+      dispatcher.stop();
       await app.jobs.stop();
       await prisma.$disconnect();
       logger.info('Đã đóng sạch');
@@ -60,9 +65,12 @@ async function main(): Promise<void> {
   // Việc nền lên trước cổng HTTP: request đầu tiên có thể xếp việc ngay, và lỗi kết nối của
   // pg-boss lộ ra lúc khởi động chứ không phải ở lượt gửi thư đầu tiên.
   await app.jobs.start();
-  // Bảng rỗng = lần chạy đầu: không có danh sách thì lượt đăng ký đầu tiên bằng email tạm sẽ lọt.
-  const seeded = await app.identity.seedDisposableDomainsIfEmpty();
-  if (seeded > 0) logger.info({ seeded }, 'Đã nạp hạt giống miền email dùng một lần');
+  // Bước khởi động của từng module (hạt giống, bảng con số, khu vực), đúng thứ tự dựng.
+  await sequentially(app.moduleList, async (appModule) => {
+    const result = await appModule.startup?.();
+    if (result) logger.info({ module: appModule.name, ...result }, 'Khởi động module');
+  });
+  dispatcher.start();
   await app.listen({ port: env.PORT, host: '0.0.0.0' });
 }
 
