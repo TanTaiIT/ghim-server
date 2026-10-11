@@ -12,6 +12,15 @@ export interface Actor {
   emailVerified: boolean;
 }
 
+/**
+ * `request.actor` sau `authenticate`. Thiếu là lỗi lập trình — route khai guard mà quên
+ * `authenticate` đứng trước — không phải lỗi người dùng, nên ném `Error` thường (500).
+ */
+export function actorOf(request: { actor: Actor | null }): Actor {
+  if (!request.actor) throw new Error('Route này phải có authenticate đứng trước trong preHandler');
+  return request.actor;
+}
+
 /** "Người này là ai" — `identity` trả lời, mọi module hỏi qua đây (CLAUDE.md luật 12). */
 export interface ActorResolver {
   resolveActor(sessionId: string): Promise<Actor>;

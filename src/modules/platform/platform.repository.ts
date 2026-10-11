@@ -11,6 +11,12 @@ import { appendAudit, type AuditEntry } from '../../common/audit/audit.js';
 
 export type { AuditLog, ConfigVersion, StaffScope };
 
+export interface StaffGrantRow {
+  status: StaffPermission['status'];
+  scopes: StaffScope[];
+  categoryIds: string[];
+}
+
 /** Quyền staff kèm danh mục được giao — dòng `staff_permissions` ghép với `staff_category_grants`. */
 export type StaffPermissionRow = StaffPermission & { categoryIds: string[] };
 
@@ -68,6 +74,11 @@ export interface Page<T> {
  */
 export interface PlatformRepository {
   findStaff(accountId: string): Promise<StaffPermissionRow | null>;
+  /**
+   * Gói quyền cho guard bàn vận hành, MỘT câu SQL: `findStaff` dùng `include`, mà Prisma 7 chạy
+   * `include` thành hai câu (đo 11/10/2026), trong khi guard chạy ở mọi request bàn vận hành.
+   */
+  findStaffGrant(accountId: string): Promise<StaffGrantRow | null>;
   listStaff(filter: { categoryId?: string }): Promise<StaffPermissionRow[]>;
   /** Thay cả gói phạm vi; giữ nguyên trạng thái treo nếu đang treo. */
   upsertStaff(input: StaffGrantInput): Promise<StaffPermissionRow>;
@@ -76,6 +87,11 @@ export interface PlatformRepository {
   restoreStaff(input: StaffActionInput): Promise<StaffPermissionRow>;
   /** Idempotent: đã treo thì không đổi gì và trả `false`. */
   suspendStaff(input: StaffSuspendInput): Promise<boolean>;
+  /**
+   * Thu hẳn do hệ thống (tài khoản bị xoá): không có người làm nên không có `audit`, như lượt treo.
+   * Grant theo danh mục đi theo cascade. Idempotent: không có quyền thì trả `false`.
+   */
+  removeStaff(accountId: string): Promise<boolean>;
 
   findCurrentConfig(): Promise<ConfigVersion | null>;
   findConfigVersion(version: number): Promise<ConfigVersion | null>;
@@ -119,6 +135,21 @@ export function createPlatformRepository(prisma: PrismaClient): PlatformReposito
         ...withCategories,
       });
       return row ? toRow(row) : null;
+    },
+
+    async findStaffGrant(accountId) {
+      const rows = await prisma.$queryRaw<StaffGrantRow[]>`
+        SELECT p.status::text AS status, p.scopes::text[] AS scopes,
+               COALESCE(
+                 array_agg(g.category_id::text ORDER BY g.category_id)
+                   FILTER (WHERE g.category_id IS NOT NULL),
+                 '{}'
+               ) AS "categoryIds"
+          FROM staff_permissions p
+          LEFT JOIN staff_category_grants g ON g.account_id = p.account_id
+         WHERE p.account_id = ${accountId}::uuid
+         GROUP BY p.account_id`;
+      return rows[0] ?? null;
     },
 
     async listStaff({ categoryId }) {
@@ -169,6 +200,11 @@ export function createPlatformRepository(prisma: PrismaClient): PlatformReposito
         await appendAudit(tx, audit);
         return toRow(row);
       }),
+
+    async removeStaff(accountId) {
+      const { count } = await prisma.staffPermission.deleteMany({ where: { accountId } });
+      return count > 0;
+    },
 
     async suspendStaff({ accountId, reason, at }) {
       const { count } = await prisma.staffPermission.updateMany({

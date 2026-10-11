@@ -24,7 +24,8 @@ export interface OutboxDispatcher {
   /** Một lượt: nhận tới 100 sự kiện đã tới giờ, chưa ai giữ. Test gọi thẳng. */
   runOnce(): Promise<{ published: number; failed: number }>;
   start(): void;
-  stop(): void;
+  /** Dừng hẹn giờ rồi chờ lượt đang chạy xong — `server.ts` đóng DB sau đó, không giữa một lô. */
+  stop(): Promise<void>;
 }
 
 const BATCH_SIZE = 100;
@@ -70,7 +71,7 @@ const byDueThenCreated = (a: ClaimedEvent, b: ClaimedEvent): number =>
 export function createOutboxDispatcher(prisma: PrismaClient): OutboxDispatcher {
   const handlers = new Map<string, OutboxHandler[]>();
   let timer: NodeJS.Timeout | null = null;
-  let running = false;
+  let inFlight: Promise<unknown> | null = null;
 
   const claim = async (): Promise<ClaimedEvent[]> => {
     const rows = await prisma.$queryRaw<ClaimedEvent[]>`
@@ -127,13 +128,16 @@ export function createOutboxDispatcher(prisma: PrismaClient): OutboxDispatcher {
   const runOnce = async (): Promise<{ published: number; failed: number }> => {
     const tally = { published: 0, failed: 0 };
     // Lượt trước còn chạy (bên nghe chậm) thì bỏ lượt này, không chồng hai lượt trong một tiến trình.
-    if (running) return tally;
-    running = true;
-    try {
+    if (inFlight) return tally;
+    const work = (async () => {
       await sequentially(await claim(), (event) => dispatchOne(event, tally));
+    })();
+    inFlight = work;
+    try {
+      await work;
       return tally;
     } finally {
-      running = false;
+      inFlight = null;
     }
   };
 
@@ -151,9 +155,11 @@ export function createOutboxDispatcher(prisma: PrismaClient): OutboxDispatcher {
       }, INTERVAL_MS);
       timer.unref();
     },
-    stop() {
+    async stop() {
       if (timer) clearInterval(timer);
       timer = null;
+      // Lỗi của lượt đang chạy đã được `runOnce` / hẹn giờ xử lý; ở đây chỉ chờ nó dừng.
+      await inFlight?.catch(() => {});
     },
   };
 }

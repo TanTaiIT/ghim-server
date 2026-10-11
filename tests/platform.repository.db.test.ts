@@ -182,6 +182,34 @@ describe('không ghi được nhật ký thì thay đổi không xảy ra', () =
   });
 });
 
+describe('xoá tài khoản → thu quyền qua outbox', () => {
+  it('xoá mềm tài khoản staff: bộ phát thật thu quyền và grant theo danh mục', async () => {
+    const master = await account('master');
+    const hung = await account();
+    const phone = await categoryService.create(actorOf(master.id), {
+      name: 'Điện thoại',
+      priceCap: null,
+      referencePrice: null,
+      riskLevel: 'low',
+      alwaysManual: false,
+      groupReview: 'group',
+    });
+    await platform.grantStaff(actorOf(master.id), hung.id, { scopes: [], categoryIds: [phone.id] });
+    const dispatcher = createOutboxDispatcher(prisma);
+    registerPlatformListeners(dispatcher, platform);
+
+    await identityRepository.softDeleteAccount({
+      accountId: hung.id,
+      at: NOW,
+      events: [{ type: 'identity.account.deleted', payload: { accountId: hung.id } }],
+    });
+    expect(await dispatcher.runOnce()).toEqual({ published: 1, failed: 0 });
+
+    expect(await prisma.staffPermission.count({ where: { accountId: hung.id } })).toBe(0);
+    expect(await prisma.staffCategoryGrant.count({ where: { accountId: hung.id } })).toBe(0);
+  });
+});
+
 describe('khoá → treo qua outbox', () => {
   it('bộ phát giao identity.account.locked: treo đúng phạm vi; mở khoá vẫn treo; master trả lại', async () => {
     const master = await account('master');

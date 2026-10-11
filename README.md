@@ -79,5 +79,14 @@ Mailpit).
 Đọc diff của `regions.json` rồi commit. DB đã có khu vực thì không tự nạp lại — cập nhật DB đang chạy là
 một migration dữ liệu riêng. Tên cũ cấp phường chưa có nguồn: cột có sẵn, file đang để trống.
 
+**Mạng ở production**: `CORS_ORIGIN` phải là danh sách origin cụ thể và `TRUST_PROXY` phải khai dải địa chỉ
+của proxy đứng trước app (vd `uniquelocal`), hoặc `false` khi app nhận thẳng từ Internet — thiếu hay sai là app không
+khởi động. Rate limit và IP lưu trong phiên đăng nhập dựa vào đó.
+
+**Kết nối DB**: mỗi tiến trình mở tối đa `DATABASE_POOL_MAX` (mặc định 10) kết nối cho request và
+`JOBS_POOL_MAX` (mặc định 5) cho việc nền. Tổng nhân số tiến trình phải dưới `max_connections` của Postgres
+(mặc định 100), chừa chỗ cho migration và người vận hành. Trần thời gian cố định trong code: mỗi câu SQL 15
+giây, chờ lấy kết nối 5 giây, nhận request 30 giây.
+
 Production chỉ chạy `pnpm db:deploy` (hoặc `pnpm db:deploy:prod` từ máy có `.env.production`) rồi
 `pnpm start`. Image Docker: `Dockerfile` (nhiều tầng, chạy bằng user `node`, cổng 3100).

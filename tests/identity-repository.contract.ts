@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { sequentially } from '../src/common/utils/sequential.js';
 import type { IdentityRepository } from '../src/modules/identity/identity.repository.js';
+import { TEST_AUDIT } from './fakes/audit.fake.js';
 
 /*
  * Hợp đồng repository của `identity`: cùng một bộ ca chạy trên bản giả (`repository-contracts.test.ts`)
@@ -87,6 +88,40 @@ export function describeIdentityRepositoryContract(
       });
       expect(results.map((result) => result.cancelled)).toEqual([false, false, false, false, true]);
       expect(await repository.findLiveCode(account.id, 'email_verify')).toBeNull();
+    });
+
+    it('phiên kèm tài khoản cho resolveActor: đủ cột, phiên lạ trả null', async () => {
+      const repository = await make();
+      const account = await newAccount(repository);
+      await repository.lockAccount({
+        accountId: account.id,
+        reason: 'Thử',
+        lockedBy: account.id,
+        at: NOW,
+        events: [],
+        audit: TEST_AUDIT,
+      });
+      const session = await repository.createSession({
+        accountId: account.id,
+        refreshTokenHash: 'hash-actor',
+        deviceName: 'Máy',
+        ip: null,
+        userAgent: null,
+        secondFactorAt: NOW,
+        expiresAt: LATER,
+        at: NOW,
+      });
+      expect(await repository.findActorSession(session.id)).toEqual({
+        sessionId: session.id,
+        accountId: account.id,
+        revokedAt: null,
+        expiresAt: LATER,
+        secondFactorAt: NOW,
+        role: 'user',
+        status: 'locked',
+        lockedReason: 'Thử',
+      });
+      expect(await repository.findActorSession('00000000-0000-7000-8000-ffffffffffff')).toBeNull();
     });
 
     it('xoay token làm mới có điều kiện: token sai hay đã xoay thì false', async () => {

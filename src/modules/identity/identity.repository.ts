@@ -143,6 +143,18 @@ export type SessionPatch = Partial<
   >
 >;
 
+/** Phiên kèm đúng những cột của tài khoản mà `resolveActor` cần. */
+export interface ActorSession {
+  sessionId: string;
+  accountId: string;
+  revokedAt: Date | null;
+  expiresAt: Date;
+  secondFactorAt: Date | null;
+  role: Account['role'];
+  status: Account['status'];
+  lockedReason: string | null;
+}
+
 export interface RotateRefreshInput {
   sessionId: string;
   /** Băm của token client gửi lên — lượt ghi chỉ khớp khi nó vẫn là token đang dùng. */
@@ -244,6 +256,11 @@ export interface IdentityRepository {
 
   createSession(data: NewSession): Promise<Session>;
   findSessionById(id: string): Promise<Session | null>;
+  /**
+   * Chạy ở mọi request có đăng nhập. JOIN tay vì Prisma 7 chạy `include` thành hai câu (đo 11/10/2026);
+   * hợp đồng repository canh để bản giả và Postgres trả giống nhau.
+   */
+  findActorSession(sessionId: string): Promise<ActorSession | null>;
   findSessionByRefreshHash(refreshTokenHash: string): Promise<Session | null>;
   findSessionByPreviousRefreshHash(prevRefreshTokenHash: string): Promise<Session | null>;
   updateSession(id: string, patch: SessionPatch): Promise<Session>;
@@ -423,6 +440,16 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
     createSession: ({ at, ...data }) =>
       prisma.session.create({ data: { ...data, createdAt: at, lastActiveAt: at } }),
     findSessionById: (id) => prisma.session.findUnique({ where: { id } }),
+    async findActorSession(sessionId) {
+      const rows = await prisma.$queryRaw<ActorSession[]>`
+        SELECT s.id AS "sessionId", s.account_id AS "accountId", s.revoked_at AS "revokedAt",
+               s.expires_at AS "expiresAt", s.second_factor_at AS "secondFactorAt",
+               a.role::text AS role, a.status::text AS status, a.locked_reason AS "lockedReason"
+          FROM sessions s
+          JOIN accounts a ON a.id = s.account_id
+         WHERE s.id = ${sessionId}::uuid`;
+      return rows[0] ?? null;
+    },
     findSessionByRefreshHash: (refreshTokenHash) =>
       prisma.session.findUnique({ where: { refreshTokenHash } }),
     findSessionByPreviousRefreshHash: (prevRefreshTokenHash) =>

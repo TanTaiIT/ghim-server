@@ -181,6 +181,11 @@ model Session {
   // Đếm phiên đang sống và tìm phiên ít hoạt động nhất để đẩy ra — một index phục vụ cả hai.
   @@index([accountId, revokedAt, lastActiveAt])
   @@index([prevRefreshTokenHash])
+  /// Hai index cho việc dọn phiên hằng đêm (`revoked_at < x OR expires_at < x`): Postgres gộp bằng
+  /// BitmapOr thay vì quét cả bảng. `refresh_token_hash` vốn đổi mỗi lần làm mới nên lượt ghi đó
+  /// đã cập nhật index — thêm `expires_at` chỉ thêm một index, không làm mất HOT update.
+  @@index([expiresAt])
+  @@index([revokedAt], where: raw("revoked_at IS NOT NULL"), map: "sessions_revoked_idx")
   @@map("sessions")
 }
 
@@ -249,7 +254,6 @@ model DisposableDomain {
   removedAt DateTime?              @map("removed_at") @db.Timestamptz(3)
   removedBy String?                @map("removed_by") @db.Uuid
 
-  @@index([domain], where: raw("removed_at IS NULL"), map: "disposable_domains_active_idx")
   @@map("disposable_domains")
 }
 

@@ -48,7 +48,7 @@ beforeAll(async () => {
       register: (type, handler) => void listeners.set(type, handler),
       runOnce: async () => ({ published: 0, failed: 0 }),
       start: () => {},
-      stop: () => {},
+      stop: async () => {},
     },
     app.modules.platform,
   );
@@ -89,12 +89,13 @@ const draftOf = (categoryId: string, token: string) =>
   });
 
 /** Phát các sự kiện `identity` đã xếp tới bên nghe của `platform` — phần việc của bộ phát outbox. */
-async function deliverLockEvents(): Promise<void> {
-  const handler = listeners.get('identity.account.locked');
-  if (!handler) throw new Error('platform chưa đăng ký bên nghe identity.account.locked');
-  const locked = repository.events.filter((event) => event.type === 'identity.account.locked');
-  await Promise.all(locked.map((event) => handler(event.payload, { id: 'e', type: event.type })));
+async function deliverEvents(type: 'identity.account.locked' | 'identity.account.deleted') {
+  const handler = listeners.get(type);
+  if (!handler) throw new Error(`platform chưa đăng ký bên nghe ${type}`);
+  const queued = repository.events.filter((event) => event.type === type);
+  await Promise.all(queued.map((event) => handler(event.payload, { id: 'e', type: event.type })));
 }
+const deliverLockEvents = () => deliverEvents('identity.account.locked');
 
 describe('PUT /ops/staff/:accountId', () => {
   it('gắn theo danh mục → 200; người đó dùng đúng tài khoản cũ, không tài khoản mới nào được tạo', async () => {
@@ -412,6 +413,65 @@ describe('/ops/config', () => {
       payload: { baseVersion: 1, changes: { 'quota.liveListingsT0': 1 } },
     });
     expect(res.statusCode).toBe(403);
+  });
+});
+
+const staffIds = async (categoryId: string) =>
+  (
+    (
+      await app.inject({
+        method: 'GET',
+        url: `/api/v1/ops/staff?categoryId=${categoryId}`,
+        headers: auth(masterToken),
+      })
+    ).json().data as Array<{ accountId: string }>
+  ).map((row) => row.accountId);
+const deleteMe = async (accountId: string) =>
+  app.inject({
+    method: 'DELETE',
+    url: '/api/v1/me',
+    headers: auth(await tokenFor(ctx(), accountId)),
+  });
+
+describe('xoá tài khoản thì quyền staff bị thu', () => {
+  it('staff xoá tài khoản của mình → không còn trong danh sách staff của danh mục', async () => {
+    const hung = await seedAccount(ctx());
+    await grant(hung.id, { scopes: [], categoryIds: [phone] });
+    expect((await deleteMe(hung.id)).statusCode).toBe(204);
+    await deliverEvents('identity.account.deleted');
+    expect(await staffIds(phone)).not.toContain(hung.id);
+  });
+
+  it('quyền đang treo (đã mở khoá, chưa trả lại) cũng bị thu', async () => {
+    const mai = await seedAccount(ctx());
+    await grant(mai.id, { scopes: [], categoryIds: [phone] });
+    await app.modules.platform.suspendStaffForLock(mai.id);
+    expect((await deleteMe(mai.id)).statusCode).toBe(204);
+    await deliverEvents('identity.account.deleted');
+    expect(await platformRepository.findStaff(mai.id)).toBeNull();
+  });
+
+  it('người dùng không mang quyền staff xoá tài khoản → danh sách staff không đổi', async () => {
+    const before = await staffIds(phone);
+    const user = await seedAccount(ctx());
+    expect((await deleteMe(user.id)).statusCode).toBe(204);
+    await deliverEvents('identity.account.deleted');
+    expect((await staffIds(phone)).toSorted()).toEqual(before.toSorted());
+  });
+});
+
+describe('mặc định cấm giữ lại', () => {
+  it('hồ sơ của tôi và bàn vận hành → cấm giữ lại', async () => {
+    const me = await app.inject({ method: 'GET', url: '/api/v1/me', headers: auth(masterToken) });
+    const staff = await app.inject({
+      method: 'GET',
+      url: '/api/v1/ops/staff',
+      headers: auth(masterToken),
+    });
+    expect(me.statusCode).toBe(200);
+    expect(me.headers['cache-control']).toBe('no-store');
+    expect(staff.statusCode).toBe(200);
+    expect(staff.headers['cache-control']).toBe('no-store');
   });
 });
 

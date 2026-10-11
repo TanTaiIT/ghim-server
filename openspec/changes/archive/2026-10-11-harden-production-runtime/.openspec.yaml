@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-10-11
+goal: 'Hạ tầng trước add-groups, rà soát production 11/10/2026: proxy, timeout,
+  pool, băm mật khẩu, dọn outbox, tắt êm, mã truy vết, source map'

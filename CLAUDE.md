@@ -108,11 +108,13 @@ src/
     audit/audit.ts            ← `appendAudit(tx, entry)`: nhật ký bàn vận hành, cùng transaction với thay đổi
     auth/{auth.plugin,actor,privilege-source}.ts ← guard dùng chung: authenticate, requireVerifiedEmail,
                                 requireMaster, requireOps(scope), requireCategoryOps(categoryIdOf); `Actor`
-                                trên request; `PrivilegeSource` (bản thật: `createPlatformPrivilegeSource`)
+                                trên request, `actorOf(request)` cho handler; `PrivilegeSource.staffGrant` trả
+                                cả gói quyền staff trong một lượt đọc (bản thật: `createPlatformPrivilegeSource`)
     config/config-keys.ts     ← sổ đăng ký mọi con số TK 28: kiểu, giá trị khởi đầu, nhóm
     config/runtime-config.ts  ← `RuntimeConfig.get(key)`; bản tĩnh cho test và CLI
     crypto/secrets.ts         ← AES-256-GCM (`SecretBox`), SHA-256, HMAC tách scope, token ngẫu nhiên
     errors/{app-error,error-handler}.ts
+    http/cache.ts             ← mặc định `no-store` (hook `onSend`); route công khai mở bằng `cacheFor` + `CACHE_*`
     outbox/outbox.ts          ← `appendEvents(tx, events)`: sự kiện chéo module, cùng transaction
     module/app-module.ts      ← `AppModule`: route, bên nghe outbox, việc nền, bước khởi động của một module
     outbox/dispatcher.ts      ← bộ phát: nhận lô `FOR UPDATE SKIP LOCKED` có hạn giữ, thử lại lùi dần
@@ -179,7 +181,8 @@ không có module `ops-*` gom route của người khác.
 
 **Thứ tự change — làm và archive đúng thứ tự này** (change sau thêm requirement vào capability của
 change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-categories` → `fix-session-refresh-race` →
-`harden-module-infra` (năm change này đã archive 10–11/10/2026) → `add-groups` · đợt 2
+`harden-module-infra` → `tune-hot-paths` → `cache-public-reads-revoke-deleted-staff` →
+`harden-production-runtime` (tám change này đã archive 10–11/10/2026) → `add-groups` · đợt 2
 `add-media` → `add-listings` → `add-trust-tiers` · đợt 3 `add-screening` · đợt 4 `add-review-queues` →
 `add-reports` · đợt 5 `add-strikes` · đợt 6 `add-messaging` → `add-notifications` · đợt 7
 `add-data-retention`.
@@ -215,10 +218,16 @@ jobs với handler thuần. `../booking` không có trong workspace này; chỉ 
    - Danh sách: `{ items, page, limit, total, totalPages }` qua `paginated()` / `toPage()`, trần 100.
      Bảng tin, tìm kiếm, tin nhắn sẽ cần phân trang cursor — **(chưa có)** helper.
    - Response schema là ranh giới DTO. KHÔNG khai response bằng `z.any()` hay schema lỏng.
+   - Giữ lại: mọi response mặc định `Cache-Control: no-store`, lỗi luôn `no-store`. Route công khai
+     chỉ mở sau khi service trả kết quả, bằng `cacheFor(reply, CACHE_*, toOk(x))` — thời hạn nằm ở spec
+     `category/regions` và `category/category-catalog` (khu vực một ngày, danh mục và mẫu hiện hành 5 phút,
+     phiên bản mẫu mãi mãi).
 5. Không hardcode chuỗi trạng thái. Trạng thái khai bằng `enum` trong `schema.prisma`; tầng HTTP khai
    lại tuple `as const`. Đổi enum thì đổi luôn tuple.
 6. Truy vấn chỉ đọc → `select` đúng field cần. Không gọi Prisma trong vòng lặp (N+1). Field dùng để
-   filter/sort phải có `@@index`.
+   filter/sort phải có `@@index`. Prisma 7 chạy `include` thành nhiều câu SQL riêng (đo 11/10/2026):
+   lượt đọc chạy ở MỌI request (tra phiên, quyền staff) viết `$queryRaw` có JOIN trong repository, có ca
+   trong hợp đồng repository và được đếm câu SQL ở `tests/hot-paths.db.test.ts`; chỗ khác dùng `include`.
 7. Không dùng `console.log`. Trong request dùng `request.log`; ngoài request dùng `logger`. Chữ ký
    pino: object trước, chuỗi sau. **Không log** mật khẩu, token, mã xác nhận, email đầy đủ, dấu thiết
    bị, nội dung tin nhắn.
@@ -243,9 +252,10 @@ Mỗi luật dưới đây là một cam kết ở TK phần 27; số trong ngo�
     `next_attempt_at` lùi dần (10 giây × 2^n, trần 1 giờ) — sự kiện hỏng không chặn sự kiện mới; từ lần
     thử thứ 10 lỗi lên `error`. Không bao giờ bỏ sự kiện: sửa xong nguyên nhân thì đặt
     `next_attempt_at = now()` là phát lại ngay. Bên nghe đăng ký ở `<module>.events.ts`, nối qua
-    `listeners` của định nghĩa module (vd `platform.events.ts` treo quyền khi khoá); bên nghe phải
-    idempotent và **không dựa vào thứ tự** giữa các sự kiện. `ops` (đợt 7) nhận lại và mở rộng; hợp
-    đồng bên nghe không đổi.
+    `listeners` của định nghĩa module (vd `platform.events.ts` treo quyền khi khoá, thu quyền khi xoá); bên nghe phải
+    idempotent và **không dựa vào thứ tự** giữa các sự kiện. Sự kiện đã phát quá 30 ngày được việc
+    `outbox.purge-published` (04:30 hằng ngày, `src/common/outbox/outbox.jobs.ts`) xoá; sự kiện chưa phát
+    thì không. `ops` (đợt 7) nhận lại và mở rộng; hợp đồng bên nghe không đổi.
 13. **Trạng thái tin, cờ tạm ẩn, lý do hạn chế là ba thứ riêng** (15, 18, 19). Lý do hạn chế là một
     tập (`machine`, `new_account`, `strike`), mỗi lý do đặt/gỡ độc lập. Đường chuyển trạng thái tin
     là **bảng thuần** trong `listing.calc.ts` **(chưa có)**, có unit test cho mọi mũi tên của sơ đồ TK
@@ -357,6 +367,14 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
 - Biến của `identity` (`JWT_SECRET`, `IDENTITY_HASH_KEY`, `SECRETS_ENCRYPTION_KEY`, `SMTP_URL`,
   `MAIL_FROM`, `GOOGLE_CLIENT_IDS`, `DISPOSABLE_DOMAINS_URL`): ý nghĩa và ràng buộc ở `env.ts`; test
   nhận giá trị giả từ `vitest.config.ts` / `vitest.db.config.ts`, không từ file env.
+- Mạng: `TRUST_PROXY` (`false` hoặc danh sách IP / CIDR / `uniquelocal` của proxy, `src/config/trust-proxy.ts`)
+  và `CORS_ORIGIN` cụ thể là bắt buộc ở production; `true` và số hop bị từ chối mọi nơi (Fastify 5.12 không tin số
+  hop). `x-request-id` từ ngoài chỉ được giữ khi khớp `[A-Za-z0-9._:-]{1,128}`.
+- Pool chỉnh qua env: `DATABASE_POOL_MAX` (Prisma), `JOBS_POOL_MAX` (pg-boss). Ba trần thời gian là hằng số
+  trong code — nhận request 30 giây (`app.ts`), chờ kết nối 5 giây và mỗi câu SQL 15 giây (`lib/prisma.ts`) —
+  vì mặc định của Fastify và `pg` là chờ vô hạn. Chạm trần thì request rơi vào 500 `INTERNAL_ERROR`.
+- Image chạy `node --enable-source-maps`. Băm mật khẩu dùng tham số mặc định của argon2 — chỉ chỉnh khi đo
+  thấy nghẽn, không chỉnh theo phỏng đoán.
 
 ## Testing
 

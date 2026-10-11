@@ -8,6 +8,7 @@ import {
   createVersionedRuntimeConfig,
 } from '../src/modules/platform/platform.service.js';
 import { createFakePlatformRepository } from './fakes/platform-repository.fake.js';
+import type { OpsScope, PrivilegeSource } from '../src/common/auth/privilege-source.js';
 
 /* Mọi scenario service của bốn spec `platform`, trên repository giả. */
 const NOW = new Date('2026-10-10T09:00:00+07:00');
@@ -27,6 +28,22 @@ type State = {
   status: 'pending_verification' | 'active' | 'locked' | 'deleted';
 };
 
+/** Các câu hỏi guard và `identity` đặt ra, trả lời từ đúng một lượt `staffGrant`. */
+function ask(source: PrivilegeSource) {
+  const active = async (id: string) => {
+    const grant = await source.staffGrant(id);
+    return grant?.status === 'active' ? grant : null;
+  };
+  return {
+    permissionState: async (id: string) => (await source.staffGrant(id))?.status ?? 'none',
+    hasStaffScope: async (id: string, scope: OpsScope) =>
+      (await active(id))?.scopes.includes(scope) ?? false,
+    hasCategoryScope: async (id: string, categoryId: string) =>
+      (await active(id))?.categoryIds.includes(categoryId) ?? false,
+    isStaff: async (id: string) => (await source.staffGrant(id)) !== null,
+  };
+}
+
 function build() {
   const repository = createFakePlatformRepository();
   const accounts = new Map<string, State>();
@@ -39,7 +56,7 @@ function build() {
     clock: () => NOW,
     runtimeConfig: { load: async () => void loads.push(1) },
   });
-  const privileges = createPlatformPrivilegeSource(repository);
+  const privileges = ask(createPlatformPrivilegeSource(repository));
   let seq = 0;
   const account = (state: State = { role: 'user', status: 'active' }): string => {
     seq += 1;
@@ -161,6 +178,25 @@ describe('gắn quyền staff', () => {
 });
 
 describe('thu, treo, trả lại', () => {
+  it('xoá tài khoản: thu hẳn quyền, kể cả đang treo; không mang quyền thì không đổi gì; không ghi nhật ký', async () => {
+    const { service, privileges, repository, account } = build();
+    const hung = account();
+    const mai = account();
+    await service.grantStaff(MASTER, hung, { scopes: [], categoryIds: [PHONE] });
+    await service.grantStaff(MASTER, mai, { scopes: ['support'], categoryIds: [] });
+    await service.suspendStaffForLock(mai);
+    const auditBefore = repository.audit.length;
+
+    await service.revokeStaffForDeletion(hung);
+    await service.revokeStaffForDeletion(mai);
+    await service.revokeStaffForDeletion(account());
+    await service.revokeStaffForDeletion(hung);
+
+    expect(await privileges.permissionState(hung)).toBe('none');
+    expect(await privileges.permissionState(mai)).toBe('none');
+    expect(repository.audit).toHaveLength(auditBefore);
+  });
+
   it('thu toàn bộ: lượt hỏi kế tiếp là "none"; thu lần hai → 404', async () => {
     const { service, privileges, repository, account } = build();
     const hung = account();

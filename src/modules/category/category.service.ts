@@ -132,7 +132,7 @@ function toSettingsDto(row: CategorySettingVersion): CategorySettingsDto {
   };
 }
 
-function toPublicDto(row: CategoryRow): PublicCategoryDto {
+function toPublicDto(row: Pick<CategoryRow, 'id' | 'name' | 'templateVersion'>): PublicCategoryDto {
   return { id: row.id, name: row.name, templateVersion: row.templateVersion };
 }
 

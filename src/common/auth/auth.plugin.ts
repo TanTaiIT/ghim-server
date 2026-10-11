@@ -4,8 +4,8 @@ import type { FastifyInstance, FastifyRequest, preHandlerAsyncHookHandler } from
 
 import type { RuntimeConfig } from '../config/runtime-config.js';
 import { ForbiddenError, UnauthorizedError } from '../errors/app-error.js';
-import type { Actor, ActorResolver } from './actor.js';
-import type { OpsScope, PrivilegeSource } from './privilege-source.js';
+import { actorOf, type Actor, type ActorResolver } from './actor.js';
+import type { OpsScope, PrivilegeSource, StaffGrantView } from './privilege-source.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -48,12 +48,6 @@ export interface AuthDeps {
 
 const SECONDS_PER_MINUTE = 60;
 
-function actorOf(request: FastifyRequest): Actor {
-  // Lỗi lập trình, không phải lỗi người dùng: route khai guard mà quên `authenticate` đứng trước.
-  if (!request.actor) throw new Error('Guard này phải đứng sau authenticate trong preHandler');
-  return request.actor;
-}
-
 // Kể cả master, kể cả khi chưa thiết lập: không có lớp thứ hai thì không có bàn vận hành.
 function requireSecondFactor(actor: Actor): void {
   if (!actor.secondFactorAt) {
@@ -89,16 +83,19 @@ export async function registerAuth(app: FastifyInstance, deps: AuthDeps): Promis
   app.decorateRequest('actor', null);
 
   /** Master qua ngay; staff phải đang hiệu lực VÀ có phạm vi; treo thì nói rõ là treo. */
-  const assertOps = async (actor: Actor, inScope: () => Promise<boolean>): Promise<void> => {
+  const assertOps = async (
+    actor: Actor,
+    inScope: (grant: StaffGrantView) => boolean,
+  ): Promise<void> => {
     if (actor.role !== 'master') {
-      const state = await deps.privilegeSource.permissionState(actor.accountId);
-      if (state === 'suspended') {
+      const grant = await deps.privilegeSource.staffGrant(actor.accountId);
+      if (grant?.status === 'suspended') {
         throw new ForbiddenError(
           'Quyền staff của bạn đang treo — liên hệ master',
           'STAFF_PERMISSION_SUSPENDED',
         );
       }
-      if (state === 'none' || !(await inScope())) throw new ForbiddenError();
+      if (!grant || !inScope(grant)) throw new ForbiddenError();
     }
     requireSecondFactor(actor);
   };
@@ -128,16 +125,14 @@ export async function registerAuth(app: FastifyInstance, deps: AuthDeps): Promis
 
   app.decorate('requireOps', (scope: OpsScope) => async (request: FastifyRequest) => {
     const actor = actorOf(request);
-    await assertOps(actor, () => deps.privilegeSource.hasStaffScope(actor.accountId, scope));
+    await assertOps(actor, (grant) => grant.scopes.includes(scope));
   });
 
   app.decorate(
     'requireCategoryOps',
     (categoryIdOf: (request: FastifyRequest) => string) => async (request: FastifyRequest) => {
       const actor = actorOf(request);
-      await assertOps(actor, () =>
-        deps.privilegeSource.hasCategoryScope(actor.accountId, categoryIdOf(request)),
-      );
+      await assertOps(actor, (grant) => grant.categoryIds.includes(categoryIdOf(request)));
     },
   );
 }

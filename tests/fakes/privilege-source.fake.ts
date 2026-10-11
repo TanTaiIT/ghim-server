@@ -1,8 +1,4 @@
-import type {
-  OpsScope,
-  PermissionState,
-  PrivilegeSource,
-} from '../../src/common/auth/privilege-source.js';
+import type { OpsScope, PrivilegeSource } from '../../src/common/auth/privilege-source.js';
 
 export interface FakePrivilegeSource extends PrivilegeSource {
   /** Gắn (thay cả gói) quyền staff cho một tài khoản — bản giả của `platform.grantStaff`. */
@@ -14,19 +10,14 @@ export interface FakePrivilegeSource extends PrivilegeSource {
 
 /** Quyền staff trong bộ nhớ cho test HTTP không cần module `platform` thật. */
 export function createFakePrivilegeSource(): FakePrivilegeSource {
-  const scopes = new Map<string, Set<OpsScope>>();
-  const categories = new Map<string, Set<string>>();
+  const scopes = new Map<string, OpsScope[]>();
+  const categories = new Map<string, string[]>();
   const suspended = new Set<string>();
-
-  const state = (accountId: string): PermissionState => {
-    if (!scopes.has(accountId)) return 'none';
-    return suspended.has(accountId) ? 'suspended' : 'active';
-  };
 
   return {
     grant(accountId, scopeList = [], categoryIds = []) {
-      scopes.set(accountId, new Set(scopeList));
-      categories.set(accountId, new Set(categoryIds));
+      scopes.set(accountId, [...scopeList]);
+      categories.set(accountId, [...categoryIds]);
     },
     suspend(accountId) {
       suspended.add(accountId);
@@ -39,11 +30,14 @@ export function createFakePrivilegeSource(): FakePrivilegeSource {
       categories.delete(accountId);
       suspended.delete(accountId);
     },
-    permissionState: async (accountId) => state(accountId),
-    hasStaffScope: async (accountId, scope) =>
-      state(accountId) === 'active' && (scopes.get(accountId)?.has(scope) ?? false),
-    hasCategoryScope: async (accountId, categoryId) =>
-      state(accountId) === 'active' && (categories.get(accountId)?.has(categoryId) ?? false),
-    isStaff: async (accountId) => state(accountId) !== 'none',
+    async staffGrant(accountId) {
+      const granted = scopes.get(accountId);
+      if (!granted) return null;
+      return {
+        status: suspended.has(accountId) ? 'suspended' : 'active',
+        scopes: granted,
+        categoryIds: categories.get(accountId) ?? [],
+      };
+    },
   };
 }

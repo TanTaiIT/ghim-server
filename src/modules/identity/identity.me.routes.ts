@@ -1,8 +1,7 @@
-import type { FastifyRequest } from 'fastify';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
-import type { Actor } from '../../common/auth/actor.js';
+import { actorOf } from '../../common/auth/actor.js';
 import { errorResponse, ok, toOk } from '../../common/schemas/response.js';
 import {
   changePasswordBodySchema,
@@ -31,10 +30,6 @@ const TAGS_USERS = ['Users'];
 const bearer = [{ bearerAuth: [] }];
 
 /** Sau `authenticate` thì `actor` luôn có; hàm này chỉ để kiểu không phải `| null` ở từng handler. */
-function actorOf(request: FastifyRequest): Actor {
-  if (!request.actor) throw new Error('Route này phải có authenticate trong preHandler');
-  return request.actor;
-}
 
 /** Hồ sơ công khai (ai cũng xem được) và route của người đã đăng nhập (`/me/*`, qua `authenticate`). */
 export const identityMeRoutes: FastifyPluginAsyncZod<IdentityMeRoutesOptions> = async (

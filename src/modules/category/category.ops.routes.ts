@@ -2,7 +2,7 @@ import type { FastifyRequest } from 'fastify';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
-import type { Actor } from '../../common/auth/actor.js';
+import { actorOf } from '../../common/auth/actor.js';
 import { errorResponse, ok, toOk } from '../../common/schemas/response.js';
 import { emptySchema } from '../identity/identity.schema.js';
 import {
@@ -25,11 +25,6 @@ export interface CategoryOpsRoutesOptions {
 
 const TAGS = ['Ops · Categories'];
 const bearer = [{ bearerAuth: [] }];
-
-function actorOf(request: FastifyRequest): Actor {
-  if (!request.actor) throw new Error('Route này phải có authenticate trong preHandler');
-  return request.actor;
-}
 
 const categoryIdOf = (request: FastifyRequest): string => (request.params as { id: string }).id;
 

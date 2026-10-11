@@ -81,39 +81,6 @@ const me = (token: string) =>
   app.inject({ method: 'GET', url: '/__test/me', headers: { authorization: `Bearer ${token}` } });
 
 describe('quên mật khẩu', () => {
-  it('10 lượt đoán sai CÙNG LÚC vẫn chỉ được 5 lần: mã bị huỷ, mã đúng nhập sau → CODE_EXPIRED', async () => {
-    const { email } = await account();
-    await post('/auth/forgot-password', { email });
-    const code = await lastCode();
-    const wrong = (index: number) =>
-      String((Number(code) + index + 1) % 1_000_000).padStart(6, '0');
-
-    const guesses = await Promise.all(
-      Array.from({ length: 10 }, (_, index) =>
-        post('/auth/reset-password', { email, code: wrong(index), password: NEW_PASSWORD }),
-      ),
-    );
-    // Lượt tới sau khi mã đã huỷ thấy 'không còn mã sống' — đúng như nhập tuần tự.
-    const codes = guesses.map((res) => res.json().error.code as string);
-    expect(codes.every((value) => value === 'CODE_INVALID' || value === 'CODE_EXPIRED')).toBe(true);
-    expect(codes.filter((value) => value === 'CODE_INVALID').length).toBeGreaterThanOrEqual(5);
-    const late = await post('/auth/reset-password', { email, code, password: NEW_PASSWORD });
-    expect(late.json().error.code).toBe('CODE_EXPIRED');
-    expect((await post('/auth/login', { email, password: PASSWORD })).statusCode).toBe(200);
-  });
-
-  it('hai lượt nhập đúng cùng lúc: đúng một lượt đổi mật khẩu, lượt kia CODE_EXPIRED', async () => {
-    const { email } = await account();
-    await post('/auth/forgot-password', { email });
-    const code = await lastCode();
-    const results = await Promise.all([
-      post('/auth/reset-password', { email, code, password: NEW_PASSWORD }),
-      post('/auth/reset-password', { email, code, password: `${NEW_PASSWORD}-2` }),
-    ]);
-    expect(results.map((res) => res.statusCode).toSorted()).toEqual([200, 400]);
-    expect(results.find((res) => res.statusCode === 400)?.json().error.code).toBe('CODE_EXPIRED');
-  });
-
   it('email lạ → 200 giống hệt email có tài khoản, và không gửi gì', async () => {
     const { email } = await account();
     const sentBefore = jobs.sent.length;

@@ -68,6 +68,24 @@ describe('danh sách khu vực', () => {
   });
 });
 
+describe('giữ lại có hạn', () => {
+  it('danh sách tỉnh và kết quả tìm cho phép giữ lại một ngày', async () => {
+    const provinces = await app.inject({ method: 'GET', url: '/api/v1/regions/provinces' });
+    const found = await app.inject({
+      method: 'GET',
+      url: `/api/v1/regions/search?q=${encodeURIComponent('Bình Dương')}`,
+    });
+    expect(provinces.headers['cache-control']).toBe('public, max-age=86400');
+    expect(found.headers['cache-control']).toBe('public, max-age=86400');
+  });
+
+  it('phường của mã tỉnh không tồn tại → 404 và cấm giữ lại', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/regions/provinces/9999/wards' });
+    expect(res.statusCode).toBe(404);
+    expect(res.headers['cache-control']).toBe('no-store');
+  });
+});
+
 describe('tìm khu vực', () => {
   it.each(['Bình Dương', 'binh duong', 'sài gòn'])('"%s" ra Thành phố Hồ Chí Minh', async (q) => {
     expect(await search(q)).toContainEqual(

@@ -80,8 +80,9 @@ kèm câu lỗi gốc, câu SQL, tên bảng hay đường dẫn file. Server tr
 
 ### Requirement: Mã truy vết request
 
-Mỗi response SHALL mang header `x-request-id`: giữ nguyên giá trị client gửi lên, hoặc một UUID mới khi
-client không gửi.
+Mỗi response SHALL mang header `x-request-id`: giữ nguyên giá trị client gửi lên khi giá trị đó dài tối đa 128 ký
+tự và chỉ gồm chữ cái Latin, chữ số và các ký tự `.` `_` `:` `-`; ngược lại, hoặc khi client không gửi, response
+mang một UUID mới. Giá trị sai định dạng MUST NOT xuất hiện trong response hay trong log.
 
 #### Scenario: Client gửi sẵn mã truy vết
 
@@ -91,6 +92,16 @@ client không gửi.
 #### Scenario: Client không gửi mã truy vết
 
 - **WHEN** client không gửi header `x-request-id`
+- **THEN** response mang header `x-request-id` là một UUID mới
+
+#### Scenario: Mã truy vết quá dài
+
+- **WHEN** client gửi header `x-request-id` dài 129 ký tự
+- **THEN** response mang header `x-request-id` là một UUID mới, không phải giá trị client gửi
+
+#### Scenario: Mã truy vết có ký tự lạ
+
+- **WHEN** client gửi header `x-request-id: abc<script>`
 - **THEN** response mang header `x-request-id` là một UUID mới
 
 ### Requirement: Tài liệu API
@@ -107,3 +118,23 @@ production. Ở production, `/docs` SHALL không tồn tại.
 
 - **WHEN** người dùng mở `/docs` trên server chạy với `NODE_ENV=production`
 - **THEN** response có HTTP 404 `NOT_FOUND`
+
+### Requirement: Mặc định không cho giữ lại response
+
+Mọi response của API SHALL cấm app, trình duyệt và máy chủ trung gian giữ lại một bản, trừ khi chính endpoint
+đó cho phép tường minh. Response lỗi MUST NOT cho phép giữ lại.
+
+#### Scenario: Hồ sơ của tôi
+
+- **WHEN** người dùng đã đăng nhập đọc hồ sơ của chính mình
+- **THEN** response có HTTP 200 và cấm giữ lại
+
+#### Scenario: Bàn vận hành
+
+- **WHEN** master đọc danh sách staff ở bàn vận hành
+- **THEN** response có HTTP 200 và cấm giữ lại
+
+#### Scenario: Lỗi trên một endpoint cho phép giữ lại
+
+- **WHEN** khách xem danh sách phường của một mã tỉnh không tồn tại
+- **THEN** response có HTTP 404 `NOT_FOUND` và cấm giữ lại

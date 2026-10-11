@@ -61,8 +61,12 @@ type Registration = () => Promise<void>;
  * khai không phải biết điều đó. Chạy nhiều tiến trình sau này không phải đổi gì: pg-boss khoá theo
  * job, không theo tiến trình.
  */
-export function createJobs(connectionString: string): Jobs {
-  const boss = new PgBoss({ connectionString, schema: SCHEMA });
+export function createJobs(connectionString: string, { max }: { max?: number } = {}): Jobs {
+  const boss = new PgBoss({
+    connectionString,
+    schema: SCHEMA,
+    ...(max === undefined ? {} : { max }),
+  });
   let started = false;
   const pending: Registration[] = [];
 

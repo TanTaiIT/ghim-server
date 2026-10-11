@@ -1,0 +1,5 @@
+schema: spec-driven
+created: 2026-10-11
+goal: 'Hạ tầng trước add-groups, rà soát lần hai 11/10/2026: một câu SQL cho mỗi
+  lượt đọc trên đường xác thực, index cho việc dọn phiên'
+skip_specs: true

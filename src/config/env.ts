@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { databaseEnvironmentIssue } from './database-guard.js';
+import { parseTrustProxy, type TrustProxy } from './trust-proxy.js';
 
 /**
  * Schema cho biến môi trường. Thêm biến mới tại đây để được validate và có type ngay khi app
@@ -26,8 +27,21 @@ const envSchema = z
      */
     CORS_ORIGIN: z.string().default('*'),
 
+    /**
+     * Proxy đứng trước app (dạng hợp lệ ở `trust-proxy.ts`). Production bắt buộc khai: tin mọi proxy
+     * cho client giả IP, không tin proxy nào thì mọi người chung IP của proxy và chung trần rate limit.
+     */
+    TRUST_PROXY: z.string().trim().min(1).optional(),
+
     /** Trần rate-limit chung, tính trên mỗi IP mỗi phút. */
     RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
+
+    /**
+     * Pool `pg` dưới Prisma và pool của pg-boss, mỗi tiến trình. Tổng hai pool nhân số tiến trình
+     * phải dưới `max_connections` của Postgres (README).
+     */
+    DATABASE_POOL_MAX: z.coerce.number().int().positive().default(10),
+    JOBS_POOL_MAX: z.coerce.number().int().positive().default(5),
 
     // ── identity ──
     /**
@@ -92,6 +106,31 @@ const envSchema = z
           'bắt buộc ngoài test — dev dùng Mailpit (pnpm mail:up, smtp://ghim:ghim@localhost:1025)',
       });
     }
+    if (value.NODE_ENV === 'production' && value.CORS_ORIGIN.trim() === '*') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['CORS_ORIGIN'],
+        message:
+          'production phải là danh sách origin cụ thể — bàn vận hành web dùng cookie, trình duyệt không gửi cookie kèm CORS `*`',
+      });
+    }
+    if (value.TRUST_PROXY === undefined) {
+      if (value.NODE_ENV === 'production') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['TRUST_PROXY'],
+          message:
+            'bắt buộc ở production: danh sách IP / CIDR của proxy (vd uniquelocal), hoặc false',
+        });
+      }
+    } else if (parseTrustProxy(value.TRUST_PROXY) === null) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['TRUST_PROXY'],
+        message:
+          'phải là false hoặc danh sách IP / CIDR / loopback / linklocal / uniquelocal — `true` cho client tự giả IP, số hop thì Fastify không tin',
+      });
+    }
     if (value.NODE_ENV === 'production' && value.GOOGLE_CLIENT_IDS.length === 0) {
       ctx.addIssue({
         code: 'custom',
@@ -120,6 +159,9 @@ export const env: Env = loadEnv();
 
 export const isProduction = env.NODE_ENV === 'production';
 export const isTest = env.NODE_ENV === 'test';
+
+/** Ngoài production bỏ trống `TRUST_PROXY` nghĩa là không có proxy. */
+export const trustProxy: TrustProxy = parseTrustProxy(env.TRUST_PROXY ?? 'false') ?? false;
 
 /** `*` giữ nguyên cho `@fastify/cors`; còn lại tách thành mảng để khai báo nhiều origin. */
 export const corsOrigin: string | string[] =

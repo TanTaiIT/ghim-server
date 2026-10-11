@@ -37,4 +37,5 @@ COPY prisma ./prisma
 # Không chạy bằng root: một lỗ RCE trong app không được kèm luôn quyền root trong container.
 USER node
 EXPOSE 3100
-CMD ["node", "dist/server.js"]
+# Source map đã có trong dist/: không bật thì stack trace production trỏ vào mã đã biên dịch.
+CMD ["node", "--enable-source-maps", "dist/server.js"]

@@ -123,14 +123,15 @@ export function createIdentityAuthService(
       // Sai mật khẩu đã bị chặn ở trên: chỉ chủ tài khoản mới được biết lý do khoá.
       if (account.status === 'locked') throw accountLocked(account);
 
+      const privileged = await isPrivileged(account);
       let secondFactorAt: Date | null = null;
-      if (account.totpEnabledAt && account.totpSecretEnc && (await isPrivileged(account))) {
+      if (account.totpEnabledAt && account.totpSecretEnc && privileged) {
         if (!totpCode) throw invalidCredentials('Tài khoản này cần mã từ ứng dụng tạo mã');
         if (!(await totpMatches(account.totpSecretEnc, totpCode))) throw invalidCredentials();
         secondFactorAt = now;
       }
 
-      return openSession(account, { deviceName, ip, userAgent, secondFactorAt }, now);
+      return openSession(account, { deviceName, ip, userAgent, secondFactorAt, privileged }, now);
     },
 
     async refresh(refreshToken) {
@@ -220,10 +221,15 @@ export function createIdentityAuthService(
       if (account.status === 'locked') throw accountLocked(account);
       // Lớp thứ hai áp cùng luật với mật khẩu, nhưng Google không có chỗ nhập mã trong cùng request:
       // tài khoản có quyền đã bật hai lớp phải đăng nhập bằng mật khẩu.
-      if (account.totpEnabledAt && (await isPrivileged(account))) {
+      const privileged = await isPrivileged(account);
+      if (account.totpEnabledAt && privileged) {
         throw invalidCredentials('Tài khoản có lớp thứ hai đăng nhập bằng email và mật khẩu');
       }
-      return openSession(account, { deviceName, ip, userAgent, secondFactorAt: null }, now);
+      return openSession(
+        account,
+        { deviceName, ip, userAgent, secondFactorAt: null, privileged },
+        now,
+      );
     },
 
     // ── MẬT KHẨU ────────────────────────────────────────────────────────────────────────────────

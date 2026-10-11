@@ -257,6 +257,49 @@ describe('bật, tắt, không xoá', () => {
   });
 });
 
+describe('giữ lại có hạn', () => {
+  it('danh sách danh mục và mẫu hiện hành: 5 phút; phiên bản mẫu đã phát hành: mãi', async () => {
+    const id = await newCategoryId();
+    await app.inject({
+      method: 'PUT',
+      url: `/api/v1/ops/categories/${id}/template/draft`,
+      headers: auth(masterToken),
+      payload: { baseDraftVersion: 0, fields: [hang] },
+    });
+    await app.inject({
+      method: 'POST',
+      url: `/api/v1/ops/categories/${id}/template/publish`,
+      headers: auth(masterToken),
+    });
+
+    const list = await app.inject({ method: 'GET', url: '/api/v1/categories' });
+    const current = await app.inject({ method: 'GET', url: `/api/v1/categories/${id}/template` });
+    const v1 = await app.inject({
+      method: 'GET',
+      url: `/api/v1/categories/${id}/template/versions/1`,
+    });
+    expect(list.headers['cache-control']).toBe('public, max-age=300');
+    expect(current.headers['cache-control']).toBe('public, max-age=300');
+    expect(v1.headers['cache-control']).toBe('public, max-age=31536000, immutable');
+  });
+
+  it('bàn vận hành và lỗi cấm giữ lại', async () => {
+    const ops = await app.inject({
+      method: 'GET',
+      url: '/api/v1/ops/categories',
+      headers: auth(masterToken),
+    });
+    const missing = await app.inject({
+      method: 'GET',
+      url: '/api/v1/categories/00000000-0000-7000-8000-0000000000ff/template',
+    });
+    expect(ops.statusCode).toBe(200);
+    expect(ops.headers['cache-control']).toBe('no-store');
+    expect(missing.statusCode).toBe(404);
+    expect(missing.headers['cache-control']).toBe('no-store');
+  });
+});
+
 describe('cài đặt không công khai', () => {
   it('khách đọc danh sách: mỗi danh mục chỉ có mã, tên, số phiên bản mẫu', async () => {
     await createCategory({

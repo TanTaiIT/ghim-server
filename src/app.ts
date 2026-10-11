@@ -10,13 +10,15 @@ import {
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod';
 
-import { corsOrigin, env, isTest } from './config/env.js';
+import { corsOrigin, env, isTest, trustProxy } from './config/env.js';
 import { registerAuth } from './common/auth/auth.plugin.js';
 import type { PrivilegeSource } from './common/auth/privilege-source.js';
 import type { RuntimeConfig } from './common/config/runtime-config.js';
 import { createSecretBox } from './common/crypto/secrets.js';
 import { errorHandler } from './common/errors/error-handler.js';
+import { CACHE_NONE } from './common/http/cache.js';
 import type { AppModule } from './common/module/app-module.js';
+import { createOutboxModule } from './common/outbox/outbox.jobs.js';
 import { registerSwagger } from './common/plugins/swagger.js';
 import { sequentially } from './common/utils/sequential.js';
 import { createJobs, type Jobs } from './lib/jobs.js';
@@ -53,6 +55,12 @@ import {
 } from './modules/platform/platform.service.js';
 
 const API_PREFIX = '/api/v1';
+
+/**
+ * Mã truy vết từ ngoài chỉ được giữ khi đúng định dạng (spec api-contract): nó đi vào mọi dòng log và
+ * được trả lại trong header, nên không nhận chuỗi tuỳ ý dài tới cả chục KB.
+ */
+const REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/;
 
 /** Service của từng module theo tên, cho `server.ts` và test gọi thẳng. */
 export interface AppServices {
@@ -133,7 +141,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
   const { config, versioned } = await resolveConfig(overrides.config, repositories.platform);
   const deps: AppDeps = {
     repositories,
-    jobs: overrides.jobs ?? createJobs(env.DATABASE_URL),
+    jobs: overrides.jobs ?? createJobs(env.DATABASE_URL, { max: env.JOBS_POOL_MAX }),
     mailer: overrides.mailer ?? defaultMailer(),
     googleVerifier: overrides.googleVerifier ?? createGoogleTokenVerifier(env.GOOGLE_CLIENT_IDS),
     privilegeSource:
@@ -158,7 +166,12 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     clock: deps.clock,
     ...(versioned ? { runtimeConfig: versioned } : {}),
   });
-  const moduleList: readonly AppModule[] = [identity.module, category.module, platform.module];
+  const moduleList: readonly AppModule[] = [
+    identity.module,
+    category.module,
+    platform.module,
+    createOutboxModule(prisma),
+  ];
   await sequentially(moduleList, async (appModule) => {
     await appModule.jobs?.(deps.jobs);
   });
@@ -171,8 +184,13 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
      * Tôn trọng id có sẵn là thứ khiến một lượt gọi xuyên nhiều service ghép lại được thành một
      * dòng thời gian; tự sinh đè lên là cắt đứt sợi dây đó ngay tại cửa.
      */
-    genReqId: (req) => (req.headers['x-request-id'] as string | undefined) ?? randomUUID(),
-    trustProxy: true,
+    genReqId: (req) => {
+      const incoming = req.headers['x-request-id'];
+      return typeof incoming === 'string' && REQUEST_ID.test(incoming) ? incoming : randomUUID();
+    },
+    trustProxy,
+    // Mặc định của Fastify là 0 (không giới hạn): client gửi nhỏ giọt giữ socket mãi.
+    requestTimeout: 30_000,
   }).withTypeProvider<ZodTypeProvider>();
 
   // Zod vừa validate request, vừa serialize response, vừa sinh tài liệu — một schema, ba việc.
@@ -226,11 +244,16 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
    */
   app.addHook('onSend', async (request, reply) => {
     void reply.header('x-request-id', request.id);
+    // Mặc định cấm giữ lại (dữ liệu cá nhân, bàn vận hành); route công khai tự mở bằng `cacheFor`.
+    // Lỗi luôn bị ép về `no-store`, kể cả khi handler đã đặt header rồi mới hỏng ở bước serialize.
+    if (reply.statusCode >= 400 || !reply.hasHeader('cache-control')) {
+      void reply.header('cache-control', CACHE_NONE);
+    }
   });
 
   await app.register(healthRoutes);
   await sequentially(moduleList, async (appModule) => {
-    await app.register(appModule.routes, { prefix: API_PREFIX });
+    if (appModule.routes) await app.register(appModule.routes, { prefix: API_PREFIX });
   });
 
   return app;

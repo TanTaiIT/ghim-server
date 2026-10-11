@@ -13,12 +13,15 @@ let app: FastifyInstance;
 
 beforeAll(async () => {
   app = await buildTestApp();
+  app.get('/__test/ip', async (request) => ({ ip: request.ip }));
   await app.ready();
 });
 
 afterAll(async () => {
   await app.close();
 });
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 describe('Hạ tầng HTTP', () => {
   it('GET /health trả 200 trong vỏ chuẩn', async () => {
@@ -51,6 +54,28 @@ describe('Hạ tầng HTTP', () => {
     expect(res.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/);
   });
 
+  it('x-request-id quá dài hay có ký tự lạ thì bị thay bằng UUID mới', async () => {
+    const tooLong = 'a'.repeat(129);
+    const atLimit = 'b'.repeat(128);
+    const [long, odd, limit] = await Promise.all(
+      [tooLong, 'abc<script>', atLimit].map((id) =>
+        app.inject({ method: 'GET', url: '/health', headers: { 'x-request-id': id } }),
+      ),
+    );
+    expect(long?.headers['x-request-id']).toMatch(UUID);
+    expect(odd?.headers['x-request-id']).toMatch(UUID);
+    expect(limit?.headers['x-request-id']).toBe(atLimit);
+  });
+
+  it('không có proxy tin được: X-Forwarded-For giả không đổi được IP của request', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/__test/ip',
+      headers: { 'x-forwarded-for': '203.0.113.9' },
+    });
+    expect(res.json()).toEqual({ ip: '127.0.0.1' });
+  });
+
   it('helmet đang bật', async () => {
     const res = await app.inject({ method: 'GET', url: '/health' });
 
@@ -77,6 +102,8 @@ describe('Tài liệu API', () => {
     // Production bắt buộc hai biến này (env.ts); các khoá còn lại đã có từ vitest.config.ts.
     vi.stubEnv('SMTP_URL', 'smtps://user:pass@smtp.example.com:465');
     vi.stubEnv('GOOGLE_CLIENT_IDS', 'ios-id.apps.googleusercontent.com');
+    vi.stubEnv('CORS_ORIGIN', 'https://ops.ghim.vn');
+    vi.stubEnv('TRUST_PROXY', 'uniquelocal');
     try {
       // Qua bản giả để không chạm DB; `fakes/app.js` nạp lại `src/app.js` dưới env production.
       const { buildTestApp: buildProductionApp } = await import('./fakes/app.js');

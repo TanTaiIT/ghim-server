@@ -54,15 +54,25 @@ export function describePlatformRepositoryContract(
           at: NOW,
           audit: TEST_AUDIT,
         });
+      expect(await repository.findStaffGrant(accountId)).toBeNull();
       await grant(['support']);
       await grant(['user_reports']);
       expect((await repository.findStaff(accountId))?.scopes).toEqual(['user_reports']);
+      expect(await repository.findStaffGrant(accountId)).toEqual({
+        status: 'active',
+        scopes: ['user_reports'],
+        categoryIds: [],
+      });
 
       const suspend = () => repository.suspendStaff({ accountId, reason: 'khoá', at: NOW });
       expect(await suspend()).toBe(true);
       expect(await suspend()).toBe(false);
       expect((await repository.findStaff(accountId))?.status).toBe('suspended');
+      expect((await repository.findStaffGrant(accountId))?.status).toBe('suspended');
 
+      expect(await repository.removeStaff(accountId)).toBe(true);
+      expect(await repository.removeStaff(accountId)).toBe(false);
+      await grant(['support']);
       expect(await repository.revokeStaff({ accountId, at: NOW, audit: TEST_AUDIT })).toBe(true);
       expect(await repository.revokeStaff({ accountId, at: NOW, audit: TEST_AUDIT })).toBe(false);
     });

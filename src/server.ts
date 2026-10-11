@@ -36,7 +36,7 @@ async function main(): Promise<void> {
 
     try {
       await app.close();
-      dispatcher.stop();
+      await dispatcher.stop();
       await app.jobs.stop();
       await prisma.$disconnect();
       logger.info('Đã đóng sạch');

@@ -13,6 +13,16 @@ const base = {
   MAIL_FROM: 'Ghim <no-reply@ghim.test>',
 };
 
+/** Bộ biến production hợp lệ: DB không mang hậu tố, SMTP, Google, CORS cụ thể, proxy trong mạng nội bộ. */
+const production = {
+  ...base,
+  NODE_ENV: 'production',
+  DATABASE_URL: 'postgresql://user:pass@db:5432/ghim',
+  GOOGLE_CLIENT_IDS: 'ios-id.apps.googleusercontent.com',
+  CORS_ORIGIN: 'https://ops.ghim.vn',
+  TRUST_PROXY: 'uniquelocal',
+};
+
 describe('loadEnv', () => {
   it('áp dụng giá trị mặc định khi thiếu biến tuỳ chọn', () => {
     const result = loadEnv(base);
@@ -20,6 +30,35 @@ describe('loadEnv', () => {
     expect(result.NODE_ENV).toBe('development');
     expect(result.PORT).toBe(3100);
     expect(result.CORS_ORIGIN).toBe('*');
+  });
+
+  it('pool có mặc định; giá trị không dương bị từ chối', () => {
+    expect(loadEnv(base)).toMatchObject({ DATABASE_POOL_MAX: 10, JOBS_POOL_MAX: 5 });
+    expect(loadEnv({ ...base, DATABASE_POOL_MAX: '20' }).DATABASE_POOL_MAX).toBe(20);
+    expect(() => loadEnv({ ...base, DATABASE_POOL_MAX: '0' })).toThrow(/DATABASE_POOL_MAX/);
+    expect(() => loadEnv({ ...base, JOBS_POOL_MAX: 'nhieu' })).toThrow(/JOBS_POOL_MAX/);
+  });
+
+  it('production cho mọi nguồn gọi API (CORS *) → từ chối, nêu CORS_ORIGIN', () => {
+    expect(() => loadEnv({ ...production, CORS_ORIGIN: '*' })).toThrow(/CORS_ORIGIN/);
+  });
+
+  it('production không khai TRUST_PROXY → từ chối, nêu TRUST_PROXY', () => {
+    const { TRUST_PROXY: _omitted, ...withoutProxy } = production;
+    expect(() => loadEnv(withoutProxy)).toThrow(/TRUST_PROXY/);
+  });
+
+  it('TRUST_PROXY=true và số hop bị từ chối ở mọi môi trường', () => {
+    expect(() => loadEnv({ ...base, TRUST_PROXY: 'true' })).toThrow(/TRUST_PROXY/);
+    expect(() => loadEnv({ ...production, TRUST_PROXY: 'true' })).toThrow(/TRUST_PROXY/);
+    expect(() => loadEnv({ ...production, TRUST_PROXY: '1' })).toThrow(/TRUST_PROXY/);
+  });
+
+  it('production khai đủ → khởi động bình thường', () => {
+    expect(loadEnv(production)).toMatchObject({
+      NODE_ENV: 'production',
+      TRUST_PROXY: 'uniquelocal',
+    });
   });
 
   it('ép kiểu PORT từ string sang number', () => {
@@ -48,7 +87,15 @@ describe('loadEnv — mỗi môi trường một DB (tên DB mang hậu tố mô
     ['production', 'ghim_prod'],
     ['production', 'ghim'],
   ])('%s + %s → chạy được', (NODE_ENV, name) => {
-    const source = { ...base, NODE_ENV, DATABASE_URL: url(name), GOOGLE_CLIENT_IDS: 'ios-id' };
+    // Production còn đòi CORS cụ thể và proxy tường minh — khai đủ để ca này chỉ thử tên DB.
+    const source = {
+      ...base,
+      NODE_ENV,
+      DATABASE_URL: url(name),
+      GOOGLE_CLIENT_IDS: 'ios-id',
+      CORS_ORIGIN: 'https://ops.ghim.vn',
+      TRUST_PROXY: 'uniquelocal',
+    };
     expect(loadEnv(source).DATABASE_URL).toBe(url(name));
   });
 

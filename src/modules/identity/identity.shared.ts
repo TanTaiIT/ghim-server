@@ -162,7 +162,7 @@ export const refreshConflict = (): ConflictError =>
 export const sessionExpired = (): UnauthorizedError =>
   new UnauthorizedError('Phiên đã hết hạn vì lâu không dùng, đăng nhập lại', 'SESSION_EXPIRED');
 
-export const accountLocked = (account: Account): ForbiddenError =>
+export const accountLocked = (account: Pick<Account, 'lockedReason'>): ForbiddenError =>
   new ForbiddenError(
     `Tài khoản đang bị khoá: ${account.lockedReason ?? 'liên hệ hỗ trợ'}`,
     'ACCOUNT_LOCKED',
@@ -194,7 +194,7 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
   const hashCode = (code: string): string => hmacHex(hashKey, 'code', code);
 
   const isPrivileged = async (account: Account): Promise<boolean> =>
-    account.role === 'master' || privilegeSource.isStaff(account.id);
+    account.role === 'master' || (await privilegeSource.staffGrant(account.id)) !== null;
 
   const idleExpiry = (at: Date): Date =>
     new Date(at.getTime() + config.get('identity.sessionIdleDays') * DAY_MS);
@@ -289,10 +289,14 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
    */
   const openSession = async (
     account: Account,
-    input: Pick<LoginInput, 'deviceName' | 'ip' | 'userAgent'> & { secondFactorAt: Date | null },
+    input: Pick<LoginInput, 'deviceName' | 'ip' | 'userAgent'> & {
+      secondFactorAt: Date | null;
+      /** Người gọi đã hỏi lúc kiểm lớp thứ hai — truyền vào để mỗi lượt đăng nhập chỉ hỏi một lần. */
+      privileged: boolean;
+    },
     at: Date,
   ): Promise<SessionOpened> => {
-    const cap = (await isPrivileged(account))
+    const cap = input.privileged
       ? config.get('identity.sessionCapPrivileged')
       : config.get('identity.sessionCapUser');
     const alive = (await repository.listActiveSessions(account.id)).filter(
@@ -389,21 +393,19 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
 
   const resolveActor = async (sessionId: string): Promise<Actor> => {
     const now = clock();
-    const session = await repository.findSessionById(sessionId);
+    const session = await repository.findActorSession(sessionId);
     if (!session || session.revokedAt) throw sessionRevoked();
     if (session.expiresAt <= now) throw sessionExpired();
-
-    const account = await repository.findAccountById(session.accountId);
     // Tài khoản đã xoá thì phiên đã bị thu hồi lúc xoá; nhánh này chỉ bắt dữ liệu lệch.
-    if (!account || account.status === 'deleted') throw sessionRevoked();
-    if (account.status === 'locked') throw accountLocked(account);
+    if (session.status === 'deleted') throw sessionRevoked();
+    if (session.status === 'locked') throw accountLocked(session);
 
     return {
-      accountId: account.id,
-      role: account.role,
-      sessionId: session.id,
+      accountId: session.accountId,
+      role: session.role,
+      sessionId: session.sessionId,
       secondFactorAt: session.secondFactorAt,
-      emailVerified: account.status === 'active',
+      emailVerified: session.status === 'active',
     };
   };
 

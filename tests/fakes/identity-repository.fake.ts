@@ -288,6 +288,21 @@ export function createFakeIdentityRepository({
       return row;
     },
     findSessionById: async (id) => sessions.get(id) ?? null,
+    async findActorSession(sessionId) {
+      const session = sessions.get(sessionId);
+      const account = session ? accounts.get(session.accountId) : undefined;
+      if (!session || !account) return null;
+      return {
+        sessionId: session.id,
+        accountId: account.id,
+        revokedAt: session.revokedAt,
+        expiresAt: session.expiresAt,
+        secondFactorAt: session.secondFactorAt,
+        role: account.role,
+        status: account.status,
+        lockedReason: account.lockedReason,
+      };
+    },
     findSessionByRefreshHash: async (refreshTokenHash) =>
       [...sessions.values()].find((row) => row.refreshTokenHash === refreshTokenHash) ?? null,
     findSessionByPreviousRefreshHash: async (prevRefreshTokenHash) =>

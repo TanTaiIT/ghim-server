@@ -30,6 +30,15 @@ export function createFakePlatformRepository({
     audit,
 
     findStaff: async (accountId) => staff.get(accountId) ?? null,
+    async findStaffGrant(accountId) {
+      const row = staff.get(accountId);
+      if (!row) return null;
+      return {
+        status: row.status,
+        scopes: [...row.scopes],
+        categoryIds: row.categoryIds.toSorted(),
+      };
+    },
     listStaff: async ({ categoryId }) =>
       [...staff.values()]
         .filter((row) => categoryId === undefined || row.categoryIds.includes(categoryId))
@@ -72,6 +81,7 @@ export function createFakePlatformRepository({
       writeAudit(entry, at);
       return row;
     },
+    removeStaff: async (accountId) => staff.delete(accountId),
     async suspendStaff({ accountId, reason, at }) {
       const existing = staff.get(accountId);
       if (!existing || existing.status !== 'active') return false;

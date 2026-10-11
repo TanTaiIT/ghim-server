@@ -1,8 +1,7 @@
-import type { FastifyRequest } from 'fastify';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
-import type { Actor } from '../../common/auth/actor.js';
+import { actorOf } from '../../common/auth/actor.js';
 import { paginated } from '../../common/schemas/pagination.js';
 import { errorResponse, ok, toOk } from '../../common/schemas/response.js';
 import { emptySchema } from '../identity/identity.schema.js';
@@ -27,11 +26,6 @@ const TAGS_STAFF = ['Ops · Staff'];
 const TAGS_CONFIG = ['Ops · Config'];
 const TAGS_AUDIT = ['Ops · Audit'];
 const bearer = [{ bearerAuth: [] }];
-
-function actorOf(request: FastifyRequest): Actor {
-  if (!request.actor) throw new Error('Route này phải có authenticate trong preHandler');
-  return request.actor;
-}
 
 /** Toàn bộ bàn vận hành của `platform` là của master (TK 6): cấp quyền, bảng con số, nhật ký. */
 export const platformOpsRoutes: FastifyPluginAsyncZod<PlatformOpsRoutesOptions> = async (

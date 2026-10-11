@@ -1,7 +1,6 @@
-import type { FastifyRequest } from 'fastify';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 
-import type { Actor } from '../../common/auth/actor.js';
+import { actorOf } from '../../common/auth/actor.js';
 import { paginated, paginationQuerySchema } from '../../common/schemas/pagination.js';
 import { errorResponse, ok, toOk } from '../../common/schemas/response.js';
 import {
@@ -30,11 +29,6 @@ const TAGS_FLAGS = ['Ops · Flags'];
 const TAGS_DOMAINS = ['Ops · Disposable domains'];
 const TAGS_ID = ['Ops · ID verification'];
 const bearer = [{ bearerAuth: [] }];
-
-function actorOf(request: FastifyRequest): Actor {
-  if (!request.actor) throw new Error('Route này phải có authenticate trong preHandler');
-  return request.actor;
-}
 
 /** Bàn vận hành: mọi route qua `authenticate` rồi `requireMaster` / `requireOps(scope)`. */
 export const identityOpsRoutes: FastifyPluginAsyncZod<IdentityOpsRoutesOptions> = async (

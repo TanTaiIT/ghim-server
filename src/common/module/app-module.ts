@@ -10,8 +10,8 @@ import type { OutboxDispatcher } from '../outbox/dispatcher.js';
  */
 export interface AppModule {
   name: string;
-  /** Đăng ký dưới tiền tố `/api/v1`. */
-  routes: FastifyPluginAsyncZod;
+  /** Đăng ký dưới tiền tố `/api/v1`. Module hạ tầng (vd `outbox`) không có route. */
+  routes?: FastifyPluginAsyncZod;
   /** Bên nghe outbox; `server.ts` gọi trước khi bật bộ phát. */
   listeners?: (dispatcher: OutboxDispatcher) => void;
   /** Việc nền (theo sự kiện và theo lịch); `buildApp` gọi trước khi `jobs.start()`. */

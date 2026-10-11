@@ -91,6 +91,8 @@ export interface PlatformService {
   restoreStaff(actor: Actor, accountId: string): Promise<StaffPermissionDto>;
   /** Bên nghe `identity.account.locked`; idempotent. */
   suspendStaffForLock(accountId: string): Promise<void>;
+  /** Bên nghe `identity.account.deleted`: thu hẳn, kể cả quyền đang treo; idempotent. */
+  revokeStaffForDeletion(accountId: string): Promise<void>;
   listStaff(categoryId?: string): Promise<StaffPermissionDto[]>;
 
   /**
@@ -227,6 +229,10 @@ export function createPlatformService(deps: PlatformServiceDeps): PlatformServic
       await repository.suspendStaff({ accountId, reason: SUSPENDED_REASON_LOCKED, at: clock() });
     },
 
+    async revokeStaffForDeletion(accountId) {
+      await repository.removeStaff(accountId);
+    },
+
     async listStaff(categoryId) {
       const rows = await repository.listStaff(categoryId === undefined ? {} : { categoryId });
       return rows.map(toStaffDto);
@@ -338,20 +344,8 @@ export function createPlatformService(deps: PlatformServiceDeps): PlatformServic
  * ngay (spec staff-permissions), không cache.
  */
 export function createPlatformPrivilegeSource(repository: PlatformRepository): PrivilegeSource {
-  const active = async (accountId: string): Promise<StaffPermissionRow | null> => {
-    const row = await repository.findStaff(accountId);
-    return row?.status === 'active' ? row : null;
-  };
   return {
-    async permissionState(accountId) {
-      const row = await repository.findStaff(accountId);
-      return row ? row.status : 'none';
-    },
-    hasStaffScope: async (accountId, scope) =>
-      (await active(accountId))?.scopes.includes(scope) ?? false,
-    hasCategoryScope: async (accountId, categoryId) =>
-      (await active(accountId))?.categoryIds.includes(categoryId) ?? false,
-    isStaff: async (accountId) => (await repository.findStaff(accountId)) !== null,
+    staffGrant: (accountId) => repository.findStaffGrant(accountId),
   };
 }
 

@@ -1,6 +1,12 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
+import {
+  CACHE_CATALOG,
+  CACHE_IMMUTABLE,
+  CACHE_REGIONS,
+  cacheFor,
+} from '../../common/http/cache.js';
 import { errorResponse, ok, toOk } from '../../common/schemas/response.js';
 import {
   categoryIdParamsSchema,
@@ -33,7 +39,8 @@ export const categoryPublicRoutes: FastifyPluginAsyncZod<CategoryPublicRoutesOpt
       summary: 'Danh mục đang bật — mã, tên, số phiên bản mẫu hiện hành',
       response: { 200: ok(z.array(publicCategorySchema)) },
     },
-    handler: async () => toOk(await category.listPublic()),
+    handler: async (_request, reply) =>
+      cacheFor(reply, CACHE_CATALOG, toOk(await category.listPublic())),
   });
 
   app.get('/categories/:id/template', {
@@ -43,7 +50,8 @@ export const categoryPublicRoutes: FastifyPluginAsyncZod<CategoryPublicRoutesOpt
       params: categoryIdParamsSchema,
       response: { 200: ok(templateSchema), 404: errorResponse },
     },
-    handler: async (request) => toOk(await category.currentTemplate(request.params.id)),
+    handler: async (request, reply) =>
+      cacheFor(reply, CACHE_CATALOG, toOk(await category.currentTemplate(request.params.id))),
   });
 
   app.get('/categories/:id/template/versions/:version', {
@@ -53,8 +61,12 @@ export const categoryPublicRoutes: FastifyPluginAsyncZod<CategoryPublicRoutesOpt
       params: templateVersionParamsSchema,
       response: { 200: ok(templateSchema), 404: errorResponse },
     },
-    handler: async (request) =>
-      toOk(await category.templateVersion(request.params.id, request.params.version)),
+    handler: async (request, reply) =>
+      cacheFor(
+        reply,
+        CACHE_IMMUTABLE,
+        toOk(await category.templateVersion(request.params.id, request.params.version)),
+      ),
   });
 
   app.get('/regions/provinces', {
@@ -63,7 +75,8 @@ export const categoryPublicRoutes: FastifyPluginAsyncZod<CategoryPublicRoutesOpt
       summary: '34 tỉnh, thành sau sáp nhập kèm tên cũ và tên gọi tắt',
       response: { 200: ok(z.array(provinceSchema)) },
     },
-    handler: async () => toOk(await category.listProvinces()),
+    handler: async (_request, reply) =>
+      cacheFor(reply, CACHE_REGIONS, toOk(await category.listProvinces())),
   });
 
   app.get('/regions/provinces/:code/wards', {
@@ -73,7 +86,8 @@ export const categoryPublicRoutes: FastifyPluginAsyncZod<CategoryPublicRoutesOpt
       params: provinceCodeParamsSchema,
       response: { 200: ok(z.array(wardSchema)), 404: errorResponse },
     },
-    handler: async (request) => toOk(await category.listWards(request.params.code)),
+    handler: async (request, reply) =>
+      cacheFor(reply, CACHE_REGIONS, toOk(await category.listWards(request.params.code))),
   });
 
   app.get('/regions/search', {
@@ -83,6 +97,7 @@ export const categoryPublicRoutes: FastifyPluginAsyncZod<CategoryPublicRoutesOpt
       querystring: regionSearchQuerySchema,
       response: { 200: ok(z.array(regionHitSchema)) },
     },
-    handler: async (request) => toOk(await category.searchRegions(request.query.q)),
+    handler: async (request, reply) =>
+      cacheFor(reply, CACHE_REGIONS, toOk(await category.searchRegions(request.query.q))),
   });
 };

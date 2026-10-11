@@ -63,6 +63,17 @@ export function describeCategoryRepositoryContract(
       await repository.rename({ id: phone.id, name: 'Điện thoại', at: NOW, audit: TEST_AUDIT });
     });
 
+    it('lọc theo trạng thái, xếp theo tên', async () => {
+      const repository = await make();
+      await create(repository, 'Zeta');
+      await create(repository, 'Alpha');
+      const off = await create(repository, 'Mid');
+      await repository.setStatus({ id: off.id, status: 'disabled', at: NOW, audit: TEST_AUDIT });
+
+      const rows = await repository.list({ status: 'active' });
+      expect(rows.map((row) => row.name)).toEqual(['Alpha', 'Zeta']);
+    });
+
     it('phiên bản cài đặt kế tiếp; phiên bản cũ đọc lại nguyên', async () => {
       const repository = await make();
       const phone = await create(repository, 'Máy tính');
