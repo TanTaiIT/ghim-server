@@ -131,6 +131,46 @@ describe('createOutboxDispatcher', () => {
   });
 });
 
+const pending = () => prisma.outboxEvent.count({ where: { publishedAt: null } });
+const tick = () => new Promise((resolve) => setImmediate(resolve));
+const seed = () =>
+  prisma.outboxEvent.create({
+    data: { type: 'identity.account.locked', payload: { accountId: 'a' } },
+  });
+
+describe('kick', () => {
+  it('chưa start: không làm gì — test tự gọi runOnce', async () => {
+    await seed();
+    const dispatcher = createOutboxDispatcher(prisma);
+    dispatcher.kick();
+    await tick();
+    await dispatcher.stop();
+    expect(await pending()).toBe(1);
+  });
+
+  it('đang chạy: phát ngay, không chờ vòng 10 giây', async () => {
+    await seed();
+    const dispatcher = createOutboxDispatcher(prisma);
+    const delivered = new Promise<void>((resolve) => {
+      dispatcher.register('identity.account.locked', async () => resolve());
+    });
+    dispatcher.start();
+    dispatcher.kick();
+    await delivered;
+    await dispatcher.stop();
+  });
+
+  it('stop ngay sau kick: lượt đã xếp không chạy nữa (server đang đóng DB)', async () => {
+    await seed();
+    const dispatcher = createOutboxDispatcher(prisma);
+    dispatcher.start();
+    dispatcher.kick();
+    await dispatcher.stop();
+    await tick();
+    expect(await pending()).toBe(1);
+  });
+});
+
 describe('appendAudit', () => {
   it('rollback theo transaction gốc; commit thì đủ cột và không sửa được', async () => {
     const actor = await prisma.account.create({

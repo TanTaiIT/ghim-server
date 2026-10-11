@@ -1,5 +1,4 @@
 import { buildApp } from './app.js';
-import { createOutboxDispatcher } from './common/outbox/dispatcher.js';
 import { sequentially } from './common/utils/sequential.js';
 import { env } from './config/env.js';
 import { logger } from './lib/logger.js';
@@ -10,8 +9,7 @@ const SHUTDOWN_TIMEOUT_MS = 10_000;
 
 async function main(): Promise<void> {
   const app = await buildApp();
-  const dispatcher = createOutboxDispatcher(prisma);
-  for (const appModule of app.moduleList) appModule.listeners?.(dispatcher);
+  const dispatcher = app.outbox;
 
   let shuttingDown = false;
 

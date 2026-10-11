@@ -18,7 +18,9 @@ import { createSecretBox } from './common/crypto/secrets.js';
 import { errorHandler } from './common/errors/error-handler.js';
 import { CACHE_NONE } from './common/http/cache.js';
 import type { AppModule } from './common/module/app-module.js';
+import { createOutboxDispatcher, type OutboxDispatcher } from './common/outbox/dispatcher.js';
 import { createOutboxModule } from './common/outbox/outbox.jobs.js';
+import { createRealtimeGateway, type Realtime } from './common/realtime/realtime.js';
 import { registerSwagger } from './common/plugins/swagger.js';
 import { sequentially } from './common/utils/sequential.js';
 import { createJobs, type Jobs } from './lib/jobs.js';
@@ -36,12 +38,18 @@ import {
   createGoogleTokenVerifier,
   type GoogleTokenVerifier,
 } from './modules/identity/google.verifier.js';
+import { createGroupModule } from './modules/group/group.module.js';
+import { createGroupRepository, type GroupRepository } from './modules/group/group.repository.js';
+import type { GroupService } from './modules/group/group.service.js';
 import { createIdentityModule } from './modules/identity/identity.module.js';
 import {
   createIdentityRepository,
   type IdentityRepository,
 } from './modules/identity/identity.repository.js';
 import type { IdentityService } from './modules/identity/identity.service.js';
+import { createNotificationModule } from './modules/notification/notification.module.js';
+import { createNotificationRepository } from './modules/notification/notification.repository.js';
+import type { NotificationService } from './modules/notification/notification.service.js';
 import { createPlatformModule } from './modules/platform/platform.module.js';
 import {
   createPlatformRepository,
@@ -67,12 +75,15 @@ export interface AppServices {
   identity: IdentityService;
   platform: PlatformService;
   category: CategoryService;
+  group: GroupService;
+  notification: NotificationService;
 }
 
 export interface Repositories {
   identity: IdentityRepository;
   platform: PlatformRepository;
   category: CategoryRepository;
+  group: GroupRepository;
 }
 
 declare module 'fastify' {
@@ -81,8 +92,14 @@ declare module 'fastify' {
     jobs: Jobs;
     /** Service của từng module theo tên — một decorate cho mọi module, không một cái mỗi module. */
     modules: AppServices;
-    /** Định nghĩa module theo thứ tự dựng: `server.ts` lặp qua để nối bên nghe outbox và chạy khởi động. */
+    /** Định nghĩa module theo thứ tự dựng: `server.ts` lặp qua để chạy khởi động. */
     moduleList: readonly AppModule[];
+    /**
+     * Bộ phát outbox với bên nghe của mọi module — `server.ts` bật / tắt, test gọi `runOnce()`. Mỗi request có ghi
+     * xong thì `kick()` để thông báo realtime không chờ vòng 10 giây.
+     */
+    outbox: OutboxDispatcher;
+    realtime: Realtime;
   }
 }
 
@@ -136,6 +153,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     identity: overrides.repositories?.identity ?? createIdentityRepository(prisma),
     platform: overrides.repositories?.platform ?? createPlatformRepository(prisma),
     category: overrides.repositories?.category ?? createCategoryRepository(prisma),
+    group: overrides.repositories?.group ?? createGroupRepository(prisma),
   };
   const { config, versioned } = await resolveConfig(overrides.config, repositories.platform);
   const deps: AppDeps = {
@@ -149,9 +167,27 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     clock: overrides.clock ?? (() => new Date()),
   };
 
-  // Thứ tự dựng là thứ tự phụ thuộc: `platform` cần cửa đọc của `identity` và `category`.
+  // Thứ tự dựng là thứ tự phụ thuộc: `platform` cần cửa đọc của `identity` và `category`, `group` cần
+  // `identity`. Chiều ngược lại — `identity` hỏi "có đang là chủ nhóm" lúc xoá tài khoản — đi qua tham chiếu muộn:
+  // chỉ được gọi khi có request, lúc đó `group` đã dựng xong.
+  let groupService: GroupService | null = null;
+  // Cổng realtime cần HTTP server của Fastify, mà module dựng trước Fastify: module cầm một tay nối, cổng thật gắn
+  // vào ngay sau khi Fastify có server (dưới đây).
+  let gateway: Realtime | null = null;
+  const realtime: Realtime = {
+    emitToUser: (accountId, event, payload) => gateway?.emitToUser(accountId, event, payload),
+    disconnectUser: (accountId) => gateway?.disconnectUser(accountId),
+    disconnectSession: (sessionId) => gateway?.disconnectSession(sessionId),
+  };
   const identity = createIdentityModule({
     ...deps,
+    ownership: {
+      ownsAnyGroup: (accountId) => groupService?.ownsAnyGroup(accountId) ?? Promise.resolve(false),
+    },
+    sessionsRevoked: {
+      session: (sessionId) => realtime.disconnectSession(sessionId),
+      account: (accountId) => realtime.disconnectUser(accountId),
+    },
     repository: repositories.identity,
     secrets: createSecretBox(env.SECRETS_ENCRYPTION_KEY),
     hashKey: env.IDENTITY_HASH_KEY,
@@ -165,12 +201,41 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     clock: deps.clock,
     ...(versioned ? { runtimeConfig: versioned } : {}),
   });
+  const group = createGroupModule({
+    repository: repositories.group,
+    identity: identity.service,
+    config: deps.config,
+    clock: deps.clock,
+  });
+  groupService = group.service;
+  const notification = createNotificationModule({
+    repository: createNotificationRepository(prisma),
+    groups: {
+      findGroup: (groupId) => group.service.findGroup(groupId),
+      managerIds: (groupId) => group.service.managerIds(groupId),
+      moderatorIds: (groupId) => group.service.moderatorIds(groupId),
+      memberIds: (groupId, query) => group.service.memberIds(groupId, query),
+      ownerId: (groupId) => group.service.ownerId(groupId),
+      unitName: (groupId, unitId) => group.service.unitName(groupId, unitId),
+      announcementBody: (id) => group.service.announcementBody(id),
+      countPendingRequests: (groupId) => group.service.countPendingRequests(groupId),
+      isMember: (groupId, accountId) => group.service.isMember(groupId, accountId),
+    },
+    identity: identity.service,
+    realtime,
+    config: deps.config,
+    clock: deps.clock,
+  });
   const moduleList: readonly AppModule[] = [
     identity.module,
     category.module,
     platform.module,
+    group.module,
+    notification.module,
     createOutboxModule(prisma),
   ];
+  const outbox = createOutboxDispatcher(prisma);
+  for (const appModule of moduleList) appModule.listeners?.(outbox);
   await sequentially(moduleList, async (appModule) => {
     await appModule.jobs?.(deps.jobs);
   });
@@ -227,10 +292,28 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     config: deps.config,
   });
   app.decorate('jobs', deps.jobs);
+  app.decorate('outbox', outbox);
+  app.decorate('realtime', realtime);
+  const socketGateway = createRealtimeGateway(app.server, {
+    verifyToken: (token) => app.jwt.verify<{ sid: string; exp: number }>(token),
+    resolveActor: (sessionId) => identity.service.resolveActor(sessionId),
+    corsOrigin,
+  });
+  gateway = socketGateway;
+  // Đóng socket trước khi HTTP server đóng: kết nối websocket còn mở thì `server.close()` chờ mãi.
+  app.addHook('preClose', async () => {
+    await socketGateway.close();
+  });
+  // Request có ghi xong thì phát outbox ngay (thông báo realtime); GET không ghi gì nên không đánh thức bộ phát.
+  app.addHook('onResponse', async (request) => {
+    if (request.method !== 'GET' && request.method !== 'HEAD') outbox.kick();
+  });
   app.decorate('modules', {
     identity: identity.service,
     platform: platform.service,
     category: category.service,
+    group: group.service,
+    notification: notification.service,
   });
   app.decorate('moduleList', moduleList);
 

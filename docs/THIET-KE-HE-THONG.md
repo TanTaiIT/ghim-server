@@ -309,12 +309,12 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 
 **Bốn chế độ**
 
-| Chế độ                 | Ai tìm thấy nhóm                  | Vào bằng cách nào             | Huy hiệu trên tin sàn                             |
-| ---------------------- | --------------------------------- | ----------------------------- | ------------------------------------------------- |
-| Công khai · mở cửa     | Mọi người, qua tìm kiếm           | Bấm Tham gia là vào           | Không                                             |
-| Công khai · xét duyệt  | Mọi người, qua tìm kiếm           | Gửi đơn, điều hành viên duyệt | Có, cho người vào qua duyệt hoặc lời mời          |
-| Riêng tư · có mã       | Không tìm được; chỉ ai có mã nhóm | Nhập mã rồi gửi đơn           | Chỉ khi chủ nhóm bật "hiện tên nhóm trên tin sàn" |
-| Riêng tư · chỉ lời mời | Không tìm được                    | Lời mời hoặc danh sách lớp    | Chỉ khi chủ nhóm bật "hiện tên nhóm trên tin sàn" |
+| Chế độ                 | Ai tìm thấy nhóm                  | Vào bằng cách nào             | Huy hiệu trên tin sàn                                                |
+| ---------------------- | --------------------------------- | ----------------------------- | -------------------------------------------------------------------- |
+| Công khai · mở cửa     | Mọi người, qua tìm kiếm           | Bấm Tham gia là vào           | Không                                                                |
+| Công khai · xét duyệt  | Mọi người, qua tìm kiếm           | Gửi đơn, điều hành viên duyệt | Có, cho người vào qua duyệt, lời mời, danh sách lớp hoặc master giao |
+| Riêng tư · có mã       | Không tìm được; chỉ ai có mã nhóm | Nhập mã rồi gửi đơn           | Chỉ khi chủ nhóm bật "hiện tên nhóm trên tin sàn"                    |
+| Riêng tư · chỉ lời mời | Không tìm được                    | Lời mời hoặc danh sách lớp    | Chỉ khi chủ nhóm bật "hiện tên nhóm trên tin sàn"                    |
 
 "Riêng tư · mở cửa" không tồn tại: nhóm đã giấu mình thì không để ai lạ vào thẳng.
 
@@ -322,13 +322,14 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 
 - **Nhận tin người ngoài**: bật hay tắt, chỉ nhóm công khai có. Người ngoài chỉ đăng được ở mức "nhóm công khai", tin qua máy như mọi tin, mỗi người ngoài tối đa **2 tin sống** trong một nhóm.
 - **Kiểu bảng tin**: dạng dòng hay dạng lưới, do chủ nhóm chọn.
-- **Tạm khoá** (master): không đăng, không vào nhóm; tin trong nhóm tạm ẩn, không mất ngày hiển thị; huy hiệu của nhóm ẩn theo; mở khoá thì hiện lại đúng như cũ.
+- **Mô tả nhóm**: tối đa 1000 ký tự, chủ nhóm sửa (chốt 11/10/2026).
+- **Tạm khoá** (master, kèm lý do — chỉ chủ nhóm và điều hành viên thấy lý do): không đăng, không vào nhóm; tin trong nhóm tạm ẩn, không mất ngày hiển thị; huy hiệu của nhóm ẩn theo; mở khoá thì hiện lại đúng như cũ. Trong lúc khoá nhóm chỉ đọc: không duyệt đơn, mời, gỡ, cấm, đổi cài đặt hay gửi thông báo của nhóm; chủ nhóm và master vẫn đóng được.
 
 **Đổi chế độ**
 
 - **Công khai → riêng tư**: tin "nhóm công khai" hạ về "chỉ thành viên" **trước**, xong mới đổi. Trong lúc chuyển, không ai đăng được tin mức "nhóm công khai". Tin của **người ngoài** rời khỏi nhóm — không phạt, không chiếm hạn mức — và người đăng có 30 ngày để chuyển lên sàn chung; "nhận tin người ngoài" tự tắt.
-- **Riêng tư → công khai**: mọi thành viên được báo trước. Tin "chỉ thành viên" **giữ nguyên mức**, không tự công khai.
-- **Đổi cách vào hoặc công tắc hiện tên**: mọi huy hiệu trên tin sàn của nhóm được tính lại ngay.
+- **Riêng tư → công khai**: có hiệu lực ngay, mọi thành viên được báo cùng lúc — không gì của thành viên lộ thêm: danh sách thành viên vẫn kín, tin "chỉ thành viên" **giữ nguyên mức**, không tự công khai (chốt 11/10/2026).
+- **Đổi cách vào hoặc công tắc hiện tên**: mọi huy hiệu trên tin sàn của nhóm được tính lại ngay. Xét duyệt → mở cửa: đơn đang chờ huỷ, người xin được báo (không tự duyệt — duyệt tự động sẽ trao huy hiệu mà không ai xét). Có mã → chỉ lời mời: mã huỷ, đơn đang chờ vẫn được xét. Nhóm vừa thành riêng tư thì "hiện tên nhóm trên tin sàn" tắt.
 
 **Vòng đời nhóm**
 
@@ -343,18 +344,19 @@ stateDiagram-v2
   state "Đã đóng" as C
   [*] --> P : master lập
   P --> A : chủ nhận lời giao
+  P --> C : master huỷ
   A --> S : sang riêng tư
   S --> A : xong
   A --> O : chủ bị khoá
   O --> A : có chủ lại
-  O --> L : quá 30 ngày
+  O --> L : quá 30 ngày, hết điều hành viên, master khoá
   A --> L : khoá
-  L --> A : mở khoá
+  L --> A : mở khoá, có chủ lại
   A --> C : đóng
   L --> C : đóng
 ```
 
-_Master lập, giao chủ, khoá, mở khoá. Chủ nhóm hoặc master đổi chế độ và đóng nhóm. "Xong" và "quá 30 ngày" do hệ thống tự chuyển._
+_Master lập, giao chủ, khoá, mở khoá. Chủ nhóm hoặc master đổi chế độ và đóng nhóm. "Xong", "quá 30 ngày" và "có chủ lại" do hệ thống tự chuyển: nhóm khoá vì thiếu chủ hay hết điều hành viên tự mở khi có chủ dùng được; nhóm do master khoá chỉ master mở, và master không mở được nhóm chưa có chủ dùng được._
 
 ---
 
@@ -367,12 +369,16 @@ _Master lập, giao chủ, khoá, mở khoá. Chủ nhóm hoặc master đổi c
 3. Nhóm **xét duyệt** hoặc **có mã**: gửi đơn; điều hành viên duyệt thì vào, từ chối thì người xin được báo. Đơn tự huỷ sau **21 ngày**. Bị từ chối thì **7 ngày** sau mới gửi lại; mỗi người tối đa **3 đơn** đang chờ.
 4. Nhóm **chỉ lời mời**: cần lời mời còn hạn (**14 ngày**) hoặc có tên trong danh sách lớp.
 
-Mã nhóm gồm 6 ký tự, đổi được khi bị lộ.
+Mã nhóm gồm 6 ký tự, đổi được khi bị lộ (chủ nhóm, master). Người xin rút được đơn đang chờ.
+
+- **Lời mời** gửi bằng email của một tài khoản; trả lời như nhau dù email có tài khoản hay không, để không ai dò được email nào đã đăng ký. Điều hành viên đơn vị con chỉ mời vào đơn vị mình (chốt 11/10/2026).
+- **Danh sách lớp**: chủ nhóm, điều hành viên cả nhóm nạp danh sách email, mỗi email kèm đơn vị tuỳ chọn; hệ thống chỉ giữ dấu băm của email đã chuẩn hoá. Người có tên vào thẳng ở mọi chế độ đang nhận người, tự vào đơn vị ghi kèm. Không báo lại cho quản trị email nào đã khớp tài khoản (chốt 11/10/2026).
 
 **Thành viên**
 
 - Hệ thống ghi lại **đường vào** của từng người: bấm tham gia · được duyệt · lời mời · danh sách lớp · master giao. Đường vào quyết định huy hiệu và không đổi về sau.
-- **Đơn vị con**: thành viên được xếp vào một lớp hay phòng ban; tin của họ trong nhóm **tự gắn** đơn vị đó.
+- **Đơn vị con**: thành viên được xếp vào một lớp hay phòng ban; tin của họ trong nhóm **tự gắn** đơn vị đó. Chỉ nhóm trường học, công ty có đơn vị. Chủ nhóm lập, đổi tên, xoá đơn vị trống; chủ và điều hành viên cả nhóm xếp người. Điều hành viên đơn vị con chỉ quản lý thành viên đơn vị mình (gỡ, cấm, mời, gửi thông báo cho đơn vị) và không duyệt đơn (chốt 11/10/2026).
+- **Điều hành viên không xử nhau**: điều hành viên không gỡ, cấm điều hành viên khác hay chủ nhóm — chủ nhóm bãi nhiệm trước. Cấm được cả người chưa từng vào nhóm; chủ nhóm, điều hành viên cả nhóm, master gỡ cấm được (chốt 11/10/2026).
 - **Danh sách thành viên** chỉ chủ nhóm và điều hành viên xem được, ở mọi chế độ.
 - **Rời nhóm**: tự rời (vào lại theo cách vào của nhóm) · bị gỡ (vào lại như người mới) · bị cấm (không vào lại, không gửi tin vào nhóm) · cựu thành viên (học sinh ra trường, theo năm học). Khi rời, bị gỡ, bị cấm: tin "chỉ thành viên" của người đó trong nhóm tạm ẩn, huy hiệu trên tin sàn của họ tự gỡ, việc máy giữ trong nhóm của họ bị huỷ. Hội thoại đã mở vẫn tiếp tục.
 
@@ -384,21 +390,27 @@ Mã nhóm gồm 6 ký tự, đổi được khi bị lộ.
 
 > **Vì sao người vào nhóm mở không có huy hiệu.** Ai bấm Tham gia cũng vào được, nên huy hiệu đó không chứng minh gì. Kẻ lừa đảo chỉ cần vào nhóm mở của một trường hay công ty là có ngay một dòng chữ khiến người mua tin rằng họ thuộc tổ chức đó.
 
+**Giao và chuyển chủ nhóm** (chốt 11/10/2026)
+
+- Master giao chủ bằng một **lời giao có hạn 14 ngày**; hết hạn thì nhóm vẫn như cũ, master giao lại.
+- Chủ nhóm chuyển chủ cho **một thành viên** đủ điều kiện nhận vai, huỷ được lời chuyển đang chờ. Người nhận đồng ý thì chủ cũ thành **thành viên thường** — chủ mới bổ nhiệm lại nếu muốn.
+- Master giao chủ mới cho nhóm đang có chủ mà không cần chủ cũ đồng ý; chủ cũ thành thành viên thường.
+
 **Thiếu chủ nhóm**
 
 - Chủ nhóm phải chuyển chủ trước khi rời nhóm hay xoá tài khoản. Nên nhóm chỉ mất chủ khi **tài khoản chủ nhóm bị khoá** hoặc chủ nhóm nhận gậy nặng.
-- Khi đó nhóm sang trạng thái **thiếu chủ**: hệ thống đề cử điều hành viên cấp cả nhóm lâu năm nhất, master xác nhận. Trong lúc chờ, điều hành viên tiếp tục việc hằng ngày; không ai đổi được cài đặt hay bổ nhiệm người mới.
-- Chủ cũ được mở khoá trước khi có chủ mới thì nhóm trở lại với chủ cũ. Quá **30 ngày** chưa có chủ thì nhóm tạm khoá. Nhóm **không còn điều hành viên** nào thì tạm khoá ngay.
+- Khi đó nhóm sang trạng thái **thiếu chủ**: hệ thống đề cử điều hành viên cấp cả nhóm nhận vai sớm nhất (không có ai cấp cả nhóm thì điều hành viên đơn vị con nhận vai sớm nhất); master xác nhận bằng một lời giao chủ — cho người được đề cử hay một thành viên khác — và người đó bấm đồng ý. Trong lúc chờ, điều hành viên tiếp tục việc hằng ngày; không ai trong nhóm đổi được cài đặt hay bổ nhiệm người mới — master thì được.
+- Chủ cũ được mở khoá trước khi có chủ mới thì nhóm trở lại với chủ cũ. Quá **30 ngày** chưa có chủ thì nhóm tạm khoá. Nhóm **không còn điều hành viên** nào ở mọi cấp thì tạm khoá ngay. Nhóm khoá vì hai lý do này tự mở khi có chủ dùng được.
 
-**Đóng nhóm** — chủ nhóm hoặc master đóng; đóng là vĩnh viễn, muốn có lại thì lập nhóm mới.
+**Đóng nhóm** — chủ nhóm hoặc master đóng (master đóng được cả nhóm chưa có chủ); đóng là vĩnh viễn, muốn có lại thì lập nhóm mới.
 
-| Thứ                           | Khi nhóm đóng                                                                                                 |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Tin trong nhóm                | Rời bảng ngay, không tính hạn mức. Người đăng có 30 ngày để chuyển tin lên sàn chung, qua máy như một tin mới |
-| Huy hiệu trên tin sàn         | Tự gỡ                                                                                                         |
-| Đơn xin vào, lời mời, mã nhóm | Huỷ hết; báo người xin, người được mời                                                                        |
-| Việc đang chờ của nhóm        | Huỷ; báo cáo lừa đảo, hàng cấm vốn ở chỗ staff nên vẫn được xử                                                |
-| Dữ liệu                       | Xoá hẳn sau 90 ngày, trừ dữ liệu đang tạm giữ làm bằng chứng                                                  |
+| Thứ                                         | Khi nhóm đóng                                                                                                 |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Tin trong nhóm                              | Rời bảng ngay, không tính hạn mức. Người đăng có 30 ngày để chuyển tin lên sàn chung, qua máy như một tin mới |
+| Huy hiệu trên tin sàn                       | Tự gỡ                                                                                                         |
+| Đơn xin vào, lời mời, lời giao chủ, mã nhóm | Huỷ hết; báo người xin, người được mời; mọi thành viên được báo nhóm đã đóng                                  |
+| Việc đang chờ của nhóm                      | Huỷ; báo cáo lừa đảo, hàng cấm vốn ở chỗ staff nên vẫn được xử                                                |
+| Dữ liệu                                     | Xoá hẳn sau 90 ngày, trừ dữ liệu đang tạm giữ làm bằng chứng                                                  |
 
 ---
 
@@ -873,7 +885,12 @@ Người xử không bao giờ là người đăng tin bị báo cáo, người 
 - Mỗi thông báo vào **hộp thư trong app**, và nếu người dùng cho phép thì hiện thêm trên màn hình điện thoại.
 - Chín nhóm, người dùng bật tắt từng nhóm: tin nhắn · tin đăng của bạn · nhóm của bạn · báo cáo của bạn · tài khoản (luôn bật) · mức tin cậy và gậy · thông báo của nhóm · tin mới trong nhóm · hỗ trợ.
 - Đang mở đúng hội thoại thì không hiện thông báo tin nhắn đó lên màn hình.
-- Chủ nhóm, điều hành viên gửi được thông báo cho cả nhóm.
+- **Nhắc** = hiện lên màn hình: banner trong app qua kênh realtime khi app đang mở, và đẩy lên điện thoại khi có. Tắt một nhóm thông báo chỉ thôi nhắc; thông báo vẫn vào hộp thư (chốt 11/10/2026).
+- Người dùng **tắt tiếng từng nhóm** được: thông báo của nhóm đó vẫn vào hộp thư nhưng không nhắc — trừ chuyện về chính tư cách của mình trong nhóm (được duyệt, bị gỡ, bị cấm, lời mời, lời giao chủ, vai), để tắt tiếng một nhóm ồn không làm lỡ việc của mình (chốt 11/10/2026).
+- Chuyện lặp lại theo nhóm (đơn xin vào mới, việc chờ duyệt) được **gộp**: chưa đọc thì cập nhật dòng cũ ("3 đơn mới"), nhắc tối đa mỗi 30 phút.
+- Câu nhắc không chứa lý do khoá, lý do cấm hay nội dung báo cáo — màn hình khoá ai cũng đọc được. Quyết định của nhóm (từ chối đơn, gỡ, cấm) ký "Quản trị nhóm", không nêu tên điều hành viên. Nhóm thiếu chủ chỉ báo "tạm thời chưa có chủ", không nói chủ bị khoá.
+- Chủ nhóm, điều hành viên cả nhóm gửi được thông báo cho cả nhóm; điều hành viên đơn vị con gửi cho đơn vị mình. Tối đa **5 thông báo mỗi nhóm mỗi ngày**, mỗi thông báo tối đa 1000 ký tự (chốt 11/10/2026).
+- Mọi thành viên được báo khi nhóm tạm khoá, mở khoá, đóng, hay chuyển sang công khai.
 
 ---
 
@@ -1009,7 +1026,8 @@ Master chỉnh dần theo kết quả hậu kiểm, không cần phát hành l�
 | Gậy                       | Thường 1 điểm, 90 ngày · nặng 2 điểm, 180 ngày · từ 3 điểm khoá đăng tin · khiếu nại 14 ngày (nghiêm trọng 30 ngày) · khoá vĩnh viễn: master xem lại mỗi 2 năm                                                                                                                                                      |
 | Báo cáo                   | 10 báo cáo mỗi giờ · tạm ẩn khi 3 người, 3 máy, từ T1, trong 24 giờ · điểm báo cáo dưới −3 không tính tạm ẩn, dưới −6 mất quyền 30 ngày                                                                                                                                                                             |
 | Tin đăng                  | Hiện 30 ngày · nhắc trước 7 ngày · gia hạn trong 7 ngày cuối (hạn mới = hạn cũ + 30 ngày) · tối đa 6 ảnh                                                                                                                                                                                                            |
-| Nhóm                      | Đơn tự huỷ 21 ngày · chờ 7 ngày sau từ chối · 3 đơn chờ mỗi người · lời mời 14 ngày · lời chuyển chủ 14 ngày · mã nhóm 6 ký tự · thiếu chủ tối đa 30 ngày                                                                                                                                                           |
+| Nhóm                      | Đơn tự huỷ 21 ngày · chờ 7 ngày sau từ chối · 3 đơn chờ mỗi người · lời mời 14 ngày · lời chuyển chủ 14 ngày · mã nhóm 6 ký tự · thiếu chủ tối đa 30 ngày · thông báo của nhóm 5 mỗi ngày, tối đa 1000 ký tự                                                                                                        |
+| Thông báo                 | Nhắc lại thông báo gộp tối đa mỗi 30 phút                                                                                                                                                                                                                                                                           |
 
 ---
 
@@ -1034,12 +1052,12 @@ Master chỉnh dần theo kết quả hậu kiểm, không cần phát hành l�
 
 **Thứ tự xây**
 
-1. Tài khoản · quyền master và staff · dấu thiết bị · nhóm · danh mục.
+1. Tài khoản · quyền master và staff · dấu thiết bị · nhóm · danh mục · hộp thư thông báo và kênh realtime (kéo từ đợt 6, chốt 11/10/2026).
 2. Tin đăng · mức tin cậy · hạn mức — phần tính toán thuần trước.
 3. Máy duyệt, kể cả kiểm ảnh.
 4. Người duyệt: hàng máy giữ trước, rồi báo cáo, khiếu nại, hậu kiểm.
 5. Gậy.
-6. Nhắn tin · thông báo.
+6. Nhắn tin · báo tin nhắn mới. Đẩy thông báo lên điện thoại làm khi app sẵn sàng (chốt 11/10/2026).
 7. Lưu trữ và dọn dữ liệu.
 
 Mỗi đợt xong khi mọi cam kết ở phần 27 thuộc đợt đó có cách kiểm chứng, và người kiểm thử đã thử cả các trường hợp **thiếu, sai, hết chỗ, quá hạn** — không chỉ đường đi suôn sẻ.

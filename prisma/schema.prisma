@@ -124,6 +124,14 @@ model Account {
   flags             AccountFlag[]
   idVerifications   IdVerification[]
   staffPermission   StaffPermission?
+  groupMemberships  GroupMember[]
+  groupBans         GroupBan[]
+  groupJoinRequests GroupJoinRequest[]
+  groupInvitations  GroupInvitation[]
+  groupOwnerOffers  GroupOwnerOffer[]
+  notifications     Notification[]
+  notificationPrefs NotificationPreference[]
+  groupMutes        GroupNotificationMute[]
 
   @@index([emailHash])
   @@index([status, createdAt])
@@ -516,4 +524,384 @@ model Ward {
   @@unique([provinceCode, name])
   @@index([provinceCode])
   @@map("wards")
+}
+
+// ── GROUP: ENUM ──────────────────────────────────────────────────────────────────────────────────
+
+/// Loại nhóm chỉ để chọn sẵn cài đặt lúc lập (TK 9); trường học và công ty có đơn vị con.
+enum GroupKind {
+  school
+  company
+  community
+  other
+
+  @@map("group_kind")
+}
+
+enum GroupState {
+  pending_owner
+  active
+  going_private
+  ownerless
+  locked
+  closed
+
+  @@map("group_state")
+}
+
+/// "Riêng tư · mở cửa" cố ý không có (TK 9).
+enum GroupMode {
+  public_open
+  public_review
+  private_code
+  private_invite
+
+  @@map("group_mode")
+}
+
+enum GroupBoardStyle {
+  list
+  grid
+
+  @@map("group_board_style")
+}
+
+/// Khoá do hệ thống (thiếu chủ quá hạn, hết điều hành viên) tự mở khi có chủ dùng được; khoá do master thì không.
+enum GroupLockCause {
+  master
+  ownerless_timeout
+  no_moderators
+
+  @@map("group_lock_cause")
+}
+
+enum GroupRole {
+  member
+  moderator
+  owner
+
+  @@map("group_role")
+}
+
+/// Đường vào quyết định huy hiệu và không đổi về sau (TK 10).
+enum GroupJoinPath {
+  joined
+  approved
+  invited
+  roster
+  assigned
+
+  @@map("group_join_path")
+}
+
+enum GroupJoinRequestStatus {
+  pending
+  approved
+  rejected
+  expired
+  withdrawn
+  cancelled
+
+  @@map("group_join_request_status")
+}
+
+enum GroupInvitationStatus {
+  pending
+  accepted
+  declined
+  expired
+  revoked
+  cancelled
+
+  @@map("group_invitation_status")
+}
+
+enum GroupOwnerOfferKind {
+  assignment
+  transfer
+
+  @@map("group_owner_offer_kind")
+}
+
+enum GroupOwnerOfferStatus {
+  pending
+  accepted
+  declined
+  expired
+  cancelled
+
+  @@map("group_owner_offer_status")
+}
+
+// ── GROUP: BẢNG ──────────────────────────────────────────────────────────────────────────────────
+
+/// CHECK viết tay: groups_locked_check (khoá thì có thời điểm và nguyên nhân), groups_master_lock_reason_check
+/// (master khoá thì có lý do), groups_closed_check, groups_ownerless_check, groups_going_private_check
+/// (`target_mode` chỉ khi đang chuyển), groups_outsiders_check (chỉ nhóm công khai), groups_show_name_check
+/// (chỉ nhóm riêng tư), groups_code_check (có mã ⇔ riêng tư · có mã và chưa đóng).
+model Group {
+  id                    String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  name                  String
+  /// `fold(name)` — tìm không dấu bằng LIKE, như `search_text` của khu vực.
+  nameFolded            String          @map("name_folded")
+  description           String?
+  kind                  GroupKind
+  state                 GroupState      @default(pending_owner)
+  mode                  GroupMode
+  /// Chế độ riêng tư đang chuyển tới, chỉ khi `state = 'going_private'`.
+  targetMode            GroupMode?      @map("target_mode")
+  allowOutsiders        Boolean         @default(false) @map("allow_outsiders")
+  showNameOnMarketplace Boolean         @default(false) @map("show_name_on_marketplace")
+  boardStyle            GroupBoardStyle @default(list) @map("board_style")
+  code                  String?         @unique
+  ownerlessSince        DateTime?       @map("ownerless_since") @db.Timestamptz(3)
+  nomineeId             String?         @map("nominee_id") @db.Uuid
+  lockedAt              DateTime?       @map("locked_at") @db.Timestamptz(3)
+  lockCause             GroupLockCause? @map("lock_cause")
+  lockedReason          String?         @map("locked_reason")
+  lockedBy              String?         @map("locked_by") @db.Uuid
+  closedAt              DateTime?       @map("closed_at") @db.Timestamptz(3)
+  closedBy              String?         @map("closed_by") @db.Uuid
+  createdBy             String          @map("created_by") @db.Uuid
+  createdAt             DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  units         GroupUnit[]
+  members       GroupMember[]
+  bans          GroupBan[]
+  joinRequests  GroupJoinRequest[]
+  invitations   GroupInvitation[]
+  rosterEntries GroupRosterEntry[]
+  ownerOffers   GroupOwnerOffer[]
+  announcements GroupAnnouncement[]
+  mutes         GroupNotificationMute[]
+
+  @@index([state, mode])
+  @@index([ownerlessSince], where: raw("state = 'ownerless'"), map: "groups_ownerless_idx")
+  @@map("groups")
+}
+
+/// `(group_id, id)` unique là đích của khoá ngoại ghép: thành viên chỉ thuộc được đơn vị của chính nhóm mình.
+model GroupUnit {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  groupId   String   @map("group_id") @db.Uuid
+  name      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  group      Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  members    GroupMember[] @relation("member_unit")
+  moderators GroupMember[] @relation("moderator_unit")
+
+  @@unique([groupId, name])
+  @@unique([groupId, id])
+  @@map("group_units")
+}
+
+/// Chủ nhóm là một dòng ở đây với `role = 'owner'` — một nguồn duy nhất. CHECK viết tay:
+/// group_members_moderator_unit_check (`moderator_unit_id` chỉ khi là điều hành viên),
+/// group_members_role_since_check (có vai thì có lúc nhận vai).
+model GroupMember {
+  groupId         String        @map("group_id") @db.Uuid
+  accountId       String        @map("account_id") @db.Uuid
+  role            GroupRole     @default(member)
+  /// Phạm vi của điều hành viên; null = cả nhóm.
+  moderatorUnitId String?       @map("moderator_unit_id") @db.Uuid
+  unitId          String?       @map("unit_id") @db.Uuid
+  joinedVia       GroupJoinPath @map("joined_via")
+  joinedAt        DateTime      @map("joined_at") @db.Timestamptz(3)
+  /// Lúc nhận vai hiện tại — đề cử thiếu chủ xếp theo cột này.
+  roleSince       DateTime?     @map("role_since") @db.Timestamptz(3)
+
+  group         Group      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  account       Account    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  unit          GroupUnit? @relation("member_unit", fields: [groupId, unitId], references: [groupId, id], onDelete: Restrict)
+  moderatorUnit GroupUnit? @relation("moderator_unit", fields: [groupId, moderatorUnitId], references: [groupId, id], onDelete: Restrict)
+
+  @@id([groupId, accountId])
+  @@unique([groupId], where: raw("role = 'owner'"), map: "group_members_one_owner_key")
+  @@index([accountId])
+  @@map("group_members")
+}
+
+model GroupBan {
+  groupId   String   @map("group_id") @db.Uuid
+  accountId String   @map("account_id") @db.Uuid
+  bannedBy  String   @map("banned_by") @db.Uuid
+  bannedAt  DateTime @map("banned_at") @db.Timestamptz(3)
+
+  group   Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, accountId])
+  @@map("group_bans")
+}
+
+/// CHECK viết tay: group_join_requests_decided_check (đơn chờ chưa có lúc xử, đơn đã xử thì có).
+model GroupJoinRequest {
+  id        String                 @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  groupId   String                 @map("group_id") @db.Uuid
+  accountId String                 @map("account_id") @db.Uuid
+  status    GroupJoinRequestStatus @default(pending)
+  createdAt DateTime               @map("created_at") @db.Timestamptz(3)
+  expiresAt DateTime               @map("expires_at") @db.Timestamptz(3)
+  decidedAt DateTime?              @map("decided_at") @db.Timestamptz(3)
+  decidedBy String?                @map("decided_by") @db.Uuid
+
+  group   Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, accountId], where: raw("status = 'pending'"), map: "group_join_requests_pending_key")
+  @@index([accountId, status])
+  @@index([groupId, status, createdAt])
+  @@index([expiresAt], where: raw("status = 'pending'"), map: "group_join_requests_due_idx")
+  @@map("group_join_requests")
+}
+
+/// `unit_id` không khoá ngoại: xoá đơn vị thì service gỡ đơn vị khỏi lời mời trong cùng transaction.
+/// CHECK viết tay: group_invitations_decided_check.
+model GroupInvitation {
+  id        String                @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  groupId   String                @map("group_id") @db.Uuid
+  accountId String                @map("account_id") @db.Uuid
+  unitId    String?               @map("unit_id") @db.Uuid
+  invitedBy String                @map("invited_by") @db.Uuid
+  status    GroupInvitationStatus @default(pending)
+  createdAt DateTime              @map("created_at") @db.Timestamptz(3)
+  expiresAt DateTime              @map("expires_at") @db.Timestamptz(3)
+  decidedAt DateTime?             @map("decided_at") @db.Timestamptz(3)
+
+  group   Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, accountId], where: raw("status = 'pending'"), map: "group_invitations_pending_key")
+  @@index([accountId, status])
+  @@index([expiresAt], where: raw("status = 'pending'"), map: "group_invitations_due_idx")
+  @@map("group_invitations")
+}
+
+/// Danh sách lớp: chỉ dấu băm HMAC của email đã chuẩn hoá — cùng khoá với `accounts.email_hash`, nên khớp
+/// người mà không giữ email thô (TK 10).
+model GroupRosterEntry {
+  groupId   String   @map("group_id") @db.Uuid
+  emailHash String   @map("email_hash")
+  unitId    String?  @map("unit_id") @db.Uuid
+  addedBy   String   @map("added_by") @db.Uuid
+  addedAt   DateTime @map("added_at") @db.Timestamptz(3)
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, emailHash])
+  @@index([emailHash])
+  @@map("group_roster_entries")
+}
+
+/// Ba đường giao chủ chung một bảng: master giao (lần đầu, nhóm thiếu chủ, giao đè) và chủ chuyển nhượng.
+/// CHECK viết tay: group_owner_offers_decided_check.
+model GroupOwnerOffer {
+  id            String                @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  groupId       String                @map("group_id") @db.Uuid
+  kind          GroupOwnerOfferKind
+  fromAccountId String?               @map("from_account_id") @db.Uuid
+  toAccountId   String                @map("to_account_id") @db.Uuid
+  status        GroupOwnerOfferStatus @default(pending)
+  createdAt     DateTime              @map("created_at") @db.Timestamptz(3)
+  expiresAt     DateTime              @map("expires_at") @db.Timestamptz(3)
+  decidedAt     DateTime?             @map("decided_at") @db.Timestamptz(3)
+
+  group     Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  toAccount Account @relation(fields: [toAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId], where: raw("status = 'pending'"), map: "group_owner_offers_pending_key")
+  @@index([toAccountId, status])
+  @@index([expiresAt], where: raw("status = 'pending'"), map: "group_owner_offers_due_idx")
+  @@map("group_owner_offers")
+}
+
+/// `unit_id` = phạm vi (null = cả nhóm), không khoá ngoại vì cùng lý do với lời mời.
+model GroupAnnouncement {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  groupId   String   @map("group_id") @db.Uuid
+  authorId  String   @map("author_id") @db.Uuid
+  unitId    String?  @map("unit_id") @db.Uuid
+  body      String
+  createdAt DateTime @map("created_at") @db.Timestamptz(3)
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([groupId, createdAt])
+  @@map("group_announcements")
+}
+
+// ── NOTIFICATION ─────────────────────────────────────────────────────────────────────────────────
+
+/// Chín nhóm thông báo của TK 24, bật tắt được từng nhóm (trừ `account`).
+enum NotificationCategory {
+  messages
+  your_listings
+  your_groups
+  your_reports
+  account
+  trust_strikes
+  group_announcements
+  group_new_listings
+  support
+
+  @@map("notification_category")
+}
+
+/// Một dòng hộp thư. Văn bản sinh lúc ghi từ mẫu trong code; `detail` chỉ người được xem mới có (vd lý do khoá nhóm
+/// cho chủ nhóm) và không bao giờ nằm trong câu nhắc. Dòng gộp (`collapse_key`) được cập nhật thay vì thêm mới khi
+/// người nhận chưa đọc; `source_event_id` là sự kiện outbox gần nhất đã áp vào dòng — giao trùng không ghi hai lần.
+/// CHECK viết tay: notifications_count_check (`count` >= 1).
+model Notification {
+  id            String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  recipientId   String               @map("recipient_id") @db.Uuid
+  category      NotificationCategory
+  type          String
+  title         String
+  body          String
+  detail        String?
+  data          Json                 @db.JsonB
+  groupId       String?              @map("group_id") @db.Uuid
+  collapseKey   String?              @map("collapse_key")
+  count         Int                  @default(1)
+  alert         Boolean
+  alertedAt     DateTime?            @map("alerted_at") @db.Timestamptz(3)
+  readAt        DateTime?            @map("read_at") @db.Timestamptz(3)
+  sourceEventId String               @map("source_event_id") @db.Uuid
+  createdAt     DateTime             @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime             @map("updated_at") @db.Timestamptz(3)
+
+  recipient Account @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceEventId, recipientId])
+  @@index([recipientId, updatedAt])
+  @@index([recipientId], where: raw("read_at IS NULL"), map: "notifications_unread_idx")
+  @@index([recipientId, collapseKey], where: raw("read_at IS NULL AND collapse_key IS NOT NULL"), map: "notifications_collapse_idx")
+  @@map("notifications")
+}
+
+/// Chỉ lưu nhóm người dùng đã đổi khỏi mặc định (bật); không có dòng = đang bật.
+model NotificationPreference {
+  accountId String               @map("account_id") @db.Uuid
+  category  NotificationCategory
+  enabled   Boolean
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@id([accountId, category])
+  @@map("notification_preferences")
+}
+
+/// Tắt tiếng một nhóm: thông báo của nhóm vẫn vào hộp thư nhưng không nhắc, trừ chuyện về chính tư cách người đó.
+model GroupNotificationMute {
+  accountId String   @map("account_id") @db.Uuid
+  groupId   String   @map("group_id") @db.Uuid
+  createdAt DateTime @map("created_at") @db.Timestamptz(3)
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  group   Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([accountId, groupId])
+  @@map("group_notification_mutes")
 }

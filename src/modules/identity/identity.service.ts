@@ -30,6 +30,28 @@ export interface IdentityServiceDeps {
   /** Mã hoá bí mật TOTP, số giấy tờ, và mã xác nhận trên đường tới việc gửi thư. */
   secrets: SecretBox;
   googleVerifier: GoogleTokenVerifier;
+  /** `group` trả lời "đang là chủ nhóm nào không" — chủ nhóm phải chuyển chủ rồi mới xoá được tài khoản. */
+  ownership?: GroupOwnership;
+  /** Báo kênh realtime cắt kết nối của phiên vừa bị thu hồi — sau khi ghi xong, trong tiến trình (kênh chỉ báo hiệu). */
+  sessionsRevoked?: SessionRevocationListener;
+}
+
+export interface SessionRevocationListener {
+  session(sessionId: string): void;
+  /** Thu hồi hàng loạt (đổi, đặt lại mật khẩu, khoá, xoá): cắt mọi kết nối — máy còn phiên tự nối lại. */
+  account(accountId: string): void;
+}
+
+export interface GroupOwnership {
+  ownsAnyGroup(accountId: string): Promise<boolean>;
+}
+
+/** Thứ module khác cần về một tài khoản — không email, không dấu băm. */
+export interface AccountSummary {
+  id: string;
+  role: Account['role'];
+  status: Account['status'];
+  displayName: string;
 }
 
 export interface GoogleLoginInput {
@@ -189,6 +211,16 @@ export interface IdentityService extends ActorResolver {
 
   /** `platform` hỏi trước khi gắn quyền staff: tài khoản có thật không, vai gì, trạng thái gì. */
   accountState(accountId: string): Promise<AccountState | null>;
+  /** Theo lô, bỏ qua mã không có; `group` đếm điều hành viên dùng được, `notification` lấy tên hiển thị. */
+  accountSummaries(ids: string[]): Promise<Map<string, AccountSummary>>;
+  /** Tài khoản chưa xoá mang email này (so sau chuẩn hoá) — lời mời vào nhóm theo email. */
+  accountIdByEmail(email: string): Promise<string | null>;
+  /** Dấu băm HMAC của email đã chuẩn hoá, cùng khoá với `accounts.email_hash` — danh sách lớp của nhóm. */
+  emailHashOf(email: string): string;
+  /** Dấu băm email của một tài khoản chưa xoá — để biết người đó có tên trong danh sách lớp nào. */
+  accountEmailHash(accountId: string): Promise<string | null>;
+  /** Dấu băm → tài khoản chưa xoá mang dấu băm đó. */
+  accountIdsByEmailHashes(hashes: string[]): Promise<Map<string, string>>;
   /** Chỉ CLI gọi (spec master-accounts): đúng một master, email chưa có tài khoản, xác nhận sẵn. */
   createMaster(input: RegisterInput): Promise<{ accountId: string }>;
   /** Chỉ CLI gọi: gỡ lớp thứ hai và thu hồi mọi phiên — thiết lập lại trước khi dùng bàn vận hành. */

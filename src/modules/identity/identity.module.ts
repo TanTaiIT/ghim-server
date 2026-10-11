@@ -8,7 +8,12 @@ import type { GoogleTokenVerifier } from './google.verifier.js';
 import { registerIdentityJobs } from './identity.jobs.js';
 import type { IdentityRepository } from './identity.repository.js';
 import { identityRoutes } from './identity.routes.js';
-import { createIdentityService, type IdentityService } from './identity.service.js';
+import {
+  createIdentityService,
+  type IdentityService,
+  type GroupOwnership,
+  type SessionRevocationListener,
+} from './identity.service.js';
 
 export interface IdentityModuleDeps {
   repository: IdentityRepository;
@@ -21,6 +26,8 @@ export interface IdentityModuleDeps {
   secrets: SecretBox;
   hashKey: string;
   disposableDomainsUrl: string;
+  ownership?: GroupOwnership;
+  sessionsRevoked?: SessionRevocationListener;
 }
 
 export function createIdentityModule(deps: IdentityModuleDeps): {

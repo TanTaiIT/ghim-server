@@ -34,6 +34,7 @@ const STRIKE = 'Gậy';
 const REPORT = 'Báo cáo';
 const LISTING = 'Tin đăng';
 const GROUP = 'Nhóm';
+const NOTIFICATION = 'Thông báo';
 
 export const CONFIG_KEYS = {
   // Tài khoản
@@ -135,6 +136,10 @@ export const CONFIG_KEYS = {
   'group.ownershipTransferExpiresDays': int(14, GROUP),
   'group.codeLength': int(6, GROUP),
   'group.ownerlessMaxDays': int(30, GROUP),
+  'group.announcementsPerDay': int(5, GROUP),
+  'group.announcementMaxLength': int(1000, GROUP),
+  // Thông báo
+  'notification.collapseAlertMinutes': int(30, NOTIFICATION),
 } as const satisfies Record<string, ConfigKeySpec>;
 
 export type RuntimeConfigKey = keyof typeof CONFIG_KEYS;

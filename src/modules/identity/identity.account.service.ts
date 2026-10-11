@@ -85,6 +85,7 @@ export function createIdentityAccountService(
         revokedAt: clock(),
         revokeReason: 'revoked_by_user',
       });
+      deps.sessionsRevoked?.session(sessionId);
     },
 
     async revokeOtherSessions(actor) {
@@ -94,6 +95,7 @@ export function createIdentityAccountService(
         at: clock(),
         exceptId: actor.sessionId,
       });
+      deps.sessionsRevoked?.account(actor.accountId);
     },
 
     // ── HỒ SƠ ───────────────────────────────────────────────────────────────────────────────────
@@ -188,6 +190,7 @@ export function createIdentityAccountService(
         at: now,
         events: [],
       });
+      deps.sessionsRevoked?.account(account.id);
     },
 
     // ── HAI LỚP ─────────────────────────────────────────────────────────────────────────────────

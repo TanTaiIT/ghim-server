@@ -1,6 +1,6 @@
 # CLAUDE.md — Ghim (bản làm lại)
 
-> File này mô tả code **như nó đang là** (đối chiếu `package.json` và `src/` ngày 10/10/2026).
+> File này mô tả code **như nó đang là** (đối chiếu `package.json` và `src/` ngày 11/10/2026).
 > Code và file lệch nhau → sửa file này cho đúng, đừng bẻ code theo một dòng đã cũ.
 > Mục ghi **(chưa có)** là quy tắc cho phần sắp làm: đừng import đường dẫn đó, nó chưa tồn tại.
 
@@ -40,8 +40,8 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
     (`google.verifier.ts`, sau interface `GoogleTokenVerifier`), `otplib` (hai lớp trong
     `identity.service.ts`). Không còn gói nào cài mà chưa dùng.
 - DB: **PostgreSQL 18 + Prisma 7**, driver adapter `@prisma/adapter-pg`, preview `partialIndexes`.
-  - `prisma/schema.prisma` là nguồn sự thật của schema đang chạy. Đang có 9 bảng (8 của `identity` +
-    `outbox_events`) qua hai migration `init_identity` và `session_prev_refresh_hash`; khoá chính
+  - `prisma/schema.prisma` là nguồn sự thật của schema đang chạy. Mỗi module một migration `init_<module>`
+    (`identity`, `platform_category`, `group`, `notification`) cộng vài migration chỉnh sau; khoá chính
     `uuidv7()` do Postgres sinh; CHECK viết tay nằm cuối file migration và được nhắc bằng `///` ở model.
   - Chuỗi kết nối nằm ở `prisma.config.ts`, KHÔNG nằm trong `datasource` của schema.
   - Client: **đúng một instance** ở `src/lib/prisma.ts`.
@@ -82,8 +82,12 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
   - **DeviceCheck của Apple: HOÃN.** Bản đầu iOS chỉ dùng mã theo nhà phát triển cộng tín hiệu phụ
     (TK 8); thêm DeviceCheck bằng một change riêng khi có tài khoản Apple Developer. Ghi ở TK 29 mục hoãn.
   - **Không có SMS** — TK quyết định số 7.
-- **(chưa có)** — vẫn phải hỏi trước vì chưa chọn: realtime cho nhắn tin (hệ thống cũ dùng socket.io),
-  kho ảnh + chữ ký tải thẳng, push (FCM), kiểm ảnh nhạy cảm, theo dõi lỗi (hệ thống cũ dùng Sentry).
+  - Realtime (chốt 11/10/2026): **socket.io** gắn vào HTTP server của Fastify, đường dẫn `/realtime`, chỉ
+    websocket. Chỉ chiều server → app; phòng theo người và theo phiên, không phòng theo nhóm. Hạ tầng dùng chung
+    ở `src/common/realtime/`; nhắn tin (đợt 6) dùng lại. `socket.io-client` chỉ là devDependency để test.
+- **(chưa có)** — vẫn phải hỏi trước vì chưa chọn: kho ảnh + chữ ký tải thẳng, push lên điện thoại (đề xuất Expo
+  Push Service, hoãn tới khi app làm — design của `add-notification-core` mục 3), kiểm ảnh nhạy cảm, theo dõi lỗi
+  (hệ thống cũ dùng Sentry).
 
 ## Cấu trúc thư mục (BẮT BUỘC tuân theo)
 
@@ -98,9 +102,10 @@ prisma/
   migrations/                 ← KHÔNG sửa migration đã apply
 prisma.config.ts
 src/
-  app.ts                      ← buildApp(): plugin, dựng module theo thứ tự phụ thuộc, lặp danh sách module
-  server.ts                   ← nối bên nghe outbox, jobs.start(), `startup` của từng module, bật bộ phát,
-                                listen; tắt theo thứ tự HTTP → bộ phát → jobs → Prisma
+  app.ts                      ← buildApp(): plugin, dựng module theo thứ tự phụ thuộc, lặp danh sách module;
+                                bộ phát outbox đã nối bên nghe của mọi module (`app.outbox`), cổng realtime
+  server.ts                   ← jobs.start(), `startup` của từng module, bật `app.outbox`, listen; tắt theo thứ tự
+                                HTTP (kèm socket) → bộ phát → jobs → Prisma
   config/{env,database-guard}.ts
   lib/{prisma,logger,mailer,jobs}.ts
   common/
@@ -116,7 +121,11 @@ src/
     http/cache.ts             ← mặc định `no-store` (hook `onSend`); route công khai mở bằng `cacheFor` + `CACHE_*`
     outbox/outbox.ts          ← `appendEvents(tx, events)`: sự kiện chéo module, cùng transaction
     module/app-module.ts      ← `AppModule`: route, bên nghe outbox, việc nền, bước khởi động của một module
-    outbox/dispatcher.ts      ← bộ phát: nhận lô `FOR UPDATE SKIP LOCKED` có hạn giữ, thử lại lùi dần
+    outbox/dispatcher.ts      ← bộ phát: nhận lô `FOR UPDATE SKIP LOCKED` có hạn giữ, thử lại lùi dần; `kick()`
+                                chạy một lượt sớm sau mỗi request ghi (hook `onResponse` của `app.ts`)
+    realtime/realtime.ts      ← socket.io ở `/realtime`: xác thực lúc bắt tay, phòng theo người và theo phiên,
+                                `emitToUser` / `disconnectUser` / `disconnectSession`; hướng dẫn cho app ở
+                                `docs/realtime.md`
     plugins/swagger.ts
     schemas/{response,pagination,money}.ts   ← money.ts chỉ có `priceSchema`
     text/fold.ts              ← bỏ dấu + hoa + gộp khoảng trắng: tên dành riêng, tìm khu vực
@@ -145,8 +154,9 @@ tests/*.db.test.ts            ← ghi thẳng bằng Prisma để kiểm ràng b
 
 - **Không có tầng controller**: handler trong `routes.ts` gọi service rồi trả response.
 - **Không có `<module>.types.ts`**: DTO chính là response schema Zod trong `<module>.schema.ts`.
-- Tên module kebab-case, **số ít**. Đang có: `health`, `identity`, `platform`, `category`.
-- `buildApp(overrides)` nhận `repositories: { identity, platform, category }` và hạ tầng dùng chung
+- Tên module kebab-case, **số ít**. Đang có: `health`, `identity`, `platform`, `category`, `group`,
+  `notification`.
+- `buildApp(overrides)` nhận `repositories: { identity, platform, category, group }` và hạ tầng dùng chung
   (jobs, mailer, googleVerifier, privilegeSource, config, clock) — bỏ trống là bản thật.
   `privilegeSource` và `config` mặc định là bản thật của `platform` dựng trên repository của nó. Service
   của module tra qua `app.modules` (`app.modules.platform`…); `app.moduleList` là danh sách định nghĩa theo
@@ -170,7 +180,7 @@ tests/*.db.test.ts            ← ghi thẳng bằng Prisma để kiểm ràng b
 | 3    | `screening`    | 13, 14     | **Kết quả máy**, cụm từ cấm, luật + trọng số, kiểm ảnh, lý do hạn chế `machine`    |
 | 4    | `review`       | 16, 17, 23 | **Việc** và hàng chờ, nhận việc 10 phút, quyết định của người, hậu kiểm, báo cáo   |
 | 6    | `messaging`    | 24         | Hội thoại, tin nhắn, chặn người                                                    |
-| 6    | `notification` | 24         | Hộp thư, đẩy thông báo, nhóm bật/tắt                                               |
+| 1, 6 | `notification` | 24         | Hộp thư, nhóm bật/tắt, tắt tiếng nhóm, realtime (đợt 1); đẩy thông báo (đợt 6)     |
 | 7    | `ops`          | 25, 26     | Outbox dispatcher, job theo lịch, dọn dữ liệu, tạm giữ bằng chứng                  |
 
 `media` lên đợt 2 (TK 29 xếp ở đợt 3) vì nháp tin đăng đã cần ảnh; chỉ phần **kiểm** ảnh ở đợt 3.
@@ -180,7 +190,8 @@ không có module `ops-*` gom route của người khác.
 **Thứ tự change — làm và archive đúng thứ tự này** (change sau thêm requirement vào capability của
 change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-categories` → `fix-session-refresh-race` →
 `harden-module-infra` → `tune-hot-paths` → `cache-public-reads-revoke-deleted-staff` →
-`harden-production-runtime` (tám change này đã archive 10–11/10/2026) → `add-groups` · đợt 2
+`harden-production-runtime` → `add-groups` → `add-notification-core` (kéo từ đợt 6, chốt 11/10/2026) — mười change
+này đã archive 10–11/10/2026 · đợt 2
 `add-media` → `add-listings` → `add-trust-tiers` · đợt 3 `add-screening` · đợt 4 `add-review-queues` →
 `add-reports` · đợt 5 `add-strikes` · đợt 6 `add-messaging` → `add-notifications` · đợt 7
 `add-data-retention`.
@@ -243,8 +254,9 @@ Mỗi luật dưới đây là một cam kết ở TK phần 27; số trong ngo�
     chịu được nhận trùng. Gọi đồng bộ chỉ ba chỗ: `listing` hỏi `trust` hạn chế/hạn mức, `listing`
     gọi `screening` chấm chữ lúc gửi, mọi module hỏi `identity` "người này là ai". Bảng `outbox_events`
     và `appendEvent(tx, type, payload)` ở `src/common/outbox/outbox.ts` đã có — hàm chỉ nhận `tx` nên
-    không gọi được ngoài transaction. Bộ phát `src/common/outbox/dispatcher.ts` do `server.ts` bật (10
-    giây/lượt) nhận lô bằng `FOR UPDATE SKIP LOCKED` kèm hạn giữ 60 giây, nên nhiều tiến trình chạy cùng
+    không gọi được ngoài transaction. Bộ phát `src/common/outbox/dispatcher.ts` do `buildApp` dựng
+    (`app.outbox`, đã nối bên nghe của mọi module), `server.ts` bật (10 giây/lượt, và một lượt sớm sau mỗi
+    request ghi qua `kick()`), nhận lô bằng `FOR UPDATE SKIP LOCKED` kèm hạn giữ 60 giây, nên nhiều tiến trình chạy cùng
     lúc không phát trùng. Bên nghe ném thì sự kiện giữ lại, `attempts` + `last_error`, và
     `next_attempt_at` lùi dần (10 giây × 2^n, trần 1 giờ) — sự kiện hỏng không chặn sự kiện mới; từ lần
     thử thứ 10 lỗi lên `error`. Không bao giờ bỏ sự kiện: sửa xong nguyên nhân thì đặt
@@ -321,7 +333,9 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   email-change, account-lock, account-deletion, device-registry, id-verification) — archive từ
   `add-identity` ngày 10/10/2026; 4 của `platform/` (master-accounts, staff-permissions, config-versions,
   audit-log) và 2 của `category/` (category-catalog, regions) — archive từ `add-platform-roles` và
-  `add-categories` cùng ngày.
+  `add-categories` cùng ngày; 5 của `group/` (group-lifecycle, group-modes, membership, group-roles, badges) và 5
+  của `notification/` (inbox, preferences, realtime, group-notices, group-announcements) — archive từ `add-groups`
+  và `add-notification-core` ngày 11/10/2026 (`add-groups` thêm một requirement vào `identity/account-deletion`).
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.
@@ -386,6 +400,10 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   mailer và đồng hồ là giả, để test tự quyết lúc việc nền chạy, đọc được thư, và "30 ngày sau" là một phép
   cộng — rồi `app.inject()`, không mở cổng. Dữ liệu nền qua `repositories.*`, quyền staff qua `grantStaff`,
   tài khoản + token bàn vận hành qua `tests/ops-helpers.ts`; đọc lại outbox / nhật ký qua `tests/db-helpers.ts`.
+  Nhóm và thông báo: `tests/group-helpers.ts` dựng người dùng có token, nhóm đang hoạt động, thành viên, điều
+  hành viên, đơn vị; `deliverAll(app)` chạy `app.outbox` tới khi hết sự kiện để bên nghe thật (thông báo) chạy
+  đúng lúc test muốn. Realtime: `tests/realtime.test.ts` mở cổng thật (`app.listen({ port: 0 })`) và nối bằng
+  `socket.io-client`.
   Ca tranh chấp bọc repository thật (`{ ...repositories.identity, method: … }`, truyền qua
   `buildTestApp({ repositories })`) để giữ hai lượt ở đúng điểm.
 - `tests/*.db.test.ts`: test repository và ghi thẳng bằng Prisma để kiểm ràng buộc chỉ DB trả lời được

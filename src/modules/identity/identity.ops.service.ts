@@ -33,6 +33,11 @@ export type IdentityOpsService = Pick<
   | 'removeDisposableDomain'
   | 'seedDisposableDomainsIfEmpty'
   | 'accountState'
+  | 'accountSummaries'
+  | 'accountIdByEmail'
+  | 'emailHashOf'
+  | 'accountIdsByEmailHashes'
+  | 'accountEmailHash'
   | 'createMaster'
   | 'resetTwoFactor'
 >;
@@ -74,6 +79,7 @@ export function createIdentityOpsService(
           reason,
         },
       });
+      deps.sessionsRevoked?.account(accountId);
     },
 
     async unlockAccount(actor, accountId) {
@@ -285,6 +291,28 @@ export function createIdentityOpsService(
       return account ? { role: account.role, status: account.status } : null;
     },
 
+    async accountSummaries(ids) {
+      const rows = await repository.findAccountSummaries([...new Set(ids)]);
+      return new Map(rows.map((row) => [row.id, row]));
+    },
+
+    async accountIdByEmail(email) {
+      const account = await repository.findAccountByEmail(normalizeEmail(email));
+      return account && account.status !== 'deleted' ? account.id : null;
+    },
+
+    emailHashOf: (email) => hashEmail(normalizeEmail(email), hashKey),
+
+    async accountEmailHash(accountId) {
+      const account = await repository.findAccountById(accountId);
+      return account && account.status !== 'deleted' ? account.emailHash : null;
+    },
+
+    async accountIdsByEmailHashes(hashes) {
+      const rows = await repository.findAccountIdsByEmailHashes([...new Set(hashes)]);
+      return new Map(rows.map((row) => [row.emailHash, row.id]));
+    },
+
     async createMaster({ email, password, displayName }) {
       const now = clock();
       const weak = passwordIssue(password);
@@ -322,6 +350,7 @@ export function createIdentityOpsService(
         reason: 'password_reset',
         at: clock(),
       });
+      deps.sessionsRevoked?.account(account.id);
     },
   };
 }

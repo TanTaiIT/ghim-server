@@ -11,6 +11,8 @@ declare module 'fastify' {
   interface FastifyInstance {
     /** Bearer → JWT → tra phiên → trạng thái tài khoản; gắn `request.actor`. */
     authenticate: preHandlerAsyncHookHandler;
+    /** Như `authenticate` khi có header `Authorization`; không có thì là khách (`request.actor = null`). */
+    authenticateOptional: preHandlerAsyncHookHandler;
     requireVerifiedEmail: preHandlerAsyncHookHandler;
     /** Chỉ master, và phiên phải có lớp thứ hai — mọi route master đều là bàn vận hành. */
     requireMaster: preHandlerAsyncHookHandler;
@@ -49,7 +51,7 @@ export interface AuthDeps {
 const SECONDS_PER_MINUTE = 60;
 
 // Kể cả master, kể cả khi chưa thiết lập: không có lớp thứ hai thì không có bàn vận hành.
-function requireSecondFactor(actor: Actor): void {
+export function requireSecondFactor(actor: Actor): void {
   if (!actor.secondFactorAt) {
     throw new ForbiddenError(
       'Thiết lập và nhập mã lớp thứ hai trước khi dùng bàn vận hành',
@@ -100,7 +102,7 @@ export async function registerAuth(app: FastifyInstance, deps: AuthDeps): Promis
     requireSecondFactor(actor);
   };
 
-  app.decorate('authenticate', async (request) => {
+  const authenticate = async (request: FastifyRequest): Promise<void> => {
     let sid: string;
     try {
       ({ sid } = await request.jwtVerify<{ sid: string }>());
@@ -109,6 +111,12 @@ export async function registerAuth(app: FastifyInstance, deps: AuthDeps): Promis
       throw new UnauthorizedError();
     }
     request.actor = await deps.resolver.resolveActor(sid);
+  };
+  app.decorate('authenticate', authenticate);
+  // Có header mà token hỏng vẫn là 401: app đang đăng nhập phải biết để refresh, không bị coi như khách.
+  app.decorate('authenticateOptional', async (request) => {
+    if (request.headers.authorization) await authenticate(request);
+    else request.actor = null;
   });
 
   app.decorate('requireVerifiedEmail', async (request) => {

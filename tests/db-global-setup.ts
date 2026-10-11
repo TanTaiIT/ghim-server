@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 
+import { sequentially } from '../src/common/utils/sequential.js';
 import { databaseEnvironmentIssue } from '../src/config/database-guard.js';
 import { databaseName, workerDatabaseUrl } from './db-names.js';
 
@@ -40,15 +41,16 @@ export default async function setup(): Promise<() => Promise<void>> {
   );
   const template = databaseName(url);
 
-  for (const name of names) {
+  // Tuần tự: nhân bản song song từ cùng một DB mẫu dễ vấp 55006 hơn.
+  await sequentially(names, async (name) => {
     await admin.$executeRawUnsafe(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
     await createFromTemplate(admin, name, template);
-  }
+  });
 
   return async () => {
-    for (const name of names) {
+    await sequentially(names, async (name) => {
       await admin.$executeRawUnsafe(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
-    }
+    });
     await admin.$disconnect();
   };
 }
@@ -58,14 +60,13 @@ async function createFromTemplate(
   admin: PrismaClient,
   name: string,
   template: string,
+  attempt = 1,
 ): Promise<void> {
-  for (let attempt = 1; ; attempt += 1) {
-    try {
-      await admin.$executeRawUnsafe(`CREATE DATABASE "${name}" TEMPLATE "${template}"`);
-      return;
-    } catch (error) {
-      if (attempt >= 40 || !String(error).includes('55006')) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
+  try {
+    await admin.$executeRawUnsafe(`CREATE DATABASE "${name}" TEMPLATE "${template}"`);
+  } catch (error) {
+    if (attempt >= 40 || !String(error).includes('55006')) throw error;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    await createFromTemplate(admin, name, template, attempt + 1);
   }
 }

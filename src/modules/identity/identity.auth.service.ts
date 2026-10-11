@@ -147,6 +147,7 @@ export function createIdentityAuthService(
             revokedAt: now,
             revokeReason: 'refresh_reuse',
           });
+          deps.sessionsRevoked?.session(reused.id);
         }
         throw sessionRevoked();
       }
@@ -175,6 +176,7 @@ export function createIdentityAuthService(
         revokedAt: clock(),
         revokeReason: 'logout',
       });
+      deps.sessionsRevoked?.session(actor.sessionId);
     },
 
     async loginWithGoogle({ idToken, deviceName, ip, userAgent }) {
@@ -261,6 +263,7 @@ export function createIdentityAuthService(
         events: [],
       });
       assertConsumed(applied);
+      deps.sessionsRevoked?.account(account.id);
     },
 
     // ── KHOÁ / MỞ KHOÁ / XOÁ ────────────────────────────────────────────────────────────────────

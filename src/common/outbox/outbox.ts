@@ -3,7 +3,8 @@ import type { Prisma } from '@prisma/client';
 /** `<module>.<đối tượng>.<việc>` — vd `identity.account.locked`. Module ghi là chủ của tên. */
 export type OutboxEventType = `${string}.${string}.${string}`;
 
-export type OutboxPayload = Record<string, string | number | boolean | null>;
+/** Mảng chuỗi cho danh sách mã (vd người có đơn bị huỷ khi nhóm đóng) — bên nghe không phải đọc lại dòng đã đổi. */
+export type OutboxPayload = Record<string, string | number | boolean | null | string[]>;
 
 export interface OutboxEventInput {
   type: OutboxEventType;

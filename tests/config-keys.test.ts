@@ -9,7 +9,7 @@ import {
 
 /* Sổ đăng ký là hợp đồng với mọi change sau: đủ nhóm TK 28, mỗi khoá đúng dạng và có giá trị hợp lệ. */
 describe('CONFIG_KEYS', () => {
-  it('phủ đủ 11 nhóm của bảng TK 28', () => {
+  it('phủ đủ 12 nhóm của bảng TK 28', () => {
     const groups = new Set(Object.values(CONFIG_KEYS).map((spec) => spec.group));
     expect([...groups].toSorted()).toEqual(
       [
@@ -24,6 +24,7 @@ describe('CONFIG_KEYS', () => {
         'Báo cáo',
         'Tin đăng',
         'Nhóm',
+        'Thông báo',
       ].toSorted(),
     );
   });

@@ -312,6 +312,7 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
             repository.updateSession(session.id, { revokedAt: at, revokeReason: 'evicted' }),
           ),
       );
+      for (const session of alive.slice(-overflow)) deps.sessionsRevoked?.session(session.id);
     }
 
     const refreshToken = randomToken();
@@ -384,11 +385,19 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
         'ACCOUNT_DELETE_BLOCKED',
       );
     }
+    // Chủ nhóm xoá tài khoản thì nhóm mất chủ mà không qua giai đoạn thiếu chủ có master xác nhận (TK 27 cam kết 13).
+    if (await deps.ownership?.ownsAnyGroup(account.id)) {
+      throw new ConflictError(
+        'Bạn đang là chủ nhóm — chuyển chủ nhóm cho người khác rồi mới xoá được tài khoản',
+        'ACCOUNT_DELETE_BLOCKED',
+      );
+    }
     await repository.softDeleteAccount({
       accountId: account.id,
       at: clock(),
       events: [{ type: 'identity.account.deleted', payload: { accountId: account.id } }],
     });
+    deps.sessionsRevoked?.account(account.id);
   };
 
   const resolveActor = async (sessionId: string): Promise<Actor> => {

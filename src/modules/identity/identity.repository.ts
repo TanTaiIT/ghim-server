@@ -221,6 +221,11 @@ export type IdVerificationPatch = Pick<
 export interface IdentityRepository {
   findAccountById(id: string): Promise<Account | null>;
   findAccountByEmail(emailNormalized: string): Promise<Account | null>;
+  findAccountSummaries(
+    ids: string[],
+  ): Promise<Pick<Account, 'id' | 'role' | 'status' | 'displayName'>[]>;
+  /** Chỉ tài khoản chưa xoá. */
+  findAccountIdsByEmailHashes(hashes: string[]): Promise<Pick<Account, 'id' | 'emailHash'>[]>;
   findAccountByGoogleSub(googleSub: string): Promise<Account | null>;
   createAccount(data: NewAccount): Promise<Account>;
   updateAccount(id: string, patch: AccountPatch): Promise<Account>;
@@ -340,6 +345,20 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
     findAccountById: (id) => prisma.account.findUnique({ where: { id } }),
     findAccountByEmail: (emailNormalized) =>
       prisma.account.findUnique({ where: { emailNormalized } }),
+    findAccountSummaries: (ids) =>
+      ids.length === 0
+        ? Promise.resolve([])
+        : prisma.account.findMany({
+            where: { id: { in: ids } },
+            select: { id: true, role: true, status: true, displayName: true },
+          }),
+    findAccountIdsByEmailHashes: (hashes) =>
+      hashes.length === 0
+        ? Promise.resolve([])
+        : prisma.account.findMany({
+            where: { emailHash: { in: hashes }, status: { not: 'deleted' } },
+            select: { id: true, emailHash: true },
+          }),
     findAccountByGoogleSub: (googleSub) => prisma.account.findUnique({ where: { googleSub } }),
     createAccount: ({ at, ...data }) => prisma.account.create({ data: { ...data, createdAt: at } }),
     updateAccount: (id, patch) => prisma.account.update({ where: { id }, data: patch }),

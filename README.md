@@ -22,10 +22,18 @@ Trong Claude Code, mở thư mục này làm workspace rồi:
 Cần CLI `openspec` trên PATH, cùng phiên bản trong `package.json`:
 `npm i -g @fission-ai/openspec@1.14.1`.
 
-Hiện trạng: hạ tầng (HTTP, lỗi, response, Swagger, health, việc nền pg-boss, gửi thư, outbox) và
-module **`identity`** (đợt 1): đăng ký + xác nhận email, đăng nhập / phiên / refresh, Google, hai lớp
-TOTP cho master và staff, hồ sơ, đổi email, quên / đổi mật khẩu, khoá / mở khoá / xoá tài khoản, dấu
-thiết bị + mã tra cứu, xác minh giấy tờ, danh sách email dùng một lần. 9 bảng trong DB.
+Hiện trạng (đợt 1): hạ tầng (HTTP, lỗi, response, Swagger, health, việc nền pg-boss, gửi thư, outbox, realtime
+socket.io ở `/realtime`) và các module:
+
+- **`identity`**: đăng ký + xác nhận email, đăng nhập / phiên / refresh, Google, hai lớp TOTP cho master và staff,
+  hồ sơ, đổi email, quên / đổi mật khẩu, khoá / mở khoá / xoá tài khoản, dấu thiết bị + mã tra cứu, xác minh giấy
+  tờ, danh sách email dùng một lần.
+- **`platform`**: master, quyền staff theo danh mục, bảng con số có phiên bản, nhật ký bàn vận hành.
+- **`category`**: danh mục, mẫu thông tin có phiên bản, trần giá, khu vực.
+- **`group`**: nhóm bốn chế độ, vòng đời (giao chủ, thiếu chủ, khoá, đóng), vào nhóm (tham gia, đơn, lời mời, mã,
+  danh sách lớp), đơn vị con, vai, huy hiệu, thông báo của nhóm.
+- **`notification`**: hộp thư, bật tắt từng nhóm thông báo, tắt tiếng từng nhóm, gộp chuyện lặp lại, đẩy realtime
+  — hướng dẫn cho app ở [`docs/realtime.md`](docs/realtime.md). Push lên điện thoại chưa làm.
 
 ## Cần có
 
