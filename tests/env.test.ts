@@ -11,6 +11,7 @@ const base = {
   SECRETS_ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
   SMTP_URL: 'smtp://ghim:ghim@localhost:1025',
   MAIL_FROM: 'Ghim <no-reply@ghim.test>',
+  STORAGE_URL: 'http://ghim:ghim-dev-secret@localhost:9100/ghim-dev',
 };
 
 /** Bộ biến production hợp lệ: DB không mang hậu tố, SMTP, Google, CORS cụ thể, proxy trong mạng nội bộ. */
@@ -147,6 +148,17 @@ describe('loadEnv — khoá của identity', () => {
     expect(
       loadEnv({ ...withoutSmtp, NODE_ENV: 'test', DATABASE_URL: url('ghim_test') }).SMTP_URL,
     ).toBeUndefined();
+  });
+
+  it('STORAGE_URL bắt buộc ở mọi môi trường và phải mang khoá cùng tên bucket', () => {
+    const { STORAGE_URL: _omitted, ...withoutStorage } = base;
+    expect(() => loadEnv(withoutStorage)).toThrow(/STORAGE_URL/);
+    expect(() => loadEnv({ ...base, STORAGE_URL: 'http://localhost:9100/ghim-dev' })).toThrow(
+      /khoá truy cập/,
+    );
+    expect(() => loadEnv({ ...base, STORAGE_URL: 'http://ghim:x@localhost:9100/' })).toThrow(
+      /bucket/,
+    );
   });
 
   it('GOOGLE_CLIENT_IDS tách thành danh sách, trống ở dev được, production thì không', () => {

@@ -194,6 +194,7 @@ export function createIdentityAuthService(
             throw invalidCredentials('Email Google này chưa được xác thực');
           account = await repository.updateAccount(existing.id, {
             googleSub: google.sub,
+            googlePictureUrl: google.picture,
             ...(existing.status === 'pending_verification' ? { status: 'active' as const } : {}),
           });
         } else {
@@ -208,6 +209,9 @@ export function createIdentityAuthService(
             googleSub: google.sub,
             status: 'active',
             displayName: displayNameFromGoogle(google.name, google.email),
+            // Tài khoản sinh từ Google mặc định dùng ảnh Google (spec identity/profile).
+            googlePictureUrl: google.picture,
+            avatarFromGoogle: google.picture !== null,
             at: now,
           });
           await repository.applyAccountChange({
@@ -221,6 +225,13 @@ export function createIdentityAuthService(
 
       if (account.status === 'deleted') throw invalidCredentials();
       if (account.status === 'locked') throw accountLocked(account);
+      // Ảnh Google đổi thì lấy lại; người đang dùng ảnh Google mà Google bỏ ảnh thì về không có ảnh (CHECK của bảng).
+      if (account.googlePictureUrl !== google.picture) {
+        account = await repository.updateAccount(account.id, {
+          googlePictureUrl: google.picture,
+          ...(google.picture === null ? { avatarFromGoogle: false } : {}),
+        });
+      }
       // Lớp thứ hai áp cùng luật với mật khẩu, nhưng Google không có chỗ nhập mã trong cùng request:
       // tài khoản có quyền đã bật hai lớp phải đăng nhập bằng mật khẩu.
       const privileged = await isPrivileged(account);

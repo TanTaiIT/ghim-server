@@ -12,6 +12,7 @@ import {
   createIdentityService,
   type IdentityService,
   type GroupOwnership,
+  type ProfileImages,
   type SessionRevocationListener,
 } from './identity.service.js';
 
@@ -28,6 +29,7 @@ export interface IdentityModuleDeps {
   disposableDomainsUrl: string;
   ownership?: GroupOwnership;
   sessionsRevoked?: SessionRevocationListener;
+  images?: ProfileImages;
 }
 
 export function createIdentityModule(deps: IdentityModuleDeps): {

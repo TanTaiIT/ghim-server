@@ -11,6 +11,7 @@ import {
 } from 'fastify-type-provider-zod';
 
 import { corsOrigin, env, isTest, trustProxy } from './config/env.js';
+import { parseStorageUrl } from './config/storage-url.js';
 import { registerAuth } from './common/auth/auth.plugin.js';
 import type { PrivilegeSource } from './common/auth/privilege-source.js';
 import type { RuntimeConfig } from './common/config/runtime-config.js';
@@ -27,6 +28,7 @@ import { createJobs, type Jobs } from './lib/jobs.js';
 import { logger } from './lib/logger.js';
 import { createFakeMailer, createSmtpMailer, type Mailer } from './lib/mailer.js';
 import { prisma } from './lib/prisma.js';
+import { createS3Storage, type Storage } from './lib/storage.js';
 import { createCategoryModule } from './modules/category/category.module.js';
 import {
   createCategoryRepository,
@@ -47,6 +49,9 @@ import {
   type IdentityRepository,
 } from './modules/identity/identity.repository.js';
 import type { IdentityService } from './modules/identity/identity.service.js';
+import { createMediaModule } from './modules/media/media.module.js';
+import { createMediaRepository, type MediaRepository } from './modules/media/media.repository.js';
+import type { MediaService } from './modules/media/media.service.js';
 import { createNotificationModule } from './modules/notification/notification.module.js';
 import { createNotificationRepository } from './modules/notification/notification.repository.js';
 import type { NotificationService } from './modules/notification/notification.service.js';
@@ -77,6 +82,7 @@ export interface AppServices {
   category: CategoryService;
   group: GroupService;
   notification: NotificationService;
+  media: MediaService;
 }
 
 export interface Repositories {
@@ -84,6 +90,7 @@ export interface Repositories {
   platform: PlatformRepository;
   category: CategoryRepository;
   group: GroupRepository;
+  media: MediaRepository;
 }
 
 declare module 'fastify' {
@@ -112,6 +119,7 @@ export interface AppDeps {
   repositories: Repositories;
   jobs: Jobs;
   mailer: Mailer;
+  storage: Storage;
   googleVerifier: GoogleTokenVerifier;
   privilegeSource: PrivilegeSource;
   config: RuntimeConfig;
@@ -154,12 +162,14 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     platform: overrides.repositories?.platform ?? createPlatformRepository(prisma),
     category: overrides.repositories?.category ?? createCategoryRepository(prisma),
     group: overrides.repositories?.group ?? createGroupRepository(prisma),
+    media: overrides.repositories?.media ?? createMediaRepository(prisma),
   };
   const { config, versioned } = await resolveConfig(overrides.config, repositories.platform);
   const deps: AppDeps = {
     repositories,
     jobs: overrides.jobs ?? createJobs(env.DATABASE_URL, { max: env.JOBS_POOL_MAX }),
     mailer: overrides.mailer ?? defaultMailer(),
+    storage: overrides.storage ?? createS3Storage(parseStorageUrl(env.STORAGE_URL)),
     googleVerifier: overrides.googleVerifier ?? createGoogleTokenVerifier(env.GOOGLE_CLIENT_IDS),
     privilegeSource:
       overrides.privilegeSource ?? createPlatformPrivilegeSource(repositories.platform),
@@ -179,8 +189,17 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     disconnectUser: (accountId) => gateway?.disconnectUser(accountId),
     disconnectSession: (sessionId) => gateway?.disconnectSession(sessionId),
   };
+  // `media` trước `identity`: ảnh đại diện cần cổng xác nhận ảnh. `media` không hỏi ngược ai — chủ `profile` chính
+  // là người tải lên.
+  const media = createMediaModule({
+    repository: repositories.media,
+    storage: deps.storage,
+    config: deps.config,
+    clock: deps.clock,
+  });
   const identity = createIdentityModule({
     ...deps,
+    images: media.service,
     ownership: {
       ownsAnyGroup: (accountId) => groupService?.ownsAnyGroup(accountId) ?? Promise.resolve(false),
     },
@@ -227,6 +246,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     clock: deps.clock,
   });
   const moduleList: readonly AppModule[] = [
+    media.module,
     identity.module,
     category.module,
     platform.module,
@@ -314,6 +334,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     category: category.service,
     group: group.service,
     notification: notification.service,
+    media: media.service,
   });
   app.decorate('moduleList', moduleList);
 

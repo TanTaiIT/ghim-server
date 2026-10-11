@@ -6,5 +6,12 @@ export function workerDatabaseUrl(templateUrl: string, runId: string, worker: nu
   return url.toString();
 }
 
+/** Bucket của một worker trong một lượt chạy, cùng luật với DB của worker. */
+export function workerStorageUrl(templateUrl: string, runId: string, worker: number): string {
+  const url = new URL(templateUrl);
+  url.pathname = `/${url.pathname.replace(/^\//, '')}-${runId}-w${worker}`;
+  return url.toString();
+}
+
 export const databaseName = (databaseUrl: string): string =>
   decodeURIComponent(new URL(databaseUrl).pathname.replace(/^\//, ''));

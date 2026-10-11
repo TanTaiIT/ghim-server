@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { actorOf } from '../../common/auth/actor.js';
 import { errorResponse, ok, toOk } from '../../common/schemas/response.js';
 import {
+  avatarBodySchema,
   changePasswordBodySchema,
   emailChangeBodySchema,
   emailChangeConfirmBodySchema,
@@ -69,6 +70,30 @@ export const identityMeRoutes: FastifyPluginAsyncZod<IdentityMeRoutesOptions> = 
       response: { 200: ok(meSchema), 400: errorResponse, 401: errorResponse },
     },
     handler: async (request) => toOk(await identity.updateMe(actorOf(request), request.body)),
+  });
+
+  app.put('/me/avatar', {
+    preHandler: signedIn,
+    schema: {
+      tags: TAGS_ME,
+      summary:
+        'Đặt ảnh đại diện: ảnh đã tải vào kho cho hồ sơ của mình (`imageId`), hoặc ảnh Google (`source`)',
+      security: bearer,
+      body: avatarBodySchema,
+      response: { 200: ok(meSchema), 400: errorResponse, 401: errorResponse },
+    },
+    handler: async (request) => toOk(await identity.setAvatar(actorOf(request), request.body)),
+  });
+
+  app.delete('/me/avatar', {
+    preHandler: signedIn,
+    schema: {
+      tags: TAGS_ME,
+      summary: 'Bỏ ảnh đại diện',
+      security: bearer,
+      response: { 200: ok(meSchema), 401: errorResponse },
+    },
+    handler: async (request) => toOk(await identity.clearAvatar(actorOf(request))),
   });
 
   app.post('/me/email-change', {

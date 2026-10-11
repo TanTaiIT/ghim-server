@@ -26,6 +26,8 @@ quả kiểm ảnh chỉ còn đúng khi ruột ảnh không đổi được sau
 - Nhãn "chưa xác nhận" từ lúc tải, gỡ khi chủ lưu thành công.
 - Dọn ảnh: ảnh còn nhãn quá 48 giờ; ảnh theo chủ khi chủ bị xoá hẳn; đối chiếu cả kho mỗi tháng để vét ảnh
   lọt lưới.
+- Ảnh đại diện: đặt, đổi, bỏ bằng ảnh trong kho hay ảnh Google; tài khoản tạo bằng Google mặc định dùng ảnh Google.
+  Hồ sơ là chủ ảnh đầu tiên chạy thật; tin nối vào ở `add-listings` qua cùng cổng (design mục 3).
 
 **Cố ý chưa làm trong change này** (làm ở change sau, đúng đợt có đủ phần phụ thuộc):
 
@@ -35,6 +37,9 @@ quả kiểm ảnh chỉ còn đúng khi ruột ảnh không đổi được sau
 - Kiểm ảnh trùng với kho của mọi tài khoản, kiểm nội dung nhạy cảm, danh sách trắng ảnh mẫu của hãng, ảnh
   quá 5 phút chưa có kết quả thì giữ cho người → `add-screening` (`screening/image-checks`). Ảnh đại diện qua
   kiểm ảnh → `add-screening` (thêm vào `identity/profile`).
+- Luật ảnh riêng của nháp và tin — xin tải cho nháp, lưu nháp chỉ nhận ảnh của chính nháp, ảnh Google không dùng
+  cho tin, xoá hẳn nháp kéo ảnh, ảnh bỏ khỏi nháp → `add-listings` (`listing/drafts`, `listing/deletion`); chuyển
+  sang ngày 11/10/2026 để change này archive được với test của chính nó (design mục 3).
 - Hạn lưu nháp và từng loại tin ("xoá hẳn kèm ảnh"), tài khoản đã xoá → `add-data-retention`
   (`ops/data-retention`). Ảnh dính báo cáo, gậy, khiếu nại đang mở không bị xoá hẳn → `add-data-retention`
   (`ops/evidence-hold`). Ba luật chung cho việc chạy nền — kể cả "lượt dọn ảnh chạy lâu không làm chậm việc
@@ -50,27 +55,17 @@ quả kiểm ảnh chỉ còn đúng khi ruột ảnh không đổi được sau
 
 ### Modified Capabilities
 
-Không có.
+- `identity/profile`: thêm requirement "Ảnh đại diện" (đặt, đổi, bỏ; ảnh Google; hồ sơ công khai hiện ảnh bằng
+  đường xem có hạn).
 
 ## Impact
 
-- Module `media` (mới). Bảng module trong CLAUDE.md đang ghi `media` ở đợt 3 — sửa thành đợt 2 trong cùng
-  nhóm task làm ra module.
+- Module `media` (mới), đợt 2 — bảng module trong CLAUDE.md đã ghi đúng đợt.
 - Phụ thuộc `add-identity` (người dùng đăng nhập, hồ sơ, đăng nhập Google). Nháp là của `add-listings` — cùng
   đợt 2, archive sau change này; `add-listings` gắn ảnh vào nháp theo luật ở đây.
-- **Phải chọn trước khi làm** (CLAUDE.md: hỏi trước khi thêm package / dịch vụ): kho ảnh và cách cấp quyền tải
-  thẳng theo người; cơ chế việc chạy nền theo lịch (lượt dọn mỗi 6 giờ, đối chiếu mỗi tháng).
-- **Câu hỏi mở** — TK không nói, cần người dùng chốt trước khi viết design:
-  - Định dạng ảnh được nhận, dung lượng tối đa mỗi ảnh, hạn dùng của một quyền tải lên, số lượt xin tải tối
-    đa — TK không có con số nào.
-  - 48 giờ, lượt dọn 6 giờ (TK 26) và đối chiếu hằng tháng không có trong bảng con số TK 28, trong khi cam kết
-    33 nói mọi con số master chỉnh được. Có đưa vào bảng con số có phiên bản không?
-  - Ảnh trong kho có mở được bằng đường link trực tiếp trước khi tin hiện không. TK 13: "không có khoảng trống
-    nào để ảnh xấu hiện công khai". Gợi ý: ảnh của nháp và tin chưa hiện chỉ người tải lên và người duyệt mở
-    được.
-  - Một ảnh đã tải cho nháp này có dùng lại được ở nháp khác không — TK chỉ nói ảnh "thuộc về bản nháp". Gợi
-    ý: không; app tải lại ảnh (ảnh vẫn còn trên máy).
-  - Tin được chuyển lên sàn chung "như một tin mới" khi nhóm đóng hay chuyển sang riêng tư (TK 9, TK 10): ảnh
-    của tin cũ đi theo tin mới thế nào, khi ảnh thuộc về tin cũ.
-  - Lượt đối chiếu thấy một tin trỏ tới ảnh không còn trong kho thì làm gì (TK 26 chỉ nói "vét ảnh lọt
-    lưới").
+- Kho ảnh chuẩn S3 (chốt 11/10/2026): Cloudflare R2 ở production, RustFS trong container cho dev và test; gói
+  `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`; một biến `STORAGE_URL`. Việc theo lịch chạy trên pg-boss
+  đã có.
+- Sửa TK đi kèm: TK 25 (định dạng, dung lượng, kho riêng tư, ảnh không dùng lại giữa các chủ), TK 28 (nhóm con số
+  "Ảnh"), TK 30 (chủ ảnh gọi Ảnh xác nhận ảnh trong cùng giao dịch lưu — lời gọi đồng bộ thứ tư).
+- Câu hỏi mở của bản proposal đầu đã chốt ngày 11/10/2026 — xem design mục 2 và bảng "Đã chốt".

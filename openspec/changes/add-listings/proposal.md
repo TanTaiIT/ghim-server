@@ -46,7 +46,9 @@ chứa cụm từ cấm mới về chờ duyệt), **15**, **17**, **19**, **20*
 
 **Cố ý chưa làm trong change này** (làm ở change khác, đúng đợt có đủ phần phụ thuộc):
 
-- Tải ảnh, kho ảnh, ảnh thuộc nháp, nhãn "chưa xác nhận", dọn ảnh → `add-media`.
+- Tải ảnh, kho ảnh, nhãn "chưa xác nhận", dọn ảnh → `add-media` (cổng xin tải, xác nhận trong giao dịch lưu, dọn).
+  Luật ảnh riêng của nháp và tin (ảnh thuộc chính nháp, xoá hẳn kéo ảnh) nằm ở `listing/drafts`, `listing/deletion`
+  của change này — chuyển từ `add-media` ngày 11/10/2026.
 - Trần tin sống, nhịp gửi, trần 2 tin của người ngoài mỗi nhóm, đếm lượt gửi (kể cả gửi lại sau sửa, gia hạn),
   tin tạm ẩn không chiếm hạn mức, gia hạn sớm không chiếm thêm chỗ còn gia hạn tin hết hạn cần còn chỗ, cách tính
   T0–T3, bảng uy tín liệt kê tin hạn chế và tin chờ duyệt → `add-trust-tiers` (`trust/quotas`,

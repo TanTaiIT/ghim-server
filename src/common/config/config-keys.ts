@@ -35,6 +35,7 @@ const REPORT = 'Báo cáo';
 const LISTING = 'Tin đăng';
 const GROUP = 'Nhóm';
 const NOTIFICATION = 'Thông báo';
+const MEDIA = 'Ảnh';
 
 export const CONFIG_KEYS = {
   // Tài khoản
@@ -140,6 +141,12 @@ export const CONFIG_KEYS = {
   'group.announcementMaxLength': int(1000, GROUP),
   // Thông báo
   'notification.collapseAlertMinutes': int(30, NOTIFICATION),
+  // Ảnh
+  'media.maxImageBytes': int(5_242_880, MEDIA),
+  'media.uploadGrantMinutes': int(15, MEDIA),
+  'media.uploadGrantsPerHour': int(120, MEDIA),
+  'media.unconfirmedHours': int(48, MEDIA),
+  'media.viewUrlMinutes': int(60, MEDIA),
 } as const satisfies Record<string, ConfigKeySpec>;
 
 export type RuntimeConfigKey = keyof typeof CONFIG_KEYS;

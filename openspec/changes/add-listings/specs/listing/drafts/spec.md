@@ -79,3 +79,60 @@ Mỗi tin SHALL có tối đa 6 ảnh (giá trị khởi đầu), ở nháp cũn
 
 - **WHEN** người đăng sửa một tin đang hiển thị có 6 ảnh và thêm ảnh thứ 7
 - **THEN** response có HTTP 400 `TOO_MANY_IMAGES` và tin không đổi
+
+### Requirement: Ảnh của nháp nằm trong kho và thuộc về chính nháp
+
+Người dùng SHALL xin được quyền tải ảnh cho nháp của mình qua `media/image-storage`; ảnh thuộc về nháp ngay từ lúc
+tải. Lưu nháp hay tin SHALL chỉ nhận ảnh nằm trong kho do chính người lưu tải cho đúng nháp đó (luật chung ở
+`media/image-storage`); ảnh Google chỉ là ngoại lệ cho ảnh đại diện. Lưu nhận ảnh thì gỡ nhãn "chưa xác nhận"; lưu
+bị từ chối thì không.
+
+#### Scenario: Xin tải ảnh cho nháp của mình
+
+- **WHEN** người dùng xin tải một ảnh cho nháp của mình
+- **THEN** response có HTTP 201 kèm quyền tải lên cho đúng một ảnh, và ảnh tải xong thuộc về nháp đó
+
+#### Scenario: Xin tải ảnh cho nháp của người khác
+
+- **WHEN** người dùng xin tải ảnh cho một nháp không phải của mình
+- **THEN** response có HTTP 404 `NOT_FOUND`, không lộ nháp đó có tồn tại hay không
+
+#### Scenario: Ảnh từ đường link ngoài kho
+
+- **WHEN** người dùng lưu nháp với một ảnh là đường link tới một trang khác
+- **THEN** response có HTTP 400 `IMAGE_NOT_IN_STORAGE` và nháp giữ nguyên như trước lần lưu
+
+#### Scenario: Ảnh chưa tải xong
+
+- **WHEN** người dùng lưu nháp với một ảnh đã xin quyền tải nhưng chưa tải lên kho
+- **THEN** response có HTTP 400 `IMAGE_NOT_IN_STORAGE`
+
+#### Scenario: Ảnh do người khác tải lên
+
+- **WHEN** người dùng lưu nháp với mã của một ảnh do tài khoản khác tải lên
+- **THEN** response có HTTP 400 `IMAGE_NOT_IN_STORAGE`, giống hệt trường hợp mã ảnh không tồn tại
+
+#### Scenario: Ảnh tải cho nháp khác
+
+- **WHEN** người dùng lưu nháp với một ảnh mình đã tải cho một nháp khác của mình
+- **THEN** response có HTTP 400 `IMAGE_NOT_IN_STORAGE` — ảnh không dùng lại giữa các nháp
+
+#### Scenario: Ảnh Google dùng cho tin đăng
+
+- **WHEN** người dùng lưu nháp với ảnh là ảnh đại diện Google của mình
+- **THEN** response có HTTP 400 `IMAGE_NOT_IN_STORAGE` vì ngoại lệ chỉ dành cho ảnh đại diện
+
+#### Scenario: Ảnh của chính nháp trong kho
+
+- **WHEN** người dùng lưu nháp với ảnh mình đã tải xong cho nháp đó
+- **THEN** nháp được lưu cùng ảnh đó và ảnh hết mang nhãn "chưa xác nhận"
+
+#### Scenario: Lưu nháp thất bại
+
+- **WHEN** người dùng lưu nháp với ảnh vừa tải nhưng lần lưu bị từ chối với HTTP 400 `VALIDATION_ERROR`
+- **THEN** ảnh vẫn mang nhãn "chưa xác nhận"
+
+#### Scenario: Đổi ảnh của nháp
+
+- **WHEN** người dùng thay một ảnh trong nháp bằng ảnh khác rồi lưu nháp
+- **THEN** ảnh thay vào là một ảnh mới tải vào kho, và nội dung ảnh cũ trong kho không đổi

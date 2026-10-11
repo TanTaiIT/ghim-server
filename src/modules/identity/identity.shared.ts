@@ -101,19 +101,20 @@ export function toSessionDto(session: Session, currentId: string): SessionDto {
   };
 }
 
-export function toPublicProfile(account: Account): PublicProfileDto {
+/** `avatarUrl` tính trước (đường xem có ký là việc bất đồng bộ) — xem `avatarUrlOf` ở `identity.account.service.ts`. */
+export function toPublicProfile(account: Account, avatarUrl: string | null): PublicProfileDto {
   return {
     id: account.id,
     displayName: account.displayName,
-    avatarUrl: account.avatarUrl,
+    avatarUrl,
     joinedAt: account.createdAt.toISOString(),
     phone: account.phone === null ? null : { number: account.phone, verified: false },
   };
 }
 
-export function toMe(account: Account): MeDto {
+export function toMe(account: Account, avatarUrl: string | null): MeDto {
   return {
-    ...toPublicProfile(account),
+    ...toPublicProfile(account, avatarUrl),
     email: account.email,
     emailVerified: account.status === 'active',
     role: account.role,

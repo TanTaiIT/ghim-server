@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { databaseEnvironmentIssue } from './database-guard.js';
+import { storageUrlIssue } from './storage-url.js';
 import { parseTrustProxy, type TrustProxy } from './trust-proxy.js';
 
 /**
@@ -68,6 +69,12 @@ const envSchema = z
     SMTP_URL: z.string().url().optional(),
     MAIL_FROM: z.string().min(3),
     /**
+     * Kho ảnh chuẩn S3: `http(s)://<key>:<secret>@<host>[:port]/<bucket>[?region=auto]`. Production là Cloudflare R2,
+     * dev và test là RustFS trong docker-compose. Host phải là chỗ điện thoại với tới được: URL tải lên và đường xem
+     * ký theo host này.
+     */
+    STORAGE_URL: z.string().url(),
+    /**
      * Client id Google (iOS, Android…) phân tách bằng dấu phẩy — ID token phải phát cho một trong
      * số này. Trống = đăng nhập Google tắt; production bắt buộc có.
      */
@@ -90,6 +97,10 @@ const envSchema = z
     const databaseIssue = databaseEnvironmentIssue(value.NODE_ENV, value.DATABASE_URL);
     if (databaseIssue) {
       ctx.addIssue({ code: 'custom', path: ['DATABASE_URL'], message: databaseIssue });
+    }
+    const storageIssue = storageUrlIssue(value.STORAGE_URL);
+    if (storageIssue) {
+      ctx.addIssue({ code: 'custom', path: ['STORAGE_URL'], message: storageIssue });
     }
     if (value.JWT_SECRET === value.IDENTITY_HASH_KEY) {
       ctx.addIssue({

@@ -92,6 +92,9 @@ enum IdVerificationStatus {
 ///   accounts_credential_check: password_hash IS NOT NULL OR google_sub IS NOT NULL
 ///   accounts_locked_check:     (status = 'locked')  = (locked_at IS NOT NULL)
 ///   accounts_deleted_check:    (status = 'deleted') = (deleted_at IS NOT NULL)
+/// CHECK tay (migration account_avatar):
+///   accounts_avatar_source_check: NOT (avatar_image_id IS NOT NULL AND avatar_from_google)
+///   accounts_avatar_google_check: NOT avatar_from_google OR google_picture_url IS NOT NULL
 model Account {
   id                String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
   /// Email như người dùng gõ — chỉ để gửi thư. So trùng luôn dùng `emailNormalized`.
@@ -104,7 +107,12 @@ model Account {
   status            AccountStatus @default(pending_verification)
   role              AccountRole   @default(user)
   displayName       String        @map("display_name")
-  avatarUrl         String?       @map("avatar_url")
+  /// Ảnh của tài khoản Google, lấy lại mỗi lần đăng nhập Google — ngoại lệ duy nhất ngoài kho (TK 25).
+  googlePictureUrl  String?       @map("google_picture_url")
+  /// Mã ảnh của `media` (chủ `profile`), không FK chéo module: khoá trong kho suy từ mã nên cấp đường xem không
+  /// phải hỏi `media`.
+  avatarImageId     String?       @map("avatar_image_id") @db.Uuid
+  avatarFromGoogle  Boolean       @default(false) @map("avatar_from_google")
   phone             String?
   totpSecretEnc     String?       @map("totp_secret_enc")
   totpEnabledAt     DateTime?     @map("totp_enabled_at") @db.Timestamptz(3)
@@ -132,6 +140,7 @@ model Account {
   notifications     Notification[]
   notificationPrefs NotificationPreference[]
   groupMutes        GroupNotificationMute[]
+  images            Image[]
 
   @@index([emailHash])
   @@index([status, createdAt])
@@ -904,4 +913,45 @@ model GroupNotificationMute {
 
   @@id([accountId, groupId])
   @@map("group_notification_mutes")
+}
+
+// ── MEDIA ────────────────────────────────────────────────────────────────────────────────────────
+
+/// Loại chủ của một ảnh. `listing` khai sẵn để `add-listings` nối vào, chưa có chủ nào loại này.
+enum ImageOwnerKind {
+  profile
+  listing
+
+  @@map("image_owner_kind")
+}
+
+/// Một ảnh trong kho (TK 25). Mã ảnh cũng là khoá trong kho (`img/<id>`), nên ai có mã là ký được đường xem.
+/// Dòng có trước tệp: ghi lúc cấp quyền tải, `uploaded_at` ghi khi lần đầu thấy tệp trong kho.
+/// CHECK tay (migration init_media):
+///   images_uploaded_check:  confirmed_at IS NULL OR uploaded_at IS NOT NULL
+///   images_released_check:  released_at IS NULL OR confirmed_at IS NOT NULL
+///   images_byte_size_check: byte_size > 0
+model Image {
+  id          String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  ownerKind   ImageOwnerKind @map("owner_kind")
+  ownerId     String         @map("owner_id") @db.Uuid
+  uploaderId  String         @map("uploader_id") @db.Uuid
+  contentType String         @map("content_type")
+  byteSize    Int            @map("byte_size")
+  uploadedAt  DateTime?      @map("uploaded_at") @db.Timestamptz(3)
+  /// `null` = nhãn "chưa xác nhận".
+  confirmedAt DateTime?      @map("confirmed_at") @db.Timestamptz(3)
+  /// Chủ đã lưu lại mà không còn ảnh này — lượt đối chiếu hằng tháng dọn.
+  releasedAt  DateTime?      @map("released_at") @db.Timestamptz(3)
+  /// Lúc cấp quyền tải — mốc 48 giờ của lượt dọn.
+  createdAt   DateTime       @map("created_at") @db.Timestamptz(3)
+
+  /// Xoá hẳn tài khoản thì dòng đi theo; tệp thành mồ côi và lượt đối chiếu vét.
+  uploader Account @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@index([ownerKind, ownerId])
+  @@index([uploaderId, createdAt])
+  @@index([createdAt], where: raw("confirmed_at IS NULL"), map: "images_unconfirmed_idx")
+  @@index([releasedAt], where: raw("released_at IS NOT NULL"), map: "images_released_idx")
+  @@map("images")
 }

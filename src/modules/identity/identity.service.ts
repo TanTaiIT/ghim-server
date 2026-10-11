@@ -1,3 +1,5 @@
+import type { Prisma } from '@prisma/client';
+
 import type { Actor, ActorResolver } from '../../common/auth/actor.js';
 import type { PrivilegeSource } from '../../common/auth/privilege-source.js';
 import type { RuntimeConfig } from '../../common/config/runtime-config.js';
@@ -12,6 +14,7 @@ import type {
   IdVerification,
 } from './identity.repository.js';
 import type { GoogleTokenVerifier } from './google.verifier.js';
+import type { AvatarInput } from './identity.schema.js';
 import { createIdentityAccountService } from './identity.account.service.js';
 import { createIdentityAuthService } from './identity.auth.service.js';
 import { createIdentityOpsService } from './identity.ops.service.js';
@@ -34,6 +37,30 @@ export interface IdentityServiceDeps {
   ownership?: GroupOwnership;
   /** Báo kênh realtime cắt kết nối của phiên vừa bị thu hồi — sau khi ghi xong, trong tiến trình (kênh chỉ báo hiệu). */
   sessionsRevoked?: SessionRevocationListener;
+  /** `media` cho ảnh đại diện. CLI không có — CLI không đọc hay đặt hồ sơ. */
+  images?: ProfileImages;
+}
+
+export interface ProfileImageOwner {
+  kind: 'profile';
+  id: string;
+}
+
+/**
+ * Ảnh đại diện qua `media` (design add-media mục 6–8): kiểm ảnh trước khi lưu, gỡ nhãn trong cùng transaction lưu
+ * hồ sơ — lưu hỏng thì nhãn còn — và cấp đường xem có hạn.
+ */
+export interface ProfileImages {
+  resolve(input: {
+    owner: ProfileImageOwner;
+    uploaderId: string;
+    imageIds: string[];
+  }): Promise<void>;
+  attach(
+    tx: Prisma.TransactionClient,
+    input: { owner: ProfileImageOwner; imageIds: string[] },
+  ): Promise<void>;
+  viewUrl(imageId: string): Promise<string>;
 }
 
 export interface SessionRevocationListener {
@@ -177,6 +204,8 @@ export interface IdentityService extends ActorResolver {
   getPublicProfile(accountId: string): Promise<PublicProfileDto>;
   getMe(actor: Actor): Promise<MeDto>;
   updateMe(actor: Actor, input: PatchMeInput): Promise<MeDto>;
+  setAvatar(actor: Actor, input: AvatarInput): Promise<MeDto>;
+  clearAvatar(actor: Actor): Promise<MeDto>;
   requestEmailChange(actor: Actor, input: { email: string }): Promise<void>;
   confirmEmailChange(actor: Actor, input: { code: string }): Promise<void>;
 

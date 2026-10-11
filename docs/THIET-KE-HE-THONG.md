@@ -899,9 +899,17 @@ Người xử không bao giờ là người đăng tin bị báo cáo, người 
 **Ảnh**
 
 - App thu nhỏ và nén ảnh trước khi tải lên; ảnh gốc không rời điện thoại. **Tối đa 6 ảnh** mỗi tin.
+- Kho nhận **JPEG, PNG, WebP**, mỗi ảnh tối đa **5 MB**. Không nhận HEIC: Android và web không hiển thị được — app
+  chuyển định dạng trước khi tải, nén hỏng thì báo lỗi chứ không tải ảnh gốc.
+- App tải thẳng vào kho bằng **quyền tải do hệ thống cấp cho đúng một ảnh**, dùng được 15 phút; ảnh đã tải không
+  ghi đè được — đổi ảnh là tải ảnh mới.
+- **Kho riêng tư**: không ai mở ảnh bằng một đường dẫn cố định. Mọi lượt xem dùng đường xem có hạn do hệ thống cấp
+  cho người được xem — ảnh tin chưa hiện chỉ người đăng và người duyệt mở được.
+- Mỗi ảnh có **đúng một chủ** suốt đời (hồ sơ, nháp, tin) và không dùng lại cho chủ khác. Tin chuyển lên sàn chung
+  "như một tin mới" (phần 9, 10) mang **bản sao** ảnh của tin cũ.
 - **Chỉ nhận ảnh nằm trong kho của hệ thống.** Ảnh để ở nơi người đăng kiểm soát thì họ đổi được ruột ảnh sau khi tin đã qua duyệt, và mỗi lượt xem là một lượt máy chủ của họ biết ai đang xem. Ngoại lệ duy nhất: ảnh đại diện lấy từ Google.
 - **Ảnh có chủ ngay từ lúc chọn**: nó thuộc về bản nháp, và được dọn theo nháp.
-- Ảnh mới tải mang nhãn "chưa xác nhận"; lưu tin thành công thì gỡ nhãn. Ảnh còn nhãn quá **48 giờ** thì xoá. Mỗi tháng đối chiếu cả kho để vét ảnh lọt lưới.
+- Ảnh mới tải mang nhãn "chưa xác nhận"; lưu tin thành công thì gỡ nhãn. Ảnh còn nhãn quá **48 giờ** thì xoá. Mỗi tháng đối chiếu cả kho để vét ảnh lọt lưới; ảnh đang dùng mà mất khỏi kho thì báo cho chủ của nó, không tự sửa tin.
 - Mỗi ảnh được kiểm trùng với kho ảnh của mọi tài khoản và kiểm nội dung nhạy cảm, xong trước khi tin hiện (phần 13). Ảnh mẫu của hãng nằm trong danh sách trắng.
 
 **Tạm giữ bằng chứng.** Khi có báo cáo, gậy hay khiếu nại đang mở liên quan tới một tin hay một người, mọi dữ liệu dính tới nó — tin, ảnh, hội thoại về tin đó — **không bị xoá hẳn**, kể cả khi các bên tự xoá, cho tới khi việc đóng thêm 30 ngày. Mọi hạn lưu dưới đây nhường cho luật này.
@@ -1027,6 +1035,7 @@ Master chỉnh dần theo kết quả hậu kiểm, không cần phát hành l�
 | Báo cáo                   | 10 báo cáo mỗi giờ · tạm ẩn khi 3 người, 3 máy, từ T1, trong 24 giờ · điểm báo cáo dưới −3 không tính tạm ẩn, dưới −6 mất quyền 30 ngày                                                                                                                                                                             |
 | Tin đăng                  | Hiện 30 ngày · nhắc trước 7 ngày · gia hạn trong 7 ngày cuối (hạn mới = hạn cũ + 30 ngày) · tối đa 6 ảnh                                                                                                                                                                                                            |
 | Nhóm                      | Đơn tự huỷ 21 ngày · chờ 7 ngày sau từ chối · 3 đơn chờ mỗi người · lời mời 14 ngày · lời chuyển chủ 14 ngày · mã nhóm 6 ký tự · thiếu chủ tối đa 30 ngày · thông báo của nhóm 5 mỗi ngày, tối đa 1000 ký tự                                                                                                        |
+| Ảnh                       | Mỗi ảnh tối đa 5 MB · quyền tải dùng được 15 phút · 120 lượt xin tải mỗi giờ mỗi tài khoản · ảnh chưa xác nhận xoá sau 48 giờ · đường xem ảnh có hạn 60 phút                                                                                                                                                        |
 | Thông báo                 | Nhắc lại thông báo gộp tối đa mỗi 30 phút                                                                                                                                                                                                                                                                           |
 
 ---
@@ -1071,7 +1080,7 @@ Mỗi đợt xong khi mọi cam kết ở phần 27 thuộc đợt đó có các
 - Một tiến trình, nhiều phần có ranh giới cứng: Định danh · Nền tảng & nhân sự · Nhóm · Danh mục · Tin đăng · Ảnh · Duyệt máy · Duyệt người · Uy tín & an toàn · Nhắn tin · Thông báo · Vận hành.
 - Mỗi phần sở hữu dữ liệu của mình; phần khác chỉ đọc qua giao diện hoặc nhận sự kiện. **Một loại quyết định, một chủ**: chỉ Duyệt máy ra kết quả máy; chỉ Duyệt người ghi quyết định của người; chỉ Uy tín & an toàn ghi gậy; chỉ Tin đăng đổi trạng thái tin.
 - Tác động chéo đi qua sự kiện ghi vào **outbox trong cùng giao dịch** với thay đổi gốc; bên nghe phải chịu được nhận trùng.
-- Gọi đồng bộ chỉ ba chỗ, đều là đọc hoặc chấm nhanh: Tin đăng hỏi Uy tín về hạn chế, hạn mức · Tin đăng gọi Duyệt máy chấm chữ lúc gửi · mọi phần hỏi Định danh "người này là ai".
+- Gọi đồng bộ chỉ bốn chỗ, đều là đọc, chấm nhanh hoặc xác nhận trong cùng giao dịch: Tin đăng hỏi Uy tín về hạn chế, hạn mức · Tin đăng gọi Duyệt máy chấm chữ lúc gửi · mọi phần hỏi Định danh "người này là ai" · chủ ảnh (Định danh, Tin đăng) gọi Ảnh xác nhận ảnh trong cùng giao dịch lưu, để lưu hỏng thì ảnh vẫn chưa xác nhận (chốt 11/10/2026).
 
 **Luật dữ liệu**
 

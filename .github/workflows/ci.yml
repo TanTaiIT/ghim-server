@@ -38,8 +38,8 @@ jobs:
       - run: pnpm run typecheck
       - run: pnpm run build
 
-  # Mọi test chạy trên Postgres thật, cùng việc kiểm migration SQL viết tay có khớp `schema.prisma`.
-  # Postgres là service của job — DB dùng một lần.
+  # Mọi test chạy trên Postgres thật và kho ảnh thật, cùng việc kiểm migration SQL viết tay có khớp `schema.prisma`.
+  # Postgres và RustFS là service của job — dùng một lần.
   test:
     runs-on: ubuntu-latest
     services:
@@ -56,10 +56,23 @@ jobs:
           --health-interval 2s
           --health-timeout 5s
           --health-retries 15
+      storage:
+        image: rustfs/rustfs:1.0.1
+        env:
+          RUSTFS_ACCESS_KEY: ghim
+          RUSTFS_SECRET_KEY: ghim-test-secret
+        ports:
+          - 9000:9000
+        options: >-
+          --health-cmd "curl -fsS http://localhost:9000/health"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
     env:
       NODE_ENV: test
       TEST_DATABASE_URL: postgresql://ghim:ghim@localhost:5432/ghim_test
       DATABASE_URL: postgresql://ghim:ghim@localhost:5432/ghim_test
+      TEST_STORAGE_URL: http://ghim:ghim-test-secret@localhost:9000/ghim-test
     steps:
       - uses: actions/checkout@v4
 

@@ -85,7 +85,12 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
   - Realtime (chốt 11/10/2026): **socket.io** gắn vào HTTP server của Fastify, đường dẫn `/realtime`, chỉ
     websocket. Chỉ chiều server → app; phòng theo người và theo phiên, không phòng theo nhóm. Hạ tầng dùng chung
     ở `src/common/realtime/`; nhắn tin (đợt 6) dùng lại. `socket.io-client` chỉ là devDependency để test.
-- **(chưa có)** — vẫn phải hỏi trước vì chưa chọn: kho ảnh + chữ ký tải thẳng, push lên điện thoại (đề xuất Expo
+  - Kho ảnh (chốt 11/10/2026): **chuẩn S3** qua `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner` — Cloudflare
+    R2 ở production, **RustFS** trong docker-compose cho dev (`pnpm storage:up`, cổng 9100) và test (`storage-test`,
+    cổng 9110, tmpfs). Một biến `STORAGE_URL` (`src/config/storage-url.ts`); cửa duy nhất `src/lib/storage.ts`
+    (`Storage`: ký URL tải lên một lần kèm `If-None-Match: *`, ký đường xem có hạn, `head`, `deleteMany`, `list`).
+    App tải thẳng, ảnh không qua server; hướng dẫn cho app ở `docs/media.md`. MinIO đã gỡ image khỏi Docker Hub.
+- **(chưa có)** — vẫn phải hỏi trước vì chưa chọn: push lên điện thoại (đề xuất Expo
   Push Service, hoãn tới khi app làm — design của `add-notification-core` mục 3), kiểm ảnh nhạy cảm, theo dõi lỗi
   (hệ thống cũ dùng Sentry).
 
@@ -107,7 +112,7 @@ src/
   server.ts                   ← jobs.start(), `startup` của từng module, bật `app.outbox`, listen; tắt theo thứ tự
                                 HTTP (kèm socket) → bộ phát → jobs → Prisma
   config/{env,database-guard}.ts
-  lib/{prisma,logger,mailer,jobs}.ts
+  lib/{prisma,logger,mailer,jobs,storage}.ts
   common/
     audit/audit.ts            ← `appendAudit(tx, entry)`: nhật ký bàn vận hành, cùng transaction với thay đổi
     auth/{auth.plugin,actor,privilege-source}.ts ← guard dùng chung: authenticate, requireVerifiedEmail,
@@ -155,8 +160,8 @@ tests/*.db.test.ts            ← ghi thẳng bằng Prisma để kiểm ràng b
 - **Không có tầng controller**: handler trong `routes.ts` gọi service rồi trả response.
 - **Không có `<module>.types.ts`**: DTO chính là response schema Zod trong `<module>.schema.ts`.
 - Tên module kebab-case, **số ít**. Đang có: `health`, `identity`, `platform`, `category`, `group`,
-  `notification`.
-- `buildApp(overrides)` nhận `repositories: { identity, platform, category, group }` và hạ tầng dùng chung
+  `notification`, `media`.
+- `buildApp(overrides)` nhận `repositories: { identity, platform, category, group, media }`, `storage` và hạ tầng dùng chung
   (jobs, mailer, googleVerifier, privilegeSource, config, clock) — bỏ trống là bản thật.
   `privilegeSource` và `config` mặc định là bản thật của `platform` dựng trên repository của nó. Service
   của module tra qua `app.modules` (`app.modules.platform`…); `app.moduleList` là danh sách định nghĩa theo
@@ -192,7 +197,7 @@ change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-cate
 `harden-module-infra` → `tune-hot-paths` → `cache-public-reads-revoke-deleted-staff` →
 `harden-production-runtime` → `add-groups` → `add-notification-core` (kéo từ đợt 6, chốt 11/10/2026) — mười change
 này đã archive 10–11/10/2026 · đợt 2
-`add-media` → `add-listings` → `add-trust-tiers` · đợt 3 `add-screening` · đợt 4 `add-review-queues` →
+`add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` · đợt 3 `add-screening` · đợt 4 `add-review-queues` →
 `add-reports` · đợt 5 `add-strikes` · đợt 6 `add-messaging` → `add-notifications` · đợt 7
 `add-data-retention`.
 
@@ -251,8 +256,10 @@ Mỗi luật dưới đây là một cam kết ở TK phần 27; số trong ngo�
     định của người, chỉ `trust` ghi gậy, chỉ `listing` đổi trạng thái tin. Module khác đọc qua service
     của chủ hoặc nhận sự kiện — không `prisma.<bảng của module khác>.update` ở đâu cả.
 12. **Tác động chéo đi qua outbox** ghi trong **cùng transaction** với thay đổi gốc (30). Bên nghe phải
-    chịu được nhận trùng. Gọi đồng bộ chỉ ba chỗ: `listing` hỏi `trust` hạn chế/hạn mức, `listing`
-    gọi `screening` chấm chữ lúc gửi, mọi module hỏi `identity` "người này là ai". Bảng `outbox_events`
+    chịu được nhận trùng. Gọi đồng bộ chỉ bốn chỗ (TK 30): `listing` hỏi `trust` hạn chế/hạn mức, `listing`
+    gọi `screening` chấm chữ lúc gửi, mọi module hỏi `identity` "người này là ai", và chủ ảnh (`identity`,
+    `listing`) gọi `media` xác nhận ảnh: `resolve` trước transaction lưu, `attach(tx)` trong transaction lưu — lưu hỏng
+    thì ảnh vẫn "chưa xác nhận". Bảng `outbox_events`
     và `appendEvent(tx, type, payload)` ở `src/common/outbox/outbox.ts` đã có — hàm chỉ nhận `tx` nên
     không gọi được ngoài transaction. Bộ phát `src/common/outbox/dispatcher.ts` do `buildApp` dựng
     (`app.outbox`, đã nối bên nghe của mọi module), `server.ts` bật (10 giây/lượt, và một lượt sớm sau mỗi
@@ -335,7 +342,9 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   audit-log) và 2 của `category/` (category-catalog, regions) — archive từ `add-platform-roles` và
   `add-categories` cùng ngày; 5 của `group/` (group-lifecycle, group-modes, membership, group-roles, badges) và 5
   của `notification/` (inbox, preferences, realtime, group-notices, group-announcements) — archive từ `add-groups`
-  và `add-notification-core` ngày 11/10/2026 (`add-groups` thêm một requirement vào `identity/account-deletion`).
+  và `add-notification-core` ngày 11/10/2026 (`add-groups` thêm một requirement vào `identity/account-deletion`);
+  2 của `media/` (image-storage, image-cleanup) — archive từ `add-media` cùng ngày (thêm requirement "Ảnh đại diện"
+  vào `identity/profile`).
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.
@@ -374,7 +383,7 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
 - App (`env.ts`) và Prisma CLI (`prisma.config.ts`) cùng gọi `databaseEnvironmentIssue`: `NODE_ENV`
   và hậu tố tên DB lệch nhau → từ chối khởi động. Không nới chốt này để "chạy tạm".
 - Cổng app mặc định **3100**; Postgres 5435/5436 — booking giữ 3000 và 5433/5434. Dev còn cần Mailpit
-  (`pnpm mail:up`, SMTP 1025 / hộp thư 8025) vì `SMTP_URL` bắt buộc ngoài test.
+  (`pnpm mail:up`, SMTP 1025 / hộp thư 8025) vì `SMTP_URL` bắt buộc ngoài test, và kho ảnh (`pnpm storage:up`, 9100) vì `STORAGE_URL` bắt buộc mọi nơi; bucket dev tự tạo lúc khởi động. Test cần `pnpm storage:test:up` (9110).
 - Biến của `identity` (`JWT_SECRET`, `IDENTITY_HASH_KEY`, `SECRETS_ENCRYPTION_KEY`, `SMTP_URL`,
   `MAIL_FROM`, `GOOGLE_CLIENT_IDS`, `DISPOSABLE_DOMAINS_URL`): ý nghĩa và ràng buộc ở `env.ts`; test
   nhận giá trị giả từ `vitest.config.ts`, không từ file env.
@@ -390,12 +399,14 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
 ## Testing
 
 - Vitest, file phẳng `tests/*.test.ts`. Env cho test khai trong `vitest.config.ts`, **không** có `.env.test`.
-- **Mọi test chạy trên Postgres thật** — `pnpm db:test:up` một lần, rồi `pnpm test`. Không có repository giả:
+- **Mọi test chạy trên Postgres thật và kho ảnh thật** — `pnpm db:test:up` và `pnpm storage:test:up` một lần,
+  rồi `pnpm test`. Không có repository giả:
   giữ bản giả khớp DB tốn hơn chạy DB, và nó từng lệch mà vẫn xanh (giờ ghi nhật ký lấy đồng hồ của app thay
   vì `now()` của DB). `tests/db-global-setup.ts` áp migration lên DB mẫu `ghim_test` rồi nhân bản một DB cho
   mỗi worker, nên các file vẫn chạy song song; `tests/db-worker-setup.ts` xoá sạch dữ liệu **đầu mỗi file**.
   Trong một file dữ liệu dồn qua các ca, nên mỗi ca dùng giá trị riêng (bộ đếm `seq`); ca cần DB trống thì
-  file tự thêm `beforeEach(truncateAll)`.
+  file tự thêm `beforeEach(truncateAll)`. Kho cũng vậy: mỗi worker một bucket (`ghim-test-<lượt>-w<N>`), xoá sạch
+  đầu mỗi file; `tests/storage-helpers.ts` dựng / dọn bucket và tải tệp bằng URL đã ký như app.
 - HTTP test: `buildTestApp()` (`tests/test-app.ts`) — app thật trên repository thật; chỉ jobs (`runAll()`),
   mailer và đồng hồ là giả, để test tự quyết lúc việc nền chạy, đọc được thư, và "30 ngày sau" là một phép
   cộng — rồi `app.inject()`, không mở cổng. Dữ liệu nền qua `repositories.*`, quyền staff qua `grantStaff`,
@@ -403,7 +414,8 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   Nhóm và thông báo: `tests/group-helpers.ts` dựng người dùng có token, nhóm đang hoạt động, thành viên, điều
   hành viên, đơn vị; `deliverAll(app)` chạy `app.outbox` tới khi hết sự kiện để bên nghe thật (thông báo) chạy
   đúng lúc test muốn. Realtime: `tests/realtime.test.ts` mở cổng thật (`app.listen({ port: 0 })`) và nối bằng
-  `socket.io-client`.
+  `socket.io-client`. Ảnh: `tests/media-helpers.ts` xin quyền tải, tải thật lên kho test, đặt ảnh đại diện; test dọn
+  ảnh dựng thêm một `media` service với `storageClock` đẩy tới trước để tệp vừa tải trông như đã cũ.
   Ca tranh chấp bọc repository thật (`{ ...repositories.identity, method: … }`, truyền qua
   `buildTestApp({ repositories })`) để giữ hai lượt ở đúng điểm.
 - `tests/*.db.test.ts`: test repository và ghi thẳng bằng Prisma để kiểm ràng buộc chỉ DB trả lời được

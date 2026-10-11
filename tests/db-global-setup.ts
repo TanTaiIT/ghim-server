@@ -5,7 +5,8 @@ import { PrismaClient } from '@prisma/client';
 
 import { sequentially } from '../src/common/utils/sequential.js';
 import { databaseEnvironmentIssue } from '../src/config/database-guard.js';
-import { databaseName, workerDatabaseUrl } from './db-names.js';
+import { databaseName, workerDatabaseUrl, workerStorageUrl } from './db-names.js';
+import { dropBucket, storageOf } from './storage-helpers.js';
 
 /**
  * Áp migration lên DB mẫu bằng CHÍNH các file migration — không `db push`: thứ cần kiểm là migration
@@ -47,11 +48,19 @@ export default async function setup(): Promise<() => Promise<void>> {
     await createFromTemplate(admin, name, template);
   });
 
+  const storageUrl = process.env.TEST_STORAGE_URL;
+  if (!storageUrl) throw new Error('Thiếu TEST_STORAGE_URL');
+  const buckets = Array.from({ length: Number(process.env.TEST_WORKERS ?? 1) }, (_, index) =>
+    workerStorageUrl(storageUrl, runId, index + 1),
+  );
+  await Promise.all(buckets.map((bucketUrl) => storageOf(bucketUrl).ensureBucket()));
+
   return async () => {
     await sequentially(names, async (name) => {
       await admin.$executeRawUnsafe(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
     });
     await admin.$disconnect();
+    await Promise.all(buckets.map(dropBucket));
   };
 }
 

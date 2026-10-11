@@ -42,6 +42,7 @@ describe('POST /auth/google', () => {
       email: 'moi@gmail.com',
       emailVerified: true,
       name: 'Lan Hoàng',
+      picture: null,
     });
     const res = await google('tok-moi');
     expect(res.statusCode).toBe(200);
@@ -77,6 +78,7 @@ describe('POST /auth/google', () => {
       email: 'Lan.Hoang@googlemail.com',
       emailVerified: true,
       name: null,
+      picture: null,
     });
     const res = await google('tok-cu');
     expect(res.statusCode).toBe(200);
@@ -98,6 +100,7 @@ describe('POST /auth/google', () => {
       email: 'chua@gmail.com',
       emailVerified: false,
       name: null,
+      picture: null,
     });
     expect((await google('tok-chua-xac-thuc')).json().error.code).toBe('INVALID_CREDENTIALS');
     expect(await repository.findAccountByEmail('chua@gmail.com')).toBeNull();
@@ -109,6 +112,7 @@ describe('POST /auth/google', () => {
       email: 'khoa@gmail.com',
       emailVerified: true,
       name: 'Quản trị hệ thống',
+      picture: null,
     });
     expect((await google('tok-khoa')).statusCode).toBe(200);
     const account = await repository.findAccountByEmail('khoa@gmail.com');
@@ -122,5 +126,81 @@ describe('POST /auth/google', () => {
       audit: TEST_AUDIT,
     });
     expect((await google('tok-khoa')).json().error.code).toBe('ACCOUNT_LOCKED');
+  });
+});
+
+const PICTURE = 'https://lh3.googleusercontent.com/a/anh-1';
+const meOf = async (res: { json(): { data: { accessToken: string } } }) =>
+  (
+    await app.inject({
+      method: 'GET',
+      url: '/api/v1/me',
+      headers: { authorization: `Bearer ${res.json().data.accessToken}` },
+    })
+  ).json().data as { id: string; avatarUrl: string | null };
+
+describe('ảnh đại diện Google (spec identity/profile, media/image-storage)', () => {
+  it('tài khoản mới tạo bằng Google dùng ngay ảnh Google', async () => {
+    identities.set('tok-anh', {
+      sub: 'g-anh',
+      email: 'anh@gmail.com',
+      emailVerified: true,
+      name: 'Ánh',
+      picture: PICTURE,
+    });
+    const me = await meOf(await google('tok-anh'));
+    expect(me.avatarUrl).toBe(PICTURE);
+    const profile = await app.inject({ method: 'GET', url: `/api/v1/users/${me.id}` });
+    expect(profile.json().data.avatarUrl).toBe(PICTURE);
+  });
+
+  it('Google đổi ảnh → lần đăng nhập sau lấy ảnh mới; Google bỏ ảnh → hồ sơ không còn ảnh', async () => {
+    identities.set('tok-doi', {
+      sub: 'g-doi',
+      email: 'doi@gmail.com',
+      emailVerified: true,
+      name: 'Đổi',
+      picture: PICTURE,
+    });
+    await google('tok-doi');
+    identities.set('tok-doi', {
+      sub: 'g-doi',
+      email: 'doi@gmail.com',
+      emailVerified: true,
+      name: 'Đổi',
+      picture: `${PICTURE}-moi`,
+    });
+    expect((await meOf(await google('tok-doi'))).avatarUrl).toBe(`${PICTURE}-moi`);
+    identities.set('tok-doi', {
+      sub: 'g-doi',
+      email: 'doi@gmail.com',
+      emailVerified: true,
+      name: 'Đổi',
+      picture: null,
+    });
+    expect((await meOf(await google('tok-doi'))).avatarUrl).toBeNull();
+  });
+
+  it('tài khoản email có sẵn nối Google: nhận ảnh Google nhưng không tự đổi ảnh đại diện', async () => {
+    await repository.createAccount({
+      email: 'noi@gmail.com',
+      emailNormalized: 'noi@gmail.com',
+      emailHash: 'h-noi',
+      passwordHash: await hashPassword('ghim-rao-vat-2026!'),
+      googleSub: null,
+      status: 'active',
+      displayName: 'Nối',
+      at: NOW,
+    });
+    identities.set('tok-noi', {
+      sub: 'g-noi',
+      email: 'noi@gmail.com',
+      emailVerified: true,
+      name: 'Nối',
+      picture: PICTURE,
+    });
+    expect((await meOf(await google('tok-noi'))).avatarUrl).toBeNull();
+    const account = await repository.findAccountByEmail('noi@gmail.com');
+    expect(account?.googlePictureUrl).toBe(PICTURE);
   });
 });

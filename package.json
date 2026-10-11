@@ -33,6 +33,8 @@
     "db:up": "docker compose up -d --wait postgres",
     "db:test:up": "docker compose up -d --wait postgres-test",
     "mail:up": "docker compose up -d --wait mailpit",
+    "storage:up": "docker compose up -d --wait storage",
+    "storage:test:up": "docker compose up -d --wait storage-test",
     "cli:create-master": "tsx --env-file-if-exists=.env.development src/cli/create-master.ts",
     "cli:reset-2fa": "tsx --env-file-if-exists=.env.development src/cli/reset-two-factor.ts",
     "cli:build-regions": "tsx src/cli/build-regions.ts",
@@ -41,6 +43,8 @@
     "check": "pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run spec:validate"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1149.0",
+    "@aws-sdk/s3-request-presigner": "^3.1149.0",
     "@fastify/cookie": "^11.1.2",
     "@fastify/cors": "^11.3.0",
     "@fastify/helmet": "^13.1.1",

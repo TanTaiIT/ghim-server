@@ -7,8 +7,10 @@ import {
   TooManyRequestsError,
 } from '../../common/errors/app-error.js';
 import { formatDateVN } from '../../common/time/time.js';
+import { imageNotInStorage } from '../media/media.service.js';
 import { hashEmail, normalizeEmail } from './email.calc.js';
 import { hashPassword, verifyPassword } from './password.calc.js';
+import type { Account } from './identity.repository.js';
 import type { IdentityService, IdentityServiceDeps } from './identity.service.js';
 import {
   DAY_MS,
@@ -33,6 +35,8 @@ export type IdentityAccountService = Pick<
   | 'getPublicProfile'
   | 'getMe'
   | 'updateMe'
+  | 'setAvatar'
+  | 'clearAvatar'
   | 'requestEmailChange'
   | 'confirmEmailChange'
   | 'changePassword'
@@ -63,6 +67,20 @@ export function createIdentityAccountService(
     assertNotDisposable,
     softDelete,
   } = shared;
+
+  const imagesOrFail = () => {
+    if (!deps.images) throw new Error('identity dựng thiếu cổng ảnh (media)');
+    return deps.images;
+  };
+
+  /** Ảnh trong kho → đường xem có ký, có hạn; ảnh Google → link Google; không đặt → null. */
+  const avatarUrlOf = async (account: Account): Promise<string | null> => {
+    if (account.avatarFromGoogle) return account.googlePictureUrl;
+    if (account.avatarImageId && deps.images) return deps.images.viewUrl(account.avatarImageId);
+    return null;
+  };
+
+  const me = async (account: Account) => toMe(account, await avatarUrlOf(account));
 
   return {
     // ── PHIÊN ───────────────────────────────────────────────────────────────────────────────────
@@ -105,11 +123,11 @@ export function createIdentityAccountService(
       // Đã xoá thì không còn hồ sơ; bị khoá vẫn có hồ sơ — TK chỉ ẩn tin, không ẩn người.
       if (!account || account.status === 'deleted')
         throw new NotFoundError('Không có người dùng này');
-      return toPublicProfile(account);
+      return toPublicProfile(account, await avatarUrlOf(account));
     },
 
     async getMe(actor) {
-      return toMe(await accountOf(actor));
+      return me(await accountOf(actor));
     },
 
     async updateMe(actor, { displayName, phone }) {
@@ -118,7 +136,44 @@ export function createIdentityAccountService(
         ...(displayName === undefined ? {} : { displayName: displayName.trim() }),
         ...(phone === undefined ? {} : { phone }),
       };
-      return toMe(await repository.updateAccount(actor.accountId, patch));
+      return me(await repository.updateAccount(actor.accountId, patch));
+    },
+
+    async setAvatar(actor, input) {
+      const owner = { kind: 'profile' as const, id: actor.accountId };
+      const ports = imagesOrFail();
+      if ('source' in input) {
+        const account = await accountOf(actor);
+        // Ngoại lệ duy nhất ngoài kho (TK 25): chỉ ảnh của chính tài khoản Google đã nối.
+        if (!account.googlePictureUrl) throw imageNotInStorage();
+        return me(
+          await repository.updateAccountWith(
+            actor.accountId,
+            { avatarFromGoogle: true, avatarImageId: null },
+            (tx) => ports.attach(tx, { owner, imageIds: [] }),
+          ),
+        );
+      }
+      await ports.resolve({ owner, uploaderId: actor.accountId, imageIds: [input.imageId] });
+      return me(
+        await repository.updateAccountWith(
+          actor.accountId,
+          { avatarImageId: input.imageId, avatarFromGoogle: false },
+          (tx) => ports.attach(tx, { owner, imageIds: [input.imageId] }),
+        ),
+      );
+    },
+
+    async clearAvatar(actor) {
+      const owner = { kind: 'profile' as const, id: actor.accountId };
+      const ports = imagesOrFail();
+      return me(
+        await repository.updateAccountWith(
+          actor.accountId,
+          { avatarImageId: null, avatarFromGoogle: false },
+          (tx) => ports.attach(tx, { owner, imageIds: [] }),
+        ),
+      );
     },
 
     async requestEmailChange(actor, { email }) {

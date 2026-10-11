@@ -11,6 +11,8 @@ import { defineConfig } from 'vitest/config';
  * các giá trị mà worker dùng.
  */
 process.env.TEST_DATABASE_URL ??= 'postgresql://ghim:ghim@localhost:5436/ghim_test';
+// Kho ảnh thật (`pnpm storage:test:up`); bucket của từng worker mang tên này cộng mã lượt chạy và số worker.
+process.env.TEST_STORAGE_URL ??= 'http://ghim:ghim-test-secret@localhost:9110/ghim-test';
 process.env.TEST_RUN_ID = String(process.pid);
 // Mỗi worker giữ tới DATABASE_POOL_MAX kết nối: 8 × 5 còn xa trần 100 của Postgres.
 const workers = Math.max(1, Math.min(8, availableParallelism() - 1));
@@ -34,6 +36,9 @@ export default defineConfig({
       DATABASE_POOL_MAX: '5',
       TEST_DATABASE_URL: process.env.TEST_DATABASE_URL,
       TEST_RUN_ID: process.env.TEST_RUN_ID,
+      // Như DATABASE_URL: ghi đè theo worker trong `db-worker-setup.ts`.
+      STORAGE_URL: process.env.TEST_STORAGE_URL,
+      TEST_STORAGE_URL: process.env.TEST_STORAGE_URL,
       JWT_SECRET: 'test-jwt-secret-du-ba-muoi-hai-ky-tu-0001',
       IDENTITY_HASH_KEY: 'test-identity-hash-key-du-ba-muoi-hai-ky-tu-01',
       SECRETS_ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',

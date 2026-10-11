@@ -132,6 +132,16 @@ const phoneNumberSchema = z
   .trim()
   .regex(/^\+?[0-9]{9,15}$/, 'Số điện thoại gồm 9–15 chữ số, có thể bắt đầu bằng +');
 
+/**
+ * Ảnh trong kho của mình, hoặc ảnh Google. `imageId` nhận chuỗi bất kỳ: đường link ngoài kho phải tới service để
+ * nhận đúng `IMAGE_NOT_IN_STORAGE` (spec media/image-storage), không dừng ở `VALIDATION_ERROR`.
+ */
+export const avatarBodySchema = z.union([
+  z.object({ imageId: z.string().trim().min(1).max(2048) }).strict(),
+  z.object({ source: z.literal('google') }).strict(),
+]);
+export type AvatarInput = z.infer<typeof avatarBodySchema>;
+
 export const patchMeBodySchema = z.object({
   displayName: displayNameSchema.optional(),
   /** `null` để xoá số; bỏ qua để giữ nguyên. */

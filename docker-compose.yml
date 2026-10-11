@@ -58,5 +58,43 @@ services:
       timeout: 5s
       retries: 15
 
+  # Kho ảnh DEV, chuẩn S3 (`pnpm storage:up`). Production là Cloudflare R2; code chỉ thấy `STORAGE_URL` nên không đổi.
+  # RustFS chứ không MinIO: MinIO đã gỡ image khỏi Docker Hub (kiểm 11/10/2026). Cổng 9100 / 9110 tránh 9000 hay bị
+  # dự án khác giữ. Bucket do bước khởi động của `media` tạo khi còn thiếu.
+  storage:
+    image: rustfs/rustfs:1.0.1
+    environment:
+      RUSTFS_ACCESS_KEY: ghim
+      RUSTFS_SECRET_KEY: ghim-dev-secret
+    ports:
+      - '9100:9000'
+      # Trang quản trị để xem ảnh đã tải: http://localhost:9101/rustfs/console/ — đăng nhập bằng cặp khoá ở trên.
+      - '9101:9001'
+    volumes:
+      - storagedata:/data
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://localhost:9000/health']
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+  # Kho cho `pnpm test`, tách khỏi kho dev như `postgres-test`; mỗi worker một bucket riêng, dữ liệu trong RAM.
+  storage-test:
+    image: rustfs/rustfs:1.0.1
+    environment:
+      RUSTFS_ACCESS_KEY: ghim
+      RUSTFS_SECRET_KEY: ghim-test-secret
+    ports:
+      - '9110:9000'
+    tmpfs:
+      # RustFS chạy bằng uid 10001, không phải root.
+      - /data:uid=10001,gid=10001
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://localhost:9000/health']
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
 volumes:
   pgdata:
+  storagedata:

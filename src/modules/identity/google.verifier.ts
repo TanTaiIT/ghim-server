@@ -7,6 +7,7 @@ export interface GoogleIdentity {
   email: string;
   emailVerified: boolean;
   name: string | null;
+  picture: string | null;
 }
 
 /**
@@ -33,6 +34,7 @@ export function createGoogleTokenVerifier(clientIds: string[]): GoogleTokenVerif
           email: payload.email,
           emailVerified: payload.email_verified === true,
           name: payload.name ?? null,
+          picture: payload.picture ?? null,
         };
       } catch (error) {
         // Token giả hay hết hạn là chuyện thường ngày, không phải sự cố: ghi debug, trả null.

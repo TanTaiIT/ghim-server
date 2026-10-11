@@ -41,7 +41,8 @@ export type NewAccount = Pick<
   | 'googleSub'
   | 'status'
   | 'displayName'
-> & { at: Date };
+> &
+  Partial<Pick<Account, 'googlePictureUrl' | 'avatarFromGoogle'>> & { at: Date };
 
 export type AccountPatch = Partial<
   Pick<
@@ -54,7 +55,9 @@ export type AccountPatch = Partial<
     | 'status'
     | 'role'
     | 'displayName'
-    | 'avatarUrl'
+    | 'googlePictureUrl'
+    | 'avatarImageId'
+    | 'avatarFromGoogle'
     | 'phone'
     | 'totpSecretEnc'
     | 'totpEnabledAt'
@@ -229,6 +232,12 @@ export interface IdentityRepository {
   findAccountByGoogleSub(googleSub: string): Promise<Account | null>;
   createAccount(data: NewAccount): Promise<Account>;
   updateAccount(id: string, patch: AccountPatch): Promise<Account>;
+  /** Như `updateAccount`, kèm việc của module khác trong cùng transaction (gỡ nhãn ảnh đại diện) — việc đó ném thì không gì được ghi. */
+  updateAccountWith(
+    id: string,
+    patch: AccountPatch,
+    alongside: (tx: Prisma.TransactionClient) => Promise<void>,
+  ): Promise<Account>;
   /**
    * `false` khi mã trong `consumeCodeId` không còn sống — một lượt khác vừa tiêu nó, hoặc lượt đoán
    * sai thứ N vừa huỷ nó. Khi đó KHÔNG gì được ghi: tiêu mã là lượt ghi có điều kiện đứng đầu
@@ -362,6 +371,11 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
     findAccountByGoogleSub: (googleSub) => prisma.account.findUnique({ where: { googleSub } }),
     createAccount: ({ at, ...data }) => prisma.account.create({ data: { ...data, createdAt: at } }),
     updateAccount: (id, patch) => prisma.account.update({ where: { id }, data: patch }),
+    updateAccountWith: (id, patch, alongside) =>
+      prisma.$transaction(async (tx) => {
+        await alongside(tx);
+        return tx.account.update({ where: { id }, data: patch });
+      }),
     applyAccountChange: ({ accountId, patch, consumeCodeId, revokeSessions, at, events }) =>
       prisma.$transaction(async (tx) => {
         if (consumeCodeId) {

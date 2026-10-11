@@ -44,3 +44,24 @@ Người dùng khác MUST NOT xoá được tin không phải của mình.
 
 - **WHEN** một người dùng xoá nháp của người khác
 - **THEN** response có HTTP 404 `NOT_FOUND` và nháp không đổi
+
+### Requirement: Ảnh đi theo tin
+
+Khi một nháp hay một tin bị xoá hẳn, mọi ảnh thuộc về nó SHALL bị xoá khỏi kho, kể cả ảnh còn nhãn "chưa xác nhận"
+(luật chung ở `media/image-cleanup`). Xoá mềm MUST NOT xoá ảnh. Ảnh người đăng bỏ khỏi nháp SHALL bị lượt đối chiếu
+hằng tháng dọn.
+
+#### Scenario: Nháp bị xoá hẳn
+
+- **WHEN** một nháp có ba ảnh đã lưu và một ảnh vừa tải còn nhãn "chưa xác nhận" bị xoá hẳn
+- **THEN** cả bốn ảnh bị xoá khỏi kho
+
+#### Scenario: Tin bị xoá mềm
+
+- **WHEN** người đăng xoá mềm một tin của mình, rồi lượt đối chiếu hằng tháng chạy
+- **THEN** ảnh của tin vẫn còn trong kho cho tới khi tin bị xoá hẳn
+
+#### Scenario: Ảnh bị bỏ khỏi nháp
+
+- **WHEN** người dùng bỏ một ảnh khỏi nháp và lưu lại, rồi lượt đối chiếu hằng tháng chạy
+- **THEN** ảnh đó bị xoá khỏi kho
