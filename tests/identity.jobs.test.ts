@@ -10,12 +10,13 @@ import {
   parseDomainList,
   type SendMailJob,
 } from '../src/modules/identity/identity.jobs.js';
-import { createFakeIdentityRepository } from './fakes/identity-repository.fake.js';
-import { TEST_AUDIT } from './fakes/audit.fake.js';
+import { prisma } from './db-helpers.js';
+import { repositories, TEST_AUDIT } from './test-app.js';
 
 const NOW = new Date('2026-10-10T09:00:00+07:00');
 const DAY_MS = 86_400_000;
 const secrets = createSecretBox(Buffer.alloc(32, 3).toString('base64'));
+const repository = repositories.identity;
 
 describe('identity.send-mail', () => {
   it('mở mã đã niêm phong, gửi đúng người nhận với tiêu đề mang mã; payload không chứa mã thô', async () => {
@@ -57,25 +58,22 @@ describe('parseDomainList', () => {
   });
 });
 
-const build = (fetchText: (url: string) => Promise<string>) => {
-  const repository = createFakeIdentityRepository();
-  const run = createRefreshDisposableDomainsHandler({
+const refresh = (fetchText: (url: string) => Promise<string>) =>
+  createRefreshDisposableDomainsHandler({
     repository,
     clock: () => NOW,
     disposableDomainsUrl: 'https://example.test/domains.txt',
     fetchText,
   });
-  return { repository, run };
-};
 
 describe('identity.refresh-disposable-domains', () => {
   it('tải được thì chỉ THÊM miền mới; miền master đã thêm và bia mộ master đã bỏ giữ nguyên', async () => {
-    const { repository, run } = build(async () => 'tempmail.example\noan.example\nmoi.example\n');
+    const run = refresh(async () => 'tempmail.example\noan.example\nmoi.example\n');
     await repository.addManualDomain({ domain: 'tay.example', at: NOW, audit: TEST_AUDIT });
     await repository.seedDisposableDomains(['oan.example'], NOW);
     await repository.removeDisposableDomain({
       domain: 'oan.example',
-      removedBy: 'master',
+      removedBy: TEST_AUDIT.actorId,
       at: NOW,
       audit: TEST_AUDIT,
     });
@@ -83,30 +81,32 @@ describe('identity.refresh-disposable-domains', () => {
     await run();
 
     expect(
-      await repository.findBlockedDomains(['tempmail.example', 'moi.example', 'tay.example']),
-    ).toEqual(['tempmail.example', 'moi.example', 'tay.example']);
+      (
+        await repository.findBlockedDomains(['tempmail.example', 'moi.example', 'tay.example'])
+      ).toSorted(),
+    ).toEqual(['moi.example', 'tay.example', 'tempmail.example']);
     expect(await repository.findBlockedDomains(['oan.example'])).toEqual([]);
-    expect(repository.domains.get('tay.example')?.source).toBe('manual');
+    expect(
+      (await prisma.disposableDomain.findUnique({ where: { domain: 'tay.example' } }))?.source,
+    ).toBe('manual');
   });
 
   it('tải lỗi hay nội dung rỗng thì không đụng bảng', async () => {
-    const failing = build(async () => {
-      throw new Error('mạng hỏng');
-    });
-    await failing.repository.seedDisposableDomains(['giu.example'], NOW);
-    await failing.run();
-    expect(failing.repository.domains.size).toBe(1);
+    await repository.seedDisposableDomains(['giu.example'], NOW);
+    const before = await repository.countDisposableDomains();
 
-    const empty = build(async () => '# chỉ có chú thích\n');
-    await empty.repository.seedDisposableDomains(['giu.example'], NOW);
-    await empty.run();
-    expect(empty.repository.domains.size).toBe(1);
+    await refresh(async () => {
+      throw new Error('mạng hỏng');
+    })();
+    expect(await repository.countDisposableDomains()).toBe(before);
+
+    await refresh(async () => '# chỉ có chú thích\n')();
+    expect(await repository.countDisposableDomains()).toBe(before);
   });
 });
 
 describe('identity.purge-unverified', () => {
   it('xoá hẳn tài khoản chưa xác nhận quá 7 ngày, giữ tài khoản mới và tài khoản đã xác nhận', async () => {
-    const repository = createFakeIdentityRepository();
     const make = (email: string, status: 'pending_verification' | 'active', daysAgo: number) =>
       repository.createAccount({
         email,
@@ -128,8 +128,8 @@ describe('identity.purge-unverified', () => {
       clock: () => NOW,
     })();
 
-    expect(repository.accounts.has(old.id)).toBe(false);
-    expect(repository.accounts.has(recent.id)).toBe(true);
-    expect(repository.accounts.has(active.id)).toBe(true);
+    expect(await repository.findAccountById(old.id)).toBeNull();
+    expect(await repository.findAccountById(recent.id)).not.toBeNull();
+    expect(await repository.findAccountById(active.id)).not.toBeNull();
   });
 });

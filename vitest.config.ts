@@ -1,22 +1,39 @@
-import { configDefaults, defineConfig } from 'vitest/config';
+import { availableParallelism } from 'node:os';
+
+import { defineConfig } from 'vitest/config';
+
+/*
+ * Mọi test chạy trên Postgres thật (`pnpm db:test:up`; CI truyền `TEST_DATABASE_URL`). Tên DB phải
+ * kết thúc bằng `_test`. `tests/db-global-setup.ts` áp migration lên DB này rồi nhân bản một DB cho
+ * mỗi worker, nên các file vẫn chạy song song mà không giẫm dữ liệu nhau.
+ *
+ * Ghi vào `process.env` để `globalSetup` (chạy ở tiến trình chính, không nhận `test.env`) đọc đúng
+ * các giá trị mà worker dùng.
+ */
+process.env.TEST_DATABASE_URL ??= 'postgresql://ghim:ghim@localhost:5436/ghim_test';
+process.env.TEST_RUN_ID = String(process.pid);
+// Mỗi worker giữ tới DATABASE_POOL_MAX kết nối: 8 × 5 còn xa trần 100 của Postgres.
+const workers = Math.max(1, Math.min(8, availableParallelism() - 1));
+process.env.TEST_WORKERS = String(workers);
 
 export default defineConfig({
   test: {
     globals: false,
     environment: 'node',
     include: ['tests/**/*.test.ts', 'src/**/*.test.ts'],
-    // Test chạm DB chạy riêng bằng `pnpm test:db` (vitest.db.config.ts) — bộ này không đòi Postgres.
-    exclude: [...configDefaults.exclude, '**/*.db.test.ts'],
-    /*
-     * Env cho test — giá trị giả, KHÔNG trỏ vào DB thật.
-     *
-     * Phải khai đủ vì `src/config/env.ts` fail fast: thiếu một biến là mọi file test import
-     * gián tiếp tới nó đều đỏ, với câu lỗi chẳng liên quan gì tới thứ đang test. `DATABASE_URL`
-     * có mặt để `PrismaClient` dựng được — bộ test này KHÔNG chạm DB, xem `tests/README.md`.
-     */
+    globalSetup: ['tests/db-global-setup.ts'],
+    setupFiles: ['tests/db-worker-setup.ts'],
+    maxWorkers: workers,
+    testTimeout: 20_000,
+    hookTimeout: 120_000,
     env: {
       NODE_ENV: 'test',
-      DATABASE_URL: 'postgresql://ghim:ghim@localhost:5432/ghim_test',
+      LOG_LEVEL: 'warn',
+      // Ghi đè theo worker trong `db-worker-setup.ts`; giá trị này chỉ để env.ts qua được lúc nạp.
+      DATABASE_URL: process.env.TEST_DATABASE_URL,
+      DATABASE_POOL_MAX: '5',
+      TEST_DATABASE_URL: process.env.TEST_DATABASE_URL,
+      TEST_RUN_ID: process.env.TEST_RUN_ID,
       JWT_SECRET: 'test-jwt-secret-du-ba-muoi-hai-ky-tu-0001',
       IDENTITY_HASH_KEY: 'test-identity-hash-key-du-ba-muoi-hai-ky-tu-01',
       SECRETS_ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',

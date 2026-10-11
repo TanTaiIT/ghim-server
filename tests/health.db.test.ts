@@ -4,7 +4,7 @@ import { getReadiness } from '../src/modules/health/health.service.js';
 import { prisma, truncateAll } from './db-helpers.js';
 
 /*
- * Ca DB đầu tiên, có mặt từ lúc chưa có bảng nào: chứng minh đường ống `pnpm test:db` thông —
+ * Ca DB đầu tiên, có mặt từ lúc chưa có bảng nào: chứng minh đường ống test DB thông —
  * container lên, `migrate deploy` chạy, app nối được bằng driver adapter. Module đầu tiên thêm
  * ràng buộc DB thì thêm file `<module>.db.test.ts` bên cạnh, không nhét vào đây.
  */

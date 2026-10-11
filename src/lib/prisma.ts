@@ -1,7 +1,7 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 
-import { env, isProduction } from '../config/env.js';
+import { env } from '../config/env.js';
 
 /**
  * Prisma client dùng chung cho cả tiến trình. MỘT instance là bắt buộc: mỗi `new PrismaClient()` mở
@@ -16,8 +16,8 @@ export const prisma = new PrismaClient({
     connectionTimeoutMillis: 5_000,
     statement_timeout: 15_000,
   }),
-  // Dev cần thấy câu query để bắt N+1; production chỉ giữ cảnh báo và lỗi.
-  log: isProduction ? ['warn', 'error'] : ['query', 'warn', 'error'],
+  // Dev cần thấy câu query để bắt N+1; test và production chỉ giữ cảnh báo và lỗi.
+  log: env.NODE_ENV === 'development' ? ['query', 'warn', 'error'] : ['warn', 'error'],
 });
 
 export type { PrismaClient };

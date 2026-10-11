@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { Actor } from '../src/common/auth/actor.js';
-import { buildIdentityService } from './identity.service.test.js';
+import { prisma, truncateAll } from './db-helpers.js';
+import { buildIdentityService } from './identity-service.helpers.js';
 
 const NOW = new Date('2026-10-10T09:00:00+07:00');
 const MASTER: Actor = {
@@ -11,6 +12,8 @@ const MASTER: Actor = {
   secondFactorAt: NOW,
   emailVerified: true,
 };
+
+beforeEach(truncateAll);
 
 describe('isDisposableEmail', () => {
   it('so theo đuôi miền: miền con của miền bị chặn cũng bị chặn; miền đã bỏ thì không', async () => {
@@ -28,15 +31,18 @@ describe('isDisposableEmail', () => {
 
 describe('master thêm / bỏ miền', () => {
   it('thêm → chặn ngay; bỏ → hết chặn, dòng còn lại dạng bia mộ; bỏ miền không có → 404', async () => {
-    const { service, repository } = buildIdentityService();
+    const { service } = buildIdentityService();
     const added = await service.addDisposableDomain(MASTER, 'moi.example');
     expect(added).toMatchObject({ domain: 'moi.example', source: 'manual', removedAt: null });
     expect(await service.isDisposableEmail('x@moi.example')).toBe(true);
 
     await service.removeDisposableDomain(MASTER, 'moi.example');
     expect(await service.isDisposableEmail('x@moi.example')).toBe(false);
-    expect(repository.domains.get('moi.example')).toMatchObject({ removedBy: MASTER.accountId });
-    expect(repository.domains.get('moi.example')?.removedAt).not.toBeNull();
+    const tombstone = await prisma.disposableDomain.findUnique({
+      where: { domain: 'moi.example' },
+    });
+    expect(tombstone).toMatchObject({ removedBy: MASTER.accountId });
+    expect(tombstone?.removedAt).not.toBeNull();
 
     await expect(service.removeDisposableDomain(MASTER, 'moi.example')).rejects.toMatchObject({
       statusCode: 404,
@@ -70,7 +76,7 @@ describe('seedDisposableDomainsIfEmpty', () => {
     const { service, repository } = buildIdentityService();
     const seeded = await service.seedDisposableDomainsIfEmpty();
     expect(seeded).toBeGreaterThan(50_000);
-    expect(repository.domains.size).toBe(seeded);
+    expect(await repository.countDisposableDomains()).toBe(seeded);
     expect(await service.isDisposableEmail('x@mailinator.com')).toBe(true);
     expect(await service.seedDisposableDomainsIfEmpty()).toBe(0);
   });

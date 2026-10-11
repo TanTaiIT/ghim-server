@@ -4,35 +4,25 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createFakeMailer, type FakeMailer } from '../src/lib/mailer.js';
 import { toOk } from '../src/common/schemas/response.js';
 import { hashPassword, verifyPassword } from '../src/modules/identity/password.calc.js';
-import {
-  createFakeIdentityRepository,
-  type FakeIdentityRepository,
-} from './fakes/identity-repository.fake.js';
 import { createFakeJobs, type FakeJobs } from './fakes/jobs.fake.js';
-import { buildTestApp } from './fakes/app.js';
+import { buildTestApp, repositories } from './test-app.js';
 
 /* Hai requirement mật khẩu của spec `sessions`: quên (mã qua email) và đổi (cần mật khẩu cũ). */
 const NOW = new Date('2026-10-10T09:00:00+07:00');
 const PASSWORD = 'ghim-rao-vat-2026!';
 const NEW_PASSWORD = 'mat-khau-moi-cua-lan-2026';
 
+const repository = repositories.identity;
 let app: FastifyInstance;
-let repository: FakeIdentityRepository;
 let jobs: FakeJobs;
 let mailer: FakeMailer;
 let passwordHash: string;
 
 beforeAll(async () => {
   passwordHash = await hashPassword(PASSWORD);
-  repository = createFakeIdentityRepository();
   jobs = createFakeJobs();
   mailer = createFakeMailer();
-  app = await buildTestApp({
-    repositories: { identity: repository },
-    jobs,
-    mailer,
-    clock: () => NOW,
-  });
+  app = await buildTestApp({ jobs, mailer, clock: () => NOW });
   app.get('/__test/me', { preHandler: [app.authenticate] }, async (request) => toOk(request.actor));
   await app.ready();
 });

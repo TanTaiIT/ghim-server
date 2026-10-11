@@ -201,8 +201,8 @@ export interface AccountState {
 }
 
 /**
- * Ghép bằng factory, không class: deps là tham số nên test dựng service với repository giả và
- * đồng hồ giả, không mock module. Service không thấy `request`/`reply` và không import Prisma.
+ * Ghép bằng factory, không class: deps là tham số nên test dựng service với đồng hồ cố định, không
+ * mock module. Service không thấy `request`/`reply` và không import Prisma.
  * Ba mặt (khách, người đã đăng nhập, bàn vận hành) nằm ở ba file riêng, dùng chung `identity.shared.ts`;
  * interface `IdentityService` mà route và module khác thấy không đổi.
  */

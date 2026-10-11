@@ -258,7 +258,7 @@ export interface IdentityRepository {
   findSessionById(id: string): Promise<Session | null>;
   /**
    * Chạy ở mọi request có đăng nhập. JOIN tay vì Prisma 7 chạy `include` thành hai câu (đo 11/10/2026);
-   * hợp đồng repository canh để bản giả và Postgres trả giống nhau.
+   * `hot-paths.db.test.ts` đếm số câu SQL.
    */
   findActorSession(sessionId: string): Promise<ActorSession | null>;
   findSessionByRefreshHash(refreshTokenHash: string): Promise<Session | null>;
@@ -319,9 +319,6 @@ export interface IdentityRepository {
 }
 
 // ── PRISMA ──────────────────────────────────────────────────────────────────────────────────────
-
-/** 3 tham số mỗi dòng → 15000 tham số mỗi lô, dưới xa trần 65535 của Postgres. */
-const SEED_BATCH_SIZE = 5_000;
 
 async function revokeSessionsIn(
   tx: Prisma.TransactionClient,
@@ -555,22 +552,13 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
         await appendAudit(tx, audit);
         return tx.disposableDomain.findUnique({ where: { domain } });
       }),
-    async seedDisposableDomains(domains, at) {
-      // Hạt giống ~100k dòng: chia lô để không vượt trần 65535 tham số của một câu lệnh Postgres.
-      const batches: string[][] = [];
-      for (let start = 0; start < domains.length; start += SEED_BATCH_SIZE) {
-        batches.push(domains.slice(start, start + SEED_BATCH_SIZE));
-      }
-      const results = await Promise.all(
-        batches.map((batch) =>
-          prisma.disposableDomain.createMany({
-            data: batch.map((domain) => ({ domain, source: 'seed', addedAt: at })),
-            skipDuplicates: true,
-          }),
-        ),
-      );
-      return results.reduce((sum, { count }) => sum + count, 0);
-    },
+    // ~100k miền trong MỘT câu lệnh (một tham số mảng): nguyên tử — nạp hỏng thì không để lại bảng "có
+    // dòng" khiến lần khởi động sau bỏ qua — và một kết nối. Đo 11/10/2026: 0,6 giây, chia lô createMany 11 giây.
+    seedDisposableDomains: (domains, at) =>
+      prisma.$executeRaw`
+        INSERT INTO disposable_domains (domain, source, added_at)
+        SELECT unnest(${domains}::text[]), 'seed'::disposable_domain_source, ${at}::timestamptz
+        ON CONFLICT (domain) DO NOTHING`,
     countDisposableDomains: () => prisma.disposableDomain.count(),
 
     createIdVerification: ({ at, ...data }) =>

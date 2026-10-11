@@ -1,35 +1,29 @@
 import type { FastifyInstance } from 'fastify';
 
-import type { FakeIdentityRepository } from './fakes/identity-repository.fake.js';
-import { TEST_AUDIT } from './fakes/audit.fake.js';
+import { repositories, TEST_AUDIT, TEST_NOW } from './test-app.js';
 
 /**
- * Dựng tài khoản + phiên có sẵn lớp thứ hai rồi ký access token — cho test bàn vận hành không
- * phải đi hết luồng đăng nhập / TOTP ở mỗi ca. Quyền staff do test gắn vào `FakePrivilegeSource`.
+ * Dựng tài khoản + phiên có sẵn lớp thứ hai rồi ký access token — cho test bàn vận hành không phải đi
+ * hết luồng đăng nhập / TOTP ở mỗi ca. Quyền staff gắn bằng `grantStaff` của `test-app.ts`.
  */
-export interface OpsTestAccess {
-  app: FastifyInstance;
-  repository: FakeIdentityRepository;
-  now: Date;
-}
-
 const DAY_MS = 86_400_000;
 let seq = 0;
 
 export async function seedAccount(
-  { repository, now }: Pick<OpsTestAccess, 'repository' | 'now'>,
   overrides: {
     role?: 'user' | 'master';
     status?: 'pending_verification' | 'active' | 'locked';
     passwordHash?: string;
   } = {},
+  now: Date = TEST_NOW,
 ) {
+  const repository = repositories.identity;
   seq += 1;
   const email = `tk${seq}@ghim.test`;
   const row = await repository.createAccount({
     email,
     emailNormalized: email,
-    emailHash: `hash-${seq}`,
+    emailHash: `hash-tk-${seq}`,
     passwordHash: overrides.passwordHash ?? 'argon2id-gia',
     googleSub: null,
     status: overrides.status === 'locked' ? 'active' : (overrides.status ?? 'active'),
@@ -51,11 +45,12 @@ export async function seedAccount(
 }
 
 export async function tokenFor(
-  { app, repository, now }: OpsTestAccess,
+  app: FastifyInstance,
   accountId: string,
   options: { secondFactor?: boolean } = {},
+  now: Date = TEST_NOW,
 ): Promise<string> {
-  const session = await repository.createSession({
+  const session = await repositories.identity.createSession({
     accountId,
     refreshTokenHash: `rt-${accountId}-${Math.random()}`,
     deviceName: 'Máy test',

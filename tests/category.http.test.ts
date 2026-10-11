@@ -1,48 +1,27 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { buildTestApp } from './fakes/app.js';
-import { createFakeAuditLog } from './fakes/audit.fake.js';
-import {
-  createFakeCategoryRepository,
-  type FakeCategoryRepository,
-} from './fakes/category-repository.fake.js';
-import {
-  createFakeIdentityRepository,
-  type FakeIdentityRepository,
-} from './fakes/identity-repository.fake.js';
-import { createFakePlatformRepository } from './fakes/platform-repository.fake.js';
+import { auditOf } from './db-helpers.js';
 import { seedAccount, tokenFor } from './ops-helpers.js';
+import { buildTestApp, repositories } from './test-app.js';
 
 /* Spec category-catalog qua HTTP; staff được gắn quyền bằng route thật của `platform`. */
 const NOW = new Date('2026-10-10T09:00:00+07:00');
 const MILLION = 1_000_000;
 
+const categoryRepository = repositories.category;
 let app: FastifyInstance;
-let repository: FakeIdentityRepository;
-let categoryRepository: FakeCategoryRepository;
 let masterToken: string;
 let userToken: string;
 
-const ctx = () => ({ app, repository, now: NOW });
 const auth = (token: string) => ({ authorization: `Bearer ${token}` });
 
 beforeAll(async () => {
-  const auditLog = createFakeAuditLog();
-  repository = createFakeIdentityRepository({ auditLog });
-  categoryRepository = createFakeCategoryRepository({ auditLog });
-  app = await buildTestApp({
-    repositories: {
-      identity: repository,
-      category: categoryRepository,
-      platform: createFakePlatformRepository({ auditLog }),
-    },
-    clock: () => NOW,
-  });
+  app = await buildTestApp({ clock: () => NOW });
   await app.ready();
-  const master = await seedAccount(ctx(), { role: 'master' });
-  masterToken = await tokenFor(ctx(), master.id);
-  userToken = await tokenFor(ctx(), (await seedAccount(ctx())).id);
+  const master = await seedAccount({ role: 'master' }, NOW);
+  masterToken = await tokenFor(app, master.id);
+  userToken = await tokenFor(app, (await seedAccount({}, NOW)).id);
 });
 
 afterAll(() => app.close());
@@ -64,7 +43,7 @@ async function newCategoryId(payload: object = {}): Promise<string> {
 
 /** Staff phụ trách đúng các danh mục này, gắn qua `PUT /ops/staff`. */
 async function staffOf(...categoryIds: string[]): Promise<string> {
-  const staff = await seedAccount(ctx());
+  const staff = await seedAccount({}, NOW);
   const res = await app.inject({
     method: 'PUT',
     url: `/api/v1/ops/staff/${staff.id}`,
@@ -72,7 +51,7 @@ async function staffOf(...categoryIds: string[]): Promise<string> {
     payload: { scopes: [], categoryIds },
   });
   expect(res.statusCode).toBe(200);
-  return tokenFor(ctx(), staff.id);
+  return tokenFor(app, staff.id);
 }
 
 const settings = (id: string, payload: object, token = masterToken) =>
@@ -200,9 +179,10 @@ describe('tạo danh mục và cài đặt', () => {
   it('mỗi thay đổi cài đặt ghi một dòng nhật ký', async () => {
     const id = await newCategoryId();
     await settings(id, FULL);
-    expect(
-      categoryRepository.audit.filter((row) => row.targetId === id).map((row) => row.action),
-    ).toEqual(['category.category.create', 'category.settings.change']);
+    expect((await auditOf(id)).map((row) => row.action)).toEqual([
+      'category.category.create',
+      'category.settings.change',
+    ]);
   });
 });
 
@@ -497,27 +477,19 @@ describe('mẫu thông tin', () => {
   });
 });
 
-describe('lỗi trùng khoá từ bản giả đi qua error handler như ở production', () => {
+describe('lỗi trùng khoá của DB đi qua error handler', () => {
   it('tên trùng lọt qua kiểm trước (hai lượt chen nhau) → 409 CONFLICT, không phải 500', async () => {
-    const identityRepository = createFakeIdentityRepository();
-    const fake = createFakeCategoryRepository();
-    // Lượt chen: lúc kiểm trước chưa thấy tên, tới lúc ghi thì DB (ở đây: bản giả) chặn.
+    // Lượt chen: lúc kiểm trước chưa thấy tên, tới lúc ghi thì unique của DB chặn.
     const racing = await buildTestApp({
-      repositories: {
-        identity: identityRepository,
-        category: { ...fake, findIdByName: async () => null },
-      },
+      repositories: { category: { ...categoryRepository, findIdByName: async () => null } },
       clock: () => NOW,
     });
     await racing.ready();
-    const local = { app: racing, repository: identityRepository, now: NOW };
-    const master = await seedAccount(local, { role: 'master' });
-    const token = await tokenFor(local, master.id);
     const post = () =>
       racing.inject({
         method: 'POST',
         url: '/api/v1/ops/categories',
-        headers: { authorization: `Bearer ${token}` },
+        headers: auth(masterToken),
         payload: { name: 'Trùng' },
       });
 

@@ -15,6 +15,16 @@ export async function truncateAll(): Promise<void> {
   await prisma.$executeRawUnsafe(`TRUNCATE ${list} RESTART IDENTITY CASCADE`);
 }
 
+/** Sự kiện outbox theo thứ tự ghi; `id` là uuidv7 nên phân thứ tự được các dòng ghi cùng một mốc giờ. */
+export const outboxEvents = () =>
+  prisma.outboxEvent.findMany({ orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
+
+export const lastOutboxEvent = async () => (await outboxEvents()).at(-1);
+
+/** Nhật ký của một đối tượng theo thứ tự ghi. */
+export const auditOf = (targetId: string) =>
+  prisma.auditLog.findMany({ where: { targetId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
+
 /** Mã lỗi Prisma (`P2002`…) của một lượt ghi bị DB từ chối; ghi được thì trả `null`. */
 export async function prismaErrorCode(write: Promise<unknown>): Promise<string | null> {
   try {

@@ -9,6 +9,7 @@ import { registerPlatformListeners } from '../src/modules/platform/platform.even
 import { createPlatformRepository } from '../src/modules/platform/platform.repository.js';
 import { createPlatformService } from '../src/modules/platform/platform.service.js';
 import { prisma, truncateAll } from './db-helpers.js';
+import { TEST_AUDIT } from './test-app.js';
 
 /*
  * `platform` trên Postgres thật: phiên bản con số 1, "không ghi được nhật ký thì thay đổi không xảy
@@ -71,17 +72,6 @@ const actorOf = (id: string, role: 'user' | 'master' = 'master'): Actor => ({
 });
 
 describe('bảng con số', () => {
-  it('phiên bản 1 mang giá trị TK 28; nạp lần hai không làm gì', async () => {
-    expect(await platform.ensureConfigVersion()).toMatchObject({ version: 1 });
-    expect(await platform.ensureConfigVersion()).toBeNull();
-    const row = await prisma.configVersion.findUniqueOrThrow({ where: { version: 1 } });
-    expect(row.values).toMatchObject({
-      'quota.liveListingsT0': 10,
-      'group.applicationExpiresDays': 21,
-      'quota.submitsPerHourT0': 3,
-    });
-  });
-
   it('hai lượt đổi cùng lúc từ phiên bản 1: đúng một lượt thành, bảng có hai phiên bản', async () => {
     const master = await account('master');
     await platform.ensureConfigVersion();
@@ -210,72 +200,6 @@ describe('xoá tài khoản → thu quyền qua outbox', () => {
   });
 });
 
-describe('khoá → treo qua outbox', () => {
-  it('bộ phát giao identity.account.locked: treo đúng phạm vi; mở khoá vẫn treo; master trả lại', async () => {
-    const master = await account('master');
-    const hung = await account();
-    const phone = await categoryService.create(actorOf(master.id), {
-      name: 'Điện thoại',
-      priceCap: null,
-      referencePrice: null,
-      riskLevel: 'low',
-      alwaysManual: false,
-      groupReview: 'group',
-    });
-    await platform.grantStaff(actorOf(master.id), hung.id, { scopes: [], categoryIds: [phone.id] });
-    const dispatcher = createOutboxDispatcher(prisma);
-    registerPlatformListeners(dispatcher, platform);
-
-    await identityRepository.lockAccount({
-      accountId: hung.id,
-      reason: 'Điều tra',
-      lockedBy: master.id,
-      at: NOW,
-      events: [
-        { type: 'identity.account.locked', payload: { accountId: hung.id, reason: 'Điều tra' } },
-      ],
-      audit: {
-        actorId: master.id,
-        actorRole: 'master',
-        action: 'identity.account.lock',
-        targetType: 'account',
-        targetId: hung.id,
-        reason: 'Điều tra',
-      },
-    });
-    expect(await dispatcher.runOnce()).toEqual({ published: 1, failed: 0 });
-    expect(await platform.listStaff(phone.id)).toMatchObject([
-      {
-        accountId: hung.id,
-        status: 'suspended',
-        suspendedReason: 'tài khoản bị khoá',
-        categoryIds: [phone.id],
-      },
-    ]);
-
-    await identityRepository.unlockAccount({
-      accountId: hung.id,
-      unlockedBy: master.id,
-      at: NOW,
-      events: [{ type: 'identity.account.unlocked', payload: { accountId: hung.id } }],
-      audit: {
-        actorId: master.id,
-        actorRole: 'master',
-        action: 'identity.account.unlock',
-        targetType: 'account',
-        targetId: hung.id,
-      },
-    });
-    await dispatcher.runOnce();
-    expect((await platformRepository.findStaff(hung.id))?.status).toBe('suspended');
-
-    expect(await platform.restoreStaff(actorOf(master.id), hung.id)).toMatchObject({
-      status: 'active',
-      categoryIds: [phone.id],
-    });
-  });
-});
-
 describe('tra nhật ký', () => {
   it('lọc theo người làm, đối tượng, khoảng thời gian; xếp theo thời gian', async () => {
     const master = await account('master');
@@ -315,5 +239,75 @@ describe('tra nhật ký', () => {
     });
     expect(window.items.map((row) => row.targetId)).toEqual([b.id]);
     expect((await platform.queryAudit({ actorId: master.id, page: 1, limit: 2 })).total).toBe(3);
+  });
+});
+
+describe('PlatformRepository', () => {
+  it('phiên bản 1 chỉ nạp được khi bảng rỗng', async () => {
+    expect(
+      (await platformRepository.seedConfigVersion({ a: 1 }, TEST_AUDIT.actorId, NOW))?.version,
+    ).toBe(1);
+    expect(
+      await platformRepository.seedConfigVersion({ a: 2 }, TEST_AUDIT.actorId, NOW),
+    ).toBeNull();
+  });
+
+  it('phiên bản kế chỉ ghi từ phiên bản hiện hành; ghi từ phiên bản cũ trả null', async () => {
+    await platformRepository.seedConfigVersion({ a: 1 }, TEST_AUDIT.actorId, NOW);
+    const input = { values: { a: 2 }, note: null, createdBy: TEST_AUDIT.actorId, at: NOW };
+    expect(
+      await platformRepository.createConfigVersion({ ...input, baseVersion: 2, audit: null }),
+    ).toBeNull();
+    expect(
+      (
+        await platformRepository.createConfigVersion({
+          ...input,
+          baseVersion: 1,
+          audit: TEST_AUDIT,
+        })
+      )?.version,
+    ).toBe(2);
+    expect(
+      await platformRepository.createConfigVersion({ ...input, baseVersion: 1, audit: null }),
+    ).toBeNull();
+    expect((await platformRepository.findCurrentConfig())?.version).toBe(2);
+  });
+
+  it('gắn quyền thay cả gói; treo một lần; thu quyền không có trả false', async () => {
+    const accountId = (await account()).id;
+    const grant = (scopes: Array<'support' | 'user_reports'>) =>
+      platformRepository.upsertStaff({
+        accountId,
+        scopes,
+        categoryIds: [],
+        grantedBy: TEST_AUDIT.actorId,
+        at: NOW,
+        audit: TEST_AUDIT,
+      });
+    expect(await platformRepository.findStaffGrant(accountId)).toBeNull();
+    await grant(['support']);
+    await grant(['user_reports']);
+    expect((await platformRepository.findStaff(accountId))?.scopes).toEqual(['user_reports']);
+    expect(await platformRepository.findStaffGrant(accountId)).toEqual({
+      status: 'active',
+      scopes: ['user_reports'],
+      categoryIds: [],
+    });
+
+    const suspend = () => platformRepository.suspendStaff({ accountId, reason: 'khoá', at: NOW });
+    expect(await suspend()).toBe(true);
+    expect(await suspend()).toBe(false);
+    expect((await platformRepository.findStaff(accountId))?.status).toBe('suspended');
+    expect((await platformRepository.findStaffGrant(accountId))?.status).toBe('suspended');
+
+    expect(await platformRepository.removeStaff(accountId)).toBe(true);
+    expect(await platformRepository.removeStaff(accountId)).toBe(false);
+    await grant(['support']);
+    expect(await platformRepository.revokeStaff({ accountId, at: NOW, audit: TEST_AUDIT })).toBe(
+      true,
+    );
+    expect(await platformRepository.revokeStaff({ accountId, at: NOW, audit: TEST_AUDIT })).toBe(
+      false,
+    );
   });
 });

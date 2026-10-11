@@ -49,8 +49,7 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
   TypeScript và Swagger.
 - Env: `src/config/env.ts` (Zod, fail fast). Chỉ khai biến code đang dùng.
 - Logger: **pino** (`src/lib/logger.ts`), dev dùng `pino-pretty`.
-- Test: **Vitest**, HTTP qua `app.inject()`. `pnpm test` không chạm DB; `pnpm test:db` chạy trên
-  Postgres thật (container `postgres-test`).
+- Test: **Vitest**, HTTP qua `app.inject()`, mọi test chạy trên Postgres thật (container `postgres-test`).
 - Lint/format: **oxlint + Prettier** (không phải ESLint). Không tự đổi rule.
 - Spec-driven: **OpenSpec 1.14.1** (`@fission-ai/openspec`, ghim cứng phiên bản), lệnh `/opsx:*` —
   xem mục **Quy trình OpenSpec**.
@@ -140,8 +139,8 @@ src/
                                 tsc không chép nên `pnpm run build` có bước `build:data` chép `src/**/data` sang dist
   cli/                        ← script chạy tay, không qua HTTP: `create-master`, `reset-two-factor`
                                 (dùng `cli-identity.ts`), `build-regions` (sinh `category/data/regions.json`)
-tests/*.test.ts               ← phẳng, không chia thư mục con; không chạm DB
-tests/*.db.test.ts            ← chạy trên Postgres thật (`pnpm test:db`), tiện ích ở `tests/db-helpers.ts`
+tests/*.test.ts               ← phẳng, không chia thư mục con; chạy trên Postgres test
+tests/*.db.test.ts            ← ghi thẳng bằng Prisma để kiểm ràng buộc của DB, tiện ích ở `tests/db-helpers.ts`
 ```
 
 - **Không có tầng controller**: handler trong `routes.ts` gọi service rồi trả response.
@@ -149,13 +148,12 @@ tests/*.db.test.ts            ← chạy trên Postgres thật (`pnpm test:db`),
 - Tên module kebab-case, **số ít**. Đang có: `health`, `identity`, `platform`, `category`.
 - `buildApp(overrides)` nhận `repositories: { identity, platform, category }` và hạ tầng dùng chung
   (jobs, mailer, googleVerifier, privilegeSource, config, clock) — bỏ trống là bản thật.
-  `privilegeSource` và `config` mặc định là bản thật của `platform` dựng trên repository của nó, nên
-  test truyền repository giả vẫn đi đúng đường production. Service của module tra qua `app.modules`
-  (`app.modules.platform`…); `app.moduleList` là danh sách định nghĩa theo thứ tự dựng. Test HTTP dùng
-  `buildTestApp` (`tests/fakes/app.ts`), cùng hình dạng overrides.
+  `privilegeSource` và `config` mặc định là bản thật của `platform` dựng trên repository của nó. Service
+  của module tra qua `app.modules` (`app.modules.platform`…); `app.moduleList` là danh sách định nghĩa theo
+  thứ tự dựng. Test HTTP dùng `buildTestApp` (`tests/test-app.ts`), cùng hình dạng overrides.
 - **Thêm một module mới**: viết `<module>.module.ts` trả `{ service, module }` (route, và nếu có: bên
-  nghe outbox, việc nền, bước khởi động); thêm repository vào `Repositories` và bản giả vào
-  `buildTestApp`; thêm service vào `AppServices`; dựng nó trong `buildApp` đúng chỗ theo thứ tự phụ
+  nghe outbox, việc nền, bước khởi động); thêm repository vào `Repositories` và `repositories` của
+  `tests/test-app.ts`; thêm service vào `AppServices`; dựng nó trong `buildApp` đúng chỗ theo thứ tự phụ
   thuộc và thêm vào `moduleList`. `server.ts` không phải sửa.
 
 ### Module theo TK phần 30 — thứ tự xây theo TK phần 29
@@ -203,8 +201,7 @@ jobs với handler thuần. `../booking` không có trong workspace này; chỉ 
 
 1. Tầng `route → service → repository → Prisma`. Route không chứa nghiệp vụ; service không thấy
    `request`/`reply` và không import Prisma; repository không chứa luật nghiệp vụ.
-   Ghép bằng factory: `createXRepository(prisma)` → `createXService(repo, …)`. Test dựng
-   repository giả cùng hình dạng.
+   Ghép bằng factory: `createXRepository(prisma)` → `createXService(repo, …)`.
 2. Mọi route khai `schema` (body / params / querystring / response) bằng Zod.
 3. Mọi lỗi throw qua `AppError` hoặc subclass trong `src/common/errors/app-error.ts`. Chỉ
    `src/common/errors/error-handler.ts` map lỗi sang HTTP, kể cả lỗi Prisma (`PRISMA_ERRORS`:
@@ -354,11 +351,11 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
 
 ## Môi trường
 
-| Môi trường  | File env                                                       | DB (tên bắt buộc)                                       |
-| ----------- | -------------------------------------------------------------- | ------------------------------------------------------- |
-| development | `.env.development` (mẫu `.env.development.example`)            | `…_dev` — container `postgres`, cổng 5435               |
-| test        | không có file: `vitest.config.ts` / `vitest.db.config.ts` / CI | `…_test` — container `postgres-test` (tmpfs), cổng 5436 |
-| production  | biến của nền tảng deploy, hoặc `.env.production`               | không kết thúc bằng `_dev` / `_test`                    |
+| Môi trường  | File env                                            | DB (tên bắt buộc)                                       |
+| ----------- | --------------------------------------------------- | ------------------------------------------------------- |
+| development | `.env.development` (mẫu `.env.development.example`) | `…_dev` — container `postgres`, cổng 5435               |
+| test        | không có file: `vitest.config.ts` / CI              | `…_test` — container `postgres-test` (tmpfs), cổng 5436 |
+| production  | biến của nền tảng deploy, hoặc `.env.production`    | không kết thúc bằng `_dev` / `_test`                    |
 
 - App (`env.ts`) và Prisma CLI (`prisma.config.ts`) cùng gọi `databaseEnvironmentIssue`: `NODE_ENV`
   và hậu tố tên DB lệch nhau → từ chối khởi động. Không nới chốt này để "chạy tạm".
@@ -366,7 +363,7 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   (`pnpm mail:up`, SMTP 1025 / hộp thư 8025) vì `SMTP_URL` bắt buộc ngoài test.
 - Biến của `identity` (`JWT_SECRET`, `IDENTITY_HASH_KEY`, `SECRETS_ENCRYPTION_KEY`, `SMTP_URL`,
   `MAIL_FROM`, `GOOGLE_CLIENT_IDS`, `DISPOSABLE_DOMAINS_URL`): ý nghĩa và ràng buộc ở `env.ts`; test
-  nhận giá trị giả từ `vitest.config.ts` / `vitest.db.config.ts`, không từ file env.
+  nhận giá trị giả từ `vitest.config.ts`, không từ file env.
 - Mạng: `TRUST_PROXY` (`false` hoặc danh sách IP / CIDR / `uniquelocal` của proxy, `src/config/trust-proxy.ts`)
   và `CORS_ORIGIN` cụ thể là bắt buộc ở production; `true` và số hop bị từ chối mọi nơi (Fastify 5.12 không tin số
   hop). `x-request-id` từ ngoài chỉ được giữ khi khớp `[A-Za-z0-9._:-]{1,128}`.
@@ -378,29 +375,25 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
 
 ## Testing
 
-- Vitest, file phẳng `tests/*.test.ts`. Env cho test khai trong `vitest.config.ts` /
-  `vitest.db.config.ts`, **không** có `.env.test`.
-- Suite mặc định **không chạm DB**: service test dùng repository giả; HTTP test dùng
-  `buildTestApp({ repositories: { … }, … })` (`tests/fakes/app.ts`: repository giả cho mọi module, jobs
-  giả, đồng hồ đứng yên) +
-  `app.inject()`, không mở cổng. Bản giả ở `tests/fakes/` (repository trong bộ nhớ giữ đúng unique /
-  partial unique, jobs giả có `runAll()`, `createFakePrivilegeSource` khi chỉ cần guard). Ba
-  repository giả nhận chung một `createFakeAuditLog()` — như bảng `audit_log` dùng chung — khi test
-  đọc nhật ký xuyên module. Bản giả ném đúng `Prisma.PrismaClientKnownRequestError` qua
-  `uniqueViolation(target)` (`tests/fakes/unique-violation.ts`), nên error handler trả cùng mã như
-  production. Tiện ích bàn vận hành ở `tests/ops-helpers.ts`. Đồng hồ tiêm được: "30 ngày sau" là một
-  phép cộng.
-- **Hợp đồng repository**: `tests/<module>-repository.contract.ts` chứa ca tuần tự mà bản giả và
-  Postgres phải trả giống nhau (unique, khoá lạc quan, tiêu mã một lần…); `repository-contracts.test.ts`
-  chạy chúng trên bản giả, `repository-contracts.db.test.ts` trên Postgres. Thêm ràng buộc mà service
-  dựa vào thì thêm ca vào hợp đồng — bản giả lệch là test đỏ ở một trong hai phía.
-- Test DB: `tests/*.db.test.ts`, chạy bằng `pnpm db:test:up` rồi `pnpm test:db`. Ràng buộc chỉ DB trả
-  lời được (partial unique "một việc mở mỗi tin", CHECK, EXCLUDE) phải có test ở đây, kiểm đúng mã lỗi
-  (`prismaErrorCode` / `sqlStateOf` trong `tests/db-helpers.ts`).
+- Vitest, file phẳng `tests/*.test.ts`. Env cho test khai trong `vitest.config.ts`, **không** có `.env.test`.
+- **Mọi test chạy trên Postgres thật** — `pnpm db:test:up` một lần, rồi `pnpm test`. Không có repository giả:
+  giữ bản giả khớp DB tốn hơn chạy DB, và nó từng lệch mà vẫn xanh (giờ ghi nhật ký lấy đồng hồ của app thay
+  vì `now()` của DB). `tests/db-global-setup.ts` áp migration lên DB mẫu `ghim_test` rồi nhân bản một DB cho
+  mỗi worker, nên các file vẫn chạy song song; `tests/db-worker-setup.ts` xoá sạch dữ liệu **đầu mỗi file**.
+  Trong một file dữ liệu dồn qua các ca, nên mỗi ca dùng giá trị riêng (bộ đếm `seq`); ca cần DB trống thì
+  file tự thêm `beforeEach(truncateAll)`.
+- HTTP test: `buildTestApp()` (`tests/test-app.ts`) — app thật trên repository thật; chỉ jobs (`runAll()`),
+  mailer và đồng hồ là giả, để test tự quyết lúc việc nền chạy, đọc được thư, và "30 ngày sau" là một phép
+  cộng — rồi `app.inject()`, không mở cổng. Dữ liệu nền qua `repositories.*`, quyền staff qua `grantStaff`,
+  tài khoản + token bàn vận hành qua `tests/ops-helpers.ts`; đọc lại outbox / nhật ký qua `tests/db-helpers.ts`.
+  Ca tranh chấp bọc repository thật (`{ ...repositories.identity, method: … }`, truyền qua
+  `buildTestApp({ repositories })`) để giữ hai lượt ở đúng điểm.
+- `tests/*.db.test.ts`: test repository và ghi thẳng bằng Prisma để kiểm ràng buộc chỉ DB trả lời được
+  (partial unique "một việc mở mỗi tin", CHECK, EXCLUDE), kiểm đúng mã lỗi (`prismaErrorCode` / `sqlStateOf`).
 - Mỗi cam kết ở TK phần 27 thuộc đợt đang làm phải có test — kể cả các ca **thiếu, sai, hết chỗ,
   quá hạn** (TK 29).
-- `pnpm run check` (typecheck + lint + test + spec:validate), `pnpm test:db` và `pnpm run build` phải
-  pass trước khi coi task hoàn thành.
+- `pnpm run check` (typecheck + lint + test + spec:validate) và `pnpm run build` phải pass trước khi coi
+  task hoàn thành.
 
 ## Quy trình khi generate code
 
@@ -409,7 +402,7 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
    phần TK mà proposal trích.
 2. Nếu đổi `schema.prisma`: làm theo mục **Migration**.
 3. `pnpm run lint:fix`, rồi `pnpm exec prettier --write <file đã sửa>`.
-4. `pnpm run check` và `pnpm test:db`, có lỗi thì fix.
+4. `pnpm run check`, có lỗi thì fix.
 5. `pnpm run build`, và server build ra khởi động được (`pnpm start:local`).
 6. KHÔNG tự ý cài thêm package ngoài `package.json` hiện có. Cần thì hỏi trước.
 

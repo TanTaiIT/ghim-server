@@ -2,37 +2,25 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { toOk } from '../src/common/schemas/response.js';
-import {
-  createFakeIdentityRepository,
-  type FakeIdentityRepository,
-} from './fakes/identity-repository.fake.js';
-import { createFakeJobs } from './fakes/jobs.fake.js';
-import { createFakePrivilegeSource } from './fakes/privilege-source.fake.js';
-import { TEST_AUDIT } from './fakes/audit.fake.js';
-import { buildTestApp } from './fakes/app.js';
+import { prisma } from './db-helpers.js';
+import { seedAccount } from './ops-helpers.js';
+import { buildTestApp, grantStaff, repositories, TEST_AUDIT } from './test-app.js';
 
 /*
- * Guard chạy trên app THẬT (JWT, cookie, error handler) với repository giả và đồng hồ cố định.
+ * Guard chạy trên app THẬT (JWT, cookie, error handler) với đồng hồ cố định.
  * Route `/__test/*` chỉ tồn tại trong file này: mỗi route gắn đúng một tổ hợp guard để cô lập
  * từng câu trả lời.
  */
 const NOW = new Date('2026-10-10T09:00:00+07:00');
 const DAY_MS = 86_400_000;
 
+const repository = repositories.identity;
 let app: FastifyInstance;
-let repository: FakeIdentityRepository;
-const privilegeSource = createFakePrivilegeSource();
 
 const whoami = async (request: { actor: unknown }) => toOk(request.actor);
 
 beforeAll(async () => {
-  repository = createFakeIdentityRepository();
-  app = await buildTestApp({
-    repositories: { identity: repository },
-    jobs: createFakeJobs(),
-    privilegeSource,
-    clock: () => NOW,
-  });
+  app = await buildTestApp({ clock: () => NOW });
   app.get('/__test/me', { preHandler: [app.authenticate] }, whoami);
   app.get('/__test/verified', { preHandler: [app.authenticate, app.requireVerifiedEmail] }, whoami);
   app.get('/__test/master', { preHandler: [app.authenticate, app.requireMaster] }, whoami);
@@ -52,39 +40,15 @@ beforeAll(async () => {
 
 afterAll(() => app.close());
 
-let seq = 0;
-async function account(
-  overrides: {
-    status?: 'pending_verification' | 'active' | 'locked';
-    role?: 'user' | 'master';
-  } = {},
-) {
-  seq += 1;
-  const email = `nguoi${seq}@ghim.test`;
-  const row = await repository.createAccount({
-    email,
-    emailNormalized: email,
-    emailHash: `hash-${email}`,
-    passwordHash: 'argon2id-gia',
-    googleSub: null,
-    status: overrides.status ?? 'active',
-    displayName: `Người thử ${seq}`,
-    at: NOW,
+const account = (overrides: Parameters<typeof seedAccount>[0] = {}) => seedAccount(overrides, NOW);
+
+let categorySeq = 0;
+async function category(): Promise<string> {
+  categorySeq += 1;
+  const row = await prisma.category.create({
+    data: { name: `Danh mục ${categorySeq}`, createdBy: TEST_AUDIT.actorId },
   });
-  const patched = overrides.role
-    ? await repository.updateAccount(row.id, { role: overrides.role })
-    : row;
-  if (overrides.status === 'locked') {
-    await repository.lockAccount({
-      accountId: row.id,
-      reason: 'Thử',
-      lockedBy: row.id,
-      at: NOW,
-      events: [],
-      audit: TEST_AUDIT,
-    });
-  }
-  return patched;
+  return row.id;
 }
 
 async function token(
@@ -93,7 +57,7 @@ async function token(
 ) {
   const session = await repository.createSession({
     accountId,
-    refreshTokenHash: `rt-${seq}-${Math.random()}`,
+    refreshTokenHash: `rt-${accountId}-${Math.random()}`,
     deviceName: 'Máy thử',
     ip: null,
     userAgent: null,
@@ -193,7 +157,7 @@ describe('requireOps', () => {
 
   it('staff có việc nhưng phiên chưa qua lớp thứ hai → 403 TWO_FACTOR_REQUIRED', async () => {
     const { id } = await account();
-    privilegeSource.grant(id, ['support']);
+    await grantStaff(id, ['support']);
     const res = await call('/__test/ops', await token(id));
     expect(res.statusCode).toBe(403);
     expect(res.json().error.code).toBe('TWO_FACTOR_REQUIRED');
@@ -201,7 +165,7 @@ describe('requireOps', () => {
 
   it('staff chỉ có việc khác → 403 FORBIDDEN', async () => {
     const { id } = await account();
-    privilegeSource.grant(id, ['id_verification']);
+    await grantStaff(id, ['id_verification']);
     const res = await call('/__test/ops', await token(id, { secondFactorAt: NOW }));
     expect(res.json().error.code).toBe('FORBIDDEN');
   });
@@ -218,7 +182,7 @@ describe('requireOps', () => {
 
   it('staff có việc và đã qua lớp thứ hai → 200', async () => {
     const { id } = await account();
-    privilegeSource.grant(id, ['support']);
+    await grantStaff(id, ['support']);
     expect((await call('/__test/ops', await token(id, { secondFactorAt: NOW }))).statusCode).toBe(
       200,
     );
@@ -228,28 +192,30 @@ describe('requireOps', () => {
 describe('quyền treo và quyền theo danh mục', () => {
   it('staff đang treo → 403 STAFF_PERMISSION_SUSPENDED ở mọi guard ops; trả lại thì qua', async () => {
     const { id } = await account();
-    privilegeSource.grant(id, ['support'], ['cat-1']);
-    privilegeSource.suspend(id);
+    const granted = await category();
+    await grantStaff(id, ['support'], [granted]);
+    await repositories.platform.suspendStaff({ accountId: id, reason: 'Thử', at: NOW });
     const bearer = await token(id, { secondFactorAt: NOW });
     expect((await call('/__test/ops', bearer)).json().error.code).toBe(
       'STAFF_PERMISSION_SUSPENDED',
     );
-    expect((await call('/__test/categories/cat-1', bearer)).json().error.code).toBe(
+    expect((await call(`/__test/categories/${granted}`, bearer)).json().error.code).toBe(
       'STAFF_PERMISSION_SUSPENDED',
     );
-    privilegeSource.restore(id);
+    await repositories.platform.restoreStaff({ accountId: id, at: NOW, audit: TEST_AUDIT });
     expect((await call('/__test/ops', bearer)).statusCode).toBe(200);
   });
 
   it('requireCategoryOps: đúng danh mục được giao → 200, danh mục khác → 403 FORBIDDEN, master → 200', async () => {
     const { id } = await account();
-    privilegeSource.grant(id, [], ['cat-1']);
+    const [granted, other] = [await category(), await category()];
+    await grantStaff(id, [], [granted]);
     const bearer = await token(id, { secondFactorAt: NOW });
-    expect((await call('/__test/categories/cat-1', bearer)).statusCode).toBe(200);
-    expect((await call('/__test/categories/cat-2', bearer)).json().error.code).toBe('FORBIDDEN');
+    expect((await call(`/__test/categories/${granted}`, bearer)).statusCode).toBe(200);
+    expect((await call(`/__test/categories/${other}`, bearer)).json().error.code).toBe('FORBIDDEN');
     const master = await account({ role: 'master' });
     expect(
-      (await call('/__test/categories/cat-2', await token(master.id, { secondFactorAt: NOW })))
+      (await call(`/__test/categories/${other}`, await token(master.id, { secondFactorAt: NOW })))
         .statusCode,
     ).toBe(200);
   });

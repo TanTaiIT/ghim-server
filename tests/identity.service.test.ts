@@ -1,38 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { noStaffPrivilegeSource } from '../src/common/auth/privilege-source.js';
-import { createStaticRuntimeConfig } from '../src/common/config/runtime-config.js';
-import { createSecretBox } from '../src/common/crypto/secrets.js';
-import { createIdentityService } from '../src/modules/identity/identity.service.js';
-import { createFakeIdentityRepository } from './fakes/identity-repository.fake.js';
-import { createFakeJobs } from './fakes/jobs.fake.js';
-import { TEST_AUDIT } from './fakes/audit.fake.js';
+import { buildIdentityService } from './identity-service.helpers.js';
+import { repositories, TEST_AUDIT } from './test-app.js';
 
 const NOW = new Date('2026-10-10T09:00:00+07:00');
 const DAY_MS = 86_400_000;
-
-/** Khung dựng service với toàn bộ deps giả — các file test service khác bắt đầu từ đây. */
-export function buildIdentityService(
-  overrides: { now?: Date; repository?: ReturnType<typeof createFakeIdentityRepository> } = {},
-) {
-  const repository = overrides.repository ?? createFakeIdentityRepository();
-  const jobs = createFakeJobs();
-  const service = createIdentityService({
-    repository,
-    jobs,
-    privilegeSource: noStaffPrivilegeSource,
-    config: createStaticRuntimeConfig(),
-    clock: () => overrides.now ?? NOW,
-    hashKey: 'identity-hash-key-thu-du-ba-muoi-hai-ky-tu-01',
-    secrets: createSecretBox(Buffer.alloc(32, 1).toString('base64')),
-    googleVerifier: { verify: async () => null },
-  });
-  return { service, repository, jobs };
-}
+const repository = repositories.identity;
+/** `sessions.id` là uuid: một id lạ vẫn phải đúng dạng uuid, như mọi `sid` trong token do server ký. */
+const MISSING_SESSION_ID = '00000000-0000-7000-8000-000000000000';
 
 let seq = 0;
 async function seedAccount(
-  repository: ReturnType<typeof createFakeIdentityRepository>,
   status: 'pending_verification' | 'active' | 'locked' | 'deleted' = 'active',
 ) {
   seq += 1;
@@ -79,15 +57,15 @@ const session = (
 });
 
 describe('createIdentityService — khung', () => {
-  it('dựng được với toàn bộ deps giả', () => {
+  it('dựng được trên repository thật của worker', () => {
     expect(buildIdentityService().service.resolveActor).toBeTypeOf('function');
   });
 });
 
 describe('resolveActor', () => {
   it('phiên sống của tài khoản đã xác nhận → actor đủ trường, không email', async () => {
-    const { service, repository } = buildIdentityService();
-    const account = await seedAccount(repository);
+    const { service } = buildIdentityService();
+    const account = await seedAccount();
     const { id: sessionId } = await repository.createSession(
       session(account!.id, { secondFactorAt: NOW }),
     );
@@ -101,29 +79,29 @@ describe('resolveActor', () => {
   });
 
   it('tài khoản chưa xác nhận → emailVerified false', async () => {
-    const { service, repository } = buildIdentityService();
-    const account = await seedAccount(repository, 'pending_verification');
+    const { service } = buildIdentityService();
+    const account = await seedAccount('pending_verification');
     const { id } = await repository.createSession(session(account!.id));
     await expect(service.resolveActor(id)).resolves.toMatchObject({ emailVerified: false });
   });
 
   it('phiên không tồn tại hoặc đã thu hồi → 401 SESSION_REVOKED', async () => {
-    const { service, repository } = buildIdentityService();
-    const account = await seedAccount(repository);
+    const { service } = buildIdentityService();
+    const account = await seedAccount();
     const { id } = await repository.createSession(session(account!.id));
     await repository.updateSession(id, { revokedAt: NOW, revokeReason: 'logout' });
     await expect(service.resolveActor(id)).rejects.toMatchObject({
       statusCode: 401,
       code: 'SESSION_REVOKED',
     });
-    await expect(service.resolveActor('khong-co')).rejects.toMatchObject({
+    await expect(service.resolveActor(MISSING_SESSION_ID)).rejects.toMatchObject({
       code: 'SESSION_REVOKED',
     });
   });
 
   it('phiên quá hạn trượt → 401 SESSION_EXPIRED', async () => {
-    const { service, repository } = buildIdentityService();
-    const account = await seedAccount(repository);
+    const { service } = buildIdentityService();
+    const account = await seedAccount();
     const { id } = await repository.createSession(
       session(account!.id, { expiresAt: new Date(NOW.getTime() - 1) }),
     );
@@ -134,8 +112,8 @@ describe('resolveActor', () => {
   });
 
   it('tài khoản bị khoá → 403 ACCOUNT_LOCKED kèm lý do; đã xoá → 401 SESSION_REVOKED', async () => {
-    const { service, repository } = buildIdentityService();
-    const locked = await seedAccount(repository, 'locked');
+    const { service } = buildIdentityService();
+    const locked = await seedAccount('locked');
     const { id: lockedSession } = await repository.createSession(session(locked!.id));
     await expect(service.resolveActor(lockedSession)).rejects.toMatchObject({
       statusCode: 403,
@@ -143,7 +121,7 @@ describe('resolveActor', () => {
       message: expect.stringContaining('Thử'),
     });
 
-    const deleted = await seedAccount(repository, 'deleted');
+    const deleted = await seedAccount('deleted');
     const { id: deletedSession } = await repository.createSession(session(deleted!.id));
     await expect(service.resolveActor(deletedSession)).rejects.toMatchObject({
       code: 'SESSION_REVOKED',

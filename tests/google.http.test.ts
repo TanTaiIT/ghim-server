@@ -7,32 +7,21 @@ import type {
   GoogleTokenVerifier,
 } from '../src/modules/identity/google.verifier.js';
 import { hashPassword } from '../src/modules/identity/password.calc.js';
-import {
-  createFakeIdentityRepository,
-  type FakeIdentityRepository,
-} from './fakes/identity-repository.fake.js';
-import { createFakeJobs } from './fakes/jobs.fake.js';
-import { TEST_AUDIT } from './fakes/audit.fake.js';
-import { buildTestApp } from './fakes/app.js';
+import { lastOutboxEvent, prisma } from './db-helpers.js';
+import { buildTestApp, repositories, TEST_AUDIT } from './test-app.js';
 
 /* Requirement Google của spec `registration`: bản verifier giả trả identity theo token đã đăng ký. */
 const NOW = new Date('2026-10-10T09:00:00+07:00');
 
+const repository = repositories.identity;
 let app: FastifyInstance;
-let repository: FakeIdentityRepository;
 const identities = new Map<string, GoogleIdentity>();
 const verifier: GoogleTokenVerifier = {
   verify: async (idToken) => identities.get(idToken) ?? null,
 };
 
 beforeAll(async () => {
-  repository = createFakeIdentityRepository();
-  app = await buildTestApp({
-    repositories: { identity: repository },
-    jobs: createFakeJobs(),
-    googleVerifier: verifier,
-    clock: () => NOW,
-  });
+  app = await buildTestApp({ googleVerifier: verifier, clock: () => NOW });
   app.get('/__test/me', { preHandler: [app.authenticate] }, async (request) => toOk(request.actor));
   await app.ready();
 });
@@ -63,7 +52,7 @@ describe('POST /auth/google', () => {
       passwordHash: null,
       displayName: 'Lan Hoàng',
     });
-    expect(repository.events.at(-1)).toMatchObject({ type: 'identity.account.verified' });
+    expect(await lastOutboxEvent()).toMatchObject({ type: 'identity.account.verified' });
     const me = await app.inject({
       method: 'GET',
       url: '/__test/me',
@@ -91,9 +80,9 @@ describe('POST /auth/google', () => {
     });
     const res = await google('tok-cu');
     expect(res.statusCode).toBe(200);
-    const rows = [...repository.accounts.values()].filter(
-      (row) => row.emailNormalized === 'lanhoang@gmail.com',
-    );
+    const rows = await prisma.account.findMany({
+      where: { emailNormalized: 'lanhoang@gmail.com' },
+    });
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ id: existing.id, googleSub: 'g-2', status: 'active' });
 
@@ -127,7 +116,7 @@ describe('POST /auth/google', () => {
     await repository.lockAccount({
       accountId: account?.id ?? '',
       reason: 'Thử',
-      lockedBy: 'm',
+      lockedBy: TEST_AUDIT.actorId,
       at: NOW,
       events: [],
       audit: TEST_AUDIT,

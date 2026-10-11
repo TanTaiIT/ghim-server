@@ -3,13 +3,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createFakeMailer, type FakeMailer } from '../src/lib/mailer.js';
 import { hashPassword } from '../src/modules/identity/password.calc.js';
-import {
-  createFakeIdentityRepository,
-  type FakeIdentityRepository,
-} from './fakes/identity-repository.fake.js';
 import { createFakeJobs, type FakeJobs } from './fakes/jobs.fake.js';
-import { TEST_AUDIT } from './fakes/audit.fake.js';
-import { buildTestApp } from './fakes/app.js';
+import { buildTestApp, repositories, TEST_AUDIT } from './test-app.js';
 
 /* Spec `profile` (5 scenario) và spec `email-change` (4 scenario). */
 const START = new Date('2026-10-10T09:00:00+07:00');
@@ -18,22 +13,16 @@ const PASSWORD = 'ghim-rao-vat-2026!';
 
 let now = START;
 let app: FastifyInstance;
-let repository: FakeIdentityRepository;
+const repository = repositories.identity;
 let jobs: FakeJobs;
 let mailer: FakeMailer;
 let passwordHash: string;
 
 beforeAll(async () => {
   passwordHash = await hashPassword(PASSWORD);
-  repository = createFakeIdentityRepository();
   jobs = createFakeJobs();
   mailer = createFakeMailer();
-  app = await buildTestApp({
-    repositories: { identity: repository },
-    jobs,
-    mailer,
-    clock: () => now,
-  });
+  app = await buildTestApp({ jobs, mailer, clock: () => now });
   await app.ready();
 });
 

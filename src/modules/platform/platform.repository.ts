@@ -255,7 +255,13 @@ export function createPlatformRepository(prisma: PrismaClient): PlatformReposito
             }),
       };
       const [items, total] = await Promise.all([
-        prisma.auditLog.findMany({ where, orderBy: { createdAt: 'asc' }, skip, take }),
+        // `created_at` do DB ghi nên hai dòng có thể trùng mili-giây; `id` là uuidv7, tăng theo thời gian.
+        prisma.auditLog.findMany({
+          where,
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          skip,
+          take,
+        }),
         prisma.auditLog.count({ where }),
       ]);
       return { items, total };

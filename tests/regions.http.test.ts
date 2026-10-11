@@ -4,8 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import type { RegionsFile } from '../src/cli/build-regions.js';
-import { buildTestApp } from './fakes/app.js';
-import { createFakeCategoryRepository } from './fakes/category-repository.fake.js';
+import { buildTestApp } from './test-app.js';
 
 /* Spec regions trên đúng file dữ liệu sẽ nạp ở production (`data/regions.json`). */
 const regions = JSON.parse(
@@ -62,10 +61,6 @@ describe('danh sách khu vực', () => {
     expect(res.statusCode).toBe(404);
     expect(res.json().error.code).toBe('NOT_FOUND');
   });
-
-  it('nạp lần hai không thêm gì', async () => {
-    expect(await app.modules.category.seedRegionsIfEmpty()).toEqual({ provinces: 0, wards: 0 });
-  });
 });
 
 describe('giữ lại có hạn', () => {
@@ -109,27 +104,5 @@ describe('tìm khu vực', () => {
     const res = await app.inject({ method: 'GET', url: '/api/v1/regions/search?q=zzqqxx' });
     expect(res.statusCode).toBe(200);
     expect(res.json().data).toEqual([]);
-  });
-});
-
-describe('tên cũ cấp phường', () => {
-  // Chưa có nguồn tên cũ cấp phường (proposal): cơ chế kiểm bằng dữ liệu dựng.
-  it('tên cũ chia cho hai phường mới → tìm ra cả hai', async () => {
-    const categoryRepository = createFakeCategoryRepository();
-    const local = await buildTestApp({ repositories: { category: categoryRepository } });
-    await categoryRepository.seedRegions({
-      provinces: [{ code: 1, name: 'Thử', fullName: 'Tỉnh Thử', formerNames: [], aliases: [] }],
-      wards: [
-        { code: 10, provinceCode: 1, name: 'Phường Mới A', formerNames: ['Phường Cũ Đông Hoà'] },
-        { code: 11, provinceCode: 1, name: 'Phường Mới B', formerNames: ['Phường Cũ Đông Hoà'] },
-        { code: 12, provinceCode: 1, name: 'Phường Khác', formerNames: [] },
-      ],
-    });
-    const res = await local.inject({ method: 'GET', url: '/api/v1/regions/search?q=dong%20hoa' });
-    expect(res.json().data.map((hit: { name: string }) => hit.name)).toEqual([
-      'Phường Mới A',
-      'Phường Mới B',
-    ]);
-    await local.close();
   });
 });

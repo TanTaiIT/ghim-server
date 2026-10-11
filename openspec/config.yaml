@@ -51,7 +51,7 @@ rules:
     - Nói rõ migration có mất dữ liệu không, có SQL viết tay không.
   tasks:
     - Mỗi nhóm task mang test của chính nó — unit test cho calc và service, test DB cho ràng buộc DB, test HTTP qua app.inject — không dồn test về nhóm cuối.
-    - Nhóm cuối chỉ là kiểm tra tích hợp — pnpm run check, pnpm test:db, pnpm run build, pnpm db:drift.
+    - Nhóm cuối chỉ là kiểm tra tích hợp — pnpm run check, pnpm run build, pnpm db:drift.
     - Cập nhật CLAUDE.md (trạng thái module, các mục "(chưa có)") trong cùng nhóm làm ra thay đổi đó.
 
 operations:
@@ -61,5 +61,5 @@ operations:
       - Đổi schema.prisma thì theo mục Migration của CLAUDE.md — đọc SQL sinh ra trước khi áp.
   archive:
     guidance:
-      - Chỉ archive khi pnpm run check, pnpm test:db và pnpm run build đều qua.
+      - Chỉ archive khi pnpm run check và pnpm run build đều qua.
       - Sau archive chạy pnpm exec prettier --write openspec rồi pnpm run spec:validate.

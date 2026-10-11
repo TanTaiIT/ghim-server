@@ -4,35 +4,22 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { toOk } from '../src/common/schemas/response.js';
 import { hashPassword } from '../src/modules/identity/password.calc.js';
-import {
-  createFakeIdentityRepository,
-  type FakeIdentityRepository,
-} from './fakes/identity-repository.fake.js';
-import { createFakeJobs } from './fakes/jobs.fake.js';
-import { createFakePrivilegeSource } from './fakes/privilege-source.fake.js';
-import { buildTestApp } from './fakes/app.js';
+import { buildTestApp, grantStaff, repositories } from './test-app.js';
 
 /*
- * Requirement hai lớp của spec `sessions`, với `otplib` sinh mã thật từ bí mật trong URI và
- * `PrivilegeSource` giả cấp quyền staff. Route `/__test/ops` đứng sau `requireOps('support')`.
+ * Requirement hai lớp của spec `sessions`, với `otplib` sinh mã thật từ bí mật trong URI. Route
+ * `/__test/ops` đứng sau `requireOps('support')`.
  */
 const NOW = new Date('2026-10-10T09:00:00+07:00');
 const PASSWORD = 'ghim-rao-vat-2026!';
 
+const repository = repositories.identity;
 let app: FastifyInstance;
-let repository: FakeIdentityRepository;
 let passwordHash: string;
-const privilegeSource = createFakePrivilegeSource();
 
 beforeAll(async () => {
   passwordHash = await hashPassword(PASSWORD);
-  repository = createFakeIdentityRepository();
-  app = await buildTestApp({
-    repositories: { identity: repository },
-    jobs: createFakeJobs(),
-    privilegeSource,
-    clock: () => NOW,
-  });
+  app = await buildTestApp({ clock: () => NOW });
   app.get(
     '/__test/ops',
     { preHandler: [app.authenticate, app.requireOps('support')] },
@@ -58,7 +45,7 @@ async function account(role: 'user' | 'master' | 'staff') {
     at: NOW,
   });
   if (role === 'master') await repository.updateAccount(row.id, { role: 'master' });
-  if (role === 'staff') privilegeSource.grant(row.id, ['support']);
+  if (role === 'staff') await grantStaff(row.id, ['support']);
   return { ...row, email };
 }
 

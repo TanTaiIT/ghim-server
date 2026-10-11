@@ -301,18 +301,20 @@ export function createCategoryRepository(prisma: PrismaClient): CategoryReposito
     countProvinces: () => prisma.province.count(),
 
     async seedRegions({ provinces, wards }) {
-      const provinceResult = await prisma.province.createMany({
-        data: provinces.map((row) => ({ ...row, searchText: provinceSearchText(row) })),
-        skipDuplicates: true,
-      });
-      const wardResults = await Promise.all(
-        chunk(wards, WARD_BATCH_SIZE).map((batch) =>
+      // Một transaction, các lô chạy lần lượt trên một kết nối: nạp hỏng giữa chừng thì không để lại tỉnh
+      // thiếu phường khiến lần khởi động sau bỏ qua, và không chiếm cả pool của request.
+      const [provinceResult, ...wardResults] = await prisma.$transaction([
+        prisma.province.createMany({
+          data: provinces.map((row) => ({ ...row, searchText: provinceSearchText(row) })),
+          skipDuplicates: true,
+        }),
+        ...chunk(wards, WARD_BATCH_SIZE).map((batch) =>
           prisma.ward.createMany({
             data: batch.map((row) => ({ ...row, searchText: wardSearchText(row) })),
             skipDuplicates: true,
           }),
         ),
-      );
+      ]);
       return {
         provinces: provinceResult.count,
         wards: wardResults.reduce((sum, { count }) => sum + count, 0),

@@ -6,7 +6,7 @@ import { databaseEnvironmentIssue } from './src/config/database-guard.js';
 /*
  * Nạp `.env.<NODE_ENV>` (bỏ trống = development). Biến đã có sẵn trong tiến trình — CI, container
  * production, hoặc `node --env-file=.env.production` — luôn THẮNG file, vì dotenv không ghi đè.
- * `NODE_ENV=test` không có file nào: DB test do `vitest.db.config.ts` / CI truyền vào.
+ * `NODE_ENV=test` không có file nào: DB test do `vitest.config.ts` / CI truyền vào.
  */
 const nodeEnv = process.env.NODE_ENV ?? 'development';
 config({ path: `.env.${nodeEnv}`, quiet: true });

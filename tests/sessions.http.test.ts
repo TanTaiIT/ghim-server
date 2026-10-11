@@ -4,14 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createStaticRuntimeConfig } from '../src/common/config/runtime-config.js';
 import { toOk } from '../src/common/schemas/response.js';
 import { hashPassword } from '../src/modules/identity/password.calc.js';
-import {
-  createFakeIdentityRepository,
-  type FakeIdentityRepository,
-} from './fakes/identity-repository.fake.js';
-import { createFakeJobs } from './fakes/jobs.fake.js';
-import { createFakePrivilegeSource } from './fakes/privilege-source.fake.js';
-import { TEST_AUDIT } from './fakes/audit.fake.js';
-import { buildTestApp } from './fakes/app.js';
+import { buildTestApp, grantStaff, repositories, TEST_AUDIT } from './test-app.js';
 
 /*
  * Requirement đăng nhập, trần phiên, hết hạn trượt, đăng xuất, xem / thu hồi thiết bị của spec
@@ -22,19 +15,14 @@ const START = new Date('2026-10-10T09:00:00+07:00');
 const DAY_MS = 86_400_000;
 const PASSWORD = 'ghim-rao-vat-2026!';
 
+const repository = repositories.identity;
 let now = START;
 let app: FastifyInstance;
-let repository: FakeIdentityRepository;
 let passwordHash: string;
-const privilegeSource = createFakePrivilegeSource();
 
 beforeAll(async () => {
   passwordHash = await hashPassword(PASSWORD);
-  repository = createFakeIdentityRepository();
   app = await buildTestApp({
-    repositories: { identity: repository },
-    jobs: createFakeJobs(),
-    privilegeSource,
     clock: () => now,
     config: createStaticRuntimeConfig({
       'identity.sessionCapUser': 2,
@@ -211,7 +199,7 @@ describe('trần phiên và hết hạn trượt', () => {
 
   it('tài khoản mang quyền staff (trần 1) đăng nhập máy thứ 2 → máy 1 bị đẩy', async () => {
     const { id, email } = await account();
-    privilegeSource.grant(id, ['support']);
+    await grantStaff(id, ['support']);
     const first = await tokens(email, 'Máy 1');
     advance(1000);
     await tokens(email, 'Máy 2');

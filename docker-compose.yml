@@ -21,8 +21,8 @@ services:
       timeout: 5s
       retries: 10
 
-  # DB cho `pnpm test:db` — container RIÊNG, không phải một DB nữa trong container dev: bộ test xoá
-  # sạch bảng trước mỗi ca, nên nó không được có đường nào chạm tới dữ liệu dev. `tmpfs` = dữ liệu
+  # DB cho `pnpm test` — container RIÊNG, không phải một DB nữa trong container dev: bộ test xoá
+  # sạch bảng trước mỗi file, nên nó không được có đường nào chạm tới dữ liệu dev. `tmpfs` = dữ liệu
   # nằm trong RAM, tắt container là mất, và ghi nhanh hơn hẳn đĩa.
   postgres-test:
     image: postgres:18

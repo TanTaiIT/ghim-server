@@ -2,18 +2,14 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createFakeMailer, type FakeMailer } from '../src/lib/mailer.js';
-import {
-  createFakeIdentityRepository,
-  type FakeIdentityRepository,
-} from './fakes/identity-repository.fake.js';
+import { lastOutboxEvent, prisma } from './db-helpers.js';
 import { createFakeJobs, type FakeJobs } from './fakes/jobs.fake.js';
-import { TEST_AUDIT } from './fakes/audit.fake.js';
-import { buildTestApp } from './fakes/app.js';
+import { buildTestApp, repositories, TEST_AUDIT } from './test-app.js';
 
 /*
  * Mọi scenario của bốn requirement đầu spec `registration` + requirement đăng ký lại của
- * `account-deletion`, chạy trên app thật với repository giả, việc nền giả (thư chỉ "đi" khi test
- * gọi `runAll`) và đồng hồ chỉnh được — "sau 10 phút" là một phép cộng, không phải chờ.
+ * `account-deletion`, chạy trên app thật với việc nền giả (thư chỉ "đi" khi test gọi `runAll`) và
+ * đồng hồ chỉnh được — "sau 10 phút" là một phép cộng, không phải chờ.
  */
 const START = new Date('2026-10-10T09:00:00+07:00');
 const MINUTE_MS = 60_000;
@@ -21,20 +17,14 @@ const DAY_MS = 86_400_000;
 
 let now = START;
 let app: FastifyInstance;
-let repository: FakeIdentityRepository;
+const repository = repositories.identity;
 let jobs: FakeJobs;
 let mailer: FakeMailer;
 
 beforeAll(async () => {
-  repository = createFakeIdentityRepository();
   jobs = createFakeJobs();
   mailer = createFakeMailer();
-  app = await buildTestApp({
-    repositories: { identity: repository },
-    jobs,
-    mailer,
-    clock: () => now,
-  });
+  app = await buildTestApp({ jobs, mailer, clock: () => now });
   await app.ready();
 });
 
@@ -116,7 +106,7 @@ describe('POST /auth/register', () => {
     });
     expect(res.statusCode).toBe(201);
     const { accountId } = res.json().data;
-    expect(repository.accounts.get(accountId)).toMatchObject({
+    expect(await repository.findAccountById(accountId)).toMatchObject({
       status: 'pending_verification',
       phone: null,
     });
@@ -213,7 +203,7 @@ describe('POST /auth/register', () => {
       const email = await deletedAccount(91);
       const res = await register({ email });
       expect(res.statusCode).toBe(201);
-      const rows = [...repository.accounts.values()].filter((row) => row.emailNormalized === email);
+      const rows = await prisma.account.findMany({ where: { emailNormalized: email } });
       expect(rows).toHaveLength(1);
       expect(rows[0]).toMatchObject({
         id: res.json().data.accountId,
@@ -231,7 +221,7 @@ describe('POST /auth/verify-email', () => {
     expect(res.statusCode).toBe(200);
     const account = await repository.findAccountByEmail(email);
     expect(account?.status).toBe('active');
-    expect(repository.events.at(-1)).toMatchObject({
+    expect(await lastOutboxEvent()).toMatchObject({
       type: 'identity.account.verified',
       payload: { accountId: account?.id },
     });

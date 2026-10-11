@@ -1,62 +1,35 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import type { OutboxHandler } from '../src/common/outbox/dispatcher.js';
+import { createOutboxDispatcher } from '../src/common/outbox/dispatcher.js';
 import { hashPassword } from '../src/modules/identity/password.calc.js';
 import { registerPlatformListeners } from '../src/modules/platform/platform.events.js';
-import { buildTestApp } from './fakes/app.js';
-import { createFakeAuditLog } from './fakes/audit.fake.js';
-import {
-  createFakeIdentityRepository,
-  type FakeIdentityRepository,
-} from './fakes/identity-repository.fake.js';
-import {
-  createFakePlatformRepository,
-  type FakePlatformRepository,
-} from './fakes/platform-repository.fake.js';
+import { prisma } from './db-helpers.js';
 import { seedAccount, tokenFor } from './ops-helpers.js';
+import { buildTestApp, repositories } from './test-app.js';
 
 /*
  * Bốn spec của `platform` qua HTTP. KHÔNG truyền `privilegeSource`: guard hỏi đúng bản thật của
- * `platform` đọc repository giả — gắn quyền qua route là guard thấy ngay, như production.
+ * `platform` — gắn quyền qua route là guard thấy ngay, như production.
  */
-const NOW = new Date('2026-10-10T09:00:00+07:00');
-
 let app: FastifyInstance;
-let repository: FakeIdentityRepository;
-let platformRepository: FakePlatformRepository;
 let masterId: string;
 let masterToken: string;
 let phone: string;
 let computer: string;
-const listeners = new Map<string, OutboxHandler>();
+const dispatcher = createOutboxDispatcher(prisma);
 
-const ctx = () => ({ app, repository, now: NOW });
 const auth = (token: string) => ({ authorization: `Bearer ${token}` });
 
 beforeAll(async () => {
-  const auditLog = createFakeAuditLog();
-  repository = createFakeIdentityRepository({ auditLog });
-  platformRepository = createFakePlatformRepository({ auditLog });
-  app = await buildTestApp({
-    repositories: { identity: repository, platform: platformRepository },
-    clock: () => NOW,
-  });
+  app = await buildTestApp();
   await app.ready();
-  registerPlatformListeners(
-    {
-      register: (type, handler) => void listeners.set(type, handler),
-      runOnce: async () => ({ published: 0, failed: 0 }),
-      start: () => {},
-      stop: async () => {},
-    },
-    app.modules.platform,
-  );
+  registerPlatformListeners(dispatcher, app.modules.platform);
   await app.modules.platform.ensureConfigVersion();
 
-  const master = await seedAccount({ repository, now: NOW }, { role: 'master' });
+  const master = await seedAccount({ role: 'master' });
   masterId = master.id;
-  masterToken = await tokenFor(ctx(), master.id);
+  masterToken = await tokenFor(app, master.id);
   const create = async (name: string) =>
     (
       await app.inject({
@@ -88,19 +61,10 @@ const draftOf = (categoryId: string, token: string) =>
     headers: auth(token),
   });
 
-/** Phát các sự kiện `identity` đã xếp tới bên nghe của `platform` — phần việc của bộ phát outbox. */
-async function deliverEvents(type: 'identity.account.locked' | 'identity.account.deleted') {
-  const handler = listeners.get(type);
-  if (!handler) throw new Error(`platform chưa đăng ký bên nghe ${type}`);
-  const queued = repository.events.filter((event) => event.type === type);
-  await Promise.all(queued.map((event) => handler(event.payload, { id: 'e', type: event.type })));
-}
-const deliverLockEvents = () => deliverEvents('identity.account.locked');
-
 describe('PUT /ops/staff/:accountId', () => {
   it('gắn theo danh mục → 200; người đó dùng đúng tài khoản cũ, không tài khoản mới nào được tạo', async () => {
-    const hung = await seedAccount(ctx());
-    const before = repository.accounts.size;
+    const hung = await seedAccount();
+    const before = await prisma.account.count();
     const res = await grant(hung.id, { scopes: [], categoryIds: [phone, computer] });
 
     expect(res.statusCode).toBe(200);
@@ -109,23 +73,23 @@ describe('PUT /ops/staff/:accountId', () => {
       status: 'active',
       categoryIds: [phone, computer],
     });
-    expect(repository.accounts.size).toBe(before);
-    expect((await draftOf(phone, await tokenFor(ctx(), hung.id))).statusCode).toBe(200);
+    expect(await prisma.account.count()).toBe(before);
+    expect((await draftOf(phone, await tokenFor(app, hung.id))).statusCode).toBe(200);
   });
 
   it('body mang role → 400 VALIDATION_ERROR, tài khoản không thành master', async () => {
-    const user = await seedAccount(ctx());
+    const user = await seedAccount();
     const res = await grant(user.id, { role: 'master', scopes: ['support'], categoryIds: [] });
     expect(res.statusCode).toBe(400);
     expect(res.json().error.code).toBe('VALIDATION_ERROR');
-    expect((await repository.findAccountById(user.id))?.role).toBe('user');
+    expect((await repositories.identity.findAccountById(user.id))?.role).toBe('user');
   });
 
   it.each([
     ['phạm vi rỗng', { scopes: [], categoryIds: [] }],
     ['việc không có trong danh sách', { scopes: ['billing'], categoryIds: [] }],
   ])('%s → 400 VALIDATION_ERROR', async (_case, payload) => {
-    const user = await seedAccount(ctx());
+    const user = await seedAccount();
     const res = await grant(user.id, payload);
     expect(res.statusCode).toBe(400);
     expect(res.json().error.code).toBe('VALIDATION_ERROR');
@@ -140,18 +104,18 @@ describe('PUT /ops/staff/:accountId', () => {
         })
       ).statusCode,
     ).toBe(404);
-    const user = await seedAccount(ctx());
+    const user = await seedAccount();
     const res = await grant(user.id, {
       scopes: [],
       categoryIds: [phone, '00000000-0000-7000-8000-0000000000ff'],
     });
     expect(res.statusCode).toBe(404);
-    expect(await platformRepository.findStaff(user.id)).toBeNull();
+    expect(await repositories.platform.findStaff(user.id)).toBeNull();
   });
 
   it('đang khoá / chưa xác nhận email → 409 STAFF_PERMISSION_INELIGIBLE', async () => {
-    const locked = await seedAccount(ctx(), { status: 'locked' });
-    const pending = await seedAccount(ctx(), { status: 'pending_verification' });
+    const locked = await seedAccount({ status: 'locked' });
+    const pending = await seedAccount({ status: 'pending_verification' });
     for (const res of await Promise.all([
       grant(locked.id, { scopes: ['support'], categoryIds: [] }),
       grant(pending.id, { scopes: ['support'], categoryIds: [] }),
@@ -162,22 +126,22 @@ describe('PUT /ops/staff/:accountId', () => {
   });
 
   it('chỉ việc toàn hệ thống → 200 không danh mục nào', async () => {
-    const user = await seedAccount(ctx());
+    const user = await seedAccount();
     const res = await grant(user.id, { scopes: ['support'], categoryIds: [] });
     expect(res.statusCode).toBe(200);
     expect(res.json().data).toMatchObject({ scopes: ['support'], categoryIds: [] });
   });
 
   it('staff gắn quyền cho người khác, hay tự mở rộng phạm vi → 403', async () => {
-    const staff = await seedAccount(ctx());
+    const staff = await seedAccount();
     await grant(staff.id, { scopes: ['support'], categoryIds: [phone] });
-    const staffToken = await tokenFor(ctx(), staff.id);
-    const other = await seedAccount(ctx());
+    const staffToken = await tokenFor(app, staff.id);
+    const other = await seedAccount();
 
     expect(
       (await grant(other.id, { scopes: ['support'], categoryIds: [] }, staffToken)).statusCode,
     ).toBe(403);
-    expect(await platformRepository.findStaff(other.id)).toBeNull();
+    expect(await repositories.platform.findStaff(other.id)).toBeNull();
     expect(
       (await grant(staff.id, { scopes: ['support'], categoryIds: [phone, computer] }, staffToken))
         .statusCode,
@@ -187,8 +151,8 @@ describe('PUT /ops/staff/:accountId', () => {
 
 describe('GET /ops/staff', () => {
   it('lọc theo danh mục ra mọi người mang danh mục đó, kể cả người đang treo', async () => {
-    const hung = await seedAccount(ctx());
-    const mai = await seedAccount(ctx());
+    const hung = await seedAccount();
+    const mai = await seedAccount();
     await grant(hung.id, { scopes: [], categoryIds: [computer] });
     await grant(mai.id, { scopes: [], categoryIds: [computer] });
     await app.modules.platform.suspendStaffForLock(mai.id);
@@ -205,11 +169,11 @@ describe('GET /ops/staff', () => {
   });
 
   it('người dùng thường → 403', async () => {
-    const user = await seedAccount(ctx());
+    const user = await seedAccount();
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/ops/staff',
-      headers: auth(await tokenFor(ctx(), user.id)),
+      headers: auth(await tokenFor(app, user.id)),
     });
     expect(res.statusCode).toBe(403);
   });
@@ -217,8 +181,8 @@ describe('GET /ops/staff', () => {
 
 describe('thu quyền có hiệu lực ngay', () => {
   it('thu một danh mục: lượt kế tiếp trên danh mục đó 403, danh mục còn lại vẫn làm được', async () => {
-    const hung = await seedAccount(ctx());
-    const token = await tokenFor(ctx(), hung.id);
+    const hung = await seedAccount();
+    const token = await tokenFor(app, hung.id);
     await grant(hung.id, { scopes: [], categoryIds: [phone, computer] });
     expect((await draftOf(computer, token)).statusCode).toBe(200);
 
@@ -228,8 +192,8 @@ describe('thu quyền có hiệu lực ngay', () => {
   });
 
   it('thu toàn bộ: mọi thao tác bàn vận hành 403, app vẫn dùng như người dùng', async () => {
-    const hung = await seedAccount(ctx());
-    const token = await tokenFor(ctx(), hung.id);
+    const hung = await seedAccount();
+    const token = await tokenFor(app, hung.id);
     await grant(hung.id, { scopes: ['support'], categoryIds: [phone] });
     const revoke = await app.inject({
       method: 'DELETE',
@@ -253,7 +217,7 @@ describe('thu quyền có hiệu lực ngay', () => {
 
 describe('khoá → treo, mở khoá → vẫn treo, master trả lại', () => {
   it('đi trọn vòng của spec staff-permissions', async () => {
-    const hung = await seedAccount(ctx());
+    const hung = await seedAccount();
     await grant(hung.id, { scopes: [], categoryIds: [phone] });
 
     const lock = await app.inject({
@@ -263,7 +227,7 @@ describe('khoá → treo, mở khoá → vẫn treo, master trả lại', () => 
       payload: { reason: 'Điều tra' },
     });
     expect(lock.statusCode).toBe(204);
-    await deliverLockEvents();
+    await dispatcher.runOnce();
 
     const listed = await app.inject({
       method: 'GET',
@@ -297,7 +261,7 @@ describe('khoá → treo, mở khoá → vẫn treo, master trả lại', () => 
       url: `/api/v1/ops/accounts/${hung.id}/unlock`,
       headers: auth(masterToken),
     });
-    const token = await tokenFor(ctx(), hung.id);
+    const token = await tokenFor(app, hung.id);
     const suspended = await draftOf(phone, token);
     expect(suspended.statusCode).toBe(403);
     expect(suspended.json().error.code).toBe('STAFF_PERMISSION_SUSPENDED');
@@ -366,7 +330,7 @@ describe('/ops/config', () => {
 
   it('đổi hạn access token: lượt đăng nhập kế tiếp nhận hạn mới mà không khởi động lại', async () => {
     const password = 'ghim-rao-vat-2026!';
-    const user = await seedAccount(ctx(), { passwordHash: await hashPassword(password) });
+    const user = await seedAccount({ passwordHash: await hashPassword(password) });
     const login = async () =>
       (
         await app.inject({
@@ -404,12 +368,12 @@ describe('/ops/config', () => {
   });
 
   it('staff đổi con số → 403', async () => {
-    const staff = await seedAccount(ctx());
+    const staff = await seedAccount();
     await grant(staff.id, { scopes: ['support'], categoryIds: [] });
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/ops/config',
-      headers: auth(await tokenFor(ctx(), staff.id)),
+      headers: auth(await tokenFor(app, staff.id)),
       payload: { baseVersion: 1, changes: { 'quota.liveListingsT0': 1 } },
     });
     expect(res.statusCode).toBe(403);
@@ -430,32 +394,32 @@ const deleteMe = async (accountId: string) =>
   app.inject({
     method: 'DELETE',
     url: '/api/v1/me',
-    headers: auth(await tokenFor(ctx(), accountId)),
+    headers: auth(await tokenFor(app, accountId)),
   });
 
 describe('xoá tài khoản thì quyền staff bị thu', () => {
   it('staff xoá tài khoản của mình → không còn trong danh sách staff của danh mục', async () => {
-    const hung = await seedAccount(ctx());
+    const hung = await seedAccount();
     await grant(hung.id, { scopes: [], categoryIds: [phone] });
     expect((await deleteMe(hung.id)).statusCode).toBe(204);
-    await deliverEvents('identity.account.deleted');
+    await dispatcher.runOnce();
     expect(await staffIds(phone)).not.toContain(hung.id);
   });
 
   it('quyền đang treo (đã mở khoá, chưa trả lại) cũng bị thu', async () => {
-    const mai = await seedAccount(ctx());
+    const mai = await seedAccount();
     await grant(mai.id, { scopes: [], categoryIds: [phone] });
     await app.modules.platform.suspendStaffForLock(mai.id);
     expect((await deleteMe(mai.id)).statusCode).toBe(204);
-    await deliverEvents('identity.account.deleted');
-    expect(await platformRepository.findStaff(mai.id)).toBeNull();
+    await dispatcher.runOnce();
+    expect(await repositories.platform.findStaff(mai.id)).toBeNull();
   });
 
   it('người dùng không mang quyền staff xoá tài khoản → danh sách staff không đổi', async () => {
     const before = await staffIds(phone);
-    const user = await seedAccount(ctx());
+    const user = await seedAccount();
     expect((await deleteMe(user.id)).statusCode).toBe(204);
-    await deliverEvents('identity.account.deleted');
+    await dispatcher.runOnce();
     expect((await staffIds(phone)).toSorted()).toEqual(before.toSorted());
   });
 });
@@ -477,7 +441,7 @@ describe('mặc định cấm giữ lại', () => {
 
 describe('/ops/audit', () => {
   it('master tra theo đối tượng: khoá rồi mở khoá, xếp theo thời gian, lý do đi kèm', async () => {
-    const user = await seedAccount(ctx());
+    const user = await seedAccount();
     await app.inject({
       method: 'POST',
       url: `/api/v1/ops/accounts/${user.id}/lock`,
@@ -503,7 +467,7 @@ describe('/ops/audit', () => {
   });
 
   it('gắn quyền ghi một dòng dưới tên master', async () => {
-    const user = await seedAccount(ctx());
+    const user = await seedAccount();
     await grant(user.id, { scopes: ['support'], categoryIds: [] });
     const res = await app.inject({
       method: 'GET',
@@ -516,22 +480,22 @@ describe('/ops/audit', () => {
   });
 
   it('staff tra nhật ký, kể cả về chính mình → 403; người dùng thường → 403', async () => {
-    const staff = await seedAccount(ctx());
+    const staff = await seedAccount();
     await grant(staff.id, {
       scopes: ['support', 'user_reports', 'id_verification'],
       categoryIds: [phone],
     });
-    const user = await seedAccount(ctx());
+    const user = await seedAccount();
     const [asStaff, asUser] = await Promise.all([
       app.inject({
         method: 'GET',
         url: `/api/v1/ops/audit?actorId=${staff.id}`,
-        headers: auth(await tokenFor(ctx(), staff.id)),
+        headers: auth(await tokenFor(app, staff.id)),
       }),
       app.inject({
         method: 'GET',
         url: '/api/v1/ops/audit',
-        headers: auth(await tokenFor(ctx(), user.id)),
+        headers: auth(await tokenFor(app, user.id)),
       }),
     ]);
     expect(asStaff.statusCode).toBe(403);

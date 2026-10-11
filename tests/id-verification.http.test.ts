@@ -1,46 +1,31 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import {
-  createFakeIdentityRepository,
-  type FakeIdentityRepository,
-} from './fakes/identity-repository.fake.js';
-import { createFakeJobs } from './fakes/jobs.fake.js';
-import { createFakePrivilegeSource } from './fakes/privilege-source.fake.js';
+import { auditOf } from './db-helpers.js';
 import { seedAccount, tokenFor } from './ops-helpers.js';
-import { buildTestApp } from './fakes/app.js';
+import { buildTestApp, grantStaff, repositories } from './test-app.js';
 
 /* Sáu scenario của spec `id-verification`, và số giấy tờ không xuất hiện ở bất kỳ response nào. */
 const NOW = new Date('2026-10-10T09:00:00+07:00');
 const DOCUMENT_NUMBER = '079123456789';
 
+const repository = repositories.identity;
 let app: FastifyInstance;
-let repository: FakeIdentityRepository;
 let reviewerToken: string;
 let otherStaffToken: string;
-const privilegeSource = createFakePrivilegeSource();
 
 beforeAll(async () => {
-  repository = createFakeIdentityRepository();
-  app = await buildTestApp({
-    repositories: { identity: repository },
-    jobs: createFakeJobs(),
-    privilegeSource,
-    clock: () => NOW,
-  });
+  app = await buildTestApp({ clock: () => NOW });
   await app.ready();
-  const ctx = { app, repository, now: NOW };
-  const reviewer = await seedAccount(ctx);
-  privilegeSource.grant(reviewer.id, ['id_verification']);
-  reviewerToken = await tokenFor(ctx, reviewer.id);
-  const other = await seedAccount(ctx);
-  privilegeSource.grant(other.id, ['support']);
-  otherStaffToken = await tokenFor(ctx, other.id);
+  const reviewer = await seedAccount({}, NOW);
+  await grantStaff(reviewer.id, ['id_verification']);
+  reviewerToken = await tokenFor(app, reviewer.id);
+  const other = await seedAccount({}, NOW);
+  await grantStaff(other.id, ['support']);
+  otherStaffToken = await tokenFor(app, other.id);
 });
 
 afterAll(() => app.close());
-
-const ctx = () => ({ app, repository, now: NOW });
 
 const submit = (
   token: string,
@@ -74,8 +59,8 @@ const decide = (id: string, token: string, payload: object) =>
 
 describe('POST /me/id-verification', () => {
   it('nộp giấy tờ → 201 chờ duyệt; số giấy tờ được mã hoá, không nằm trong response', async () => {
-    const user = await seedAccount(ctx());
-    const token = await tokenFor(ctx(), user.id);
+    const user = await seedAccount({}, NOW);
+    const token = await tokenFor(app, user.id);
     const res = await submit(token);
     expect(res.statusCode).toBe(201);
     expect(res.json().data).toMatchObject({
@@ -84,13 +69,13 @@ describe('POST /me/id-verification', () => {
       documentType: 'cccd',
     });
     expect(JSON.stringify(res.json())).not.toContain(DOCUMENT_NUMBER);
-    const row = [...repository.verifications.values()].find((v) => v.accountId === user.id);
+    const row = await repository.findPendingIdVerification(user.id);
     expect(row?.documentNumberEnc).not.toContain(DOCUMENT_NUMBER);
   });
 
   it('nộp tiếp khi đang có hồ sơ chờ duyệt → 409 CONFLICT', async () => {
-    const user = await seedAccount(ctx());
-    const token = await tokenFor(ctx(), user.id);
+    const user = await seedAccount({}, NOW);
+    const token = await tokenFor(app, user.id);
     await submit(token);
     const res = await submit(token);
     expect(res.statusCode).toBe(409);
@@ -111,8 +96,8 @@ describe('/ops/id-verifications', () => {
   });
 
   it('staff được giao việc duyệt → hồ sơ chuyển sang đã xác minh; duyệt lần hai → 409', async () => {
-    const user = await seedAccount(ctx());
-    const { id } = (await submit(await tokenFor(ctx(), user.id))).json().data;
+    const user = await seedAccount({}, NOW);
+    const { id } = (await submit(await tokenFor(app, user.id))).json().data;
     const pending = await list(reviewerToken, '?status=pending');
     expect(pending.json().data.items.map((row: { id: string }) => row.id)).toContain(id);
     expect(JSON.stringify(pending.json())).not.toContain(DOCUMENT_NUMBER);
@@ -126,7 +111,7 @@ describe('/ops/id-verifications', () => {
     });
     expect((await decide(id, reviewerToken, { status: 'verified' })).statusCode).toBe(409);
     // Một dòng cho lượt duyệt thành công, không dòng nào cho lượt 409.
-    expect(repository.audit.filter((row) => row.targetId === id)).toMatchObject([
+    expect(await auditOf(id)).toMatchObject([
       {
         actorRole: 'user',
         action: 'identity.id_verification.decide',
@@ -137,8 +122,8 @@ describe('/ops/id-verifications', () => {
   });
 
   it('từ chối không có lý do → 400; có lý do → bị từ chối, và người đó vẫn dùng app như trước', async () => {
-    const user = await seedAccount(ctx());
-    const userToken = await tokenFor(ctx(), user.id);
+    const user = await seedAccount({}, NOW);
+    const userToken = await tokenFor(app, user.id);
     const { id } = (await submit(userToken)).json().data;
     expect((await decide(id, reviewerToken, { status: 'rejected' })).json().error.code).toBe(
       'VALIDATION_ERROR',
@@ -158,8 +143,8 @@ describe('/ops/id-verifications', () => {
   });
 
   it('hồ sơ công khai của người đã xác minh không chứa số giấy tờ', async () => {
-    const user = await seedAccount(ctx());
-    const { id } = (await submit(await tokenFor(ctx(), user.id))).json().data;
+    const user = await seedAccount({}, NOW);
+    const { id } = (await submit(await tokenFor(app, user.id))).json().data;
     await decide(id, reviewerToken, { status: 'verified' });
     const profile = await app.inject({ method: 'GET', url: `/api/v1/users/${user.id}` });
     expect(profile.statusCode).toBe(200);

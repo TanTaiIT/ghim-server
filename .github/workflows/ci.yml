@@ -36,12 +36,11 @@ jobs:
       - run: pnpm run spec:validate
       - run: pnpm run lint
       - run: pnpm run typecheck
-      - run: pnpm run test
       - run: pnpm run build
 
-  # Thứ chỉ DB thật trả lời được: CHECK, partial unique, exclusion, và migration SQL viết tay có
-  # khớp `schema.prisma` hay không. Postgres là service của job — DB dùng một lần.
-  db:
+  # Mọi test chạy trên Postgres thật, cùng việc kiểm migration SQL viết tay có khớp `schema.prisma`.
+  # Postgres là service của job — DB dùng một lần.
+  test:
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -74,8 +73,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec prisma generate
 
-      # globalSetup áp mọi migration (`migrate deploy`) lên DB trống rồi mới chạy test.
-      - run: pnpm run test:db
+      # globalSetup áp mọi migration (`migrate deploy`) lên DB trống, nhân bản cho từng worker rồi mới chạy test.
+      - run: pnpm run test
 
       # Migration đã áp phải khớp đúng `schema.prisma`. Lệch = SQL viết tay sai tên index /
       # constraint, và `migrate dev` lần sau sẽ tự sinh lệnh DROP để "sửa".

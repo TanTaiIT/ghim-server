@@ -1,6 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { buildTestApp } from './fakes/app.js';
+
+import { createStaticRuntimeConfig } from '../src/common/config/runtime-config.js';
+import { buildTestApp } from './test-app.js';
 
 /**
  * Test HTTP qua `app.inject()` — chạy đúng app thật (plugin, schema, error handler) nhưng
@@ -17,9 +19,7 @@ beforeAll(async () => {
   await app.ready();
 });
 
-afterAll(async () => {
-  await app.close();
-});
+afterAll(() => app.close());
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -105,9 +105,10 @@ describe('Tài liệu API', () => {
     vi.stubEnv('CORS_ORIGIN', 'https://ops.ghim.vn');
     vi.stubEnv('TRUST_PROXY', 'uniquelocal');
     try {
-      // Qua bản giả để không chạm DB; `fakes/app.js` nạp lại `src/app.js` dưới env production.
-      const { buildTestApp: buildProductionApp } = await import('./fakes/app.js');
-      const production = await buildProductionApp();
+      // Chốt tên DB (database-guard.ts) cấm production trỏ vào DB `_test`, nên app này không được
+      // chạm DB: bảng con số tĩnh thay cho lượt đọc `config_versions` lúc dựng.
+      const { buildTestApp: buildProductionApp } = await import('./test-app.js');
+      const production = await buildProductionApp({ config: createStaticRuntimeConfig() });
       const res = await production.inject({ method: 'GET', url: '/docs' });
       await production.close();
 

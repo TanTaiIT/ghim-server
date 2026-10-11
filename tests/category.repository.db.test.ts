@@ -1,9 +1,11 @@
+import { Prisma } from '@prisma/client';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
 import type { Actor } from '../src/common/auth/actor.js';
 import { createCategoryRepository } from '../src/modules/category/category.repository.js';
 import { createCategoryService } from '../src/modules/category/category.service.js';
 import { prisma, truncateAll } from './db-helpers.js';
+import { TEST_AUDIT } from './test-app.js';
 
 /* `category` trên Postgres thật: nạp khu vực + tìm bằng `search_text`, phiên bản cài đặt và mẫu. */
 const NOW = new Date('2026-10-10T04:00:00.000Z');
@@ -182,5 +184,99 @@ describe('danh mục', () => {
     expect(
       (await prisma.category.findUniqueOrThrow({ where: { id: phone.id } })).templateVersion,
     ).toBe(2);
+  });
+});
+
+describe('CategoryRepository', () => {
+  const ACTOR = TEST_AUDIT.actorId;
+  const SETTINGS = {
+    priceCap: null,
+    referencePrice: null,
+    riskLevel: 'low' as const,
+    alwaysManual: false,
+    groupReview: 'group' as const,
+  };
+  const hang = { name: 'hang', label: 'Hãng', type: 'text' as const, required: true };
+
+  const create = (name: string) =>
+    repository.create({ name, settings: SETTINGS, createdBy: ACTOR, at: NOW, audit: TEST_AUDIT });
+
+  const saveDraft = (id: string, baseDraftVersion: number) =>
+    repository.saveDraft({
+      id,
+      baseDraftVersion,
+      fields: [hang],
+      updatedBy: ACTOR,
+      at: NOW,
+      audit: TEST_AUDIT,
+    });
+
+  const publish = (id: string, version: number, draftVersion: number) =>
+    repository.publishTemplate({
+      id,
+      version,
+      draftVersion,
+      fields: [hang],
+      publishedBy: ACTOR,
+      at: NOW,
+      audit: TEST_AUDIT,
+    });
+
+  it('tên danh mục unique: tạo trùng và đổi tên trùng ném đúng lỗi P2002 của Prisma', async () => {
+    const phone = await create('Điện thoại');
+    await create('Xe máy');
+    const duplicate = create('Điện thoại');
+    await expect(duplicate).rejects.toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
+    await expect(duplicate).rejects.toMatchObject({ code: 'P2002' });
+    await expect(
+      repository.rename({ id: phone.id, name: 'Xe máy', at: NOW, audit: TEST_AUDIT }),
+    ).rejects.toMatchObject({ code: 'P2002' });
+    await repository.rename({ id: phone.id, name: 'Điện thoại', at: NOW, audit: TEST_AUDIT });
+  });
+
+  it('lọc theo trạng thái, xếp theo tên', async () => {
+    await create('Zeta');
+    await create('Alpha');
+    const off = await create('Mid');
+    await repository.setStatus({ id: off.id, status: 'disabled', at: NOW, audit: TEST_AUDIT });
+
+    const rows = await repository.list({ status: 'active' });
+    expect(rows.map((row) => row.name)).toEqual(['Alpha', 'Zeta']);
+  });
+
+  it('phiên bản cài đặt kế tiếp; phiên bản cũ đọc lại nguyên', async () => {
+    const phone = await create('Máy tính');
+    const v2 = await repository.addSettingsVersion({
+      id: phone.id,
+      settings: { ...SETTINGS, priceCap: 70_000_000n },
+      changedBy: ACTOR,
+      at: NOW,
+      audit: TEST_AUDIT,
+    });
+    expect(v2.settings).toMatchObject({ version: 2, priceCap: 70_000_000n });
+    expect((await repository.findSettingsVersion(phone.id, 1))?.priceCap).toBeNull();
+  });
+
+  it('khoá lạc quan của nháp: số nháp lệch trả null, không ghi gì', async () => {
+    const phone = await create('Điện thoại');
+    expect((await saveDraft(phone.id, 0))?.draftVersion).toBe(1);
+    expect(await saveDraft(phone.id, 0)).toBeNull();
+    expect((await saveDraft(phone.id, 1))?.draftVersion).toBe(2);
+    expect(await saveDraft(phone.id, 1)).toBeNull();
+    expect((await repository.findDraft(phone.id))?.draftVersion).toBe(2);
+  });
+
+  it('phát hành chỉ với đúng số nháp đã đọc; phiên bản mẫu là khoá chính', async () => {
+    const phone = await create('Điện thoại');
+    await saveDraft(phone.id, 0);
+    await saveDraft(phone.id, 1);
+
+    expect(await publish(phone.id, 1, 1)).toBeNull();
+    expect((await publish(phone.id, 1, 2))?.version).toBe(1);
+    expect(await repository.findDraft(phone.id)).toBeNull();
+    expect(await publish(phone.id, 2, 2)).toBeNull();
+
+    await saveDraft(phone.id, 0);
+    await expect(publish(phone.id, 1, 1)).rejects.toMatchObject({ code: 'P2002' });
   });
 });

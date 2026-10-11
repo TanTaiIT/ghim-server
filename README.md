@@ -16,7 +16,7 @@ Trong Claude Code, mở thư mục này làm workspace rồi:
 2. `/opsx:propose <mô tả>` — tạo `openspec/changes/<tên>/` gồm proposal, specs, design, tasks. Đọc và
    duyệt trước khi code.
 3. `/opsx:apply` — làm theo tasks, đánh dấu từng việc xong.
-4. `pnpm run check`, `pnpm test:db`, `pnpm run build` xanh → `/opsx:archive` gộp spec vào
+4. `pnpm run check`, `pnpm run build` xanh → `/opsx:archive` gộp spec vào
    `openspec/specs/`.
 
 Cần CLI `openspec` trên PATH, cùng phiên bản trong `package.json`:
@@ -63,8 +63,7 @@ Mailpit).
 | Lệnh                                  | Làm gì                                                         |
 | ------------------------------------- | -------------------------------------------------------------- |
 | `pnpm dev`                            | Chạy dev, tự nạp lại khi sửa code                              |
-| `pnpm run check`                      | typecheck + lint + test (không cần DB)                         |
-| `pnpm db:test:up` → `pnpm test:db`    | Test trên Postgres thật (container riêng, cổng 5436, tmpfs)    |
+| `pnpm db:test:up` → `pnpm run check`  | typecheck + lint + test trên Postgres thật (cổng 5436, tmpfs)  |
 | `pnpm mail:up`                        | Mailpit cho thư ở dev (SMTP 1025, hộp thư 8025)                |
 | `pnpm run build` → `pnpm start:local` | Build rồi chạy bản build với env dev                           |
 | `pnpm db:migrate`                     | Tạo và áp migration trên DB dev                                |

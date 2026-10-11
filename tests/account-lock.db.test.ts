@@ -1,16 +1,14 @@
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { createIdentityRepository } from '../src/modules/identity/identity.repository.js';
 import { prisma, truncateAll } from './db-helpers.js';
-import { TEST_AUDIT } from './fakes/audit.fake.js';
+import { TEST_AUDIT } from './test-app.js';
 
 /* Luật 12: khoá, thu hồi phiên và dòng outbox phải cùng một transaction — rollback là mất cả ba. */
 const NOW = new Date('2026-10-10T09:00:00+07:00');
 const LATER = new Date('2026-11-10T09:00:00+07:00');
 
 beforeEach(truncateAll);
-
-afterAll(() => prisma.$disconnect());
 
 const repository = createIdentityRepository(prisma);
 

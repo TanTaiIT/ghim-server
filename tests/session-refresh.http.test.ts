@@ -1,12 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
+import type { IdentityRepository } from '../src/modules/identity/identity.repository.js';
 import { hashPassword } from '../src/modules/identity/password.calc.js';
-import { buildTestApp } from './fakes/app.js';
-import {
-  createFakeIdentityRepository,
-  type FakeIdentityRepository,
-} from './fakes/identity-repository.fake.js';
+import { buildTestApp, repositories } from './test-app.js';
 
 /*
  * Requirement "Làm mới phiên" (change fix-session-refresh-race). `app.inject` có thể xử hai request
@@ -17,8 +14,8 @@ import {
 const NOW = new Date('2026-10-10T09:00:00+07:00');
 const PASSWORD = 'ghim-rao-vat-2026!';
 
+const base = repositories.identity;
 let app: FastifyInstance;
-let base: FakeIdentityRepository;
 let passwordHash: string;
 let gate: { expected: number; arrived: number; open: () => void; opened: Promise<void> } | null =
   null;
@@ -30,8 +27,7 @@ function armGate(expected: number): void {
 
 beforeAll(async () => {
   passwordHash = await hashPassword(PASSWORD);
-  base = createFakeIdentityRepository();
-  const gated: FakeIdentityRepository = {
+  const gated: IdentityRepository = {
     ...base,
     async findSessionByRefreshHash(hash) {
       const row = await base.findSessionByRefreshHash(hash);

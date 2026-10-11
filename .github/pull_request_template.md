@@ -7,8 +7,7 @@
 
 ## Kiểm tra
 
-- [ ] `pnpm run check` (typecheck + lint + test)
-- [ ] `pnpm test:db`
+- [ ] `pnpm run check` (typecheck + lint + test trên Postgres test)
 - [ ] `pnpm run build`, rồi `pnpm start:local` khởi động được
 - [ ] Đã thử các ca **thiếu, sai, hết chỗ, quá hạn** — không chỉ đường suôn sẻ (TK 29)
 

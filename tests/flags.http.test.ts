@@ -1,49 +1,35 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import {
-  createFakeIdentityRepository,
-  type FakeIdentityRepository,
-} from './fakes/identity-repository.fake.js';
-import { createFakeJobs } from './fakes/jobs.fake.js';
-import { createFakePrivilegeSource } from './fakes/privilege-source.fake.js';
+import { auditOf, prisma } from './db-helpers.js';
 import { seedAccount, tokenFor } from './ops-helpers.js';
-import { TEST_AUDIT } from './fakes/audit.fake.js';
-import { buildTestApp } from './fakes/app.js';
+import { buildTestApp, grantStaff, repositories, TEST_AUDIT } from './test-app.js';
 
 /* Hai requirement hỗ trợ của spec device-registry qua HTTP: tra mã, gỡ, không lộ mã thiết bị, 403 theo việc. */
 const NOW = new Date('2026-10-10T09:00:00+07:00');
 
+const repository = repositories.identity;
 let app: FastifyInstance;
-let repository: FakeIdentityRepository;
 let supportToken: string;
 let categoryStaffToken: string;
 let supportId: string;
-const privilegeSource = createFakePrivilegeSource();
 
 beforeAll(async () => {
-  repository = createFakeIdentityRepository();
-  app = await buildTestApp({
-    repositories: { identity: repository },
-    jobs: createFakeJobs(),
-    privilegeSource,
-    clock: () => NOW,
-  });
+  app = await buildTestApp({ clock: () => NOW });
   await app.ready();
-  const ctx = { app, repository, now: NOW };
-  const support = await seedAccount(ctx);
-  privilegeSource.grant(support.id, ['support']);
+  const support = await seedAccount({}, NOW);
+  await grantStaff(support.id, ['support']);
   supportId = support.id;
-  supportToken = await tokenFor(ctx, support.id);
-  const categoryStaff = await seedAccount(ctx);
-  privilegeSource.grant(categoryStaff.id, ['id_verification']);
-  categoryStaffToken = await tokenFor(ctx, categoryStaff.id);
+  supportToken = await tokenFor(app, support.id);
+  const categoryStaff = await seedAccount({}, NOW);
+  await grantStaff(categoryStaff.id, ['id_verification']);
+  categoryStaffToken = await tokenFor(app, categoryStaff.id);
 });
 
 afterAll(() => app.close());
 
 async function flaggedAccount(): Promise<{ accountId: string; lookupCode: string }> {
-  const user = await seedAccount({ repository, now: NOW });
+  const user = await seedAccount({}, NOW);
   await repository.applyFlagChanges({
     create: [
       {
@@ -113,15 +99,11 @@ describe('POST /ops/flags/:lookupCode/clear', () => {
     const { accountId, lookupCode } = await flaggedAccount();
     expect((await clear(lookupCode, supportToken, { reason: 'Máy mua lại' })).statusCode).toBe(204);
     expect(await repository.findOpenFlags(accountId)).toEqual([]);
-    expect([...repository.clearances.values()].some((row) => row.accountId === accountId)).toBe(
-      true,
-    );
+    expect(await prisma.deviceClearance.count({ where: { accountId } })).toBeGreaterThan(0);
     expect((await get(lookupCode, supportToken)).json().data.clearedReason).toBe('Máy mua lại');
     // Staff ghi nhật ký dưới tài khoản cá nhân của chính mình (spec audit-log).
     expect(
-      repository.audit.filter(
-        (row) => row.action === 'identity.flag.clear' && row.targetId === accountId,
-      ),
+      (await auditOf(accountId)).filter((row) => row.action === 'identity.flag.clear'),
     ).toMatchObject([{ actorId: supportId, actorRole: 'user', reason: 'Máy mua lại' }]);
     expect((await clear(lookupCode, supportToken, { reason: 'lại' })).statusCode).toBe(409);
   });

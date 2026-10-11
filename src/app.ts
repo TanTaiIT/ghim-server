@@ -87,10 +87,9 @@ declare module 'fastify' {
 }
 
 /**
- * Mọi thứ có trạng thái ngoài tiến trình, thay được bằng bản giả: test HTTP truyền repository
- * trong bộ nhớ, jobs giả, mailer giả, đồng hồ cố định — và vẫn chạy đúng app thật (plugin,
- * schema, guard, error handler). Bỏ trống là bản thật (design 15). Repository của mọi module nằm
- * chung một chỗ; phần còn lại là hạ tầng dùng chung.
+ * Mọi thứ có trạng thái ngoài tiến trình, thay được khi dựng app: test giữ repository thật trên DB
+ * test nhưng thay jobs, mailer, đồng hồ, hoặc bọc một repository để chặn hai lượt ở đúng điểm tranh
+ * chấp. Bỏ trống là bản thật (design 15).
  */
 export interface AppDeps {
   repositories: Repositories;

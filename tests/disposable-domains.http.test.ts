@@ -1,57 +1,21 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import {
-  createFakeIdentityRepository,
-  type FakeIdentityRepository,
-} from './fakes/identity-repository.fake.js';
-import { createFakeJobs } from './fakes/jobs.fake.js';
-import { buildTestApp } from './fakes/app.js';
+import { auditOf } from './db-helpers.js';
+import { seedAccount, tokenFor } from './ops-helpers.js';
+import { buildTestApp } from './test-app.js';
 
 const NOW = new Date('2026-10-10T09:00:00+07:00');
-const DAY_MS = 86_400_000;
 
 let app: FastifyInstance;
-let repository: FakeIdentityRepository;
 let masterToken: string;
 let userToken: string;
 
-async function tokenFor(role: 'user' | 'master'): Promise<string> {
-  const email = `${role}@ghim.test`;
-  const account = await repository.createAccount({
-    email,
-    emailNormalized: email,
-    emailHash: 'h',
-    passwordHash: 'x',
-    googleSub: null,
-    status: 'active',
-    displayName: role,
-    at: NOW,
-  });
-  await repository.updateAccount(account.id, { role });
-  const session = await repository.createSession({
-    accountId: account.id,
-    refreshTokenHash: `rt-${role}`,
-    deviceName: 'Máy',
-    ip: null,
-    userAgent: null,
-    secondFactorAt: NOW,
-    expiresAt: new Date(NOW.getTime() + 30 * DAY_MS),
-    at: NOW,
-  });
-  return app.jwt.sign({ sid: session.id });
-}
-
 beforeAll(async () => {
-  repository = createFakeIdentityRepository();
-  app = await buildTestApp({
-    repositories: { identity: repository },
-    jobs: createFakeJobs(),
-    clock: () => NOW,
-  });
+  app = await buildTestApp({ clock: () => NOW });
   await app.ready();
-  masterToken = await tokenFor('master');
-  userToken = await tokenFor('user');
+  masterToken = await tokenFor(app, (await seedAccount({ role: 'master' }, NOW)).id);
+  userToken = await tokenFor(app, (await seedAccount({}, NOW)).id);
 });
 
 afterAll(() => app.close());
@@ -94,11 +58,10 @@ describe('/ops/disposable-domains', () => {
 
     expect((await call('DELETE', '/tempmail.example', masterToken)).statusCode).toBe(200);
     expect((await call('DELETE', '/tempmail.example', masterToken)).statusCode).toBe(404);
-    expect(
-      repository.audit
-        .filter((row) => row.targetId === 'tempmail.example')
-        .map((row) => row.action),
-    ).toEqual(['identity.disposable_domain.add', 'identity.disposable_domain.remove']);
+    expect((await auditOf('tempmail.example')).map((row) => row.action)).toEqual([
+      'identity.disposable_domain.add',
+      'identity.disposable_domain.remove',
+    ]);
   });
 
   it('miền sai định dạng → 400 VALIDATION_ERROR', async () => {

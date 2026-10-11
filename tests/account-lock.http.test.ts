@@ -3,44 +3,29 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { toOk } from '../src/common/schemas/response.js';
 import { hashPassword } from '../src/modules/identity/password.calc.js';
-import {
-  createFakeIdentityRepository,
-  type FakeIdentityRepository,
-} from './fakes/identity-repository.fake.js';
-import { createFakeJobs } from './fakes/jobs.fake.js';
-import { createFakePrivilegeSource } from './fakes/privilege-source.fake.js';
+import { auditOf, lastOutboxEvent } from './db-helpers.js';
 import { seedAccount, tokenFor } from './ops-helpers.js';
-import { TEST_AUDIT } from './fakes/audit.fake.js';
-import { buildTestApp } from './fakes/app.js';
+import { buildTestApp, grantStaff, repositories, TEST_AUDIT } from './test-app.js';
 
 /* Bảy scenario của spec `account-lock`, cộng mở khoá đóng đánh dấu liên quan. */
 const NOW = new Date('2026-10-10T09:00:00+07:00');
 const PASSWORD = 'ghim-rao-vat-2026!';
 
+const repository = repositories.identity;
 let app: FastifyInstance;
-let repository: FakeIdentityRepository;
 let passwordHash: string;
 let masterToken: string;
-const privilegeSource = createFakePrivilegeSource();
 
 beforeAll(async () => {
   passwordHash = await hashPassword(PASSWORD);
-  repository = createFakeIdentityRepository();
-  app = await buildTestApp({
-    repositories: { identity: repository },
-    jobs: createFakeJobs(),
-    privilegeSource,
-    clock: () => NOW,
-  });
+  app = await buildTestApp({ clock: () => NOW });
   app.get('/__test/me', { preHandler: [app.authenticate] }, async (request) => toOk(request.actor));
   await app.ready();
-  const master = await seedAccount({ repository, now: NOW }, { role: 'master' });
-  masterToken = await tokenFor({ app, repository, now: NOW }, master.id);
+  const master = await seedAccount({ role: 'master' }, NOW);
+  masterToken = await tokenFor(app, master.id);
 });
 
 afterAll(() => app.close());
-
-const ctx = () => ({ app, repository, now: NOW });
 
 const lock = (id: string, token: string, payload?: object) =>
   app.inject({
@@ -62,8 +47,8 @@ const login = (email: string, password = PASSWORD) =>
 
 describe('POST /ops/accounts/:id/lock', () => {
   it('master khoá kèm lý do → 204, tài khoản bị khoá, mọi phiên thu hồi ngay, sự kiện locked', async () => {
-    const user = await seedAccount(ctx(), { passwordHash });
-    const userToken = await tokenFor(ctx(), user.id);
+    const user = await seedAccount({ passwordHash }, NOW);
+    const userToken = await tokenFor(app, user.id);
     expect((await lock(user.id, masterToken, { reason: 'Lừa đảo nhiều lần' })).statusCode).toBe(
       204,
     );
@@ -80,36 +65,35 @@ describe('POST /ops/accounts/:id/lock', () => {
       headers: { authorization: `Bearer ${userToken}` },
     });
     expect(me.statusCode).toBe(401);
-    expect(repository.events.at(-1)).toMatchObject({
+    expect(await lastOutboxEvent()).toMatchObject({
       type: 'identity.account.locked',
       payload: { accountId: user.id, reason: 'Lừa đảo nhiều lần' },
     });
     // Spec audit-log: đúng một dòng — master đó, hành động khoá, tài khoản bị khoá, lý do.
-    expect(repository.audit.filter((row) => row.targetId === user.id)).toMatchObject([
+    expect(await auditOf(user.id)).toMatchObject([
       {
         actorRole: 'master',
         action: 'identity.account.lock',
         targetType: 'account',
         reason: 'Lừa đảo nhiều lần',
-        createdAt: NOW,
       },
     ]);
   });
 
   it('bỏ trống lý do → 400 VALIDATION_ERROR, tài khoản không đổi', async () => {
-    const user = await seedAccount(ctx());
+    const user = await seedAccount({}, NOW);
     const res = await lock(user.id, masterToken, { reason: '  ' });
     expect(res.statusCode).toBe(400);
     expect(res.json().error.code).toBe('VALIDATION_ERROR');
     expect((await repository.findAccountById(user.id))?.status).toBe('active');
-    expect(repository.audit.some((row) => row.targetId === user.id)).toBe(false);
+    expect(await auditOf(user.id)).toEqual([]);
   });
 
   it('staff (không phải master) thử khoá → 403 FORBIDDEN', async () => {
-    const staff = await seedAccount(ctx());
-    privilegeSource.grant(staff.id, ['support']);
-    const staffToken = await tokenFor(ctx(), staff.id);
-    const user = await seedAccount(ctx());
+    const staff = await seedAccount({}, NOW);
+    await grantStaff(staff.id, ['support']);
+    const staffToken = await tokenFor(app, staff.id);
+    const user = await seedAccount({}, NOW);
     expect((await lock(user.id, staffToken, { reason: 'x' })).json().error.code).toBe('FORBIDDEN');
   });
 
@@ -117,7 +101,7 @@ describe('POST /ops/accounts/:id/lock', () => {
     expect(
       (await lock('00000000-0000-7000-8000-000000000000', masterToken, { reason: 'x' })).statusCode,
     ).toBe(404);
-    const user = await seedAccount(ctx());
+    const user = await seedAccount({}, NOW);
     await lock(user.id, masterToken, { reason: 'x' });
     expect((await lock(user.id, masterToken, { reason: 'x' })).statusCode).toBe(409);
   });
@@ -125,7 +109,7 @@ describe('POST /ops/accounts/:id/lock', () => {
 
 describe('tài khoản bị khoá', () => {
   it('đúng mật khẩu → 403 ACCOUNT_LOCKED kèm lý do, không phiên; sai mật khẩu → 401 không lộ lý do', async () => {
-    const user = await seedAccount(ctx(), { passwordHash });
+    const user = await seedAccount({ passwordHash }, NOW);
     await lock(user.id, masterToken, { reason: 'Bán hàng giả' });
     const right = await login(user.email);
     expect(right.statusCode).toBe(403);
@@ -140,7 +124,7 @@ describe('tài khoản bị khoá', () => {
   });
 
   it('mở khoá → 204, chủ tài khoản đăng nhập lại được bằng thông tin cũ, sự kiện unlocked', async () => {
-    const user = await seedAccount(ctx(), { passwordHash });
+    const user = await seedAccount({ passwordHash }, NOW);
     await lock(user.id, masterToken, { reason: 'x' });
     expect((await unlock(user.id, masterToken)).statusCode).toBe(204);
     expect((await login(user.email)).statusCode).toBe(200);
@@ -149,7 +133,7 @@ describe('tài khoản bị khoá', () => {
       lockedAt: null,
       lockedReason: null,
     });
-    expect(repository.events.at(-1)).toMatchObject({
+    expect(await lastOutboxEvent()).toMatchObject({
       type: 'identity.account.unlocked',
       payload: { accountId: user.id },
     });
@@ -157,8 +141,8 @@ describe('tài khoản bị khoá', () => {
   });
 
   it('mở khoá A thì đánh dấu "dùng máy của tài khoản bị khoá" trỏ tới A được đóng', async () => {
-    const a = await seedAccount(ctx());
-    const b = await seedAccount(ctx());
+    const a = await seedAccount({}, NOW);
+    const b = await seedAccount({}, NOW);
     await lock(a.id, masterToken, { reason: 'x' });
     await repository.applyFlagChanges({
       create: [
