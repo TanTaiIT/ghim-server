@@ -99,7 +99,7 @@ deleted_at IS NULL`.
 | người xét khiếu nại | thắng           | bị từ chối / bị gỡ → đang hiển thị                                                          |
 
 `transition(state, arrow, side)` là hàm thuần: trả trạng thái mới hoặc lỗi `INVALID_TRANSITION`. Unit test chạy
-**cả bảng 8 trạng thái × 16 mũi tên × 5 bên**, nên mọi mũi tên không có cũng được test (luật 13). Sửa nháp không
+**cả bảng 8 trạng thái × 15 mũi tên × 5 bên**, nên mọi mũi tên không có cũng được test (luật 13). Sửa nháp không
 phải mũi tên (lưu nháp giữ nguyên `draft`). Sửa ở đang kiểm, đã bán, và sửa không kèm gia hạn ở hết hạn → 409
 `INVALID_TRANSITION`.
 

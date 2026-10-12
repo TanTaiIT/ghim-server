@@ -28,23 +28,23 @@
 
 ## 2. Phần tính toán thuần (xác minh bằng `pnpm test:unit`)
 
-- [ ] 2.1 `listing.calc.ts`: bảng mũi tên design mục 3; xác minh unit test đủ 8 trạng thái × 16 mũi tên × 5 bên —
+- [x] 2.1 `listing.calc.ts`: bảng mũi tên design mục 3; xác minh unit test đủ 8 trạng thái × 15 mũi tên × 5 bên —
       mọi ô hợp lệ ra đúng trạng thái, mọi ô còn lại ra `INVALID_TRANSITION`
-- [ ] 2.2 `display-period.calc.ts` `nextClock`: lên bảng lần đầu, thêm / bớt lý do dừng và lý do trôi, bị gỡ /
+- [x] 2.2 `display-period.calc.ts` `nextClock`: lên bảng lần đầu, thêm / bớt lý do dừng và lý do trôi, bị gỡ /
       khôi phục, bị từ chối, gia hạn sớm / sau khi hết hạn (áp lúc lên bảng lại), hết ngày lúc đang chờ, `shown_ms` /
       `shown_since`; xác minh mỗi scenario của spec `listing/display-period` thành một unit test, cộng D4
-- [ ] 2.3 `placement.calc.ts` trên ảnh chụp nhóm: thứ tự lỗi của design mục 5 bước 4–5, người ngoài, người bị cấm,
+- [x] 2.3 `placement.calc.ts` trên ảnh chụp nhóm: thứ tự lỗi của design mục 5 bước 4–5, người ngoài, người bị cấm,
       nhóm khoá / đóng / đang chuyển riêng tư, đơn vị con; kiểm trường bắt buộc lúc gửi; xác minh mỗi scenario của
       spec `listing/placement` và `listing/submission` (phần không cần DB)
-- [ ] 2.4 `edit.calc.ts` `classifyEdit`: so giá trị, qua máy hay không, `widen` / `narrow` / `regroup`, huy hiệu, khoá
+- [x] 2.4 `edit.calc.ts` `classifyEdit`: so giá trị, qua máy hay không, `widen` / `narrow` / `regroup`, huy hiệu, khoá
       nơi đăng, tin đã rời nhóm hẳn (`LISTING_DETACHED`), thu hẹp gỡ `new_account`; xác minh mỗi scenario của spec
       `listing/editing`
-- [ ] 2.5 `hide.calc.ts`: lý do đặt / gỡ theo từng sự kiện (bảng design mục 9), công tắc `allowOutsiders` lúc rời,
+- [x] 2.5 `hide.calc.ts`: lý do đặt / gỡ theo từng sự kiện (bảng design mục 9), công tắc `allowOutsiders` lúc rời,
       cấm và rời độc lập không theo thứ tự, không đặt lên nháp, đổi nhóm làm rơi lý do của nhóm cũ, lý do hết hẳn ghi
       `left_group_at`; xác minh mỗi scenario của spec `listing/suspension`, kể cả chạy hai thứ tự sự kiện
-- [ ] 2.6 `visibility.calc.ts` `canView` cho mọi bề mặt của design mục 12; xác minh mỗi scenario của spec
+- [x] 2.6 `visibility.calc.ts` `canView` cho mọi bề mặt của design mục 12; xác minh mỗi scenario của spec
       `listing/visibility` và delta `identity/profile`
-- [ ] 2.7 `src/common/schemas/cursor.ts`: mã hoá / giải mã (`first_live_at`, `id`), con trỏ hỏng → 400
+- [x] 2.7 `src/common/schemas/cursor.ts`: mã hoá / giải mã (`first_live_at`, `id`), con trỏ hỏng → 400
       `VALIDATION_ERROR`; xác minh unit test
 
 ## 3. Nối module có sẵn
