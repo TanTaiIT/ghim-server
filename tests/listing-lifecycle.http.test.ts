@@ -37,7 +37,11 @@ let app: FastifyInstance;
 let master: TestUser;
 
 beforeAll(async () => {
-  app = await buildTestApp({ clock: () => now, trust: createInterimTrust('T1') });
+  app = await buildTestApp({
+    clock: () => now,
+    trust: createInterimTrust('T1'),
+    screening: interimScreening,
+  });
   await app.ready();
   master = await newMaster(app);
 });

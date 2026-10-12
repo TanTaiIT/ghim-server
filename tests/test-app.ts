@@ -9,6 +9,7 @@ import { createGroupRepository } from '../src/modules/group/group.repository.js'
 import { createIdentityRepository } from '../src/modules/identity/identity.repository.js';
 import { createListingRepository } from '../src/modules/listing/listing.repository.js';
 import { createTrustRepository } from '../src/modules/trust/trust.repository.js';
+import { createScreeningRepository } from '../src/modules/screening/screening.repository.js';
 import { createMediaRepository } from '../src/modules/media/media.repository.js';
 import { createPlatformRepository } from '../src/modules/platform/platform.repository.js';
 import { createFakeJobs } from './fakes/jobs.fake.js';
@@ -24,6 +25,7 @@ export const repositories = {
   media: createMediaRepository(prisma),
   listing: createListingRepository(prisma),
   trust: createTrustRepository(prisma),
+  screening: createScreeningRepository(prisma),
 };
 
 /** Một dòng nhật ký hợp lệ cho chỗ repository đòi `audit` mà test không kiểm; `actorId` là UUID vì cột là uuid. */

@@ -144,6 +144,19 @@ export const ownListingSchema = listingSchema.extend({
   fault: z.enum(['mistake', 'violation']).nullable(),
   /** Hạn chuyển lên sàn chung của tin đã rời nhóm hẳn. */
   moveUntil: iso.nullable(),
+  /**
+   * Câu của máy cho tin bị giữ hay hiện hạn chế (spec screening/explanations): `fraud` = câu chung ba phần kèm mã tra
+   * cứu, không nêu tín hiệu; `fixes` = lỗi tự sửa được kèm cách sửa.
+   */
+  machineNotice: z
+    .object({
+      kind: z.enum(['plain', 'fraud', 'limited']),
+      message: z.string(),
+      estimatedWait: z.string().nullable(),
+      lookupCode: z.string().nullable(),
+      fixes: z.array(z.object({ code: z.string(), message: z.string() })),
+    })
+    .nullable(),
 });
 
 export type CreateListingBody = z.infer<typeof createListingBodySchema>;

@@ -45,6 +45,8 @@ export interface Storage {
    */
   viewUrl(key: string, ttlSeconds: number, signedAt?: Date): Promise<string>;
   head(key: string): Promise<{ byteSize: number; contentType: string | null } | null>;
+  /** Nội dung một tệp, `null` khi không có; tệp lớn hơn `maxBytes` thì ném — chỉ tải tới `maxBytes + 1` byte. */
+  read(key: string, maxBytes: number): Promise<Uint8Array | null>;
   /** Chép trong kho, không qua server: bản sao ảnh cho tin chuyển lên sàn chung (TK 25). */
   copy(fromKey: string, toKey: string): Promise<void>;
   deleteMany(keys: string[]): Promise<void>;
@@ -133,6 +135,22 @@ export function createS3Storage(config: StorageConfig): Storage {
         if (isMissing(error)) return null;
         throw error;
       }
+    },
+
+    async read(key, maxBytes) {
+      let bytes: Uint8Array | undefined;
+      try {
+        const result = await client.send(
+          new GetObjectCommand({ Bucket: bucket, Key: key, Range: `bytes=0-${maxBytes}` }),
+        );
+        bytes = await result.Body?.transformToByteArray();
+      } catch (error) {
+        if (isMissing(error)) return null;
+        throw error;
+      }
+      if (!bytes) return null;
+      if (bytes.length > maxBytes) throw new Error(`Tệp ${key} lớn hơn ${maxBytes} byte`);
+      return bytes;
     },
 
     async copy(fromKey, toKey) {

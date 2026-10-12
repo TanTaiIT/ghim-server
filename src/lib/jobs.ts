@@ -21,6 +21,8 @@ export interface JobScheduleOptions {
 export interface JobWorkOptions {
   /** Số lần thử lại khi handler ném; mặc định 3, lùi dần. */
   retryLimit?: number;
+  /** Số việc cùng loại chạy song song trong một tiến trình; mặc định 1. */
+  concurrency?: number;
 }
 
 export interface Jobs {
@@ -116,7 +118,7 @@ export function createJobs(connectionString: string, { max }: { max?: number } =
           retryLimit: options.retryLimit ?? DEFAULT_RETRY_LIMIT,
           retryBackoff: true,
         });
-        await boss.work<T>(name, async (jobs) => {
+        await boss.work<T>(name, { localConcurrency: options.concurrency ?? 1 }, async (jobs) => {
           await Promise.all(jobs.map((job) => handler(job.data)));
         });
       }),

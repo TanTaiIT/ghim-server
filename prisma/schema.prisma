@@ -146,6 +146,8 @@ model Account {
   trustCleanListings TrustCleanListing[]
   trustTier          TrustTierResult?
   trustTierChanges   TrustTierChange[]
+  screeningRuns      ScreeningRun[]
+  screeningCooldown  ScreeningCooldown?
 
   @@index([emailHash])
   @@index([status, createdAt])
@@ -451,11 +453,15 @@ model Category {
   createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  settingVersions  CategorySettingVersion[]
-  templateVersions TemplateVersion[]
-  draft            TemplateDraft?
-  staffGrants      StaffCategoryGrant[]
-  listings         Listing[]
+  settingVersions    CategorySettingVersion[]
+  templateVersions   TemplateVersion[]
+  draft              TemplateDraft?
+  staffGrants        StaffCategoryGrant[]
+  listings           Listing[]
+  screeningOverrides ScreeningRuleOverride[]
+  screeningBands     ScreeningCategoryBand?
+  priceStats         CategoryPriceStat?
+  keywords           CategoryKeyword[]
 
   @@map("categories")
 }
@@ -1251,4 +1257,279 @@ model TrustTierChange {
 
   @@index([accountId, at])
   @@map("trust_tier_changes")
+}
+
+// ── SCREENING: ENUM ──────────────────────────────────────────────────────────────────────────────
+
+/// Lượt qua máy mở vì gửi tin, hay vì bật thật một cụm từ cấm mà tin đang hiện chứa nó (design add-screening mục 7).
+enum ScreeningTrigger {
+  submission
+  recall
+
+  @@map("screening_trigger")
+}
+
+/// Ba kết quả của máy — không có "từ chối" (TK 13, CLAUDE.md luật 14).
+enum ScreeningOutcome {
+  pass_full
+  pass_limited
+  hold
+
+  @@map("screening_outcome")
+}
+
+/// Vì sao lượt ra kết quả đó — "bị giữ nhiều" chỉ đếm `score` và `gate` (câu 15).
+enum ScreeningCause {
+  score
+  gate
+  always_manual
+  device
+  error
+  timeout
+
+  @@map("screening_cause")
+}
+
+enum ScreeningBand {
+  low
+  medium
+  high
+
+  @@map("screening_band")
+}
+
+enum ImageCheckStatus {
+  pending
+  done
+  error
+
+  @@map("image_check_status")
+}
+
+/// Dấu hiệu cộng điểm, hay cổng cứng giữ tin (TK 13, 14).
+enum ScreeningRuleKind {
+  signal
+  gate
+
+  @@map("screening_rule_kind")
+}
+
+/// Bật · chạy thử (chấm, ghi, không đổi kết quả) · tắt (không chấm) — luật và cụm từ cấm dùng chung.
+enum ScreeningRuleMode {
+  on
+  trial
+  off
+
+  @@map("screening_rule_mode")
+}
+
+/// Cụm mức chắc là cổng cứng; mức mơ hồ chỉ cộng điểm (TK 13).
+enum BannedPhraseLevel {
+  certain
+  ambiguous
+
+  @@map("banned_phrase_level")
+}
+
+// ── SCREENING: BẢNG ──────────────────────────────────────────────────────────────────────────────
+
+/// Một lượt qua máy của một phiên bản tin (design add-screening mục 4, 5). Không FK sang `listings`: kết quả giữ theo hạn
+/// lưu của `screening` (`add-data-retention`), không theo tin. CHECK tay (migration init_screening):
+///   screening_runs_decided_check: (decided_at IS NULL) = (outcome IS NULL) AND (outcome IS NULL) = (cause IS NULL)
+///   screening_runs_score_check:   score IS NULL OR score >= 0
+model ScreeningRun {
+  id              String            @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  listingId       String            @map("listing_id") @db.Uuid
+  listingVersion  Int               @map("listing_version")
+  accountId       String            @map("account_id") @db.Uuid
+  trigger         ScreeningTrigger
+  startedAt       DateTime          @map("started_at") @db.Timestamptz(3)
+  /// Kết quả chấm chữ lúc gửi (dấu hiệu chữ, cổng chữ, chỗ trúng) — `{ "error": … }` khi chấm lỗi hay quá trần.
+  textResult      Json              @map("text_result")
+  imageIds        String[]          @map("image_ids") @db.Uuid
+  decidedAt       DateTime?         @map("decided_at") @db.Timestamptz(3)
+  outcome         ScreeningOutcome?
+  cause           ScreeningCause?
+  score           Int?
+  band            ScreeningBand?
+  tier            TrustTier?
+  /// Mọi luật đã trúng (kể cả chạy thử), cụm, ảnh trùng — người duyệt và hỗ trợ đọc; người đăng không bao giờ thấy.
+  hits            Json              @default("[]")
+  /// Câu cho người đăng: `plain` / `fraud` kèm mã tra cứu, và các lỗi tự sửa được (mục 8).
+  explanation     Json?
+  /// Mỗi lần giữ có dấu hiệu gian lận một mã (câu 11); cùng bộ chữ Crockford với mã của `identity`, khác tiền tố.
+  lookupCode      String?           @unique @map("lookup_code")
+  rankAsListingId String?           @map("rank_as_listing_id") @db.Uuid
+  configVersion   Int               @map("config_version")
+  ruleVersion     Int               @map("rule_version")
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, listingVersion, trigger])
+  @@index([accountId, decidedAt])
+  @@index([startedAt], where: raw("decided_at IS NULL"), map: "screening_runs_open_idx")
+  @@index([imageIds], type: Gin, where: raw("decided_at IS NULL"), map: "screening_runs_open_images_idx")
+  @@map("screening_runs")
+}
+
+/// Kết quả kiểm của một ảnh — ảnh bất biến nên dùng lại khi tin sửa mà giữ ảnh (mục 4). dHash 64 bit chia 5 dải để tìm
+/// ứng viên: hai ảnh lệch ≤ 4 bit chắc chắn trùng nguyên ít nhất một dải (design mục 3). CHECK tay (migration
+/// init_screening):
+///   image_checks_done_check: (status = 'done') = (dhash IS NOT NULL)
+model ImageCheck {
+  imageId        String           @id @map("image_id") @db.Uuid
+  ownerAccountId String           @map("owner_account_id") @db.Uuid
+  status         ImageCheckStatus
+  dhash          BigInt?
+  band0          Int?
+  band1          Int?
+  band2          Int?
+  band3          Int?
+  band4          Int?
+  attempts       Int              @default(0)
+  checkedAt      DateTime?        @map("checked_at") @db.Timestamptz(3)
+
+  @@index([band0], where: raw("status = 'done'"), map: "image_checks_band0_idx")
+  @@index([band1], where: raw("status = 'done'"), map: "image_checks_band1_idx")
+  @@index([band2], where: raw("status = 'done'"), map: "image_checks_band2_idx")
+  @@index([band3], where: raw("status = 'done'"), map: "image_checks_band3_idx")
+  @@index([band4], where: raw("status = 'done'"), map: "image_checks_band4_idx")
+  @@map("image_checks")
+}
+
+/// Ảnh mẫu của hãng nhiều người cùng dùng — trùng với ảnh ở đây thì không tính là ảnh trùng (spec image-checks).
+model ImageWhitelistEntry {
+  id            String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  dhash         BigInt
+  band0         Int
+  band1         Int
+  band2         Int
+  band3         Int
+  band4         Int
+  sourceImageId String   @map("source_image_id") @db.Uuid
+  addedBy       String   @map("added_by") @db.Uuid
+  addedAt       DateTime @map("added_at") @db.Timestamptz(3)
+
+  @@index([band0])
+  @@index([band1])
+  @@index([band2])
+  @@index([band3])
+  @@index([band4])
+  @@map("image_whitelist")
+}
+
+/// Luật của máy: mã ổn định, trọng số, chế độ (spec rule-management). CHECK tay (migration init_screening):
+///   screening_rules_gate_check:   kind <> 'gate' OR mode <> 'off' — cổng cứng chạy thử được, không tắt được (câu 19)
+///   screening_rules_weight_check: weight >= 0
+model ScreeningRule {
+  code   String            @id
+  kind   ScreeningRuleKind
+  weight Int
+  mode   ScreeningRuleMode
+
+  overrides ScreeningRuleOverride[]
+
+  @@map("screening_rules")
+}
+
+/// Trọng số / chế độ riêng của một luật cho một danh mục — tin danh mục đó dùng giá trị riêng. CHECK tay (migration
+/// init_screening):
+///   screening_rule_overrides_value_check: weight IS NOT NULL OR mode IS NOT NULL
+///   screening_rule_overrides_weight_check: weight IS NULL OR weight >= 0
+model ScreeningRuleOverride {
+  code       String             @db.Text
+  categoryId String             @map("category_id") @db.Uuid
+  weight     Int?
+  mode       ScreeningRuleMode?
+
+  rule     ScreeningRule @relation(fields: [code], references: [code], onDelete: Cascade)
+  category Category      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([code, categoryId])
+  @@map("screening_rule_overrides")
+}
+
+/// Ngưỡng dải riêng của một danh mục; không có dòng thì dùng ngưỡng chung của bảng con số. CHECK tay (migration
+/// init_screening):
+///   screening_category_bands_order_check: 0 < medium_from AND medium_from < high_from
+model ScreeningCategoryBand {
+  categoryId String @id @map("category_id") @db.Uuid
+  mediumFrom Int    @map("medium_from")
+  highFrom   Int    @map("high_from")
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@map("screening_category_bands")
+}
+
+/// Mỗi lần đổi luật, ghi đè, dải hay cụm từ một dòng — một kết quả chỉ cần `config_version` và `rule_version` để biết
+/// đã chấm theo gì (cam kết 33, D6).
+model ScreeningRuleVersion {
+  version   Int      @id
+  snapshot  Json
+  /// Trống ở phiên bản 1 do hệ thống khởi tạo.
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @map("created_at") @db.Timestamptz(3)
+
+  @@map("screening_rule_versions")
+}
+
+/// Cụm từ cấm (spec banned-phrases). CHECK tay (migration init_screening):
+///   banned_phrases_words_check: folded ~ '\S\s+\S' — từ hai chữ trở lên (service trả 400 trước)
+///   banned_phrases_trial_check: mode <> 'trial' OR trial_ends_at IS NOT NULL
+model BannedPhrase {
+  id               String            @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  text             String
+  /// Chữ đã `fold` — so khớp và chặn trùng trên cột này.
+  folded           String            @unique
+  level            BannedPhraseLevel
+  mode             ScreeningRuleMode
+  trialEndsAt      DateTime?         @map("trial_ends_at") @db.Timestamptz(3)
+  activatedAt      DateTime?         @map("activated_at") @db.Timestamptz(3)
+  activatedBy      String?           @map("activated_by") @db.Uuid
+  activationReason String?           @map("activation_reason")
+  /// Ngoại lệ đã `fold`: chỗ trúng nằm trọn trong một chỗ trúng của ngoại lệ thì bỏ (mục 7).
+  exceptions       String[]
+  createdBy        String            @map("created_by") @db.Uuid
+  createdAt        DateTime          @map("created_at") @db.Timestamptz(3)
+
+  @@map("banned_phrases")
+}
+
+/// Thời gian chờ sau 3 lượt dính cổng cứng trong 24 giờ — chặn tin mới, không phải gậy (spec hard-gates). Bảng đệm, tính
+/// lại được từ `screening_runs`.
+model ScreeningCooldown {
+  accountId String   @id @map("account_id") @db.Uuid
+  until     DateTime @db.Timestamptz(3)
+  startedAt DateTime @map("started_at") @db.Timestamptz(3)
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@map("screening_cooldowns")
+}
+
+/// Khoảng giá thường thấy của danh mục [P10 ÷ 2, P90 × 2] trên giá khác 0 trong 90 ngày (câu 7), tính lại mỗi đêm. Bảng
+/// đệm. CHECK tay (migration init_screening):
+///   category_price_stats_range_check: low >= 0 AND low <= high AND samples >= 0
+model CategoryPriceStat {
+  categoryId String   @id @map("category_id") @db.Uuid
+  low        BigInt
+  high       BigInt
+  samples    Int
+  computedAt DateTime @map("computed_at") @db.Timestamptz(3)
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@map("category_price_stats")
+}
+
+/// Từ khoá suy ra danh mục cho dấu hiệu "sai danh mục" (design mục 3) — master và staff của danh mục nuôi.
+model CategoryKeyword {
+  categoryId    String @map("category_id") @db.Uuid
+  keywordFolded String @map("keyword_folded")
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([categoryId, keywordFolded])
+  @@map("category_keywords")
 }

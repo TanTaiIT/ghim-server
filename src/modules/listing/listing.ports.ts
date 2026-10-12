@@ -19,6 +19,7 @@ export const interimScreening: ListingScreeningPort = {
   precheck: () => Promise.resolve(),
   scoreText: () => Promise.resolve(null),
   openRun: () => Promise.resolve(),
+  notices: () => Promise.resolve(new Map()),
 };
 
 /** Chưa có hàng đợi duyệt, báo cáo hay hậu kiểm nên không việc nào khoá nơi đăng — `add-review-queues` thay. */

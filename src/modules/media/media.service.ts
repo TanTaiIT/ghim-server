@@ -60,6 +60,8 @@ export interface MediaService {
     input: { owner: ImageOwner; imageIds: string[] },
   ): Promise<void>;
   viewUrl(imageId: string): Promise<string>;
+  /** Bytes của ảnh cho máy duyệt băm (design add-screening mục 12); `null` khi kho không còn tệp. */
+  readImage(imageId: string): Promise<Uint8Array | null>;
   /**
    * Bản sao ảnh cho tin chuyển lên sàn chung (delta media/image-storage): tệp chép TRƯỚC transaction, dòng ảnh mới
    * (thuộc `to`, đã xác nhận) ghi bằng `commit(tx)` TRONG transaction của chủ. Transaction hỏng thì tệp chép thành mồ
@@ -203,6 +205,8 @@ export function createMediaService(deps: MediaServiceDeps): MediaService {
 
     viewUrl: (imageId) =>
       storage.viewUrl(imageKey(imageId), config.get('media.viewUrlMinutes') * MINUTE_S),
+
+    readImage: (imageId) => storage.read(imageKey(imageId), config.get('media.maxImageBytes')),
 
     async copyImages({ from, to, imageIds, uploaderId }) {
       const rows = await repository.findImages(imageIds);

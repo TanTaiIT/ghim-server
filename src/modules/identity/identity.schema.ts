@@ -125,6 +125,8 @@ export const meSchema = publicProfileSchema.extend({
   emailVerified: z.boolean(),
   role: z.enum(['user', 'master']),
   twoFactorEnabled: z.boolean(),
+  /** Tên trúng cụm từ cấm mức chắc: người khác thấy "Người dùng Ghim" — app nhắc đổi tên. */
+  nameHidden: z.boolean(),
 });
 
 const phoneNumberSchema = z

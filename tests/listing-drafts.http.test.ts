@@ -4,7 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { imageKey } from '../src/lib/storage.js';
-import { createInterimTrust } from '../src/modules/listing/listing.ports.js';
+import { createInterimTrust, interimScreening } from '../src/modules/listing/listing.ports.js';
 import { prisma } from './db-helpers.js';
 import { newMaster, newUser } from './group-helpers.js';
 import {
@@ -29,7 +29,7 @@ const storage = storageOf(process.env.STORAGE_URL ?? '');
 
 beforeAll(async () => {
   // T1: tin lên bảng ở mức đầy đủ, để ca xoá kiểm được tin biến khỏi bảng tin chứ không phải chưa từng ở đó.
-  app = await buildTestApp({ trust: createInterimTrust('T1') });
+  app = await buildTestApp({ trust: createInterimTrust('T1'), screening: interimScreening });
   await app.ready();
 });
 

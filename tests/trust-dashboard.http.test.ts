@@ -176,7 +176,10 @@ describe('Câu cho tin chờ duyệt do screening cấp (cổng HoldExplanation)
       listings: app.modules.listing,
       identity: app.modules.identity,
       buyerInterest: noBuyerInterest,
-      holds: { explain: (ids) => Promise.resolve(new Map(ids.map((id) => [id, notice]))) },
+      holds: {
+        explain: (ids) => Promise.resolve(new Map(ids.map((id) => [id, notice]))),
+        cooldownOf: () => Promise.resolve(null),
+      },
       config: createStaticRuntimeConfig(),
       clock: () => now,
     });

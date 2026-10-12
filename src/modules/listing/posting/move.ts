@@ -7,7 +7,13 @@ import { isDetached } from '../hide.calc.js';
 import { LISTING_EVENTS, listingEvent } from '../listing.outbox.js';
 import type { OwnListingDto } from '../listing.schema.js';
 import { invalidTransition, type ListingShared } from '../listing.shared.js';
-import { contentData, fieldsOf, type ListingFields, type Submission } from './submission.js';
+import {
+  contentData,
+  fieldsOf,
+  type ListingFields,
+  screeningInput,
+  type Submission,
+} from './submission.js';
 
 const NOT_MOVABLE: ReadonlySet<ListingState> = new Set(['draft', 'sold', 'rejected', 'removed']);
 const alreadyMoved = (): ConflictError =>
@@ -54,7 +60,7 @@ export function createMoveToMarketplace(shared: ListingShared, submission: Submi
       provinceCode: body.provinceCode ?? old.provinceCode,
       wardCode: body.wardCode ?? old.wardCode,
     };
-    const deviceHash = await submission.assertCanPost(actor, deviceId);
+    const deviceHash = await submission.assertCanPost(actor, deviceId, 'move');
     const templateVersion = await submission.assertSubmittable(old, after);
     const newId = await repository.newId();
     const copy = await media.copyImages({
@@ -63,11 +69,15 @@ export function createMoveToMarketplace(shared: ListingShared, submission: Submi
       imageIds: old.imageIds,
       uploaderId: actor.accountId,
     });
-    const score = await screening.scoreText({
-      listingId: newId,
-      title: after.title ?? '',
-      description: after.description,
-    });
+    const score = await screening.scoreText(
+      screeningInput({
+        listingId: newId,
+        actor,
+        kind: 'move',
+        deviceHash,
+        after: { ...after, imageIds: copy.imageIds },
+      }),
+    );
     try {
       const created = await repository.createMoved({
         data: {

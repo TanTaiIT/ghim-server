@@ -101,20 +101,38 @@ export function toSessionDto(session: Session, currentId: string): SessionDto {
   };
 }
 
-/** `avatarUrl` tính trước (đường xem có ký là việc bất đồng bộ) — xem `avatarUrlOf` ở `account/account.service.ts`. */
-export function toPublicProfile(account: Account, avatarUrl: string | null): PublicProfileDto {
+/** Tên trúng bộ lọc (spec identity/profile); chưa nối `screening` (CLI) thì không lọc gì. */
+export const hiddenNames = (
+  deps: Pick<IdentityServiceDeps, 'names'>,
+  names: string[],
+): Promise<Set<string>> =>
+  deps.names && names.length > 0
+    ? deps.names.hidden([...new Set(names)])
+    : Promise.resolve(new Set());
+
+/**
+ * `avatarUrl` tính trước (đường xem có ký là việc bất đồng bộ) — xem `avatarUrlOf` ở `account/account.service.ts`.
+ * `displayName` là tên người khác thấy: tên thật, hay tên chung khi tên không qua bộ lọc.
+ */
+export function toPublicProfile(
+  account: Account,
+  avatarUrl: string | null,
+  displayName: string = account.displayName,
+): PublicProfileDto {
   return {
     id: account.id,
-    displayName: account.displayName,
+    displayName,
     avatarUrl,
     joinedAt: account.createdAt.toISOString(),
     phone: account.phone === null ? null : { number: account.phone, verified: false },
   };
 }
 
-export function toMe(account: Account, avatarUrl: string | null): MeDto {
+/** Chủ tài khoản luôn thấy tên thật; `nameHidden` để app nhắc đổi tên (spec identity/profile). */
+export function toMe(account: Account, avatarUrl: string | null, nameHidden: boolean): MeDto {
   return {
     ...toPublicProfile(account, avatarUrl),
+    nameHidden,
     email: account.email,
     emailVerified: account.status === 'active',
     role: account.role,

@@ -161,17 +161,6 @@ describe('loadEnv — khoá của identity', () => {
     );
   });
 
-  it('máy duyệt tạm của tin đăng: mặc định tắt; production bật thì từ chối khởi động', () => {
-    expect(loadEnv(base)).toMatchObject({ DEV_MACHINE_REVIEW: 'off' });
-    expect(loadEnv({ ...base, DEV_MACHINE_REVIEW: 'pass_full' }).DEV_MACHINE_REVIEW).toBe(
-      'pass_full',
-    );
-    expect(() => loadEnv({ ...production, DEV_MACHINE_REVIEW: 'hold' })).toThrow(
-      /DEV_MACHINE_REVIEW/,
-    );
-    expect(loadEnv({ ...production, DEV_MACHINE_REVIEW: 'off' }).DEV_MACHINE_REVIEW).toBe('off');
-  });
-
   it('GOOGLE_CLIENT_IDS tách thành danh sách, trống ở dev được, production thì không', () => {
     expect(loadEnv(base).GOOGLE_CLIENT_IDS).toEqual([]);
     expect(

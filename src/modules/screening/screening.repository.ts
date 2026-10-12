@@ -1,0 +1,582 @@
+import {
+  type BannedPhrase,
+  type ImageCheck,
+  type ImageWhitelistEntry,
+  Prisma,
+  type PrismaClient,
+  type ScreeningCategoryBand,
+  type ScreeningRule,
+  type ScreeningRuleKind,
+  type ScreeningRuleMode,
+  type ScreeningRuleOverride,
+  type ScreeningRun,
+  type ScreeningTrigger,
+} from '@prisma/client';
+
+import { type AuditEntry, appendAudit } from '../../common/audit/audit.js';
+import { appendEvents, type OutboxEventInput } from '../../common/outbox/outbox.js';
+import type { HELD_MANY_CAUSES } from './decide.calc.js';
+import type { PriceRange } from './price-stats.calc.js';
+import type { RuleSnapshot } from './score.calc.js';
+
+export type Tx = Prisma.TransactionClient;
+
+export interface RuleVersion {
+  version: number;
+  snapshot: RuleSnapshot;
+}
+
+export interface InitialRule {
+  code: string;
+  kind: ScreeningRuleKind;
+  weight: number;
+}
+
+export interface NewRun {
+  listingId: string;
+  listingVersion: number;
+  accountId: string;
+  trigger: ScreeningTrigger;
+  startedAt: Date;
+  textResult: Prisma.InputJsonValue;
+  imageIds: string[];
+  configVersion: number;
+  ruleVersion: number;
+}
+
+export type RunDecision = Pick<
+  ScreeningRun,
+  'outcome' | 'cause' | 'score' | 'band' | 'tier' | 'lookupCode' | 'rankAsListingId'
+> & {
+  decidedAt: Date;
+  hits: Prisma.InputJsonValue;
+  explanation: Prisma.InputJsonValue | null;
+};
+
+/** dHash đã chia dải: `dhash` dạng có dấu của cột `bigint`, `bands` đúng thứ tự `band0..band4`. */
+export interface StoredHash {
+  dhash: bigint;
+  bands: readonly number[];
+}
+
+export interface ScreeningRepository {
+  // ── LUẬT ───────────────────────────────────────────────────────────────────────────────────────
+  /**
+   * Thêm mã luật code có mà bảng chưa có, cùng một phiên bản mới. Bảng rỗng → phiên bản 1, mọi luật bật (TK 14); về sau
+   * → luật mới chạy thử (spec rule-management). Không thiếu mã nào thì `null`, nên khởi động lại không tạo thêm.
+   */
+  seedRules(
+    rules: readonly InitialRule[],
+    at: Date,
+  ): Promise<{ version: number; added: number } | null>;
+  /** Số phiên bản hiện hành — một lượt đọc khoá chính, để bộ nhớ đệm biết lúc nào phải nạp lại. */
+  ruleVersionNumber(): Promise<number | null>;
+  currentRuleVersion(): Promise<RuleVersion | null>;
+  ruleVersion(version: number): Promise<RuleVersion | null>;
+  /**
+   * Một lần đổi luật, ghi đè, dải hay cụm: dưới khoá, đổi → ảnh chụp phiên bản mới → nhật ký, cùng transaction (spec
+   * rule-management: mỗi lần đổi là một phiên bản). `change` trả `null` = không có gì để đổi, không tạo phiên bản.
+   */
+  changeRules<T>(
+    input: { createdBy: string; at: Date; audit: (result: T) => AuditEntry },
+    change: (tx: Tx) => Promise<T | null>,
+  ): Promise<{ result: T; version: number } | null>;
+  listRules(): Promise<{
+    rules: ScreeningRule[];
+    overrides: ScreeningRuleOverride[];
+    bands: ScreeningCategoryBand[];
+  }>;
+  listPhrases(): Promise<BannedPhrase[]>;
+  findPhrase(id: string): Promise<BannedPhrase | null>;
+  phrasesByIds(ids: string[]): Promise<Pick<BannedPhrase, 'id' | 'text'>[]>;
+  findRule(code: string): Promise<ScreeningRule | null>;
+
+  // Ghi trong `changeRules` — dưới khoá luật, nên đọc rồi ghi không bị lượt khác chen giữa.
+  updateRule(
+    tx: Tx,
+    code: string,
+    patch: { weight?: number; mode?: ScreeningRuleMode },
+  ): Promise<void>;
+  upsertOverride(
+    tx: Tx,
+    row: {
+      code: string;
+      categoryId: string;
+      weight: number | null;
+      mode: ScreeningRuleMode | null;
+    },
+  ): Promise<void>;
+  deleteOverride(tx: Tx, code: string, categoryId: string): Promise<boolean>;
+  upsertBands(
+    tx: Tx,
+    row: { categoryId: string; mediumFrom: number; highFrom: number },
+  ): Promise<void>;
+  /** `null` khi đã có cụm cùng dạng bỏ dấu. */
+  createPhrase(
+    tx: Tx,
+    data: Pick<
+      BannedPhrase,
+      | 'text'
+      | 'folded'
+      | 'level'
+      | 'mode'
+      | 'trialEndsAt'
+      | 'exceptions'
+      | 'createdBy'
+      | 'createdAt'
+    >,
+  ): Promise<BannedPhrase | null>;
+  updatePhrase(
+    tx: Tx,
+    id: string,
+    patch: Partial<
+      Pick<
+        BannedPhrase,
+        'level' | 'mode' | 'exceptions' | 'activatedAt' | 'activatedBy' | 'activationReason'
+      >
+    >,
+  ): Promise<BannedPhrase>;
+
+  // ── LƯỢT ───────────────────────────────────────────────────────────────────────────────────────
+  inTransaction<T>(work: (tx: Tx) => Promise<T>): Promise<T>;
+  /** Unique (tin, phiên bản, loại lượt): bấm Đăng hai lần thì lượt thua ném, transaction của `listing` quay lui. */
+  openRun(tx: Tx, data: NewRun): Promise<ScreeningRun>;
+  findRun(
+    listingId: string,
+    version: number,
+    trigger: ScreeningTrigger,
+  ): Promise<ScreeningRun | null>;
+  /** Lượt chưa kết luận đang chờ ảnh này (index GIN một phần). */
+  openRunsWithImage(imageId: string): Promise<ScreeningRun[]>;
+  staleOpenRuns(startedBefore: Date): Promise<ScreeningRun[]>;
+  /**
+   * Ghi kết luận có điều kiện `decided_at IS NULL` cùng sự kiện: lưới an toàn và ảnh cuối về cùng lúc thì một lượt
+   * thắng (design mục 14). `false` = lượt khác đã kết luận trước.
+   */
+  decideRun(tx: Tx, id: string, data: RunDecision, events: OutboxEventInput[]): Promise<boolean>;
+  /** Lượt gửi rút về có sẵn kết luận; đã có lượt rút về của đúng phiên bản thì bỏ qua (`false`). */
+  createDecidedRun(
+    tx: Tx,
+    data: NewRun & RunDecision,
+    events: OutboxEventInput[],
+  ): Promise<boolean>;
+  /** Khoá theo người cho dò cổng cứng — hai lượt song song chạm lượt thứ 3 không cùng bỏ lỡ (design mục 14). */
+  lockAccount(tx: Tx, accountId: string): Promise<void>;
+  countGateRuns(tx: Tx, accountId: string, since: Date): Promise<number>;
+  /** Lần máy giữ của lượt gửi trong khung "bị giữ nhiều", chỉ những căn cứ được đếm (câu 15). */
+  countHolds(accountId: string, since: Date, causes: typeof HELD_MANY_CAUSES): Promise<number>;
+  /** Lượt đã kết luận của các tin, mới nhất trước — câu báo cho người đăng. */
+  decidedRuns(listingIds: string[]): Promise<ScreeningRun[]>;
+  findRunByLookupCode(code: string): Promise<ScreeningRun | null>;
+
+  // ── THỜI GIAN CHỜ ─────────────────────────────────────────────────────────────────────────────
+  activeCooldown(accountId: string, now: Date): Promise<Date | null>;
+  startCooldown(
+    tx: Tx,
+    input: { accountId: string; until: Date; at: Date },
+    events: OutboxEventInput[],
+  ): Promise<void>;
+
+  // ── ẢNH ────────────────────────────────────────────────────────────────────────────────────────
+  imageChecks(imageIds: string[], tx?: Tx): Promise<ImageCheck[]>;
+  /** Thêm dòng `pending` cho ảnh chưa có dòng; trả ảnh vừa thêm — chỉ chúng cần xếp việc kiểm. */
+  addPendingChecks(imageIds: string[], ownerAccountId: string): Promise<string[]>;
+  findImageCheck(imageId: string): Promise<ImageCheck | null>;
+  /** Mỗi lượt thử của việc kiểm ảnh; trả số lượt đã thử kể cả lượt này. */
+  bumpAttempts(imageId: string): Promise<number>;
+  finishImageCheck(
+    imageId: string,
+    result: ({ status: 'done' } & StoredHash) | { status: 'error' },
+    at: Date,
+  ): Promise<void>;
+  /** Ảnh đã kiểm của tài khoản khác chung ít nhất một dải — ứng viên trùng, còn phải so khoảng cách. */
+  duplicateCandidates(input: {
+    bands: readonly number[];
+    excludeOwner: string;
+    excludeImageIds: string[];
+  }): Promise<Pick<ImageCheck, 'imageId' | 'dhash'>[]>;
+  whitelistCandidates(bands: readonly number[]): Promise<Pick<ImageWhitelistEntry, 'dhash'>[]>;
+  addWhitelist(
+    entry: StoredHash & { sourceImageId: string; addedBy: string; at: Date },
+    audit: AuditEntry,
+  ): Promise<ImageWhitelistEntry>;
+  removeWhitelist(id: string, audit: AuditEntry): Promise<boolean>;
+  listWhitelist(): Promise<ImageWhitelistEntry[]>;
+
+  // ── DANH MỤC ───────────────────────────────────────────────────────────────────────────────────
+  priceStatOf(categoryId: string): Promise<PriceRange | null>;
+  savePriceStat(categoryId: string, range: PriceRange, at: Date): Promise<void>;
+  /** Từ khoá đã `fold` của mọi danh mục — suy ra danh mục từ tiêu đề. */
+  keywords(): Promise<Map<string, string[]>>;
+  replaceKeywords(categoryId: string, keywordsFolded: string[], audit: AuditEntry): Promise<void>;
+
+  /** Sự kiện ngoài lượt nào — lưới an toàn hạ tin thiếu kết quả ảnh. */
+  emit(events: OutboxEventInput[]): Promise<void>;
+}
+
+/** Mọi lượt đổi luật, ghi đè, dải, cụm nối tiếp dưới một khoá: số phiên bản liền nhau, ảnh chụp đúng thứ tự ghi. */
+const lockRules = (tx: Tx) =>
+  tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${'screening-rules'}, 0))`;
+
+const latestVersion = async (tx: Tx): Promise<number> =>
+  (
+    await tx.screeningRuleVersion.findFirst({
+      orderBy: { version: 'desc' },
+      select: { version: true },
+    })
+  )?.version ?? 0;
+
+async function snapshotIn(tx: Tx): Promise<RuleSnapshot> {
+  const rules = await tx.screeningRule.findMany({ orderBy: { code: 'asc' } });
+  const overrides = await tx.screeningRuleOverride.findMany({
+    orderBy: [{ categoryId: 'asc' }, { code: 'asc' }],
+  });
+  const bands = await tx.screeningCategoryBand.findMany({ orderBy: { categoryId: 'asc' } });
+  const phrases = await tx.bannedPhrase.findMany({
+    where: { mode: { not: 'off' } },
+    select: { id: true, text: true, level: true, mode: true, exceptions: true },
+    orderBy: { id: 'asc' },
+  });
+  return { rules, overrides, bands, phrases };
+}
+
+/** Ghi phiên bản kế tiếp từ trạng thái hiện tại của các bảng — gọi sau khi đã đổi, trong cùng transaction có khoá. */
+async function writeVersion(tx: Tx, createdBy: string | null, at: Date): Promise<number> {
+  const version = (await latestVersion(tx)) + 1;
+  await tx.screeningRuleVersion.create({
+    data: { version, snapshot: await snapshotIn(tx), createdBy, createdAt: at },
+  });
+  return version;
+}
+
+// Ảnh chụp do chính `writeVersion` ghi, không nhận từ client.
+const toRuleVersion = (row: { version: number; snapshot: Prisma.JsonValue }): RuleVersion => ({
+  version: row.version,
+  snapshot: row.snapshot as RuleSnapshot,
+});
+
+const bandColumns = (bands: readonly number[]) => ({
+  band0: bands[0] ?? 0,
+  band1: bands[1] ?? 0,
+  band2: bands[2] ?? 0,
+  band3: bands[3] ?? 0,
+  band4: bands[4] ?? 0,
+});
+
+const anyBand = (bands: readonly number[]) => [
+  { band0: bands[0] ?? -1 },
+  { band1: bands[1] ?? -1 },
+  { band2: bands[2] ?? -1 },
+  { band3: bands[3] ?? -1 },
+  { band4: bands[4] ?? -1 },
+];
+
+export function createScreeningRepository(prisma: PrismaClient): ScreeningRepository {
+  return {
+    // ── LUẬT ─────────────────────────────────────────────────────────────────────────────────────
+
+    seedRules: (rules, at) =>
+      prisma.$transaction(async (tx) => {
+        await lockRules(tx);
+        const known = new Set(
+          (await tx.screeningRule.findMany({ select: { code: true } })).map((row) => row.code),
+        );
+        const missing = rules.filter((rule) => !known.has(rule.code));
+        if (missing.length === 0) return null;
+        const mode: ScreeningRuleMode = (await latestVersion(tx)) === 0 ? 'on' : 'trial';
+        await tx.screeningRule.createMany({ data: missing.map((rule) => ({ ...rule, mode })) });
+        return { version: await writeVersion(tx, null, at), added: missing.length };
+      }),
+
+    ruleVersionNumber: async () =>
+      (
+        await prisma.screeningRuleVersion.findFirst({
+          orderBy: { version: 'desc' },
+          select: { version: true },
+        })
+      )?.version ?? null,
+
+    async currentRuleVersion() {
+      const row = await prisma.screeningRuleVersion.findFirst({ orderBy: { version: 'desc' } });
+      return row ? toRuleVersion(row) : null;
+    },
+
+    async ruleVersion(version) {
+      const row = await prisma.screeningRuleVersion.findUnique({ where: { version } });
+      return row ? toRuleVersion(row) : null;
+    },
+
+    changeRules: ({ createdBy, at, audit }, change) =>
+      prisma.$transaction(async (tx) => {
+        await lockRules(tx);
+        const result = await change(tx);
+        if (result === null) return null;
+        const version = await writeVersion(tx, createdBy, at);
+        const entry = audit(result);
+        await appendAudit(tx, { ...entry, details: { ...entry.details, ruleVersion: version } });
+        return { result, version };
+      }),
+
+    async listRules() {
+      const [rules, overrides, bands] = await Promise.all([
+        prisma.screeningRule.findMany({ orderBy: { code: 'asc' } }),
+        prisma.screeningRuleOverride.findMany({
+          orderBy: [{ categoryId: 'asc' }, { code: 'asc' }],
+        }),
+        prisma.screeningCategoryBand.findMany({ orderBy: { categoryId: 'asc' } }),
+      ]);
+      return { rules, overrides, bands };
+    },
+
+    listPhrases: () =>
+      prisma.bannedPhrase.findMany({ orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] }),
+    findPhrase: (id) => prisma.bannedPhrase.findUnique({ where: { id } }),
+    phrasesByIds: (ids) =>
+      ids.length === 0
+        ? Promise.resolve([])
+        : prisma.bannedPhrase.findMany({
+            where: { id: { in: ids } },
+            select: { id: true, text: true },
+          }),
+    findRule: (code) => prisma.screeningRule.findUnique({ where: { code } }),
+
+    async updateRule(tx, code, patch) {
+      await tx.screeningRule.update({ where: { code }, data: patch });
+    },
+
+    async upsertOverride(tx, { code, categoryId, weight, mode }) {
+      await tx.screeningRuleOverride.upsert({
+        where: { code_categoryId: { code, categoryId } },
+        create: { code, categoryId, weight, mode },
+        update: { weight, mode },
+      });
+    },
+
+    async deleteOverride(tx, code, categoryId) {
+      const { count } = await tx.screeningRuleOverride.deleteMany({ where: { code, categoryId } });
+      return count > 0;
+    },
+
+    async upsertBands(tx, { categoryId, mediumFrom, highFrom }) {
+      await tx.screeningCategoryBand.upsert({
+        where: { categoryId },
+        create: { categoryId, mediumFrom, highFrom },
+        update: { mediumFrom, highFrom },
+      });
+    },
+
+    async createPhrase(tx, data) {
+      if (await tx.bannedPhrase.findUnique({ where: { folded: data.folded } })) return null;
+      return tx.bannedPhrase.create({ data });
+    },
+
+    updatePhrase: (tx, id, patch) => tx.bannedPhrase.update({ where: { id }, data: patch }),
+
+    // ── LƯỢT ─────────────────────────────────────────────────────────────────────────────────────
+
+    inTransaction: (work) => prisma.$transaction(work),
+
+    openRun: (tx, data) => tx.screeningRun.create({ data }),
+
+    findRun: (listingId, version, trigger) =>
+      prisma.screeningRun.findUnique({
+        where: {
+          listingId_listingVersion_trigger: { listingId, listingVersion: version, trigger },
+        },
+      }),
+
+    async openRunsWithImage(imageId) {
+      const ids = await prisma.$queryRaw<{ id: string }[]>`
+        SELECT id::text AS id FROM screening_runs
+        WHERE decided_at IS NULL AND image_ids @> ARRAY[${imageId}::uuid]`;
+      if (ids.length === 0) return [];
+      return prisma.screeningRun.findMany({ where: { id: { in: ids.map((row) => row.id) } } });
+    },
+
+    staleOpenRuns: (startedBefore) =>
+      prisma.screeningRun.findMany({
+        where: { decidedAt: null, startedAt: { lt: startedBefore } },
+        orderBy: { startedAt: 'asc' },
+      }),
+
+    async decideRun(tx, id, data, events) {
+      const { count } = await tx.screeningRun.updateMany({
+        where: { id, decidedAt: null },
+        data: { ...data, explanation: data.explanation ?? Prisma.DbNull },
+      });
+      if (count === 0) return false;
+      await appendEvents(tx, events);
+      return true;
+    },
+
+    async createDecidedRun(tx, data, events) {
+      const { count } = await tx.screeningRun.createMany({
+        data: [{ ...data, explanation: data.explanation ?? Prisma.DbNull }],
+        skipDuplicates: true,
+      });
+      if (count === 0) return false;
+      await appendEvents(tx, events);
+      return true;
+    },
+
+    async lockAccount(tx, accountId) {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`screening-probe:${accountId}`}, 0))`;
+    },
+
+    countGateRuns: (tx, accountId, since) =>
+      tx.screeningRun.count({
+        where: { accountId, trigger: 'submission', cause: 'gate', decidedAt: { gt: since } },
+      }),
+
+    countHolds: (accountId, since, causes) =>
+      prisma.screeningRun.count({
+        where: {
+          accountId,
+          trigger: 'submission',
+          outcome: 'hold',
+          cause: { in: [...causes] },
+          decidedAt: { gt: since },
+        },
+      }),
+
+    decidedRuns: (listingIds) =>
+      listingIds.length === 0
+        ? Promise.resolve([])
+        : prisma.screeningRun.findMany({
+            where: { listingId: { in: listingIds }, decidedAt: { not: null } },
+            orderBy: [{ decidedAt: 'desc' }, { id: 'desc' }],
+          }),
+
+    findRunByLookupCode: (code) => prisma.screeningRun.findUnique({ where: { lookupCode: code } }),
+
+    // ── THỜI GIAN CHỜ ───────────────────────────────────────────────────────────────────────────
+
+    async activeCooldown(accountId, now) {
+      const row = await prisma.screeningCooldown.findUnique({ where: { accountId } });
+      return row && row.until > now ? row.until : null;
+    },
+
+    async startCooldown(tx, { accountId, until, at }, events) {
+      await tx.screeningCooldown.upsert({
+        where: { accountId },
+        create: { accountId, until, startedAt: at },
+        update: { until, startedAt: at },
+      });
+      await appendEvents(tx, events);
+    },
+
+    // ── ẢNH ──────────────────────────────────────────────────────────────────────────────────────
+
+    imageChecks: (imageIds, tx) =>
+      imageIds.length === 0
+        ? Promise.resolve([])
+        : (tx ?? prisma).imageCheck.findMany({ where: { imageId: { in: imageIds } } }),
+
+    async addPendingChecks(imageIds, ownerAccountId) {
+      if (imageIds.length === 0) return [];
+      const rows = await prisma.imageCheck.createManyAndReturn({
+        data: imageIds.map((imageId) => ({ imageId, ownerAccountId, status: 'pending' as const })),
+        skipDuplicates: true,
+        select: { imageId: true },
+      });
+      return rows.map((row) => row.imageId);
+    },
+
+    findImageCheck: (imageId) => prisma.imageCheck.findUnique({ where: { imageId } }),
+
+    async bumpAttempts(imageId) {
+      const row = await prisma.imageCheck.update({
+        where: { imageId },
+        data: { attempts: { increment: 1 } },
+        select: { attempts: true },
+      });
+      return row.attempts;
+    },
+
+    async finishImageCheck(imageId, result, at) {
+      await prisma.imageCheck.update({
+        where: { imageId },
+        data:
+          result.status === 'done'
+            ? { status: 'done', dhash: result.dhash, ...bandColumns(result.bands), checkedAt: at }
+            : { status: 'error', checkedAt: at },
+      });
+    },
+
+    duplicateCandidates: ({ bands, excludeOwner, excludeImageIds }) =>
+      prisma.imageCheck.findMany({
+        where: {
+          status: 'done',
+          ownerAccountId: { not: excludeOwner },
+          imageId: { notIn: excludeImageIds },
+          OR: anyBand(bands),
+        },
+        select: { imageId: true, dhash: true },
+      }),
+
+    whitelistCandidates: (bands) =>
+      prisma.imageWhitelistEntry.findMany({
+        where: { OR: anyBand(bands) },
+        select: { dhash: true },
+      }),
+
+    addWhitelist: ({ dhash, bands, sourceImageId, addedBy, at }, audit) =>
+      prisma.$transaction(async (tx) => {
+        const row = await tx.imageWhitelistEntry.create({
+          data: { dhash, ...bandColumns(bands), sourceImageId, addedBy, addedAt: at },
+        });
+        await appendAudit(tx, { ...audit, targetId: row.id });
+        return row;
+      }),
+
+    removeWhitelist: (id, audit) =>
+      prisma.$transaction(async (tx) => {
+        const { count } = await tx.imageWhitelistEntry.deleteMany({ where: { id } });
+        if (count === 0) return false;
+        await appendAudit(tx, audit);
+        return true;
+      }),
+
+    listWhitelist: () => prisma.imageWhitelistEntry.findMany({ orderBy: { addedAt: 'desc' } }),
+
+    // ── DANH MỤC ─────────────────────────────────────────────────────────────────────────────────
+
+    async priceStatOf(categoryId) {
+      const row = await prisma.categoryPriceStat.findUnique({ where: { categoryId } });
+      return row ? { low: row.low, high: row.high, samples: row.samples } : null;
+    },
+
+    async savePriceStat(categoryId, range, at) {
+      const data = { low: range.low, high: range.high, samples: range.samples, computedAt: at };
+      await prisma.categoryPriceStat.upsert({
+        where: { categoryId },
+        create: { categoryId, ...data },
+        update: data,
+      });
+    },
+
+    async keywords() {
+      const rows = await prisma.categoryKeyword.findMany();
+      const byCategory = new Map<string, string[]>();
+      for (const row of rows) {
+        byCategory.set(row.categoryId, [
+          ...(byCategory.get(row.categoryId) ?? []),
+          row.keywordFolded,
+        ]);
+      }
+      return byCategory;
+    },
+
+    replaceKeywords: (categoryId, keywordsFolded, audit) =>
+      prisma.$transaction(async (tx) => {
+        await tx.categoryKeyword.deleteMany({ where: { categoryId } });
+        await tx.categoryKeyword.createMany({
+          data: keywordsFolded.map((keywordFolded) => ({ categoryId, keywordFolded })),
+          skipDuplicates: true,
+        });
+        await appendAudit(tx, audit);
+      }),
+
+    emit: (events) => prisma.$transaction((tx) => appendEvents(tx, events)),
+  };
+}

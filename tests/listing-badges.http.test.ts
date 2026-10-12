@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { createInterimTrust } from '../src/modules/listing/listing.ports.js';
+import { createInterimTrust, interimScreening } from '../src/modules/listing/listing.ports.js';
 import { auditOf, outboxEvents, prisma } from './db-helpers.js';
 import {
   type ActiveGroup,
@@ -28,7 +28,7 @@ let app: FastifyInstance;
 let master: TestUser;
 
 beforeAll(async () => {
-  app = await buildTestApp({ trust: createInterimTrust('T1') });
+  app = await buildTestApp({ trust: createInterimTrust('T1'), screening: interimScreening });
   await app.ready();
   master = await newMaster(app);
 });

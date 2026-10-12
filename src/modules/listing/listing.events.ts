@@ -4,10 +4,7 @@ import { z } from 'zod';
 import type { OutboxDispatcher } from '../../common/outbox/dispatcher.js';
 import type { OutboxEventType } from '../../common/outbox/outbox.js';
 import type { HideEvent } from './hide.calc.js';
-import { LISTING_EVENTS } from './listing.outbox.js';
 import type { ListingService } from './listing.service.js';
-
-export type DevMachineReview = 'off' | 'pass_full' | 'pass_limited' | 'hold';
 
 const account = z.object({ accountId: z.string() });
 const member = z.object({ groupId: z.string(), accountId: z.string() });
@@ -32,7 +29,6 @@ const carrying = (...reasons: ListingHideReason[]): Prisma.ListingWhereInput => 
 export function registerListingListeners(
   dispatcher: OutboxDispatcher,
   listing: ListingService,
-  options: { devMachineReview: DevMachineReview },
 ): void {
   const on = <T>(
     type: OutboxEventType,
@@ -150,20 +146,4 @@ export function registerListingListeners(
   on('screening.listing.restricted', z.object({ listingId: z.string() }), ({ listingId }) =>
     listing.restrictByMachine(listingId),
   );
-
-  // Máy tạm chỉ ở dev (`env.ts` chặn ở production): đi đúng đường kết quả máy thật sẽ đi, để chạy thử hết một vòng.
-  const mode = options.devMachineReview;
-  if (mode !== 'off') {
-    on(
-      LISTING_EVENTS.submitted,
-      z.object({ listingId: z.string(), version: z.number().int() }),
-      ({ listingId, version }) =>
-        listing.applyMachineOutcome({
-          listingId,
-          listingVersion: version,
-          outcome: mode === 'hold' ? 'hold' : 'pass',
-          restrictMachine: mode === 'pass_limited',
-        }),
-    );
-  }
 }

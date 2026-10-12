@@ -12,6 +12,7 @@ import {
   createIdentityService,
   type IdentityService,
   type GroupOwnership,
+  type NameScreen,
   type ProfileImages,
   type SessionRevocationListener,
 } from './identity.service.js';
@@ -30,6 +31,7 @@ export interface IdentityModuleDeps {
   ownership?: GroupOwnership;
   sessionsRevoked?: SessionRevocationListener;
   images?: ProfileImages;
+  names?: NameScreen;
 }
 
 export function createIdentityModule(deps: IdentityModuleDeps): {

@@ -7,15 +7,25 @@ import { parseDomainList } from '../identity.jobs.js';
 import type { OutboxEventInput } from '../identity.repository.js';
 import { FLAG_CLEARED_REASONS } from '../identity.schema.js';
 import { hashPassword } from '../password.calc.js';
-import { hashDeviceId, requiredDeviceFlags } from '../device.calc.js';
+import {
+  hashDeviceId,
+  requiredDeviceFlags,
+  sharesDeviceWithLocked,
+  withSubmission,
+} from '../device.calc.js';
 import { generateLookupCode, normalizeLookupCode } from './lookup-code.calc.js';
-import type { IdentityService, IdentityServiceDeps } from '../identity.service.js';
+import {
+  type IdentityService,
+  type IdentityServiceDeps,
+  SCREENED_DISPLAY_NAME,
+} from '../identity.service.js';
 import {
   toDisposableDomainDto,
   toFlagDto,
   toIdVerificationDto,
   oneFlagPerKind,
   emailTaken,
+  hiddenNames,
   type IdentityShared,
 } from '../identity.shared.js';
 
@@ -24,8 +34,10 @@ export type IdentityOpsService = Pick<
   | 'lockAccount'
   | 'unlockAccount'
   | 'recordListingSubmission'
+  | 'deviceFlagsFor'
   | 'deviceToken'
   | 'getFlag'
+  | 'openFlagsOf'
   | 'clearFlag'
   | 'listIdVerifications'
   | 'decideIdVerification'
@@ -167,6 +179,42 @@ export function createIdentityOpsService(
       });
     },
 
+    async deviceFlagsFor(accountId, deviceHash, at) {
+      const [posts, lockedAccounts, clearances, open] = await Promise.all([
+        repository.findDevicePosts(deviceHash),
+        repository.findLockedAccountsOnDevice(deviceHash),
+        repository.findDeviceClearances(deviceHash),
+        repository.findOpenFlags(accountId),
+      ]);
+      const windowDays = config.get('identity.deviceWindowDays');
+      const required = requiredDeviceFlags({
+        accountId,
+        now: at,
+        windowDays,
+        slots: config.get('identity.deviceSlots'),
+        posts: withSubmission(posts, accountId, at),
+        lockedAccounts,
+        clearances,
+      });
+      // Máy này: lượt tính lại sau lượt gửi sẽ ra đúng tập vừa tính. Máy khác: đánh dấu còn mở tới khi hỗ trợ gỡ.
+      const elsewhere = open.filter((flag) => flag.deviceHash !== deviceHash);
+      return {
+        kinds: [...new Set([...required, ...elsewhere].map((flag) => flag.kind))],
+        sharedWithLocked: sharesDeviceWithLocked({
+          accountId,
+          now: at,
+          windowDays,
+          posts,
+          lockedAccounts,
+          clearances,
+        }),
+      };
+    },
+
+    async openFlagsOf(accountId) {
+      return (await repository.findOpenFlags(accountId)).map(toFlagDto);
+    },
+
     async getFlag(lookupCode) {
       const flag = await repository.findFlagByLookupCode(normalizeLookupCode(lookupCode));
       if (!flag) throw new NotFoundError('Không có mã tra cứu này');
@@ -295,7 +343,16 @@ export function createIdentityOpsService(
 
     async accountSummaries(ids) {
       const rows = await repository.findAccountSummaries([...new Set(ids)]);
-      return new Map(rows.map((row) => [row.id, row]));
+      const hidden = await hiddenNames(
+        deps,
+        rows.map((row) => row.displayName),
+      );
+      return new Map(
+        rows.map((row) => [
+          row.id,
+          hidden.has(row.displayName) ? { ...row, displayName: SCREENED_DISPLAY_NAME } : row,
+        ]),
+      );
     },
 
     async accountIdByEmail(email) {

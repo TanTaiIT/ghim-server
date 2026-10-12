@@ -92,6 +92,16 @@ export const CONFIG_KEYS = {
   'screening.hardGateProbesPer24h': int(3, SCREENING),
   'screening.hardGateCooldownHours': int(24, SCREENING),
   'screening.bannedPhraseTrialDays': int(7, SCREENING),
+  // Design add-screening mục 13: trần chấm chữ trong lượt gửi, các ngưỡng dấu hiệu, độ lệch dHash coi là trùng.
+  'screening.textScoreTimeoutMs': int(2000, SCREENING),
+  'screening.newAccountDays': int(3, SCREENING),
+  'screening.abnormalPricePercentile': int(10, SCREENING),
+  'screening.abnormalPriceFactor': int(2, SCREENING),
+  'screening.priceWindowDays': int(90, SCREENING),
+  'screening.ownDuplicateDays': int(30, SCREENING),
+  'screening.heldManyCount': int(3, SCREENING),
+  'screening.heldManyDays': int(7, SCREENING),
+  'screening.imageDuplicateMaxDistance': int(4, SCREENING),
   // Hàng chờ
   'review.machineHoldHours': int(24, REVIEW),
   'review.reportHours': int(72, REVIEW),

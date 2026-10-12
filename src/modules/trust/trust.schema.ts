@@ -28,6 +28,8 @@ export const trustDashboardSchema = z.object({
     /** Lúc có thêm lượt gửi khi đã hết lượt trong giờ; còn lượt thì `null`. */
     nextSubmissionAt: iso.nullable(),
   }),
+  /** Đang trong thời gian chờ vì dò cổng cứng: mốc được gửi tin mới lại — không nêu cổng nào. */
+  cooldownUntil: iso.nullable(),
   restricted: z.array(
     z.object({
       id: z.uuid(),

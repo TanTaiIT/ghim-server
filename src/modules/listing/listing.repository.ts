@@ -130,7 +130,28 @@ export interface ListingRepository {
     since: Date;
     now: Date;
   }): Promise<{ id: string; ownerId: string }[]>;
+  /**
+   * Tin khác của chính người đăng để so "trùng tin của mình" (spec risk-scoring): tin còn đó tính mọi tuổi, tin đã xoá
+   * hay đã hết hạn chỉ tính từ `since`.
+   */
+  ownTexts(input: {
+    accountId: string;
+    since: Date;
+    excludeId: string;
+  }): Promise<Pick<Listing, 'id' | 'title' | 'description'>[]>;
+  /** Lượt gửi mọi loại, kể cả gửi lại sau sửa — "đăng dồn". */
+  countSubmissions(accountId: string, since: Date): Promise<number>;
+  /** Giá khác 0 của tin cùng danh mục lên bảng lần đầu từ `since` — lượt đêm `screening.price-stats`. */
+  priceSamples(categoryId: string, since: Date): Promise<bigint[]>;
+  /** Tin đang hiển thị theo con trỏ `id` — quét lại khi bật cụm, lưới an toàn ảnh. */
+  liveBatch(
+    after: string | null,
+    take: number,
+  ): Promise<Pick<Listing, 'id' | 'version' | 'ownerId' | 'title' | 'description' | 'imageIds'>[]>;
 }
+
+/** Người đăng nhiều tin nhất cũng chỉ so với ngần này tin gần nhất — lượt chấm chữ không chậm dần theo số tin. */
+const OWN_TEXTS_LIMIT = 200;
 
 /** Lô của bên nghe: đủ lớn để ít lượt, đủ nhỏ để một transaction không giữ khoá quá lâu (design mục 9). */
 export const BATCH_SIZE = 500;
@@ -390,6 +411,49 @@ export function createListingRepository(prisma: PrismaClient): ListingRepository
         WHERE (shown_since IS NOT NULL
                AND shown_ms + (EXTRACT(EPOCH FROM (${now}::timestamptz - shown_since)) * 1000)::bigint >= ${minShownMs})
            OR (shown_since IS NULL AND shown_ms >= ${minShownMs} AND updated_at >= ${since})`,
+
+    ownTexts: ({ accountId, since, excludeId }) =>
+      prisma.listing.findMany({
+        where: {
+          ownerId: accountId,
+          id: { not: excludeId },
+          state: { not: 'draft' },
+          OR: [
+            { deletedAt: null, state: { not: 'expired' } },
+            { deletedAt: { gte: since } },
+            { deletedAt: null, state: 'expired', expiresAt: { gte: since } },
+          ],
+        },
+        orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+        take: OWN_TEXTS_LIMIT,
+        select: { id: true, title: true, description: true },
+      }),
+
+    countSubmissions: (accountId, since) =>
+      prisma.listingSubmission.count({ where: { accountId, at: { gt: since } } }),
+
+    async priceSamples(categoryId, since) {
+      const rows = await prisma.listing.findMany({
+        where: { categoryId, firstLiveAt: { gte: since }, price: { gt: 0n } },
+        select: { price: true },
+      });
+      return rows.flatMap((row) => (row.price === null ? [] : [row.price]));
+    },
+
+    liveBatch: (after, take) =>
+      prisma.listing.findMany({
+        where: { state: 'live', deletedAt: null, ...(after ? { id: { gt: after } } : {}) },
+        orderBy: { id: 'asc' },
+        take,
+        select: {
+          id: true,
+          version: true,
+          ownerId: true,
+          title: true,
+          description: true,
+          imageIds: true,
+        },
+      }),
 
     async existingIds(ids) {
       if (ids.length === 0) return new Set();

@@ -33,6 +33,19 @@ export interface DeviceFlagInput {
   clearances: ClearanceRow[];
 }
 
+/** Dòng `device_posts` như sau khi ghi lượt đang xét — để tính đánh dấu trước khi bên nghe kịp ghi (câu 20). */
+export function withSubmission(
+  posts: readonly DevicePostRow[],
+  accountId: string,
+  at: Date,
+): DevicePostRow[] {
+  const own = posts.find((post) => post.accountId === accountId);
+  return [
+    ...posts.filter((post) => post.accountId !== accountId),
+    { accountId, firstPostedAt: own?.firstPostedAt ?? at, lastPostedAt: at },
+  ];
+}
+
 export type RequiredFlag =
   | { kind: Extract<AccountFlagKind, 'many_accounts_on_device'>; relatedAccountId: null }
   | { kind: Extract<AccountFlagKind, 'device_of_locked_account'>; relatedAccountId: string };
@@ -83,4 +96,22 @@ export function requiredDeviceFlags(input: DeviceFlagInput): RequiredFlag[] {
   }
 
   return flags;
+}
+
+/**
+ * "Trùng thiết bị với tài khoản bị khoá" (spec screening/risk-scoring): đã đăng trên máy này TRƯỚC lúc một tài khoản
+ * cùng máy bị khoá — người nhà, phần bù của `device_of_locked_account` — và lượt đăng gần nhất trên máy còn trong cửa
+ * sổ (câu 16). `posts` là dòng trước lượt đang xét: lượt đang gửi không tự làm mới cửa sổ.
+ */
+export function sharesDeviceWithLocked(input: Omit<DeviceFlagInput, 'slots'>): boolean {
+  const { accountId, now, windowDays, posts, lockedAccounts, clearances } = input;
+  const own = posts.find((post) => post.accountId === accountId);
+  if (!own || own.lastPostedAt.getTime() < now.getTime() - windowDays * DAY_MS) return false;
+  const clearedAt = clearances.find((row) => row.accountId === accountId)?.clearedAt ?? null;
+  return lockedAccounts.some(
+    (locked) =>
+      locked.accountId !== accountId &&
+      own.firstPostedAt <= locked.lockedAt &&
+      !(clearedAt && locked.lockedAt < clearedAt),
+  );
 }

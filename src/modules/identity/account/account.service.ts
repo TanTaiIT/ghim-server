@@ -11,9 +11,14 @@ import { imageNotInStorage } from '../../media/media.service.js';
 import { hashEmail, normalizeEmail } from '../email.calc.js';
 import { hashPassword, verifyPassword } from '../password.calc.js';
 import type { Account } from '../identity.repository.js';
-import type { IdentityService, IdentityServiceDeps } from '../identity.service.js';
+import {
+  type IdentityService,
+  type IdentityServiceDeps,
+  SCREENED_DISPLAY_NAME,
+} from '../identity.service.js';
 import {
   DAY_MS,
+  hiddenNames,
   TOTP_ISSUER,
   toIdVerificationDto,
   toSessionDto,
@@ -80,7 +85,11 @@ export function createIdentityAccountService(
     return null;
   };
 
-  const me = async (account: Account) => toMe(account, await avatarUrlOf(account));
+  const nameHidden = async (account: Account): Promise<boolean> =>
+    (await hiddenNames(deps, [account.displayName])).has(account.displayName);
+
+  const me = async (account: Account) =>
+    toMe(account, await avatarUrlOf(account), await nameHidden(account));
 
   return {
     // ── PHIÊN ───────────────────────────────────────────────────────────────────────────────────
@@ -123,7 +132,11 @@ export function createIdentityAccountService(
       // Đã xoá thì không còn hồ sơ; bị khoá vẫn có hồ sơ — TK chỉ ẩn tin, không ẩn người.
       if (!account || account.status === 'deleted')
         throw new NotFoundError('Không có người dùng này');
-      return toPublicProfile(account, await avatarUrlOf(account));
+      return toPublicProfile(
+        account,
+        await avatarUrlOf(account),
+        (await nameHidden(account)) ? SCREENED_DISPLAY_NAME : account.displayName,
+      );
     },
 
     async getMe(actor) {

@@ -20,10 +20,24 @@ const uniqueName = (prefix: string): string => {
   return `${prefix} ${seq}`;
 };
 
-export async function seedCategory(): Promise<string> {
+/** Danh mục kèm phiên bản cài đặt 1 như bàn vận hành tạo — máy duyệt đọc cài đặt đó lúc chấm (`settingsOf`). */
+export async function seedCategory(
+  settings: Omit<
+    Prisma.CategorySettingVersionUncheckedCreateInput,
+    'categoryId' | 'version' | 'changedBy'
+  > = {},
+): Promise<string> {
   const name = uniqueName('Danh mục thử');
   const { id: createdBy } = await seedAccount();
-  return (await prisma.category.create({ data: { name, createdBy } })).id;
+  return (
+    await prisma.category.create({
+      data: {
+        name,
+        createdBy,
+        settingVersions: { create: { version: 1, changedBy: createdBy, ...settings } },
+      },
+    })
+  ).id;
 }
 
 export async function seedGroup(mode: GroupMode = 'public_review'): Promise<string> {

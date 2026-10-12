@@ -39,7 +39,10 @@ export function createTrustDashboardService(deps: TrustServiceDeps): TrustDashbo
         settings,
         now,
       });
-      const notices = await holds.explain(listingFacts.pending.map((row) => row.id));
+      const [notices, cooldownUntil] = await Promise.all([
+        holds.explain(listingFacts.pending.map((row) => row.id)),
+        holds.cooldownOf(actor.accountId),
+      ]);
       return {
         tier,
         countedClean,
@@ -52,6 +55,7 @@ export function createTrustDashboardService(deps: TrustServiceDeps): TrustDashbo
           nextSubmissionAt:
             !rate.ok && rate.code === 'SUBMISSION_RATE_LIMITED' ? rate.retryAt.toISOString() : null,
         },
+        cooldownUntil: cooldownUntil?.toISOString() ?? null,
         restricted: listingFacts.restricted.map(({ id, title, restrictions }) => ({
           id,
           title,

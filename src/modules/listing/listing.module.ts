@@ -1,5 +1,5 @@
 import type { AppModule } from '../../common/module/app-module.js';
-import { type DevMachineReview, registerListingListeners } from './listing.events.js';
+import { registerListingListeners } from './listing.events.js';
 import { registerListingJobs } from './listing.jobs.js';
 import { listingRoutes } from './listing.routes.js';
 import {
@@ -8,11 +8,11 @@ import {
   type ListingServiceDeps,
 } from './listing.service.js';
 
-export function createListingModule(
-  deps: ListingServiceDeps & { devMachineReview: DevMachineReview },
-): { service: ListingService; module: AppModule } {
-  const { devMachineReview, ...serviceDeps } = deps;
-  const service = createListingService(serviceDeps);
+export function createListingModule(deps: ListingServiceDeps): {
+  service: ListingService;
+  module: AppModule;
+} {
+  const service = createListingService(deps);
   return {
     service,
     module: {
@@ -20,8 +20,7 @@ export function createListingModule(
       routes: async (app) => {
         await app.register(listingRoutes, { listing: service });
       },
-      listeners: (dispatcher) =>
-        registerListingListeners(dispatcher, service, { devMachineReview }),
+      listeners: (dispatcher) => registerListingListeners(dispatcher, service),
       jobs: (jobs) => registerListingJobs(jobs, service),
     },
   };

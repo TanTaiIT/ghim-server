@@ -22,6 +22,7 @@ import {
   clockSettings,
   type ListingShared,
   placementError,
+  type ScreeningSubmission,
   validationError,
 } from '../listing.shared.js';
 import { decideGroupPlacement, missingForSubmit, needsRegion } from './placement.calc.js';
@@ -109,6 +110,26 @@ export interface SubmissionInput {
   restrictions: (locked: ListingRestriction[]) => ListingRestriction[];
 }
 
+/** Bản gửi cho máy chấm; `missingForSubmit` đã bắt buộc tiêu đề, danh mục, nơi đăng ở bước 4. */
+export const screeningInput = (input: {
+  listingId: string;
+  actor: Actor;
+  kind: ListingSubmissionKind;
+  deviceHash: string;
+  after: ListingFields;
+}): ScreeningSubmission => ({
+  listingId: input.listingId,
+  accountId: input.actor.accountId,
+  kind: input.kind,
+  deviceHash: input.deviceHash,
+  title: input.after.title ?? '',
+  description: input.after.description,
+  price: input.after.price,
+  categoryId: input.after.categoryId ?? '',
+  placement: input.after.placement ?? 'marketplace',
+  imageIds: input.after.imageIds,
+});
+
 /**
  * Một lượt "gửi" — gửi nháp, gửi lại sau sửa, gia hạn — theo thứ tự kiểm cố định của design mục 5: rẻ trước, nên cùng
  * một lượt sai luôn ra cùng một lỗi; không dòng nào đổi khi bất kỳ bước nào ném (spec submission).
@@ -118,13 +139,17 @@ export function createSubmission(shared: ListingShared) {
     shared;
 
   /** Bước 3: tài khoản và mã máy — mọi lượt gửi bắt buộc `x-device-id` (D2, TK 8). */
-  const assertCanPost = async (actor: Actor, deviceId: string | null): Promise<string> => {
+  const assertCanPost = async (
+    actor: Actor,
+    deviceId: string | null,
+    kind: ListingSubmissionKind,
+  ): Promise<string> => {
     if (actor.role === 'master') throw new ForbiddenError('Tài khoản master không đăng tin');
     if (!actor.emailVerified) {
       throw new ForbiddenError('Xác nhận email trước khi gửi tin', 'EMAIL_NOT_VERIFIED');
     }
     if (!deviceId) throw validationError('Thiếu mã thiết bị (header x-device-id)');
-    await screening.precheck(actor.accountId);
+    await screening.precheck(actor.accountId, kind);
     return identity.deviceToken(deviceId);
   };
 
@@ -201,16 +226,14 @@ export function createSubmission(shared: ListingShared) {
 
   const submit = async (input: SubmissionInput): Promise<Listing | null> => {
     const { actor, listing, after } = input;
-    const deviceHash = await assertCanPost(actor, input.deviceId);
+    const deviceHash = await assertCanPost(actor, input.deviceId, input.kind);
     const templateVersion = await assertSubmittable(listing, after, {
       editInPlace: input.kind === 'resubmit',
     });
     const owner = { kind: 'listing' as const, id: listing.id };
-    const score = await screening.scoreText({
-      listingId: listing.id,
-      title: after.title ?? '',
-      description: after.description,
-    });
+    const score = await screening.scoreText(
+      screeningInput({ listingId: listing.id, actor, kind: input.kind, deviceHash, after }),
+    );
     await media.resolve({ owner, uploaderId: actor.accountId, imageIds: after.imageIds });
     const now = clock();
     const outsiderWithoutLock = input.recheckPlacement

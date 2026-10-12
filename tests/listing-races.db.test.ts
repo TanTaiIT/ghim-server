@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { createInterimTrust } from '../src/modules/listing/listing.ports.js';
+import { createInterimTrust, interimScreening } from '../src/modules/listing/listing.ports.js';
 import type { ListingTrustPort } from '../src/modules/listing/listing.shared.js';
 import { prisma } from './db-helpers.js';
 import { addMember, createActiveGroup, deliverAll, newUser } from './group-helpers.js';
@@ -50,7 +50,7 @@ const pausingTrust: ListingTrustPort = {
 };
 
 beforeAll(async () => {
-  app = await buildTestApp({ clock: () => now, trust: pausingTrust });
+  app = await buildTestApp({ clock: () => now, trust: pausingTrust, screening: interimScreening });
   await app.ready();
 });
 

@@ -33,10 +33,13 @@ export interface HoldNotice {
 
 /**
  * Câu cho tin đang chờ người duyệt trên bảng uy tín (spec seller-dashboard): tin giữ vì dấu hiệu gian lận nhận câu chung
- * ba phần, không nêu tín hiệu nào — chỉ `screening` biết tin bị giữ vì sao, nên câu do nó cấp (design mục 9).
+ * ba phần, không nêu tín hiệu nào — chỉ `screening` biết tin bị giữ vì sao, nên câu do nó cấp (design mục 9). Thời gian
+ * chờ vì dò cổng cứng cũng của `screening`: bảng hiện mốc gửi lại, không nêu cổng nào (delta add-screening).
  */
 export interface HoldExplanation {
   explain(listingIds: string[]): Promise<Map<string, HoldNotice>>;
+  /** Mốc được gửi tin mới lại; không trong thời gian chờ thì `null`. */
+  cooldownOf(accountId: string): Promise<Date | null>;
 }
 
 export interface TrustServiceDeps {
@@ -86,4 +89,5 @@ const WAITING_FOR_REVIEWER: HoldNotice = {
 /** Bản tạm tới `add-screening`: mọi tin chờ duyệt nhận câu "đang chờ người duyệt". */
 export const genericHolds: HoldExplanation = {
   explain: (ids) => Promise.resolve(new Map(ids.map((id) => [id, WAITING_FOR_REVIEWER]))),
+  cooldownOf: () => Promise.resolve(null),
 };

@@ -1,6 +1,6 @@
 # CLAUDE.md — Ghim (bản làm lại)
 
-> File này mô tả code **như nó đang là** (đối chiếu `package.json` và `src/` ngày 11/10/2026).
+> File này mô tả code **như nó đang là** (đối chiếu `package.json` và `src/` ngày 13/10/2026).
 > Code và file lệch nhau → sửa file này cho đúng, đừng bẻ code theo một dòng đã cũ.
 > Mục ghi **(chưa có)** là quy tắc cho phần sắp làm: đừng import đường dẫn đó, nó chưa tồn tại.
 
@@ -60,7 +60,8 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
     trong `public` nên `prisma migrate` và `db:drift` không thấy; pg-boss tự tạo bảng khi `start()`.
     Không thêm Redis. Bản đầu một tiến trình; pg-boss khoá theo job nên ngày chạy nhiều tiến trình
     không phải đổi gì. Đã nối: `src/lib/jobs.ts` (`createJobs` → `start`/`stop`/`schedule`, cron theo
-    `Asia/Ho_Chi_Minh`, `singletonKey` mặc định = tên việc); module khai việc của mình trong
+    `Asia/Ho_Chi_Minh`, `singletonKey` mặc định = tên việc; `work` nhận `retryLimit` và `concurrency` — số việc
+    cùng loại chạy song song mỗi tiến trình); module khai việc của mình trong
     `<module>.jobs.ts` với tên `<module>.<việc>`, nối qua `jobs` của định nghĩa module (`<module>.module.ts`).
   - Gửi email (mã xác nhận, đổi email): **nodemailer** qua `SMTP_URL`, đứng sau interface `Mailer` ở
     `src/lib/mailer.ts` (`createSmtpMailer`, `createFakeMailer` cho test). `SMTP_URL` bắt buộc ngoài
@@ -73,8 +74,9 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
   - Hai lớp cho master, staff: **otplib** (TOTP, ứng dụng tạo mã bất kỳ). Bí mật mã hoá AES-256-GCM
     (`src/common/crypto/secrets.ts`); `requireMaster` và `requireOps` đều đòi `second_factor_at` trên
     phiên — kể cả master, kể cả khi chưa thiết lập.
-  - Băm ảnh so trùng (đồng ý 12/10/2026, cài khi code `add-screening`): **sharp** — dHash 64 bit, đứng sau cổng
-    `ImageAnalyzer`. Kiểm ảnh nhạy cảm chưa chọn dịch vụ (`add-image-moderation`).
+  - Băm ảnh so trùng (đồng ý 12/10/2026): **sharp** — thu ảnh về 9×8 xám rồi dHash 64 bit, đứng sau cổng
+    `ImageHasher` (`src/modules/screening/run/image-hash.ts`). Kiểm ảnh nhạy cảm chưa chọn dịch vụ
+    (`add-image-moderation`).
   - Danh sách email dùng một lần (TK 7): hạt giống `src/modules/identity/data/disposable-domains.seed.txt`
     (dự án `disposable-email-domains`, ~96k miền), nạp khi bảng rỗng lúc khởi động
     (`identity.seedDisposableDomainsIfEmpty` trong `server.ts`); việc `identity.refresh-disposable-domains`
@@ -90,7 +92,8 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
   - Kho ảnh (chốt 11/10/2026): **chuẩn S3** qua `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner` — Cloudflare
     R2 ở production, **RustFS** trong docker-compose cho dev (`pnpm storage:up`, cổng 9100) và test (`storage-test`,
     cổng 9110, tmpfs). Một biến `STORAGE_URL` (`src/config/storage-url.ts`); cửa duy nhất `src/lib/storage.ts`
-    (`Storage`: ký URL tải lên một lần kèm `If-None-Match: *`, ký đường xem có hạn, `head`, `deleteMany`, `list`).
+    (`Storage`: ký URL tải lên một lần kèm `If-None-Match: *`, ký đường xem có hạn, `head`, `read` có trần byte
+    cho máy duyệt băm ảnh, `deleteMany`, `list`).
     App tải thẳng, ảnh không qua server; hướng dẫn cho app ở `docs/media.md`. MinIO đã gỡ image khỏi Docker Hub.
 - **(chưa có)** — vẫn phải hỏi trước vì chưa chọn: push lên điện thoại (đề xuất Expo
   Push Service, hoãn tới khi app làm — design của `add-notification-core` mục 3), kiểm ảnh nhạy cảm, theo dõi lỗi
@@ -118,7 +121,8 @@ src/
   common/
     audit/audit.ts            ← `appendAudit(tx, entry)`: nhật ký bàn vận hành, cùng transaction với thay đổi
     auth/{auth.plugin,actor,privilege-source}.ts ← guard dùng chung: authenticate, requireVerifiedEmail,
-                                requireMaster, requireOps(scope), requireCategoryOps(categoryIdOf); `Actor`
+                                requireMaster, requireOps(scope), requireStaff (mọi staff đang hiệu lực),
+                                requireCategoryOps(categoryIdOf); `Actor`
                                 trên request, `actorOf(request)` cho handler; `PrivilegeSource.staffGrant` trả
                                 cả gói quyền staff trong một lượt đọc (bản thật: `createPlatformPrivilegeSource`)
     config/config-keys.ts     ← sổ đăng ký mọi con số TK 28: kiểu, giá trị khởi đầu, nhóm
@@ -169,9 +173,10 @@ tests/*.db.test.ts            ← ghi thẳng bằng Prisma để kiểm ràng b
   việc (`membership` / `admin`) và cả ba calc dùng chung — muốn tách cụm thì sắp lại route cho khớp service trước.
 - **Không có `<module>.types.ts`**: DTO chính là response schema Zod trong `<module>.schema.ts`.
 - Tên module kebab-case, **số ít**. Đang có: `health`, `identity`, `platform`, `category`, `group`,
-  `notification`, `media`, `listing`, `trust`.
-- `buildApp(overrides)` nhận `repositories: { identity, platform, category, group, media, listing, trust }`, `storage`,
-  `trust` (cổng mức tin cậy và hạn mức mà `listing`, `group` hỏi — bỏ trống là module `trust` thật) và hạ tầng dùng chung
+  `notification`, `media`, `listing`, `trust`, `screening`.
+- `buildApp(overrides)` nhận `repositories: { identity, platform, category, group, media, listing, trust, screening }`,
+  `storage`, `trust` (cổng mức tin cậy và hạn mức mà `listing`, `group` hỏi — bỏ trống là module `trust` thật),
+  `screening` (cổng máy duyệt `listing` gọi trong lượt gửi — bỏ trống là module `screening` thật) và hạ tầng dùng chung
   (jobs, mailer, googleVerifier, privilegeSource, config, clock) — bỏ trống là bản thật. `RuntimeConfig.version()` cho
   biết phiên bản bảng con số đang đọc (kết quả tính theo con số ghi kèm, cam kết 33).
   `privilegeSource` và `config` mặc định là bản thật của `platform` dựng trên repository của nó. Service
@@ -438,6 +443,11 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   Tin đăng: `tests/listing-http-helpers.ts` đi luồng thật (nháp → ảnh → gửi → `machinePass`), `signedInAt` ký lại
   phiên khi ca đẩy đồng hồ quá 30 ngày. Mặc định của test là module `trust` thật (tài khoản mới ở T0, 3 lượt gửi mỗi
   giờ với đồng hồ đứng yên); test không bàn về mức hay hạn mức đè bằng `buildTestApp({ trust: createInterimTrust(…) })`.
+  Máy duyệt mặc định cũng thật: lượt gửi chờ kết quả ảnh, và máy đọc cài đặt danh mục lúc chấm — `seedCategory`
+  (`tests/listing-helpers.ts`) dựng danh mục kèm phiên bản cài đặt 1 như bàn vận hành. Test không bàn về máy duyệt đè
+  bằng `buildTestApp({ screening: interimScreening })`; test máy duyệt dùng `tests/screening-helpers.ts` (`screened`
+  ghi sẵn ảnh đã kiểm để lượt kết luận ngay, `tierPort` đặt mức từng người, `pngOf` sinh ảnh thật cho `sharp`) và
+  gọi `app.modules.screening.ensureRules()` vì `buildTestApp` không chạy bước khởi động.
   Ca tranh chấp có khoá nhóm dùng cổng `trust` giả dừng lượt gửi trong transaction (`tests/listing-races.db.test.ts`);
   dữ liệu nền mức DB ở `tests/listing-helpers.ts`. Mức tin cậy: `seedTier` (`tests/group-helpers.ts`) ghi thẳng mức
   làm dữ liệu nền — `createActiveGroup` và `appointModerator` dùng nó vì nhận vai cần T1; luật lên mức đi luồng thật ở

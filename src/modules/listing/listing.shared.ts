@@ -50,18 +50,51 @@ export interface ListingTrustPort {
   ): Promise<void>;
 }
 
-/** Chỗ cắm máy duyệt (design mục 8): thời gian chờ, chấm chữ trước transaction, ghi lượt chấm trong transaction. */
-export interface ListingScreeningPort {
-  /** Ném 429 `SUBMISSION_COOLDOWN` khi người đăng đang trong thời gian chờ. */
-  precheck(accountId: string): Promise<void>;
-  /** Chấm chữ trước transaction; lỗi dịch vụ không ném ra (máy không phạt — lưới an toàn giữ cho người). */
-  scoreText(input: {
-    listingId: string;
-    title: string;
-    description: string | null;
-  }): Promise<unknown>;
-  openRun(tx: Tx, input: { listingId: string; version: number; score: unknown }): Promise<void>;
+/** Bản đang gửi đưa cho máy chấm — nội dung của lượt gửi, chưa phải dòng đã lưu (design add-screening mục 1). */
+export interface ScreeningSubmission {
+  listingId: string;
+  accountId: string;
+  kind: ListingSubmissionKind;
+  deviceHash: string;
+  title: string;
+  description: string | null;
+  price: bigint | null;
+  categoryId: string;
+  placement: ListingPlacement;
+  imageIds: string[];
 }
+
+/** Câu báo của máy cho người đăng (spec screening/explanations) — `screening` soạn, `listing` chỉ hiện. */
+export interface MachineNotice {
+  kind: 'plain' | 'fraud' | 'limited';
+  message: string;
+  estimatedWait: string | null;
+  lookupCode: string | null;
+  fixes: { code: string; message: string }[];
+}
+
+/**
+ * Chỗ cắm máy duyệt (design mục 8): thời gian chờ, chấm chữ trước transaction, ghi lượt chấm trong transaction. Kết quả
+ * chấm `listing` chỉ chuyển từ `scoreText` sang `openRun` của cùng lượt gửi, không đọc.
+ */
+export interface ListingScreeningPort {
+  /** Ném 429 `SUBMISSION_COOLDOWN` khi đang trong thời gian chờ và lượt là tin mới — gửi nháp, chuyển lên sàn. */
+  precheck(accountId: string, kind: ListingSubmissionKind): Promise<void>;
+  /** Chấm chữ trước transaction; lỗi dịch vụ không ném ra (máy không phạt — lưới an toàn giữ cho người). */
+  scoreText(input: ScreeningSubmission): Promise<unknown>;
+  openRun(tx: Tx, input: { listingId: string; version: number; score: unknown }): Promise<void>;
+  /**
+   * Câu của lượt máy kết luận gần nhất mỗi tin; tin không có câu thì vắng khỏi map. Áp kết quả máy làm tăng `version`
+   * của tin, nên hỏi theo tin chứ không theo phiên bản — trạng thái tin quyết định câu còn hiện hay không.
+   */
+  notices(listingIds: string[]): Promise<Map<string, MachineNotice>>;
+}
+
+/** Máy giữ thì câu nằm trên tin chờ duyệt; cho hiện hạn chế thì câu chỉ còn ý nghĩa khi tin còn bị hạn chế. */
+const showsNotice = (row: Listing, notice: MachineNotice): boolean =>
+  notice.kind === 'limited'
+    ? row.state === 'live' && row.restrictions.length > 0
+    : row.state === 'pending';
 
 /** Việc đang chờ của người duyệt, báo cáo, hậu kiểm khoá nơi đăng (cam kết 19) — `add-review-queues` nối. */
 export interface OpenWork {
@@ -239,10 +272,16 @@ export function createListingShared(deps: ListingServiceDeps) {
   };
 
   const toOwnDtos = async (rows: Listing[], now: Date): Promise<OwnListingDto[]> => {
-    const base = await toDtos(rows);
+    const [base, notices] = await Promise.all([
+      toDtos(rows),
+      deps.screening.notices(
+        rows.filter((row) => row.state === 'pending' || row.state === 'live').map((row) => row.id),
+      ),
+    ]);
     return rows.map((row, index) => {
       const dto = base[index];
       if (!dto) throw new Error('Thiếu DTO của tin');
+      const notice = notices.get(row.id);
       return {
         ...dto,
         version: row.version,
@@ -254,6 +293,7 @@ export function createListingShared(deps: ListingServiceDeps) {
         renewal: row.renewal,
         fault: row.fault,
         moveUntil: moveUntil(row),
+        machineNotice: notice && showsNotice(row, notice) ? notice : null,
       };
     });
   };

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { createInterimTrust } from '../src/modules/listing/listing.ports.js';
+import { createInterimTrust, interimScreening } from '../src/modules/listing/listing.ports.js';
 import { LISTING_JOBS } from '../src/modules/listing/listing.jobs.js';
 import { outboxEvents, prisma } from './db-helpers.js';
 import type { FakeJobs } from './fakes/jobs.fake.js';
@@ -41,7 +41,11 @@ let app: FastifyInstance;
 let master: TestUser;
 
 beforeAll(async () => {
-  app = await buildTestApp({ clock: () => now, trust: createInterimTrust('T1') });
+  app = await buildTestApp({
+    clock: () => now,
+    trust: createInterimTrust('T1'),
+    screening: interimScreening,
+  });
   await app.ready();
   master = await newMaster(app);
 });
