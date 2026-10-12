@@ -76,27 +76,10 @@ T0; hiển thị hạn chế do `add-listings` và `add-screening`).
 - **Đã chốt 08/10** (TK 3, 19, 20): "không bị gỡ" là "không bị gỡ vì vi phạm"; tin bị gỡ vì sai sót không bị
   trừ, sửa xong hiện lại đủ 7 ngày thì thành tin sạch. Gia hạn sớm không chiếm thêm chỗ, nên gia hạn khi số tin
   sống đúng bằng trần là được; chỉ chặn khi đang vượt trần.
-- **Câu hỏi mở** — TK không nói hoặc tự mâu thuẫn, cần người dùng chốt trước khi viết design:
-  - Tin sạch vượt giới hạn 3 tin mỗi 7 ngày được dời sang khoảng sau hay bỏ hẳn? Gợi ý: dời — tin vẫn sạch,
-    chỉ được tính muộn hơn.
-  - Tin bị gỡ vì vi phạm rồi được khôi phục hay khiếu nại thắng có lại tư cách tin sạch không? Gợi ý: có — chỉ
-    tính tin bị gỡ vì vi phạm mà chưa được khôi phục.
-  - "Hiển thị ít nhất 7 ngày" cộng dồn hay liền mạch, có tính thời gian tạm ẩn không (TK 19: ngày hiển thị vẫn
-    trôi khi tài khoản bị khoá hay rời nhóm dù tin không hiện). Gợi ý: cộng dồn những ngày tin đang hiển thị và
-    không tạm ẩn.
-  - Tin sạch còn được tính không sau khi tin bị người đăng xoá, hoặc bị xoá hẳn theo hạn lưu (tin hết hạn 1
-    năm, đã bán 180 ngày)? Nếu không, mức của người bán lâu năm tự tụt khi tin cũ bị dọn. Gợi ý: còn — uy tín
-    giữ dữ kiện "tin X thành tin sạch ngày D", không chứa nội dung tin.
-  - "Người nhắn hỏi mua" có tính tài khoản dùng chung thiết bị với người bán không (TK 8)? Gợi ý: không tính.
-  - Tuổi tài khoản tính từ lúc tạo hay từ lúc xác nhận email (lúc vào T0)?
-  - Chủ nhóm hay điều hành viên tụt dưới T1 (vd tin sạch duy nhất bị gỡ) thì sao: TK 5 nói giữ vai cần T1,
-    nhưng TK 5 và TK 10 chỉ nêu mất vai khi nhận gậy nặng hay bị khoá, và TK 10 nói nhóm chỉ mất chủ trong hai
-    trường hợp đó. Change này chỉ chặn nhận vai khi dưới T1.
-  - TK 20 kể "chờ tin được duyệt" là một cách giải phóng chỗ, nhưng tin chờ duyệt được duyệt thì vẫn là tin
-    sống. Câu báo nên nói gì — rút tin chờ duyệt về nháp?
-  - Master phát hành bảng con số mới thì mức của mọi tài khoản tính lại ngay, hay ở lần có chuyện mới / lượt
-    hằng ngày kế tiếp?
-  - "Hiển thị 7 ngày" của tin sạch không có trong bảng con số TK 28, trong khi cam kết 33 nói mọi con số master
-    chỉnh được. Có đưa vào bảng con số không?
-  - Thời gian chờ (TK 13) là một mục của bảng uy tín (TK 20), nhưng bảng phân công chưa giao change nào thêm vào
-    `trust/seller-dashboard`. Gợi ý: `add-screening`.
+- **Đã chốt 12/10/2026** (design mục 2): tin sạch vượt giới hạn được dời, không bỏ; khôi phục hay khiếu nại
+  thắng trả lại tư cách tin sạch; 7 ngày cộng dồn lúc tin được thấy (tạm ẩn không tính); tin sạch còn tính sau khi
+  tin bị xoá; người hỏi mua dùng chung máy với người bán không tính; tuổi tài khoản từ lúc tạo; tụt dưới T1 không
+  mất vai, chỉ chặn nhận vai mới; câu hết chỗ nêu rút tin chờ duyệt về nháp thay cho "chờ tin được duyệt"; bảng con
+  số mới áp ở lần tính kế tiếp, lượt hằng ngày tính lại mọi tài khoản theo phiên bản cũ; thêm
+  `trust.cleanShownDays` 7; thời gian chờ trên bảng uy tín thuộc `add-screening`. Việc nền chạy trên pg-boss.
+- **Câu hỏi mở**: không còn.

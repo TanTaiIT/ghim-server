@@ -116,3 +116,19 @@ ngoài: tin qua máy lại, và nhóm phải nhận tin người ngoài.
 
 - **WHEN** người đăng chuyển một tin vào một nhóm mình không phải thành viên, nhóm đang tắt nhận tin người ngoài
 - **THEN** response có HTTP 403 `OUTSIDER_POSTS_DISABLED` và tin không đổi
+
+### Requirement: Tin đã rời nhóm hẳn không sửa được
+
+Tin đã rời nhóm hẳn — nhóm đã đóng, tin người ngoài rời nhóm vì nhóm sang riêng tư, tin bị gỡ khỏi nhóm — MUST NOT
+sửa được nữa. Người đăng chỉ chuyển được tin đó lên sàn chung thành một tin mới (listing/suspension) hoặc xoá nó,
+để mỗi món đồ chỉ lên sàn chung một lần (chốt 12/10/2026).
+
+#### Scenario: Sửa nơi đăng tin của nhóm đã đóng
+
+- **WHEN** người đăng đổi nơi đăng một tin của nhóm đã đóng lên sàn chung, có đủ tỉnh và phường
+- **THEN** response có HTTP 409 `LISTING_DETACHED` và tin không đổi
+
+#### Scenario: Xoá tin đã rời nhóm
+
+- **WHEN** người đăng xoá một tin bị gỡ khỏi nhóm
+- **THEN** tin bị xoá

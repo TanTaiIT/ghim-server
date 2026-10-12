@@ -44,18 +44,24 @@ Tin SHALL hiển thị hạn chế khi còn ít nhất một lý do hạn chế,
 ### Requirement: Lý do "máy"
 
 Lý do hạn chế "máy" SHALL chỉ do máy duyệt đặt; máy đặt khi nào thuộc phần chấm điểm. Lý do này chỉ được gỡ khi
-người hậu kiểm cho tin đạt, và MUST NOT tự gỡ theo thời gian.
+người hậu kiểm cho tin đạt, hoặc khi lượt qua máy sau một lần sửa cho tin hiện đầy đủ (chốt 12/10/2026), và MUST
+NOT tự gỡ theo thời gian.
 
 #### Scenario: Chưa ai hậu kiểm
 
 - **WHEN** một tin mang lý do "máy" đã hiển thị 10 ngày mà chưa có người hậu kiểm nào quyết
 - **THEN** tin vẫn hiển thị hạn chế
 
+#### Scenario: Sửa xong máy cho hiện đầy đủ
+
+- **WHEN** người đăng ở mức T1 sửa một tin mang lý do "máy" và lượt qua máy sau khi sửa cho hiện đầy đủ
+- **THEN** lý do "máy" được gỡ và tin hiển thị đầy đủ
+
 ### Requirement: Lý do "tài khoản mới"
 
 Tin của người đăng đang ở mức T0 lên bảng ở nơi công khai — sàn chung hay nhóm công khai — SHALL mang lý do "tài
-khoản mới", dù máy cho qua ở mức nào. Khi người đăng lên T1, lý do này SHALL được gỡ khỏi mọi tin của người đó
-(TK 27 cam kết 15).
+khoản mới", dù máy cho qua ở mức nào. Khi người đăng lên T1, lý do này SHALL được gỡ khỏi mọi tin của người đó (TK 27 cam
+kết 15); tin thu hẹp về "chỉ thành viên" cũng SHALL được gỡ lý do này (chốt 12/10/2026).
 
 #### Scenario: Tài khoản T0 đăng sàn chung
 
@@ -71,6 +77,12 @@ khoản mới", dù máy cho qua ở mức nào. Khi người đăng lên T1, l�
 
 - **WHEN** máy cho qua đầy đủ một tin "chỉ thành viên" của người đăng ở mức T0
 - **THEN** tin không mang lý do "tài khoản mới" và hiển thị đầy đủ
+
+#### Scenario: Thu hẹp về "chỉ thành viên"
+
+- **WHEN** người đăng ở mức T0 thu hẹp một tin sàn chung mang lý do "tài khoản mới" về "chỉ thành viên" của một
+  nhóm mình là thành viên
+- **THEN** lý do "tài khoản mới" được gỡ và tin hiển thị đầy đủ trong nhóm
 
 #### Scenario: Lên T1
 
@@ -132,6 +144,22 @@ nằm trong bảng tin của nhóm. Tin sàn chung hiện với mọi người, 
 
 - **WHEN** khách xem một tin "nhóm công khai" đang hiển thị đầy đủ
 - **THEN** khách mở được tin và thấy nó trên bảng tin của nhóm, nhưng tin không có trên bảng tin sàn chung
+
+### Requirement: Tìm kiếm và gợi ý
+
+Tìm kiếm chung và gợi ý SHALL chỉ gồm tin sàn chung đang hiển thị trong phạm vi người xem — gợi ý chỉ lấy mức
+đầy đủ. Tin "nhóm công khai" chỉ tìm được trong nhóm của nó. Tin đã bán và hết hạn MUST NOT có trong tìm kiếm hay
+gợi ý, chỉ mở được bằng đường link (TK 12, TK 15, chốt 12/10/2026).
+
+#### Scenario: Tìm kiếm chung gặp tin "nhóm công khai"
+
+- **WHEN** khách tìm bằng từ khoá khớp tiêu đề một tin "nhóm công khai" đang hiển thị đầy đủ
+- **THEN** tin không có trong kết quả tìm kiếm chung, nhưng có khi tìm trong nhóm của nó
+
+#### Scenario: Tin đã bán
+
+- **WHEN** khách tìm bằng từ khoá khớp tiêu đề một tin sàn chung đã bán
+- **THEN** tin không có trong kết quả, còn mở bằng đường link vẫn nhận HTTP 200
 
 ### Requirement: Bảng tin chỉ lấy tin đang hiển thị mức đầy đủ
 

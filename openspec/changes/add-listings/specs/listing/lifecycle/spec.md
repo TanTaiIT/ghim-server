@@ -151,6 +151,11 @@ bị từ chối với HTTP 409 `INVALID_TRANSITION`, và trạng thái giữ ng
 - **WHEN** người đăng sửa tiêu đề của một tin đang kiểm
 - **THEN** response có HTTP 409 `INVALID_TRANSITION` và tin vẫn đang kiểm với nội dung cũ
 
+#### Scenario: Sửa tin hết hạn mà không gia hạn
+
+- **WHEN** người đăng sửa giá một tin hết hạn mà không kèm gia hạn
+- **THEN** response có HTTP 409 `INVALID_TRANSITION` và tin vẫn hết hạn với giá cũ
+
 #### Scenario: Sửa nội dung tin đã bán
 
 - **WHEN** người đăng sửa giá của một tin đã bán

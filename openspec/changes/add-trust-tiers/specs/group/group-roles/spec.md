@@ -31,3 +31,13 @@ MUST bị từ chối; mức được xét tại lúc người nhận thật s�
 
 - **WHEN** master giao chủ cho một nhóm mới lập và người được giao bấm đồng ý khi đang ở mức T1
 - **THEN** người đó thành chủ nhóm
+
+### Requirement: Tụt mức không làm mất vai đang giữ
+
+Chủ nhóm hay điều hành viên bị tính lại xuống dưới T1 SHALL giữ vai đang có; mức chỉ được xét lúc nhận vai. Vai chỉ
+mất theo các đường của group/group-roles — gậy nặng, tài khoản bị khoá (chốt 12/10/2026).
+
+#### Scenario: Điều hành viên tụt về T0
+
+- **WHEN** điều hành viên của nhóm X bị tính lại về T0 vì tin sạch duy nhất bị gỡ vì vi phạm
+- **THEN** người đó vẫn là điều hành viên của nhóm X

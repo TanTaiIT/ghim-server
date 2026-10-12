@@ -137,3 +137,36 @@ cho người vừa mua lại máy cũ, theo `identity/device-registry`). Ngườ
 
 - **WHEN** staff có việc hỗ trợ người dùng nhập một mã tra cứu không tồn tại
 - **THEN** response có HTTP 404 `NOT_FOUND`
+
+### Requirement: Dấu hiệu khác chỉ nhận câu chờ
+
+Dấu hiệu không tự sửa được và không phải gian lận — chữ như gõ bừa, giá 0 ở danh mục giá trị cao, trùng tin của
+chính mình, bị giữ nhiều, tài khoản mới, danh mục rủi ro cao — MUST NOT được giải thích; người đăng chỉ thấy câu
+"Tin đang chờ người duyệt, thường trong 24 giờ" (chốt 12/10/2026).
+
+#### Scenario: Tin bị giữ vì gõ bừa
+
+- **WHEN** tin bị giữ ở dải Cao vì "chữ như gõ bừa" cộng "tài khoản mới" và "giá 0 ở danh mục giá trị cao"
+- **THEN** người đăng thấy câu "Tin đang chờ người duyệt, thường trong 24 giờ" và không câu nào nêu dấu hiệu
+
+### Requirement: Vừa lỗi tự sửa được vừa dấu hiệu gian lận
+
+Tin vừa trúng lỗi tự sửa được vừa trúng dấu hiệu gian lận SHALL cho người đăng thấy câu giải thích của lỗi tự sửa
+được kèm câu chung ba phần, và MUST NOT nêu dấu hiệu gian lận nào (chốt 12/10/2026).
+
+#### Scenario: Giá bất thường cộng cụm từ cấm
+
+- **WHEN** tin bị giữ vì cụm từ cấm mức chắc và có trúng "giá bất thường"
+- **THEN** người đăng thấy câu về giá lệch xa mức thường thấy và câu chung ba phần kèm mã tra cứu, không thấy cụm
+  nào đã trúng
+
+### Requirement: Mỗi lần giữ một mã tra cứu
+
+Mỗi lần máy giữ hay rút tin về vì dấu hiệu gian lận SHALL có một mã tra cứu riêng, tra được bao lâu kết quả máy còn
+lưu. Thời gian chờ ước tính SHALL là hạn xử của hàng máy giữ (24 giờ, giá trị khởi đầu). Hỗ trợ chỉ gỡ được đánh
+dấu theo thiết bị; cụm từ hay ảnh trùng do người duyệt quyết (chốt 12/10/2026).
+
+#### Scenario: Một tin bị giữ hai lần
+
+- **WHEN** một tin bị giữ vì cụm từ cấm, người đăng sửa, và lượt qua máy sau lại bị giữ vì cụm từ cấm
+- **THEN** hai lần giữ có hai mã tra cứu khác nhau

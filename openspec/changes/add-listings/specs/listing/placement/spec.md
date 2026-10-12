@@ -128,7 +128,8 @@ Mỗi tin SHALL thuộc đúng một danh mục. Danh mục đang tắt MUST NOT
 ### Requirement: Thông tin theo mẫu của danh mục
 
 Thông tin món đồ SHALL điền theo mẫu thông tin đang phát hành của danh mục; mục không có trong mẫu MUST bị từ
-chối. Tin giữ nguyên phiên bản mẫu lúc đăng — mẫu phát hành sau không đổi tin đã đăng.
+chối. Tin giữ nguyên phiên bản mẫu lúc đăng — mẫu phát hành sau không đổi tin đã đăng, và sửa thông tin theo
+mẫu của tin đã đăng SHALL theo phiên bản tin đang mang (TK 11, chốt 12/10/2026).
 
 #### Scenario: Điền mục không có trong mẫu
 
@@ -140,6 +141,11 @@ chối. Tin giữ nguyên phiên bản mẫu lúc đăng — mẫu phát hành s
 - **WHEN** master phát hành phiên bản mẫu mới có thêm một mục cho danh mục Xe máy
 - **THEN** tin Xe máy đã đăng trước đó vẫn hiện theo mẫu lúc đăng, không bị đòi điền mục mới và không đổi
   trạng thái
+
+#### Scenario: Sửa tin cũ sau khi có mẫu mới
+
+- **WHEN** người đăng sửa một tin Xe máy đăng theo mẫu cũ và điền mục chỉ có ở phiên bản mẫu mới
+- **THEN** response có HTTP 400 `VALIDATION_ERROR` và tin không đổi
 
 ### Requirement: Giá là số nguyên đồng, 0 là cho tặng
 

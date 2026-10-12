@@ -149,3 +149,53 @@ NOT tự hiện khi cụm bị tắt (TK nguyên tắc 2).
 
 - **WHEN** một tin đang chờ người duyệt vì cụm "bán súng" và master tắt cụm này
 - **THEN** tin vẫn chờ người duyệt, không tự hiện
+
+### Requirement: Bật thật cụm mức mơ hồ không quét lại
+
+Bật thật một cụm mức mơ hồ SHALL chỉ có tác dụng từ lượt qua máy kế tiếp; tin đang hiển thị MUST NOT bị quét lại
+hay rút về vì cụm đó (chốt 12/10/2026).
+
+#### Scenario: Tin đang hiện chứa cụm mơ hồ vừa bật
+
+- **WHEN** master bật thật một cụm mức mơ hồ mà một tin đang hiện đầy đủ có chứa
+- **THEN** tin giữ nguyên trạng thái và mức hiển thị
+
+### Requirement: Quét lại chỉ rút tin đang hiển thị
+
+Lượt quét khi bật thật cụm mức chắc SHALL chỉ xét tin đang hiển thị; tin đã bán, hết hạn MUST NOT bị đổi. Tin bị
+rút về chờ duyệt vẫn trôi ngày hiển thị như tin chờ duyệt sau khi sửa (chốt 12/10/2026).
+
+#### Scenario: Tin đã bán chứa cụm vừa bật
+
+- **WHEN** master bật thật cụm "bán súng" mức chắc và một tin đã bán có mô tả chứa "bán súng"
+- **THEN** tin vẫn ở trạng thái đã bán và mở bằng đường link vẫn nhận HTTP 200
+
+#### Scenario: Tin bị rút về rồi được cho đạt
+
+- **WHEN** một tin hết hạn ngày 31 bị rút về chờ duyệt ngày 20 và người duyệt cho đạt ngày 22
+- **THEN** tin hiện lại và vẫn hết hạn ngày 31
+
+### Requirement: Bật thật trước khi đủ ngày chạy thử
+
+Master SHALL bật thật được một cụm trước khi đủ 7 ngày chạy thử chỉ khi ghi kèm lý do; lần bật đó vào nhật ký vận
+hành (chốt 12/10/2026).
+
+#### Scenario: Bật sớm kèm lý do
+
+- **WHEN** master bật thật một cụm mới chạy thử được 2 ngày, ghi lý do "đợt lừa đảo mới"
+- **THEN** cụm được bật thật và nhật ký vận hành có lần bật kèm lý do
+
+#### Scenario: Bật sớm không lý do
+
+- **WHEN** master bật thật một cụm mới chạy thử được 2 ngày mà không ghi lý do
+- **THEN** response có HTTP 400 `VALIDATION_ERROR` và cụm vẫn chạy thử
+
+### Requirement: Trúng nhiều cụm mơ hồ cộng điểm một lần
+
+Tin trúng nhiều cụm mức mơ hồ SHALL chỉ được cộng điểm của dấu hiệu "cụm từ cấm mức mơ hồ" một lần; kết quả máy vẫn
+ghi mọi cụm đã trúng (chốt 12/10/2026).
+
+#### Scenario: Hai cụm mơ hồ
+
+- **WHEN** mô tả của một tin chứa hai cụm mức mơ hồ khác nhau đang bật, không trúng gì khác
+- **THEN** điểm rủi ro là 25 và kết quả máy ghi cả hai cụm

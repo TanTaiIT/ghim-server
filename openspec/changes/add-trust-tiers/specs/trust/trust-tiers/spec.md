@@ -227,3 +227,64 @@ tuổi tài khoản chạm mốc của một mức hay tin vừa đủ ngày hi�
 
 - **WHEN** tài khoản có một tin sạch nhờ đã bán từ khi mới 6 ngày tuổi, rồi đủ 7 ngày tuổi
 - **THEN** lượt tính lại hằng ngày ngay sau mốc đó đưa tài khoản lên T1
+
+### Requirement: Tin sạch vượt giới hạn được dời, không bỏ
+
+Tin sạch vượt giới hạn 3 tin trong 7 ngày SHALL vẫn là tin sạch và được tính vào mức từ lúc khoảng 7 ngày có chỗ
+— MUST NOT bị bỏ (chốt 12/10/2026).
+
+#### Scenario: Tin thứ tư cùng ngày
+
+- **WHEN** bốn tin của cùng một người thành tin sạch trong ngày 10
+- **THEN** ba tin được tính ngay, tin thứ tư được tính vào mức từ ngày 17
+
+### Requirement: Thời gian hiển thị của tin sạch là cộng dồn lúc được thấy
+
+Thời gian hiển thị để thành tin sạch SHALL cộng dồn mọi khoảng tin ở trạng thái đang hiển thị mà không tạm ẩn; thời
+gian tạm ẩn MUST NOT được tính, kể cả khi ngày hiển thị của tin vẫn trôi (chốt 12/10/2026).
+
+#### Scenario: Hiện, tạm ẩn, hiện lại
+
+- **WHEN** một tin hiển thị 4 ngày, tạm ẩn 3 ngày vì tài khoản bị khoá, rồi hiện lại thêm 3 ngày
+- **THEN** tin thành tin sạch khi hiện lại đủ 3 ngày, không phải ngay lúc mở khoá
+
+### Requirement: Khôi phục hay khiếu nại thắng trả lại tư cách tin sạch
+
+Tin bị gỡ hay bị từ chối vì vi phạm rồi được khôi phục, hoặc khiếu nại thắng, SHALL có lại tư cách tin sạch với
+mốc cũ; chỉ tin đang bị gỡ hay bị từ chối vì vi phạm mới không là tin sạch (chốt 12/10/2026).
+
+#### Scenario: Gỡ vì vi phạm rồi khiếu nại thắng
+
+- **WHEN** một tin đã sạch từ ngày 10 bị gỡ vì vi phạm ngày 15, rồi khiếu nại thắng ngày 18
+- **THEN** từ ngày 18 tin lại được tính là tin sạch với mốc ngày 10
+
+### Requirement: Tin sạch còn được tính sau khi tin bị xoá
+
+Tin đã thành tin sạch SHALL vẫn được tính sau khi người đăng xoá tin hay tin bị xoá hẳn theo hạn lưu; hệ thống giữ
+dữ kiện "tin thành sạch lúc nào", không giữ nội dung tin (chốt 12/10/2026).
+
+#### Scenario: Xoá tin đã sạch
+
+- **WHEN** người dùng ở mức T1 nhờ đúng một tin sạch xoá tin đó
+- **THEN** người đó vẫn ở mức T1
+
+### Requirement: Tuổi tài khoản tính từ lúc tạo
+
+Tuổi tài khoản SHALL tính từ lúc tạo tài khoản, không phải từ lúc xác nhận email (chốt 12/10/2026).
+
+#### Scenario: Xác nhận email muộn
+
+- **WHEN** một tài khoản tạo ngày 1, xác nhận email ngày 5, có một tin sạch ngày 12
+- **THEN** ngày 12 tài khoản đủ 7 ngày tuổi cho T1
+
+### Requirement: Bảng con số mới áp ở lần tính kế tiếp
+
+Khi master phát hành phiên bản bảng con số mới, lần tính kế tiếp của mỗi tài khoản — do có chuyện mới hay lượt hằng
+ngày — SHALL dùng phiên bản mới; lượt hằng ngày kế tiếp SHALL tính lại mọi tài khoản còn mang kết quả theo phiên bản
+cũ (chốt 12/10/2026).
+
+#### Scenario: Không có chuyện gì mới
+
+- **WHEN** master nâng tuổi tối thiểu của T1 lên 14 ngày và một tài khoản 10 ngày tuổi ở mức T1 không có chuyện gì
+  mới
+- **THEN** sau lượt tính lại hằng ngày kế tiếp tài khoản ở mức T0, ghi kèm phiên bản mới

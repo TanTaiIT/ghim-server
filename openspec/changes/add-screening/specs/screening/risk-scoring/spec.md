@@ -128,7 +128,7 @@ trị khởi đầu).
 
 ### Requirement: Dấu hiệu giá 0 ở danh mục giá trị cao
 
-Tin giá 0 (cho tặng) thuộc danh mục có giá tham chiếu cao — mặc định trên 2 triệu (giá trị khởi đầu) — SHALL
+Tin giá 0 (cho tặng) thuộc danh mục có giá tham chiếu cao — mặc định từ 2 triệu (giá trị khởi đầu) — SHALL
 trúng dấu hiệu "giá 0 ở danh mục giá trị cao", 30 điểm (giá trị khởi đầu).
 
 #### Scenario: Cho tặng điện thoại
@@ -315,3 +315,45 @@ trị khởi đầu).
 
 - **WHEN** A được mở khoá rồi B gửi tin mới
 - **THEN** tin của B không trúng dấu hiệu này
+
+### Requirement: Khoảng giá thường thấy
+
+Khoảng thường thấy của giá SHALL là từ một nửa phân vị 10 tới gấp đôi phân vị 90 của giá khác 0 các tin cùng danh
+mục lên bảng trong 90 ngày (giá trị khởi đầu). Giá tham chiếu MUST NOT thay cho khoảng này khi danh mục chưa đủ mẫu
+(chốt 12/10/2026).
+
+#### Scenario: Ranh giới khoảng giá
+
+- **WHEN** danh mục đủ mẫu có phân vị 10 là 5 triệu, phân vị 90 là 20 triệu, và ba tin mới đặt giá 2,4 triệu, 3
+  triệu, 45 triệu
+- **THEN** tin 2,4 triệu và tin 45 triệu trúng "giá bất thường", tin 3 triệu thì không
+
+### Requirement: Giá tham chiếu đúng ngưỡng giá trị cao
+
+Danh mục có giá tham chiếu bằng đúng ngưỡng giá trị cao SHALL được coi là danh mục giá trị cao (chốt 12/10/2026).
+
+#### Scenario: Giá tham chiếu đúng 2 triệu
+
+- **WHEN** danh mục có giá tham chiếu 2 triệu và một tin trong đó đặt giá 0
+- **THEN** tin trúng "giá 0 ở danh mục giá trị cao"
+
+### Requirement: Lần giữ nào được đếm vào bị giữ nhiều
+
+Chỉ lần máy giữ vì điểm rủi ro hay cổng cứng SHALL được đếm vào "bị giữ nhiều"; lần giữ vì lỗi của máy, quá 5 phút,
+danh mục luôn duyệt tay hay đánh dấu theo thiết bị MUST NOT được đếm (chốt 12/10/2026).
+
+#### Scenario: Giữ vì danh mục luôn duyệt tay
+
+- **WHEN** máy đã giữ 3 tin của một tài khoản trong 7 ngày, cả ba chỉ vì danh mục bật luôn duyệt tay, và tài khoản
+  gửi tin mới
+- **THEN** tin mới không trúng "bị giữ nhiều"
+
+### Requirement: Dùng chung máy với tài khoản bị khoá xét trong 90 ngày
+
+Dấu hiệu "trùng thiết bị với tài khoản bị khoá" SHALL chỉ xét lượt đăng tin trên máy trong 90 ngày gần nhất (giá trị
+khởi đầu, cùng khung đếm tài khoản trên một máy) (chốt 12/10/2026).
+
+#### Scenario: Lượt đăng trên máy đã quá 90 ngày
+
+- **WHEN** tài khoản B chỉ đăng tin trên một máy 100 ngày trước, tài khoản A cùng máy đang bị khoá, rồi B gửi tin mới
+- **THEN** tin của B không trúng "trùng thiết bị với tài khoản bị khoá"

@@ -83,3 +83,18 @@ mới; lượt qua máy sau đó SHALL ghi phiên bản mới này trong kết q
 
 - **WHEN** master đổi trọng số một luật rồi một tin được gửi
 - **THEN** kết quả máy của tin đó mang phiên bản luật mới, khác phiên bản của các kết quả trước lần đổi
+
+### Requirement: Cổng cứng chạy thử được, không tắt được
+
+Mỗi cổng cứng SHALL có chế độ bật hoặc chạy thử. Cổng chạy thử được kiểm và ghi vào kết quả máy nhưng MUST NOT giữ
+tin hay đếm vào lượt dò. Cổng cứng MUST NOT tắt được (chốt 12/10/2026).
+
+#### Scenario: Master tắt một cổng cứng
+
+- **WHEN** master đổi chế độ của cổng "giá vượt trần" sang tắt
+- **THEN** response có HTTP 400 `VALIDATION_ERROR` và cổng giữ chế độ cũ
+
+#### Scenario: Cổng ảnh trùng đang chạy thử
+
+- **WHEN** cổng "ảnh trùng" đang chạy thử và tài khoản T2 gửi tin dùng lại ảnh của tài khoản khác, không trúng gì khác
+- **THEN** kết quả máy là hiện đầy đủ, và kết quả ghi lượt trúng cổng "ảnh trùng" ở chế độ chạy thử

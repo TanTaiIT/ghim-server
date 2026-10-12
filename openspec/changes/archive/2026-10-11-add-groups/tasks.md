@@ -33,7 +33,7 @@
 - [x] 4.3 Vào nhóm: tham gia, đơn (gửi, rút, duyệt, từ chối, hạn kiểm lúc thao tác), lời mời (theo email không dò được), danh sách lớp, mã; xác minh `tests/group-membership.http.test.ts` mọi scenario vào nhóm của spec `membership`
 - [x] 4.4 Thành viên: danh sách (chỉ quản trị), xếp đơn vị, tự rời (chủ phải chuyển trước), gỡ, cấm, gỡ cấm, điều hành viên đơn vị chỉ trong đơn vị mình, điều hành viên không xử nhau; xác minh cùng file test, mọi scenario còn lại của spec `membership`
 - [x] 4.5 Vai: chuyển chủ, master giao đè, bổ nhiệm / bãi nhiệm / đổi phạm vi điều hành viên, việc hằng ngày lúc thiếu chủ, master không bị chặn; xác minh `tests/group-roles.http.test.ts` mọi scenario của spec `group-roles`
-- [x] 4.6 Huy hiệu: `GET /me/group-badges`, người ngoài chỉ thấy tên nhóm riêng tư, `group.badge_rights_changed` ở mọi chỗ quyền có thể đổi; xác minh `tests/group-badges.http.test.ts` mọi scenario của spec `badges`
+- [x] 4.6 Huy hiệu: `GET /me/group-badges`, người ngoài chỉ thấy tên nhóm riêng tư, `group.badge.rights_changed` ở mọi chỗ quyền có thể đổi; xác minh `tests/group-badges.http.test.ts` mọi scenario của spec `badges`
 - [x] 4.7 Thông báo của nhóm: gửi (phạm vi, độ dài, 5 / ngày → `ANNOUNCEMENT_LIMIT`, trạng thái nhóm), xem lại; xác minh test HTTP mọi scenario của requirement mới ở task 0.1
 
 ## 5. Nối module

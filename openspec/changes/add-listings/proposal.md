@@ -35,9 +35,10 @@ chứa cụm từ cấm mới về chờ duyệt), **15**, **17**, **19**, **20*
   đăng; chuyển hết hạn mỗi giờ; gia hạn trong 7 ngày cuối (gia hạn sớm: hạn cũ + 30 ngày) hoặc sau khi hết hạn
   (30 ngày từ lúc lên bảng lại), không đẩy lên đầu; nhắc lúc 9 giờ sáng.
 - Tạm ẩn: cờ nhiều lý do, hết mọi lý do mới hiện lại đúng như cũ, hiện lại không phụ thuộc hạn mức; khoá / xoá
-  tài khoản, rời nhóm, nhóm tạm khoá / đóng, nhóm sang riêng tư (hạ tin "nhóm công khai" trước, tin người ngoài
-  rời nhóm, khoá mức "nhóm công khai" trong lúc chuyển), nhóm sang công khai, danh mục tắt; chuyển tin đã rời
-  nhóm lên sàn chung trong 30 ngày.
+  tài khoản, rời nhóm (kể cả tin "nhóm công khai" khi nhóm đang tắt nhận tin người ngoài), bị cấm khỏi nhóm (mọi
+  tin trong nhóm, kể cả của người ngoài), nhóm tạm khoá / đóng, nhóm sang riêng tư (hạ tin "nhóm công khai" trước,
+  tin người ngoài rời nhóm, khoá mức "nhóm công khai" trong lúc chuyển), nhóm sang công khai, tắt nhận tin người
+  ngoài không gỡ tin đã gửi, danh mục tắt; chuyển tin đã rời nhóm lên sàn chung trong 30 ngày.
 - Mức hiển thị: đầy đủ / hạn chế, lý do "máy" và "tài khoản mới" đặt, gỡ độc lập; luật duy nhất "ai thấy một
   tin"; phạm vi theo nơi đăng; bảng tin chỉ lấy tin đang hiển thị mức đầy đủ.
 - Xoá tin: xoá mềm ở mọi trạng thái, chỉ người đăng.
@@ -68,6 +69,7 @@ chứa cụm từ cấm mới về chờ duyệt), **15**, **17**, **19**, **20*
 - Mọi hạn lưu: nháp, tin tự xoá, tin bị từ chối / gỡ, tin đã bán, tin hết hạn, tin của nhóm đã đóng, tin của tài
   khoản đã xoá → `add-data-retention`.
 - Hoãn theo TK 29: phí đăng tin, gói đẩy tin, tin nổi bật, tìm kiếm theo nội dung.
+- "Lưu tin" để xem sau (TK 6 có quyền này nhưng chưa phần nào mô tả) → change riêng sau (chốt 12/10/2026).
 
 ## Capabilities
 
@@ -91,6 +93,7 @@ chứa cụm từ cấm mới về chờ duyệt), **15**, **17**, **19**, **20*
 - `identity/profile` (tạo bởi `add-identity`; change này archive sau): hồ sơ công khai liệt kê tin đang bán.
 - `group/badges` (tạo bởi `add-groups`; change này archive sau): gắn huy hiệu lên tin sàn chung, huy hiệu tự gỡ
   khi mất quyền, ẩn theo khi nhóm khoá, nhóm gỡ huy hiệu của mình nhưng không gỡ được tin sàn.
+- `media/image-storage` (tạo bởi `add-media`; change này archive sau): bản sao ảnh cho tin chuyển lên sàn chung.
 
 ## Impact
 
@@ -101,46 +104,51 @@ chứa cụm từ cấm mới về chờ duyệt), **15**, **17**, **19**, **20*
   (master, bảng con số có phiên bản), `add-groups` (thành viên, đường vào, người bị cấm, chế độ, nhận tin người
   ngoài, khoá, đóng, đơn vị con, quyền mang huy hiệu), `add-categories` (danh mục bật / tắt, mẫu thông tin có
   phiên bản, danh sách khu vực), `add-media` (ảnh trong kho thuộc nháp).
-- Cần `add-trust-tiers` (cùng đợt, archive sau) cho mức T0 / T1 của lý do "tài khoản mới" và cho hạn mức lúc gửi;
-  `listing` hỏi `trust` đồng bộ (CLAUDE.md luật 12) — nên làm hai change cùng lúc. Mũi tên của máy, người duyệt,
-  người xét khiếu nại có sẵn ở `listing` từ đợt này; bên đi chúng tới ở đợt 3, 4, 5.
-- Nhận sự kiện khoá / mở khoá / xoá tài khoản, rời / vào nhóm, khoá / mở khoá / đóng / đổi chế độ nhóm, tắt / bật
-  danh mục qua outbox (CLAUDE.md luật 12) — bảng outbox và dispatcher còn "(chưa có)".
-- **Phải chọn trước khi làm** (CLAUDE.md: hỏi trước khi thêm package / dịch vụ): cơ chế chạy việc theo lịch cho
-  lượt chuyển hết hạn mỗi giờ và lời nhắc 9 giờ sáng (job nền còn "(chưa có)"); kênh đưa lời nhắc sắp hết hạn tới
-  người đăng trước khi có hộp thư của `add-notifications` (đợt 6); cách tìm theo từ khoá trên tiêu đề và mô tả
-  tiếng Việt (có dấu / không dấu).
+- `add-trust-tiers` (cùng đợt, archive sau) cho mức T0 / T1 của lý do "tài khoản mới" và cho hạn mức lúc gửi;
+  `listing` hỏi `trust` đồng bộ (CLAUDE.md luật 12). Mũi tên của máy, người duyệt, người xét khiếu nại có sẵn ở
+  `listing` từ đợt này; bên đi chúng tới ở đợt 3, 4, 5.
+- Nhận sự kiện khoá / mở khoá / xoá tài khoản, rời / vào nhóm, cấm / gỡ cấm, khoá / mở khoá / đóng / đổi chế độ
+  nhóm, tắt / bật danh mục qua outbox (CLAUDE.md luật 12) — bảng outbox và bộ phát đã có từ đợt 1.
+- Sự kiện rời nhóm của `group` phải mang thêm trạng thái "nhận tin người ngoài" **đúng lúc rời**: luật tin "nhóm
+  công khai" xét tại thời điểm đó, còn bên nghe chạy sau vài giây — đọc lại cài đặt của nhóm lúc xử là sai khi chủ
+  nhóm vừa bật / tắt. Sửa payload ở `group` nằm trong tasks của change này.
+- **Hạ tầng dùng lại, không thêm gói hay dịch vụ** (chốt 12/10): việc theo lịch (chuyển hết hạn mỗi giờ, nhắc 9
+  giờ sáng) chạy trên pg-boss; lời nhắc sắp hết hạn vào hộp thư của `notification` (đã có từ đợt 1); tìm theo từ
+  khoá có dấu / không dấu dùng hàm bỏ dấu sẵn có trên Postgres.
+- **Thiết kế chung, code tuần tự** (chốt 12/10): design của `add-listings`, `add-trust-tiers`, `add-screening`
+  viết cùng lúc để tin đăng có sẵn chỗ cắm cho mức tin cậy và máy duyệt; code và archive theo thứ tự tin đăng →
+  mức tin cậy → máy duyệt. Trong lúc chưa có hai phần sau:
+  - Cổng mức tin cậy tạm: trả T0 ở production và test; dev chọn mức qua biến môi trường (mặc định T1) để bảng tin
+    dev có tin hiển thị đầy đủ. `add-trust-tiers` thay bằng mức tính thật.
+  - Máy tạm chỉ ở dev: tự cho qua để app có tin thật mà dựng màn hình; production từ chối khởi động nếu bật (như
+    chốt tên DB). Test gọi thẳng mũi tên của máy. `add-screening` gỡ máy tạm.
 - **Đã chốt 08/10** (TK 13, 18, 19): gia hạn sớm là mũi tên Đang hiển thị → Đang kiểm của người đăng, đi như sửa
   tin, hạn mới = hạn cũ + 30 ngày; gia hạn sau khi hết hạn tính 30 ngày từ lúc lên bảng lại. Cụm từ cấm mới bật
   thật thì máy rút tin đang hiện chứa cụm đó về chờ duyệt (mũi tên Đang hiển thị → Chờ duyệt), không từ chối thẳng.
-- **Câu hỏi mở** — TK không nói, cần người dùng chốt trước khi viết design:
-  - Trường nào bắt buộc lúc gửi ngoài nơi đăng, nhóm, danh mục, tỉnh / phường: tiêu đề, giá, tối thiểu mấy ảnh?
-    TK 13 xếp "thiếu mô tả" vào lỗi máy giải thích, nên mô tả không chặn gửi. Gợi ý: tiêu đề, giá, ít nhất 1 ảnh.
-  - Tin đang kiểm / chờ duyệt (sau khi sửa) mà ngày hiển thị trôi hết: sơ đồ chỉ có "Đang hiển thị → Hết hạn".
-    Gợi ý: được cho đạt thì chuyển hết hạn ở lượt chạy kế tiếp.
-  - Sơ đồ TK 18 không có mũi tên "gỡ" từ Đã bán, Hết hạn — hai trạng thái người lạ vẫn xem được. Báo cáo đúng về
-    một tin đã bán thì xử thế nào?
-  - Sơ đồ TK 18 không có mũi tên sửa từ Hết hạn: change này chỉ cho gia hạn. Có cho sửa trong lúc gia hạn không?
-  - Cụm từ cấm mới bật thật: TK 13 chỉ quét lại tin đang hiện. Tin hết hạn hay đã bán chứa cụm đó — người lạ vẫn
-    xem được — có bị rút không? Sơ đồ TK 18 không có mũi tên nào từ hai trạng thái này về chờ duyệt.
-  - "Gỡ khỏi nhóm" (TK 17) đưa tin sang "bị gỡ" hay chỉ đổi nơi đăng (tin rời nhóm, còn sống ở đâu)?
-  - Bị gỡ hay bị cấm khỏi nhóm là do nhóm, không do người đăng: ngày hiển thị của tin "chỉ thành viên" trôi như
-    "tự rời" (bảng TK 19) hay dừng (nguyên tắc 9)? Cựu thành viên (ra trường) có làm tin "chỉ thành viên" tạm ẩn
-    không? Change này chỉ viết ngày trôi cho trường hợp tự rời.
-  - Tin "nhóm công khai" của người vừa rời nhóm (TK 10 chỉ tạm ẩn tin "chỉ thành viên"): thành tin người ngoài,
-    tạm ẩn, hay giữ nguyên? Nhóm tắt "nhận tin người ngoài" mà không đổi chế độ thì tin người ngoài đang có ra sao?
-  - "30 ngày chuyển tin lên sàn chung" (TK 9, TK 10) không có trong TK 28 — change này ghi là giá trị khởi đầu
-    theo cam kết 33. "Như một tin mới" là tin mới (ngày hiển thị mới, vị trí mới trên bảng tin) hay đổi nơi đăng
-    của tin cũ?
-  - Tin giữ mẫu thông tin lúc đăng: sau khi danh mục phát hành mẫu mới, người đăng sửa thông tin theo mẫu thì điền
-    theo bản cũ hay bản mới?
-  - Thu hẹp tin của người T0 từ nơi công khai về "chỉ thành viên" có gỡ lý do "tài khoản mới" không (TK 15 chỉ
-    ghi gỡ khi lên T1)?
-  - Hồ sơ "các tin đang bán" (TK 7) có gồm tin đã bán, hết hạn không; tin đã bán, hết hạn có trong tìm kiếm, gợi
-    ý không (TK 19 "ai thấy một tin" chỉ loại chúng khỏi bảng tin); tin "nhóm công khai" có trong tìm kiếm chung
-    không (TK 12 "chỉ nằm trong bảng tin nhóm").
-  - Huy hiệu: một tin gắn được mấy huy hiệu; nhóm gỡ huy hiệu khỏi một tin thì người đăng có gắn lại được không;
-    nhóm bật lại "hiện tên nhóm" thì huy hiệu đã tự gỡ có trở lại không.
-  - Request gửi thứ hai khi bấm Đăng hai lần nhận gì: kết quả của lượt đầu hay HTTP 409.
-  - TK 6 có "lưu tin" (người dùng lưu tin để xem sau; master không lưu tin) nhưng không phần nào mô tả và bảng
-    capability không có chỗ cho nó. Cần chốt có làm không và nằm ở đâu.
+- **Đã chốt 12/10** (TK 9, 10, 11, 12, 15, 17, 19):
+  - Nhóm: người bị cấm thì mọi tin của họ trong nhóm tạm ẩn, kể cả người ngoài chưa từng vào nhóm; gỡ cấm chỉ gỡ
+    lý do "bị cấm". Rời nhóm tách hai lý do: tự rời ("đã rời nhóm", ngày vẫn trôi) và bị gỡ hay bị cấm ("bị gỡ khỏi
+    nhóm", ngày dừng); bị cấm cũng dừng ngày. Tin "nhóm công khai" của người rời nhóm tạm ẩn nếu lúc rời nhóm đang
+    tắt nhận tin người ngoài, giữ nguyên nếu đang bật; bật lại sau đó không tự hiện tin. Tắt nhận tin người ngoài
+    giữ nguyên tin người ngoài đã gửi, chỉ chặn tin mới.
+  - "Gỡ khỏi nhóm" (TK 17) không đổi trạng thái tin sang "bị gỡ": tin rời nhóm với lý do "tin bị gỡ khỏi nhóm",
+    người đăng có 30 ngày chuyển lên sàn chung như khi nhóm đóng.
+  - Chuyển tin đã rời nhóm lên sàn chung là tạo **tin mới** (bản sao nội dung và ảnh, 30 ngày mới, vị trí mới),
+    mỗi tin chuyển một lần; 30 ngày là giá trị khởi đầu, thêm vào bảng con số.
+  - Gửi tin bắt buộc tiêu đề, giá, ít nhất 1 ảnh; mô tả không bắt buộc. Bấm Đăng hai lần: lượt sau nhận lại đúng
+    tin của lượt đầu.
+  - Tin chờ máy hay người mà hết ngày hiển thị: được cho qua thì lên bảng rồi chuyển hết hạn ở lượt chạy kế tiếp.
+    Gia hạn tin hết hạn nhận kèm sửa trong cùng một lượt qua máy; sửa tin hết hạn mà không gia hạn thì 409.
+  - Sửa thông tin theo mẫu theo phiên bản mẫu tin đang mang. Thu hẹp tin T0 về "chỉ thành viên" thì gỡ lý do "tài
+    khoản mới".
+  - Hồ sơ, tìm kiếm, gợi ý chỉ có tin đang hiển thị; tin đã bán, hết hạn chỉ mở bằng đường link; tin "nhóm công
+    khai" chỉ tìm trong nhóm.
+  - Mỗi tin tối đa 1 huy hiệu; huy hiệu nhóm đã gỡ khỏi một tin thì người đăng không gắn lại lên tin đó; bật lại
+    "hiện tên nhóm" không tự trả huy hiệu đã tự gỡ.
+  - Chuyển đi: báo cáo đúng về tin đã bán, hết hạn → câu hỏi mở của `add-reports`; cụm từ cấm mới với tin đã bán,
+    hết hạn → đã có trong câu hỏi mở của `add-screening`. "Lưu tin" (TK 6) → change riêng sau, không thuộc change
+    này. Cựu thành viên (ra trường) → change sau, như `add-groups` đã ghi.
+- **Chốt cùng design 12/10/2026** (D1–D12 của design): tin đã rời nhóm hẳn không sửa được nữa — chỉ chuyển lên
+  sàn chung hoặc xoá (`409 LISTING_DETACHED`); tin tạm ẩn vì một nhóm mà đổi nơi đăng ra khỏi nhóm đó thì mất lý
+  do của nhóm ấy; mọi lượt gửi bắt buộc mã máy.
+- **Câu hỏi mở**: không còn — mọi câu đã chốt 12/10/2026 (mục trên).

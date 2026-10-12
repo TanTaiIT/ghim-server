@@ -21,6 +21,22 @@ của nhóm đó. Huy hiệu MUST NOT gắn lên tin không ở sàn chung, và 
 - **WHEN** người đăng gắn huy hiệu lên một tin "nhóm công khai"
 - **THEN** response có HTTP 400 `VALIDATION_ERROR` và tin không đổi
 
+### Requirement: Mỗi tin một huy hiệu
+
+Một tin sàn chung SHALL mang tối đa 1 huy hiệu nhóm. Huy hiệu mà nhóm đã gỡ khỏi một tin MUST NOT được người đăng
+gắn lại lên chính tin đó (TK 10, chốt 12/10/2026).
+
+#### Scenario: Gắn huy hiệu thứ hai
+
+- **WHEN** người đăng gắn huy hiệu nhóm Y lên tin sàn chung đang mang huy hiệu nhóm X
+- **THEN** response có HTTP 409 `BADGE_ALREADY_ATTACHED` và tin vẫn chỉ mang huy hiệu nhóm X
+
+#### Scenario: Gắn lại huy hiệu nhóm đã gỡ
+
+- **WHEN** điều hành viên nhóm X đã gỡ huy hiệu nhóm X khỏi một tin, rồi người đăng gắn lại huy hiệu nhóm X lên
+  tin đó
+- **THEN** response có HTTP 403 `BADGE_REMOVED_BY_GROUP` và tin không mang huy hiệu
+
 ### Requirement: Huy hiệu tự gỡ khỏi tin khi người đăng mất quyền
 
 Khi người đăng mất quyền mang huy hiệu của một nhóm — rời, bị gỡ, bị cấm khỏi nhóm, nhóm đóng, hay nhóm đổi cách
@@ -41,6 +57,11 @@ thái, nơi đăng hay mức hiển thị của tin.
 
 - **WHEN** chủ một nhóm riêng tư tắt "hiện tên nhóm trên tin sàn"
 - **THEN** ngay sau đó không tin sàn chung nào còn hiện huy hiệu của nhóm đó
+
+#### Scenario: Bật lại hiện tên nhóm
+
+- **WHEN** chủ nhóm đó bật lại "hiện tên nhóm trên tin sàn"
+- **THEN** huy hiệu đã tự gỡ không tự trở lại trên tin nào; người đăng đủ quyền gắn lại được (chốt 12/10/2026)
 
 ### Requirement: Nhóm tạm khoá thì huy hiệu ẩn theo
 

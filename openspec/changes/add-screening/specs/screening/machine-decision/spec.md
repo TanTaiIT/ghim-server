@@ -82,12 +82,12 @@ cho người. Hệ thống SHALL rà các tin đang kiểm mỗi 5 phút. Kết 
 ### Requirement: Tin đang hiện mà thiếu kết quả ảnh thì chuyển sang hạn chế
 
 Lượt rà mỗi 5 phút SHALL tìm tin đang hiển thị có ảnh chưa có kết quả kiểm và chuyển tin đó sang hiển thị
-hạn chế — lưới an toàn cho trường hợp lẽ ra không xảy ra (cam kết 4).
+hạn chế với lý do "máy" (chốt 12/10/2026) — lưới an toàn cho trường hợp lẽ ra không xảy ra (cam kết 4).
 
 #### Scenario: Tin hiện đầy đủ thiếu kết quả ảnh
 
 - **WHEN** lượt rà thấy một tin đang hiện đầy đủ có một ảnh chưa có kết quả kiểm
-- **THEN** tin chuyển sang hiển thị hạn chế
+- **THEN** tin chuyển sang hiển thị hạn chế với lý do "máy"
 
 #### Scenario: Tin đủ kết quả
 

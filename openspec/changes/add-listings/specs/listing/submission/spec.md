@@ -38,8 +38,9 @@ nhận.
 ### Requirement: Thiếu điều kiện gửi thì báo ngay, không gửi gì
 
 Mọi điều kiện gửi SHALL được kiểm trước khi tin rời nháp: hạn mức tin sống và nhịp gửi (trust/quotas), không
-đang trong thời gian chờ (screening/hard-gates), cùng các luật nơi đăng — danh mục đang bật, đúng tư cách trong
-nhóm, có tỉnh và phường nếu lên sàn chung. Thiếu điều kiện nào thì MUST báo lỗi ngay kèm lý do, và không tin nào
+đang trong thời gian chờ (screening/hard-gates), tin có tiêu đề, giá và ít nhất 1 ảnh, cùng các luật nơi đăng —
+danh mục đang bật, đúng tư cách trong nhóm, có tỉnh và phường nếu lên sàn chung. Mô tả không bắt buộc (chốt
+12/10/2026). Thiếu điều kiện nào thì MUST báo lỗi ngay kèm lý do, và không tin nào
 được gửi.
 
 #### Scenario: Danh mục đang tắt
@@ -47,6 +48,16 @@ nhóm, có tỉnh và phường nếu lên sàn chung. Thiếu điều kiện n�
 - **WHEN** người đăng gửi nháp thuộc một danh mục đang tắt
 - **THEN** response có HTTP 409 `CATEGORY_DISABLED` nêu lý do, nháp vẫn là nháp, và không tin nào chuyển sang
   đang kiểm
+
+#### Scenario: Thiếu ảnh
+
+- **WHEN** người đăng gửi một nháp có tiêu đề và giá nhưng chưa có ảnh nào
+- **THEN** response có HTTP 400 `VALIDATION_ERROR` nêu thiếu ảnh, và nháp vẫn là nháp
+
+#### Scenario: Không có mô tả
+
+- **WHEN** người đăng gửi một nháp đủ mọi điều kiện gửi nhưng để trống mô tả
+- **THEN** tin chuyển sang đang kiểm
 
 #### Scenario: Đang trong thời gian chờ
 
@@ -62,8 +73,14 @@ nhóm, có tỉnh và phường nếu lên sàn chung. Thiếu điều kiện n�
 ### Requirement: Bấm Đăng hai lần chỉ ra một tin
 
 Hai lượt gửi cùng một nháp, kể cả gần như cùng lúc vì mạng chậm, MUST chỉ đưa ra đúng một tin đang kiểm (TK 12).
+Lượt sau SHALL nhận lại đúng tin của lượt đầu thay vì báo lỗi (chốt 12/10/2026).
 
 #### Scenario: Hai request gửi cùng lúc
 
 - **WHEN** app gửi hai request gửi cùng một nháp gần như đồng thời
 - **THEN** chỉ có một tin chuyển sang đang kiểm, không có tin thứ hai, và chỉ một lượt gửi được tính
+
+#### Scenario: Request thứ hai tới sau
+
+- **WHEN** app gửi lại cùng một nháp sau khi lượt đầu đã chuyển tin sang đang kiểm
+- **THEN** response có HTTP 200 với đúng tin của lượt đầu, và không lượt gửi nào được tính thêm

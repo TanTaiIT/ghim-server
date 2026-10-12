@@ -151,7 +151,8 @@ tin nào khi số tin sống còn vượt trần.
 ### Requirement: Hết chỗ thì báo tin nào đang chiếm chỗ
 
 Lượt bị từ chối vì hết chỗ tin sống SHALL kèm danh sách tin đang chiếm chỗ — mỗi tin với trạng thái của nó —
-và cách giải phóng chỗ: đánh dấu đã bán hoặc xoá tin cũ.
+và cách giải phóng chỗ: đánh dấu đã bán, xoá tin cũ, hoặc rút tin chờ duyệt về nháp. Chờ tin được duyệt MUST NOT
+được nêu là cách giải phóng chỗ — tin được duyệt vẫn là tin sống (chốt 12/10/2026).
 
 #### Scenario: Báo tin chiếm chỗ
 

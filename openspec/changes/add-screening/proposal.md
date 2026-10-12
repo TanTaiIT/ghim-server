@@ -25,10 +25,10 @@ bản luật đã dùng).
 - Máy chỉ có ba kết quả: hiện đầy đủ, hiện hạn chế, giữ cho người. Lỗi khi chấm hay quá 5 phút chưa đủ kết
   quả thì giữ; kết quả về muộn không tự mở tin. Lưới an toàn mỗi 5 phút: tin đang kiểm quá 5 phút thì giữ,
   tin đang hiện thiếu kết quả ảnh thì chuyển sang hạn chế. Mỗi kết quả ghi căn cứ và phiên bản đã dùng.
-- Luôn giữ cho người, không cần chấm điểm: bốn cổng cứng (cụm từ cấm mức chắc, ảnh nhạy cảm, ảnh trùng tài
-  khoản khác, giá vượt trần), danh mục bật luôn duyệt tay, tài khoản đang bị đánh dấu theo thiết bị.
-- Dò cổng cứng: 3 lượt trong 24 giờ thì chờ 24 giờ mới gửi tin mới — thời gian chờ, không phải gậy; chỉ bốn
-  cổng cứng được đếm.
+- Luôn giữ cho người, không cần chấm điểm: ba cổng cứng (cụm từ cấm mức chắc, ảnh trùng tài khoản khác, giá
+  vượt trần), danh mục bật luôn duyệt tay, tài khoản đang bị đánh dấu theo thiết bị.
+- Dò cổng cứng: 3 lượt trong 24 giờ thì chờ 24 giờ mới gửi tin mới — thời gian chờ, không phải gậy; chỉ cổng
+  cứng được đếm.
 - Chấm điểm đủ 12 dấu hiệu của TK 14 (cụm từ cấm mức mơ hồ nằm ở `screening/banned-phrases`), kể cả "danh mục
   rủi ro cao" cộng 20 điểm — đã chốt 08/10: mức rủi ro cao chỉ cộng điểm, không còn giữ mọi tin; "sai danh
   mục" suy ra danh mục rủi ro cao hay luôn duyệt tay thì áp luật của danh mục đó. Ba dải Thấp · Vừa · Cao,
@@ -36,7 +36,7 @@ bản luật đã dùng).
 - Cụm từ cấm: hai mức, chỉ nhận cụm từ hai chữ trở lên, so theo ranh giới chữ, không phân biệt dấu, ghép chữ
   cái tách rời, ngoại lệ theo cụm, chạy thử 7 ngày, bật thật thì quét lại và máy rút tin đang hiện về chờ duyệt
   (Đang hiển thị → Chờ duyệt, TK 18), không từ chối.
-- Kiểm ảnh: nhạy cảm, trùng với ảnh của tài khoản khác, danh sách trắng ảnh mẫu của hãng do staff nuôi; tin
+- Kiểm ảnh: trùng với ảnh của tài khoản khác, danh sách trắng ảnh mẫu của hãng do staff nuôi; tin
   chỉ hiện khi có kết quả cho chữ và mọi ảnh.
 - Giải thích cho người đăng: lỗi tự sửa được thì nói cách sửa; tin bị giữ không vì gian lận thì "Tin đang chờ
   người duyệt, thường trong 24 giờ"; mọi dấu hiệu gian lận — cụm từ cấm, ảnh trùng, thiết bị, đăng dồn — dùng
@@ -45,7 +45,7 @@ bản luật đã dùng).
   thể.
 - Luật có phiên bản: mã, trọng số, chế độ bật · chạy thử · tắt, giá trị riêng theo danh mục; luật mới chạy
   thử trước; chỉ master chỉnh.
-- Tên hiển thị và ảnh đại diện qua bộ lọc cụm từ cấm và kiểm ảnh nhạy cảm.
+- Tên hiển thị qua bộ lọc cụm từ cấm.
 
 **Cố ý chưa làm trong change này** (làm ở change sau, đúng đợt có đủ phần phụ thuộc):
 
@@ -62,6 +62,8 @@ bản luật đã dùng).
 - Bộ lọc cụm từ cấm cho tin nhắn → `add-messaging`.
 - Kết quả chấm điểm giữ 180 ngày rồi gộp thành số liệu thống kê → `add-data-retention`.
 - Đọc chữ trong ảnh — hoãn theo TK 29, không thuộc change nào trong bảy đợt.
+- Kiểm ảnh nhạy cảm cho tin và ảnh đại diện → `add-image-moderation`, làm khi chọn được dịch vụ (tách ra
+  12/10/2026).
 
 ## Capabilities
 
@@ -69,11 +71,11 @@ bản luật đã dùng).
 
 - `screening/machine-decision`: ba kết quả của máy, ghi căn cứ và phiên bản, không chắc thì giữ, lưới an
   toàn 5 phút.
-- `screening/hard-gates`: bốn cổng cứng, danh mục luôn duyệt tay, tài khoản bị đánh dấu theo thiết bị, dò
+- `screening/hard-gates`: ba cổng cứng, danh mục luôn duyệt tay, tài khoản bị đánh dấu theo thiết bị, dò
   cổng cứng và thời gian chờ.
 - `screening/risk-scoring`: dấu hiệu và điểm, dải rủi ro, ma trận dải × mức tin cậy.
 - `screening/banned-phrases`: cụm từ cấm hai mức, so khớp, ngoại lệ, chạy thử, bật thật và quét lại.
-- `screening/image-checks`: kiểm ảnh nhạy cảm, ảnh trùng tài khoản khác, danh sách trắng, ảnh kiểm xong
+- `screening/image-checks`: ảnh trùng tài khoản khác, danh sách trắng, ảnh kiểm xong
   trước khi tin hiện.
 - `screening/explanations`: câu báo cho người đăng khi tin bị giữ hay hạn chế, câu chung cho dấu hiệu gian
   lận, hỗ trợ tra lý do bằng mã tra cứu.
@@ -81,8 +83,7 @@ bản luật đã dùng).
 
 ### Modified Capabilities
 
-- `identity/profile` (tạo bởi `add-identity`; change này archive sau): tên hiển thị qua bộ lọc cụm từ cấm,
-  ảnh đại diện qua kiểm ảnh nhạy cảm.
+- `identity/profile` (tạo bởi `add-identity`; change này archive sau): tên hiển thị qua bộ lọc cụm từ cấm.
 - `trust/seller-dashboard` (tạo bởi `add-trust-tiers`; change này archive sau): bảng uy tín cho biết thời gian
   chờ đang áp dụng (TK 20) mà không nêu cổng cứng nào bị trúng.
 
@@ -96,53 +97,16 @@ bản luật đã dùng).
   `add-media` (ảnh trong kho của hệ thống), `add-listings` (gửi tin, trạng thái đang kiểm · chờ duyệt · đang
   hiển thị, lý do hạn chế `machine`, nơi đăng, vị trí trên bảng tin), `add-trust-tiers` (mức tin cậy lúc
   chấm).
-- **Phải chọn trước khi làm** (CLAUDE.md: hỏi trước khi thêm package / dịch vụ): dịch vụ kiểm ảnh nhạy cảm;
-  cách băm ảnh để so trùng xuyên tài khoản (TK 30 gợi ý pHash); job nền cho lưới an toàn 5 phút và lượt quét
-  lại khi bật cụm (job nền còn "(chưa có)"); cách nhận "chữ như gõ bừa" và suy ra danh mục thật cho "sai danh
-  mục" (luật tay hay mô hình, chạy trong tiến trình hay dịch vụ ngoài).
-- **Câu hỏi mở** — TK không nói, cần người dùng chốt trước khi viết design:
-  - Tin dính cổng cứng hay thuộc diện luôn giữ có vẫn được chấm đủ điểm không. TK 13 nói "không cần chấm
-    điểm", nhưng TK 17 cho người duyệt thấy "điểm và luật máy đã trúng". Gợi ý: vẫn chấm đủ để người duyệt
-    thấy hết. (Phần "danh mục rủi ro cao" của câu này đã chốt 08/10: chỉ cộng 20 điểm, dấu hiệu đã viết ở
-    `screening/risk-scoring`.) Câu hỏi mở 1 của TK 29 — danh mục luôn duyệt tay giữ 100% tin hay hạ về chỉ
-    giữ T0–T1 — còn mở; change này viết theo TK 13: giữ mọi tin.
-  - Dò cổng cứng: "3 lần" đếm theo lượt qua máy hay theo số cổng trúng trong một lượt; lượt qua máy lại sau
-    khi sửa có tính không; trong thời gian chờ có được sửa và gửi lại tin đang có không (TK 14 chỉ nói "không
-    gửi được tin mới"). Gợi ý: đếm theo lượt, kể cả gửi lại; vẫn cho sửa như luật 3 điểm gậy ở TK 21.
-  - Bật thật một cụm mức **mơ hồ** có quét lại và rút tin đang hiện về không. TK 13 nói chung "cụm mới", cam
-    kết 16 chỉ nói mức chắc. Change này chỉ viết mức chắc.
-  - Lượt quét lại khi bật cụm: tin đã bán, hết hạn chứa cụm vừa bật (người lạ vẫn xem được) thì sao — TK 18
-    chỉ có mũi tên Đang hiển thị → Chờ duyệt, nên change này chỉ rút tin đang hiển thị; có quét tên hiển thị
-    không; ngày hiển thị của tin bị rút về có tiếp tục trôi không (TK 19 không liệt kê trường hợp này). (Đường
-    rút về đã chốt 08/10: mũi tên Đang hiển thị → Chờ duyệt do máy đi, không từ chối.)
-  - Master có bật thật một cụm trước khi đủ 7 ngày chạy thử được không.
-  - Một tin trúng nhiều cụm mức mơ hồ: cộng 25 điểm một lần hay mỗi cụm 25.
-  - "Khoảng thường thấy" của giá tính thế nào (phân vị nào); giá tham chiếu (TK 11 nói dùng để nhận ra giá bất
-    thường) có thay cho phân phối khi danh mục chưa đủ 30 tin không.
-  - Ngưỡng "giá tham chiếu cao": TK 14 ghi "trên 2 triệu", TK 28 ghi "từ 2 triệu" — giá tham chiếu đúng 2
-    triệu thì sao.
-  - Dấu hiệu không thuộc danh sách "tự sửa được" lẫn danh sách "gian lận" của TK 13 — gõ bừa, giá 0 ở danh
-    mục giá trị cao, trùng tin của mình, bị giữ nhiều, tài khoản mới, ảnh nhạy cảm, danh mục rủi ro cao — có
-    được giải thích không. "Thiếu mô tả" có trong danh sách tự sửa được nhưng không ứng với dấu hiệu nào ở TK 14. Gợi ý: chỉ câu chờ.
-  - Tin vừa trúng lỗi tự sửa được vừa trúng dấu hiệu gian lận: có giải thích phần tự sửa được không. Gợi ý:
-    có, kèm câu chung ba phần và không nêu phần gian lận — đúng như các requirement của
-    `screening/explanations` áp độc lập.
-  - Mã tra cứu: gắn theo tin hay theo từng lần giữ; còn tra được bao lâu (kết quả chấm giữ 180 ngày); "thời
-    gian chờ ước tính" lấy hạn hàng 0 (24 giờ) hay ước theo tồn hàng chờ thật. Hỗ trợ gỡ "khi đúng là nhầm"
-    với cụm từ cấm hay ảnh trùng thì gỡ gì — TK chỉ nêu ví dụ đánh dấu thiết bị; change này chỉ viết gỡ đánh
-    dấu.
-  - Tên hiển thị trúng cụm mức chắc, ảnh đại diện nhạy cảm: từ chối ngay hay giữ chờ người — TK 16 không có
-    hàng chờ nào cho hồ sơ. Cụm mức mơ hồ có tác dụng gì với tên. Ảnh đại diện có kiểm trùng không; ảnh đại
-    diện lấy từ Google có qua kiểm ảnh không.
-  - Danh sách trắng ảnh mẫu "do staff nuôi": mọi staff hay chỉ staff của danh mục liên quan.
-  - Lưới an toàn chuyển tin đang hiện thiếu kết quả ảnh sang hạn chế với lý do nào — TK 15 chỉ có ba lý do
-    (máy, tài khoản mới, gậy). Gợi ý: "máy".
-  - "Bị giữ nhiều" có đếm cả lần giữ vì lỗi của máy, quá 5 phút, hay lần giữ mà người duyệt sau đó cho đạt
-    không.
-  - "Dùng chung máy với tài khoản bị khoá" xét trong khung thời gian nào (90 ngày như khi đếm tài khoản, hay
-    toàn bộ 180 ngày dữ liệu thiết bị).
-  - Hỗ trợ gỡ đánh dấu thiết bị thì tin đang chờ vì đánh dấu có được chấm lại không. Gợi ý: không, vẫn chờ
-    người (nguyên tắc 2).
-  - Tin đang hạn chế lý do "máy" được sửa và lần chấm mới ra dải Thấp: lý do "máy" có được gỡ không — TK 15
-    nói chỉ gỡ khi hậu kiểm cho đạt.
-  - Luật cổng cứng có chế độ tắt hay chạy thử như luật chấm điểm không.
+- **Đã chọn 12/10/2026**: gói `sharp` băm ảnh (dHash) để so trùng; việc nền chạy trên pg-boss; "chữ như gõ bừa"
+  và "sai danh mục" là luật tay trong code (từ khoá theo danh mục), bật ngay từ đầu; chấm chữ đồng bộ trong lượt gửi
+  như TK 30. Dịch vụ kiểm ảnh nhạy cảm hoãn → `add-image-moderation`.
+- **Đã chốt 12/10/2026** (design mục 2): tin luôn giữ vẫn chấm đủ; dò cổng cứng đếm theo lượt qua máy, kể cả gửi
+  lại; thời gian chờ chỉ chặn tin mới; bật thật cụm mơ hồ không quét lại; quét lại chỉ rút tin đang hiển thị, tin
+  bị rút về vẫn trôi ngày; master bật sớm kèm lý do; nhiều cụm mơ hồ cộng một lần; khoảng giá thường thấy [P10 ÷ 2,
+  P90 × 2], thiếu mẫu thì không xét; giá trị cao "từ" 2 triệu; dấu hiệu khác chỉ nhận câu chờ, bỏ "thiếu mô tả"; vừa
+  tự sửa được vừa gian lận thì nói phần tự sửa được; mỗi lần giữ một mã tra cứu, hỗ trợ chỉ gỡ đánh dấu thiết bị;
+  tên trúng cụm chắc hiện "Người dùng Ghim", cụm mơ hồ không áp cho tên; danh sách trắng do mọi staff nuôi; lưới an
+  toàn đặt lý do "máy"; "bị giữ nhiều" chỉ đếm giữ vì điểm hay cổng cứng; trùng máy xét 90 ngày; gỡ đánh dấu không
+  chấm lại tin đang chờ; lượt qua máy sau khi sửa cho hiện đầy đủ thì gỡ lý do "máy"; cổng cứng chạy thử được,
+  không tắt được; máy tính đánh dấu thiết bị kể cả lượt đang xét.
+- **Câu hỏi mở**: không còn.

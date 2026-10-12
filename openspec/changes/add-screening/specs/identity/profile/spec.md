@@ -26,22 +26,17 @@ khai (TK 7).
 - **WHEN** người dùng đổi tên hiển thị thành một tên không trúng cụm nào
 - **THEN** hồ sơ công khai hiện tên mới
 
-### Requirement: Ảnh đại diện qua kiểm ảnh
+### Requirement: Tên bị lọc hiện bằng tên chung
 
-Ảnh đại diện mới tải lên SHALL qua kiểm ảnh nhạy cảm như ảnh của tin đăng, và chỉ hiện trên hồ sơ công khai
-khi đã có kết quả kiểm. Ảnh bị nhận là nhạy cảm MUST NOT hiện trên hồ sơ công khai.
+Tên hiển thị không qua bộ lọc SHALL hiện với người khác là "Người dùng Ghim" ở mọi chỗ hiện tên; chủ tài khoản SHALL
+vẫn thấy tên mình kèm lời nhắc đổi tên. Cụm mức mơ hồ MUST NOT có tác dụng với tên hiển thị (chốt 12/10/2026).
 
-#### Scenario: Ảnh nhạy cảm
+#### Scenario: Người khác xem hồ sơ
 
-- **WHEN** người dùng đổi ảnh đại diện sang một ảnh bị nhận là nhạy cảm
-- **THEN** hồ sơ công khai không hiện ảnh đó
+- **WHEN** "bán súng" là cụm mức chắc đang bật và một người dùng có tên hiển thị "Bán Súng Giá Rẻ"
+- **THEN** người khác mở hồ sơ thấy tên "Người dùng Ghim", còn chủ tài khoản thấy tên mình kèm lời nhắc đổi tên
 
-#### Scenario: Ảnh chưa có kết quả kiểm
+#### Scenario: Tên chứa cụm mơ hồ
 
-- **WHEN** người dùng vừa tải lên ảnh đại diện mới và ảnh chưa có kết quả kiểm
-- **THEN** hồ sơ công khai chưa hiện ảnh mới
-
-#### Scenario: Ảnh bình thường
-
-- **WHEN** ảnh đại diện mới đã có kết quả kiểm và không bị nhận là nhạy cảm
-- **THEN** hồ sơ công khai hiện ảnh mới
+- **WHEN** tên hiển thị của một người dùng chứa một cụm mức mơ hồ đang bật
+- **THEN** hồ sơ công khai hiện đúng tên đó

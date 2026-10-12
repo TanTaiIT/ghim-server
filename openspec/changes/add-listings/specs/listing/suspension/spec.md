@@ -69,8 +69,9 @@ lại.
 
 ### Requirement: Người đăng rời nhóm
 
-Khi người đăng tự rời, bị gỡ hay bị cấm khỏi một nhóm, tin "chỉ thành viên" của người đó trong nhóm SHALL tạm ẩn
-với lý do "đã rời nhóm"; vào lại nhóm thì lý do này được gỡ.
+Khi người đăng rời một nhóm, tin "chỉ thành viên" của người đó trong nhóm SHALL tạm ẩn: tự rời thì với lý do "đã
+rời nhóm", bị gỡ hay bị cấm thì với lý do "bị gỡ khỏi nhóm". Vào lại nhóm thì lý do này được gỡ (TK 10, chốt
+12/10/2026).
 
 #### Scenario: Tự rời nhóm
 
@@ -82,10 +83,69 @@ với lý do "đã rời nhóm"; vào lại nhóm thì lý do này được gỡ
 - **WHEN** người đó vào lại nhóm X
 - **THEN** tin "chỉ thành viên" hiện lại
 
-#### Scenario: Bị cấm khỏi nhóm
+#### Scenario: Bị gỡ khỏi nhóm
 
-- **WHEN** điều hành viên cấm người đăng khỏi nhóm X
-- **THEN** tin "chỉ thành viên" của người đó trong nhóm X tạm ẩn với lý do "đã rời nhóm"
+- **WHEN** điều hành viên gỡ khỏi nhóm X một thành viên có tin "chỉ thành viên" trong nhóm X
+- **THEN** tin đó tạm ẩn với lý do "bị gỡ khỏi nhóm", không phải "đã rời nhóm"
+
+### Requirement: Tin "nhóm công khai" của người rời nhóm theo công tắc nhận tin người ngoài
+
+Khi người đăng rời nhóm, tin "nhóm công khai" của người đó trong nhóm SHALL tạm ẩn với cùng lý do rời nhóm nếu
+đúng lúc rời, nhóm đang tắt nhận tin người ngoài; nhóm đang bật thì tin giữ nguyên và thành tin người ngoài. Chủ
+nhóm bật nhận tin người ngoài sau đó MUST NOT làm tin đã ẩn tự hiện lại (TK 10, chốt 12/10/2026).
+
+#### Scenario: Rời nhóm đang tắt nhận tin người ngoài
+
+- **WHEN** thành viên có một tin "nhóm công khai" trong nhóm công khai X, nhóm đang tắt nhận tin người ngoài, tự
+  rời nhóm X
+- **THEN** tin "nhóm công khai" đó tạm ẩn với lý do "đã rời nhóm", và khách mở tin nhận HTTP 404 `NOT_FOUND`
+
+#### Scenario: Rời nhóm đang bật nhận tin người ngoài
+
+- **WHEN** thành viên có một tin "nhóm công khai" trong nhóm công khai X, nhóm đang bật nhận tin người ngoài, bị
+  gỡ khỏi nhóm X
+- **THEN** tin "nhóm công khai" đó vẫn hiện trong nhóm X như tin người ngoài, còn tin "chỉ thành viên" của người
+  đó tạm ẩn
+
+#### Scenario: Bật nhận tin người ngoài sau khi đã rời
+
+- **WHEN** người đăng đã rời nhóm X lúc nhóm tắt nhận tin người ngoài, rồi chủ nhóm bật nhận tin người ngoài
+- **THEN** tin "nhóm công khai" của người đó vẫn tạm ẩn với lý do "đã rời nhóm" cho tới khi người đó vào lại nhóm
+
+### Requirement: Người đăng bị cấm khỏi nhóm
+
+Khi một người bị cấm khỏi nhóm, mọi tin của người đó trong nhóm, ở mọi mức, SHALL tạm ẩn với lý do "bị cấm khỏi
+nhóm" — kể cả người ngoài chưa từng vào nhóm. Gỡ cấm SHALL chỉ gỡ lý do này; tin còn lý do khác MUST vẫn tạm ẩn
+(TK 10, chốt 12/10/2026).
+
+#### Scenario: Cấm một thành viên
+
+- **WHEN** điều hành viên cấm khỏi nhóm X một thành viên có tin "chỉ thành viên", tin "nhóm công khai" trong nhóm
+  X và một tin sàn chung, nhóm đang bật nhận tin người ngoài
+- **THEN** cả hai tin trong nhóm X tạm ẩn với lý do "bị cấm khỏi nhóm", tin "chỉ thành viên" mang thêm lý do "bị
+  gỡ khỏi nhóm", còn tin sàn chung vẫn hiện như cũ
+
+#### Scenario: Cấm một người ngoài
+
+- **WHEN** điều hành viên cấm khỏi nhóm X một người chưa từng vào nhóm, có một tin người ngoài đang hiển thị
+  trong nhóm X
+- **THEN** tin đó tạm ẩn với lý do "bị cấm khỏi nhóm", và khách mở tin nhận HTTP 404 `NOT_FOUND`
+
+#### Scenario: Gỡ cấm người ngoài
+
+- **WHEN** điều hành viên gỡ cấm người ngoài đó
+- **THEN** tin người ngoài của người đó hiện lại trong nhóm X đúng như trước khi bị cấm
+
+#### Scenario: Gỡ cấm cựu thành viên
+
+- **WHEN** điều hành viên gỡ cấm người đã bị cấm trong scenario "Cấm một thành viên"
+- **THEN** tin "nhóm công khai" hiện lại như tin người ngoài, còn tin "chỉ thành viên" vẫn tạm ẩn với lý do "bị
+  gỡ khỏi nhóm" cho tới khi người đó vào lại nhóm
+
+#### Scenario: Người bị cấm xem tin của mình
+
+- **WHEN** người bị cấm mở danh sách tin của mình
+- **THEN** người đó thấy các tin trong nhóm X cùng lý do "bị cấm khỏi nhóm"
 
 ### Requirement: Nhóm bị tạm khoá
 
@@ -112,22 +172,50 @@ Khi nhóm đóng, mọi tin trong nhóm SHALL rời bảng ngay với lý do "nh
 - **WHEN** chủ nhóm đóng một nhóm có tin đang hiển thị
 - **THEN** người khác mở các tin đó nhận HTTP 404 `NOT_FOUND`, và tin không còn trong bảng tin của nhóm
 
+### Requirement: Tin bị gỡ khỏi nhóm
+
+Khi một tin bị gỡ khỏi nhóm theo quyết định của điều hành viên (review/decisions), tin SHALL rời nhóm ngay với lý
+do "tin bị gỡ khỏi nhóm" và MUST NOT hiện lại trong nhóm đó. Đây không phải vi phạm: trạng thái tin không đổi
+sang "bị gỡ" (TK 17, chốt 12/10/2026).
+
+#### Scenario: Điều hành viên gỡ tin khỏi nhóm
+
+- **WHEN** một tin "chỉ thành viên" đang hiển thị bị gỡ khỏi nhóm
+- **THEN** thành viên mở tin nhận HTTP 404 `NOT_FOUND`, còn người đăng thấy tin vẫn ở trạng thái đang hiển thị
+  cùng lý do "tin bị gỡ khỏi nhóm"
+
 ### Requirement: Chuyển tin đã rời nhóm lên sàn chung
 
-Tin rời nhóm vì nhóm đóng, hoặc tin của người ngoài rời nhóm vì nhóm sang riêng tư, SHALL được người đăng chuyển
-lên sàn chung trong 30 ngày (giá trị khởi đầu) kể từ lúc rời nhóm. Tin chuyển qua máy như một tin mới gửi lên
-sàn chung, theo mọi điều kiện gửi. Quá hạn thì MUST bị từ chối.
+Tin rời nhóm vì nhóm đóng, vì bị gỡ khỏi nhóm, hay tin người ngoài rời nhóm vì nhóm sang riêng tư SHALL được
+người đăng chuyển lên sàn chung trong 30 ngày (giá trị khởi đầu) kể từ lúc rời nhóm. Chuyển là tạo một tin mới ở
+sàn chung, mỗi tin chuyển một lần; quá hạn MUST bị từ chối (TK 9, TK 10, TK 25, chốt 12/10/2026).
 
 #### Scenario: Chuyển trong hạn
 
 - **WHEN** 10 ngày sau khi nhóm đóng, người đăng chuyển tin của mình trong nhóm đó lên sàn chung, có đủ tỉnh
   và phường
-- **THEN** tin chuyển sang đang kiểm với nơi đăng sàn chung
+- **THEN** một tin mới ở sàn chung chuyển sang đang kiểm, mang bản sao nội dung và ảnh của tin cũ, còn tin cũ
+  vẫn không hiện trong nhóm
+
+#### Scenario: Tin mới có ngày hiển thị và vị trí mới
+
+- **WHEN** tin mới chuyển từ nhóm lên được máy cho qua
+- **THEN** tin có đủ 30 ngày hiển thị tính từ lúc lên bảng và đứng ở vị trí của một tin vừa đăng
+
+#### Scenario: Chuyển tin bị gỡ khỏi nhóm
+
+- **WHEN** 5 ngày sau khi tin bị gỡ khỏi nhóm, người đăng chuyển tin đó lên sàn chung, có đủ tỉnh và phường
+- **THEN** một tin mới ở sàn chung chuyển sang đang kiểm
 
 #### Scenario: Chuyển khi thiếu khu vực
 
 - **WHEN** người đăng chuyển lên sàn chung một tin đã rời nhóm chưa có phường
-- **THEN** response có HTTP 400 `REGION_REQUIRED` và tin không đổi
+- **THEN** response có HTTP 400 `REGION_REQUIRED`, không tin mới nào được tạo và tin cũ không đổi
+
+#### Scenario: Chuyển lần thứ hai
+
+- **WHEN** người đăng chuyển lên sàn chung một tin đã rời nhóm mà tin đó đã được chuyển trước đây
+- **THEN** response có HTTP 409 `ALREADY_MOVED` và không tin mới nào được tạo
 
 #### Scenario: Quá hạn chuyển
 
@@ -186,6 +274,29 @@ công khai".
 - **WHEN** chủ nhóm đổi một nhóm riêng tư có tin "chỉ thành viên" sang công khai
 - **THEN** các tin đó vẫn "chỉ thành viên" và khách mở tin nhận HTTP 404 `NOT_FOUND`
 
+### Requirement: Tắt nhận tin người ngoài không gỡ tin đã gửi
+
+Khi chủ nhóm tắt "nhận tin người ngoài" mà không đổi chế độ, tin người ngoài đã gửi vào nhóm SHALL giữ nguyên — tin
+đang hiển thị vẫn hiện, tin đang chờ máy hay người vẫn được xét như thường. Từ lúc tắt, nhóm MUST NOT nhận tin
+người ngoài mới, kể cả tin được chuyển vào nhóm (TK 9, chốt 12/10/2026).
+
+#### Scenario: Tin người ngoài đang hiển thị
+
+- **WHEN** chủ nhóm tắt nhận tin người ngoài ở một nhóm công khai có tin người ngoài đang hiển thị
+- **THEN** tin đó vẫn hiện trong nhóm như trước, không có lý do tạm ẩn nào
+
+#### Scenario: Tin người ngoài đang chờ duyệt
+
+- **WHEN** chủ nhóm tắt nhận tin người ngoài lúc một tin người ngoài của nhóm đang chờ duyệt, rồi người duyệt cho
+  đạt
+- **THEN** tin lên bảng tin của nhóm như mọi tin được duyệt
+
+#### Scenario: Người ngoài gửi tin mới sau khi tắt
+
+- **WHEN** người ngoài đang có tin hiển thị trong nhóm gửi thêm một tin mới vào nhóm đó sau khi nhóm tắt nhận tin
+  người ngoài
+- **THEN** response có HTTP 403 `OUTSIDER_POSTS_DISABLED` và nháp vẫn là nháp
+
 ### Requirement: Danh mục bị tắt
 
 Khi một danh mục bị tắt, mọi tin trong danh mục SHALL tạm ẩn với lý do "danh mục bị tắt"; bật lại thì lý do này
@@ -205,3 +316,20 @@ Khi một danh mục bị tắt, mọi tin trong danh mục SHALL tạm ẩn v�
 
 - **WHEN** người đăng đổi một tin đang tạm ẩn vì danh mục bị tắt sang một danh mục đang bật
 - **THEN** lý do "danh mục bị tắt" được gỡ và tin chuyển sang đang kiểm
+
+### Requirement: Đổi nơi đăng ra khỏi nhóm thì lý do của nhóm rơi theo
+
+Tin đang tạm ẩn vì một nhóm — người đăng tự rời, bị gỡ hay bị cấm khỏi nhóm, nhóm bị tạm khoá — mà người đăng đổi
+nơi đăng ra khỏi nhóm đó SHALL mất mọi lý do tạm ẩn của nhóm ấy; tin qua máy như mọi lần đổi nơi đăng, và lý do
+không thuộc nhóm (tài khoản, danh mục) vẫn giữ (chốt 12/10/2026).
+
+#### Scenario: Người bị cấm đưa tin lên sàn chung
+
+- **WHEN** người bị cấm khỏi nhóm X đổi tin "nhóm công khai" đang tạm ẩn vì bị cấm của mình lên sàn chung, có đủ
+  tỉnh và phường
+- **THEN** lý do "bị cấm khỏi nhóm" được gỡ và tin chuyển sang đang kiểm ở sàn chung
+
+#### Scenario: Còn lý do của danh mục
+
+- **WHEN** người đăng đổi lên sàn chung một tin "chỉ thành viên" đang tạm ẩn vì đã rời nhóm X và vì danh mục bị tắt
+- **THEN** lý do "đã rời nhóm" được gỡ, còn lý do "danh mục bị tắt" vẫn giữ

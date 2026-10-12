@@ -73,6 +73,8 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
   - Hai lớp cho master, staff: **otplib** (TOTP, ứng dụng tạo mã bất kỳ). Bí mật mã hoá AES-256-GCM
     (`src/common/crypto/secrets.ts`); `requireMaster` và `requireOps` đều đòi `second_factor_at` trên
     phiên — kể cả master, kể cả khi chưa thiết lập.
+  - Băm ảnh so trùng (đồng ý 12/10/2026, cài khi code `add-screening`): **sharp** — dHash 64 bit, đứng sau cổng
+    `ImageAnalyzer`. Kiểm ảnh nhạy cảm chưa chọn dịch vụ (`add-image-moderation`).
   - Danh sách email dùng một lần (TK 7): hạt giống `src/modules/identity/data/disposable-domains.seed.txt`
     (dự án `disposable-email-domains`, ~96k miền), nạp khi bảng rỗng lúc khởi động
     (`identity.seedDisposableDomainsIfEmpty` trong `server.ts`); việc `identity.refresh-disposable-domains`
@@ -197,7 +199,7 @@ change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-cate
 `harden-module-infra` → `tune-hot-paths` → `cache-public-reads-revoke-deleted-staff` →
 `harden-production-runtime` → `add-groups` → `add-notification-core` (kéo từ đợt 6, chốt 11/10/2026) — mười change
 này đã archive 10–11/10/2026 · đợt 2
-`add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` · đợt 3 `add-screening` · đợt 4 `add-review-queues` →
+`add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` · đợt 3 `add-screening` → `add-image-moderation` (khi chọn được dịch vụ kiểm ảnh, tách ra 12/10/2026) · đợt 4 `add-review-queues` →
 `add-reports` · đợt 5 `add-strikes` · đợt 6 `add-messaging` → `add-notifications` · đợt 7
 `add-data-retention`.
 

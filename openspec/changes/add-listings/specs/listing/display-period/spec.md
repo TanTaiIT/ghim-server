@@ -47,8 +47,9 @@ cam kết 21).
 
 ### Requirement: Ngày dừng hay trôi khi tin tạm ẩn
 
-Khi tin tạm ẩn, ngày hiển thị SHALL dừng nếu lý do không do người đăng — nhóm bị tạm khoá, danh mục bị tắt — và
-SHALL vẫn trôi nếu lý do là tài khoản người đăng bị khoá hoặc người đăng tự rời nhóm (TK 19).
+Khi tin tạm ẩn, ngày hiển thị SHALL dừng nếu lý do không do người đăng — nhóm bị tạm khoá, danh mục bị tắt,
+người đăng bị gỡ hay bị cấm khỏi nhóm — và SHALL vẫn trôi nếu lý do là tài khoản người đăng bị khoá hoặc người
+đăng tự rời nhóm (TK 19, chốt 12/10/2026).
 
 #### Scenario: Nhóm bị tạm khoá
 
@@ -75,6 +76,32 @@ SHALL vẫn trôi nếu lý do là tài khoản người đăng bị khoá hoặ
 - **WHEN** một tin "chỉ thành viên" còn 10 ngày hiển thị thì người đăng rời nhóm 4 ngày rồi vào lại
 - **THEN** tin hiện lại còn 6 ngày hiển thị
 
+#### Scenario: Người ngoài bị cấm rồi được gỡ cấm
+
+- **WHEN** một tin người ngoài còn 10 ngày hiển thị thì người đăng bị cấm khỏi nhóm 5 ngày rồi được gỡ cấm
+- **THEN** tin hiện lại vẫn còn 10 ngày hiển thị
+
+#### Scenario: Người đăng bị gỡ khỏi nhóm
+
+- **WHEN** một tin "chỉ thành viên" còn 10 ngày hiển thị thì người đăng bị gỡ khỏi nhóm, 4 ngày sau vào lại
+- **THEN** tin hiện lại vẫn còn 10 ngày hiển thị
+
+#### Scenario: Thành viên bị cấm, gỡ cấm rồi mới vào lại
+
+- **WHEN** một tin "chỉ thành viên" còn 10 ngày hiển thị thì người đăng bị cấm khỏi nhóm 5 ngày, được gỡ cấm, 3
+  ngày sau mới vào lại nhóm
+- **THEN** tin hiện lại vẫn còn 10 ngày hiển thị: cả lúc bị cấm lẫn lúc đã gỡ cấm mà chưa vào lại đều không tính
+
+### Requirement: Hết ngày trong lúc chờ máy hay người
+
+Tin đang kiểm hay chờ duyệt sau khi sửa mà dùng hết ngày hiển thị SHALL vẫn đi tiếp tới khi máy hay người quyết;
+được cho qua hay cho đạt thì tin lên đang hiển thị rồi chuyển sang hết hạn ở lượt chạy kế tiếp (chốt 12/10/2026).
+
+#### Scenario: Hết ngày lúc chờ người duyệt
+
+- **WHEN** một tin còn 2 ngày hiển thị được sửa, máy giữ cho người, và người duyệt cho đạt sau 3 ngày
+- **THEN** tin lên đang hiển thị rồi chuyển sang hết hạn trong vòng một giờ, và người đăng gia hạn được tin đó
+
 ### Requirement: Chuyển sang hết hạn mỗi giờ
 
 Tin đang hiển thị đã dùng hết ngày hiển thị SHALL được chuyển sang hết hạn trong vòng một giờ (TK 26).
@@ -93,7 +120,8 @@ Tin đang hiển thị đã dùng hết ngày hiển thị SHALL được chuy�
 
 Người đăng SHALL gia hạn được tin của mình trong 7 ngày cuối (giá trị khởi đầu) của ngày hiển thị — gia hạn sớm
 — hoặc sau khi tin hết hạn. Gia hạn đưa tin qua máy lại và MUST thoả mọi điều kiện gửi như một lượt gửi tin mới,
-trừ hạn mức tin sống: gia hạn sớm không chiếm thêm chỗ, gia hạn tin hết hạn cần còn chỗ (trust/quotas).
+trừ hạn mức tin sống: gia hạn sớm không chiếm thêm chỗ, gia hạn tin hết hạn cần còn chỗ (trust/quotas). Gia hạn
+tin hết hạn SHALL nhận kèm sửa nội dung trong cùng một lượt qua máy (chốt 12/10/2026).
 
 #### Scenario: Gia hạn trong bảy ngày cuối
 
@@ -104,6 +132,11 @@ trừ hạn mức tin sống: gia hạn sớm không chiếm thêm chỗ, gia h�
 
 - **WHEN** người đăng gia hạn một tin hết hạn
 - **THEN** tin chuyển sang đang kiểm
+
+#### Scenario: Gia hạn tin hết hạn kèm sửa
+
+- **WHEN** người đăng gia hạn một tin hết hạn và cùng lúc hạ giá
+- **THEN** tin chuyển sang đang kiểm với giá mới, và chỉ một lượt gửi được tính
 
 #### Scenario: Gia hạn quá sớm
 

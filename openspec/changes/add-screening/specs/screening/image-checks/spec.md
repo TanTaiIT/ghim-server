@@ -1,6 +1,7 @@
 ## Purpose
 
-Kiểm từng ảnh của tin — nội dung nhạy cảm, trùng với ảnh của tài khoản khác — và bảo đảm không ảnh nào hiện
+Kiểm từng ảnh của tin — trùng với ảnh của tài khoản khác; nội dung nhạy cảm thêm ở `add-image-moderation` — và
+bảo đảm không ảnh nào hiện
 công khai trước khi có kết quả (TK 13, TK 25, cam kết 4).
 
 ## ADDED Requirements
@@ -19,21 +20,6 @@ chưa có kết quả máy cho cả chữ lẫn từng ảnh — không có kho�
 
 - **WHEN** chữ và cả 3 ảnh của tin đều đã có kết quả, không trúng gì, người đăng là T2
 - **THEN** kết quả máy là hiện đầy đủ
-
-### Requirement: Ảnh nhạy cảm là cổng cứng
-
-Mỗi ảnh của tin SHALL được kiểm nội dung nhạy cảm. Ảnh bị nhận là nhạy cảm SHALL làm tin dính cổng cứng "ảnh
-nhạy cảm".
-
-#### Scenario: Một ảnh nhạy cảm
-
-- **WHEN** một trong các ảnh của tin bị nhận là nhạy cảm
-- **THEN** tin dính cổng cứng "ảnh nhạy cảm" và kết quả máy là giữ cho người
-
-#### Scenario: Không ảnh nào nhạy cảm
-
-- **WHEN** mọi ảnh của tin đều không bị nhận là nhạy cảm
-- **THEN** tin không dính cổng cứng "ảnh nhạy cảm"
 
 ### Requirement: Ảnh trùng với tin của tài khoản khác là cổng cứng
 

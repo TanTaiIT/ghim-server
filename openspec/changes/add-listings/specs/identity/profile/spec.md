@@ -21,3 +21,8 @@ phép thấy theo luật "ai thấy một tin" (listing/visibility). Tin nháp, 
 
 - **WHEN** người bán có một nháp, một tin chờ duyệt và một tin đang tạm ẩn vì nhóm bị khoá
 - **THEN** cả ba tin không có trên hồ sơ công khai
+
+#### Scenario: Tin đã bán hoặc hết hạn
+
+- **WHEN** người bán có một tin sàn chung đã bán và một tin sàn chung hết hạn
+- **THEN** cả hai không có trên hồ sơ công khai, nhưng mở bằng đường link vẫn nhận HTTP 200 (chốt 12/10/2026)
