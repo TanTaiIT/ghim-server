@@ -129,6 +129,7 @@ export const CONFIG_KEYS = {
   'listing.renewWindowDays': int(7, LISTING),
   'listing.renewExtendDays': int(30, LISTING),
   'listing.maxImages': int(6, LISTING),
+  'listing.moveToMarketplaceDays': int(30, LISTING),
   // Nhóm
   'group.applicationExpiresDays': int(21, GROUP),
   'group.reapplyWaitDays': int(7, GROUP),
@@ -141,6 +142,8 @@ export const CONFIG_KEYS = {
   'group.announcementMaxLength': int(1000, GROUP),
   // Thông báo
   'notification.collapseAlertMinutes': int(30, NOTIFICATION),
+  // N31: tin mới trong nhóm nhắc tối đa một lần mỗi 2 giờ mỗi nhóm (design add-listings mục 11).
+  'notification.groupListingsAlertMinutes': int(120, NOTIFICATION),
   // Ảnh
   'media.maxImageBytes': int(5_242_880, MEDIA),
   'media.uploadGrantMinutes': int(15, MEDIA),

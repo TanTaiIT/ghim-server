@@ -39,6 +39,25 @@ export interface SkipTake {
   take: number;
 }
 
+/** Một lượt ghi vào dòng nhóm: cột, sự kiện, có huỷ đơn đang chờ không. */
+export interface GroupWrite {
+  data: Prisma.GroupUpdateManyMutationInput;
+  events: Events;
+  cancelPendingRequests?: { at: Date };
+}
+
+/**
+ * Nhóm như một lượt đăng tin thấy nó, đọc dưới khoá (design add-listings mục 10): đổi chế độ, cấm, rời nhóm phải chờ
+ * lượt đăng xong, nên luật nơi đăng của `listing` chạy trên đúng ảnh chụp này.
+ */
+export interface GroupPostingSnapshot {
+  state: GroupState;
+  mode: GroupMode;
+  allowOutsiders: boolean;
+  member: { unitId: string | null } | null;
+  banned: boolean;
+}
+
 export interface NewGroup {
   name: string;
   nameFolded: string;
@@ -112,14 +131,22 @@ export interface GroupRepository {
   // ── GHI: VÒNG ĐỜI, CÀI ĐẶT ──
   createGroup(data: NewGroup): Promise<Group>;
   /** Đổi có điều kiện trạng thái; `null` = nhóm không còn ở trạng thái mong đợi. */
-  updateGroup(input: {
-    id: string;
-    expectStates: ReadonlySet<GroupState>;
-    data: Prisma.GroupUpdateManyMutationInput;
-    events: Events;
-    audit?: AuditEntry | undefined;
-    cancelPendingRequests?: { at: Date };
-  }): Promise<{ group: Group; cancelledRequestAccountIds: string[] } | null>;
+  updateGroup(
+    input: {
+      id: string;
+      expectStates: ReadonlySet<GroupState>;
+      audit?: AuditEntry | undefined;
+    } & (
+      | GroupWrite
+      | {
+          /**
+           * Quyết lượt ghi SAU khi đã khoá dòng nhóm `FOR UPDATE`: đổi chế độ phải đếm tin "nhóm công khai" trong khoá,
+           * không thì một lượt đăng chen giữa lúc đếm và lúc ghi (cam kết 22).
+           */
+          prepare: (tx: Tx, current: { state: GroupState; mode: GroupMode }) => Promise<GroupWrite>;
+        }
+    ),
+  ): Promise<{ group: Group; cancelledRequestAccountIds: string[] } | null>;
   closeGroup(input: {
     id: string;
     expectStates: ReadonlySet<GroupState>;
@@ -275,6 +302,19 @@ export interface GroupRepository {
 
   /** Tài khoản bị xoá: huỷ mọi đơn, lời mời, lời giao chủ đang chờ của nó — không báo ai. */
   cancelPendingFor(accountId: string, at: Date): Promise<void>;
+
+  // ── CỬA CHO TIN ĐĂNG ──
+  /**
+   * Trong transaction của `listing`: khoá cặp (nhóm, người) như mọi thay đổi tư cách, rồi `FOR SHARE` dòng nhóm tới
+   * khi lượt đăng commit. `null` = không có nhóm.
+   */
+  lockForPosting(tx: Tx, groupId: string, accountId: string): Promise<GroupPostingSnapshot | null>;
+  membersAmong(
+    groupId: string,
+    accountIds: string[],
+  ): Promise<{ accountId: string; joinedVia: GroupJoinPath; unitId: string | null }[]>;
+  memberGroupIds(accountId: string): Promise<string[]>;
+  findGroups(ids: string[]): Promise<Group[]>;
 
   // ── VIỆC THEO LỊCH ──
   expireDue(now: Date): Promise<{ requests: number; invitations: number; offers: number }>;
@@ -596,10 +636,13 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
         return group;
       }),
 
-    updateGroup: ({ id, expectStates, data, events, audit, cancelPendingRequests }) =>
+    updateGroup: (input) =>
       prisma.$transaction(async (tx) => {
+        const { id, expectStates, audit } = input;
         const current = await groupStateFor(tx, id, 'update');
         if (!current || !expectStates.has(current.state)) return null;
+        const { data, events, cancelPendingRequests } =
+          'prepare' in input ? await input.prepare(tx, current) : input;
         await tx.group.update({ where: { id }, data });
         let cancelledRequestAccountIds: string[] = [];
         if (cancelPendingRequests) {
@@ -890,6 +933,10 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
     removeMember: ({ groupId, accountId, reason, by, at, audit }) =>
       prisma.$transaction(async (tx) => {
         await lockPair(tx, groupId, accountId);
+        // Công tắc đúng lúc rời đi vào sự kiện: bên nghe của `listing` chạy sau vài giây, đọc lại lúc đó là sai nếu chủ
+        // nhóm vừa bật / tắt (proposal add-listings, Impact).
+        const settings = await tx.$queryRaw<{ allow_outsiders: boolean }[]>`
+          SELECT allow_outsiders FROM groups WHERE id = ${groupId}::uuid FOR SHARE`;
         const member = await tx.groupMember.findUnique({
           where: { groupId_accountId: { groupId, accountId } },
         });
@@ -921,6 +968,7 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
               accountId,
               reason,
               role: member.role,
+              allowOutsiders: settings[0]?.allow_outsiders ?? false,
             }),
             groupEvent(GROUP_EVENTS.badgeRightsChanged, { groupId, accountId }),
           );
@@ -1327,6 +1375,45 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
           data: { status: 'cancelled', decidedAt: at },
         });
       }),
+
+    // ── CỬA CHO TIN ĐĂNG ─────────────────────────────────────────────────────────────────────────
+
+    async lockForPosting(tx, groupId, accountId) {
+      await lockPair(tx, groupId, accountId);
+      const rows = await tx.$queryRaw<
+        { state: GroupState; mode: GroupMode; allow_outsiders: boolean }[]
+      >`
+        SELECT state::text AS state, mode::text AS mode, allow_outsiders
+        FROM groups WHERE id = ${groupId}::uuid FOR SHARE`;
+      const group = rows[0];
+      if (!group) return null;
+      const pair = { groupId_accountId: { groupId, accountId } };
+      const member = await tx.groupMember.findUnique({ where: pair, select: { unitId: true } });
+      const ban = await tx.groupBan.findUnique({ where: pair, select: { groupId: true } });
+      return {
+        state: group.state,
+        mode: group.mode,
+        allowOutsiders: group.allow_outsiders,
+        member,
+        banned: ban !== null,
+      };
+    },
+
+    membersAmong: (groupId, accountIds) =>
+      prisma.groupMember.findMany({
+        where: { groupId, accountId: { in: accountIds } },
+        select: { accountId: true, joinedVia: true, unitId: true },
+      }),
+
+    async memberGroupIds(accountId) {
+      const rows = await prisma.groupMember.findMany({
+        where: { accountId },
+        select: { groupId: true },
+      });
+      return rows.map((row) => row.groupId);
+    },
+
+    findGroups: (ids) => prisma.group.findMany({ where: { id: { in: ids } } }),
 
     // ── VIỆC THEO LỊCH ───────────────────────────────────────────────────────────────────────────
 

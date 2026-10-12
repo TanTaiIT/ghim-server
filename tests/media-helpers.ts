@@ -17,13 +17,17 @@ export const requestUpload = (
     ...body,
   });
 
-/** Xin quyền rồi tải thật lên kho như app — trả mã ảnh. `fill` để phân biệt ruột hai ảnh. */
+/**
+ * Xin quyền rồi tải thật lên kho như app — trả mã ảnh. `fill` để phân biệt ruột hai ảnh; `owner` đè chủ ảnh (mặc định
+ * hồ sơ của chính người đó).
+ */
 export async function uploadImage(
   app: FastifyInstance,
   user: TestUser,
   fill = 0xff,
+  owner: { ownerKind: string; ownerId: string } | null = null,
 ): Promise<string> {
-  const granted = await requestUpload(app, user);
+  const granted = await requestUpload(app, user, owner ?? {});
   if (granted.statusCode !== 201) {
     throw new Error(`Xin tải hỏng: ${granted.statusCode} ${granted.body}`);
   }

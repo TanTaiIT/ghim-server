@@ -1,4 +1,4 @@
-import type { Group, GroupMember, GroupState, GroupUnit } from '@prisma/client';
+import type { Group, GroupMember, GroupState, GroupUnit, Prisma } from '@prisma/client';
 
 import type { AuditAction, AuditDetails, AuditEntry } from '../../common/audit/audit.js';
 import type { Actor } from '../../common/auth/actor.js';
@@ -22,9 +22,12 @@ export interface GroupIdentityPort {
   accountEmailHash(accountId: string): Promise<string | null>;
 }
 
-/** Đợt 2: `listing` đếm tin mức "nhóm công khai" để biết nhóm phải qua trạng thái chuyển sang riêng tư không. */
+/**
+ * `listing` đếm tin mức "nhóm công khai" để biết nhóm phải qua trạng thái chuyển sang riêng tư không. Nhận `tx` của
+ * lượt đổi chế độ: đếm phải nằm trong cùng transaction đã khoá dòng nhóm (cam kết 22).
+ */
 export interface PublicListingCounter {
-  countInGroup(groupId: string): Promise<number>;
+  countInGroup(tx: Prisma.TransactionClient, groupId: string): Promise<number>;
 }
 
 export interface GroupServiceDeps {

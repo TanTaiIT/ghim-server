@@ -22,7 +22,7 @@ Trong Claude Code, mở thư mục này làm workspace rồi:
 Cần CLI `openspec` trên PATH, cùng phiên bản trong `package.json`:
 `npm i -g @fission-ai/openspec@1.14.1`.
 
-Hiện trạng (đợt 1): hạ tầng (HTTP, lỗi, response, Swagger, health, việc nền pg-boss, gửi thư, outbox, realtime
+Hiện trạng (đợt 1, một phần đợt 2): hạ tầng (HTTP, lỗi, response, Swagger, health, việc nền pg-boss, gửi thư, outbox, realtime
 socket.io ở `/realtime`) và các module:
 
 - **`identity`**: đăng ký + xác nhận email, đăng nhập / phiên / refresh, Google, hai lớp TOTP cho master và staff,
@@ -37,6 +37,10 @@ socket.io ở `/realtime`) và các module:
 - **`media`** (đợt 2): kho ảnh chuẩn S3 (R2 ở production, RustFS khi dev / test), app tải thẳng bằng quyền tải
   một lần, nhãn "chưa xác nhận", dọn ảnh 6 giờ và đối chiếu hằng tháng; ảnh đại diện (ảnh trong kho hay ảnh Google)
   — hướng dẫn cho app ở [`docs/media.md`](docs/media.md).
+- **`listing`** (đợt 2): nháp, gửi, vòng đời tám trạng thái, sửa (qua máy lại hay áp ngay), ngày hiển thị và gia
+  hạn, tạm ẩn theo tài khoản / nhóm / danh mục, hai mức hiển thị, ai thấy tin, bảng tin / tìm kiếm / hồ sơ phân trang
+  con trỏ, huy hiệu nhóm, chuyển tin đã rời nhóm lên sàn chung, thông báo N31–N35, N37. Mức tin cậy và máy duyệt
+  còn là bản tạm (`DEV_TRUST_TIER`, `DEV_MACHINE_REVIEW` ở dev) tới `add-trust-tiers`, `add-screening`.
 
 ## Cần có
 
@@ -69,6 +73,9 @@ Mailpit).
 - `GET /docs` — Swagger, sinh từ chính schema Zod (tắt ở production); mọi route nghiệp vụ dưới `/api/v1`
 - Biến môi trường của `identity` (`JWT_SECRET`, `IDENTITY_HASH_KEY`, `SECRETS_ENCRYPTION_KEY`, `SMTP_URL`,
   `MAIL_FROM`, `GOOGLE_CLIENT_IDS`, `DISPOSABLE_DOMAINS_URL`): ý nghĩa và ràng buộc ở `src/config/env.ts`
+- Thử trọn vòng tin đăng ở dev: `DEV_MACHINE_REVIEW=pass_full` để máy tạm cho qua mọi lượt gửi (mặc định `off` —
+  tin đứng ở "đang kiểm"); `DEV_TRUST_TIER` (mặc định `T1`) đặt mức tin cậy mọi tài khoản mang. App gửi
+  `x-device-id` ở mọi lượt gửi tin.
 
 ## Lệnh
 

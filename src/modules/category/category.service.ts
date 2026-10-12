@@ -16,7 +16,7 @@ import type {
   WardWithProvince,
 } from './category.repository.js';
 import { REGION_SEARCH_LIMIT } from './category.schema.js';
-import { lockedFieldIssue, type TemplateField } from './template.calc.js';
+import { attributeIssues, lockedFieldIssue, type TemplateField } from './template.calc.js';
 
 export interface CategoryServiceDeps {
   repository: CategoryRepository;
@@ -104,6 +104,22 @@ export interface CategoryService {
   existingIds(ids: string[]): Promise<Set<string>>;
   /** Cửa đọc cho `screening` sau này: cài đặt hiện hành kèm số phiên bản. */
   settingsOf(id: string): Promise<CategorySettingsDto>;
+  /** Cửa cho `listing`: danh mục có đang bật không, và phiên bản mẫu hiện hành để ghim lúc gửi lần đầu (TK 11). */
+  statusOf(
+    ids: string[],
+  ): Promise<Map<string, { enabled: boolean; templateVersion: number | null }>>;
+  /** Lỗi của cặp tỉnh / phường (mã lạ, phường không thuộc tỉnh); `null` = hợp lệ. */
+  validateRegion(provinceCode: number, wardCode: number | null): Promise<string | null>;
+  /**
+   * Thông tin món đồ theo phiên bản mẫu `version` (null = danh mục chưa phát hành mẫu, chỉ nhận rỗng). `complete` đòi
+   * đủ mục bắt buộc — lúc gửi, không lúc lưu nháp (design add-listings D9).
+   */
+  validateAttributes(
+    categoryId: string,
+    version: number | null,
+    attributes: unknown,
+    options: { complete: boolean },
+  ): Promise<string[]>;
 
   getDraft(id: string): Promise<TemplateDraftDto>;
   saveDraft(actor: Actor, id: string, input: SaveDraftInput): Promise<TemplateDraftDto>;
@@ -302,6 +318,32 @@ export function createCategoryService({ repository, clock }: CategoryServiceDeps
         },
       });
       return toAdminDto(row);
+    },
+
+    async statusOf(ids) {
+      const rows = ids.length === 0 ? [] : await repository.findStatuses([...new Set(ids)]);
+      return new Map(
+        rows.map((row) => [
+          row.id,
+          { enabled: row.status === 'active', templateVersion: row.templateVersion },
+        ]),
+      );
+    },
+
+    async validateRegion(provinceCode, wardCode) {
+      if (!(await repository.provinceExists(provinceCode))) return 'Không có tỉnh / thành này';
+      if (wardCode === null) return null;
+      const ward = await repository.findWard(wardCode);
+      if (!ward) return 'Không có phường / xã này';
+      return ward.provinceCode === provinceCode
+        ? null
+        : 'Phường / xã không thuộc tỉnh / thành đã chọn';
+    },
+
+    async validateAttributes(categoryId, version, attributes, options) {
+      const template =
+        version === null ? null : await repository.findTemplateVersion(categoryId, version);
+      return attributeIssues(template ? fieldsOf(template) : [], attributes, options);
     },
 
     async listPublic() {

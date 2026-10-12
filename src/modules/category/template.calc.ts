@@ -82,3 +82,67 @@ export function lockedFieldIssue(
   }
   return null;
 }
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** Ô bỏ trống: chưa điền, chuỗi trắng, danh sách rỗng — nháp được để vậy, gửi thì mục bắt buộc phải có. */
+const isBlank = (value: unknown): boolean =>
+  value === null ||
+  value === undefined ||
+  (typeof value === 'string' && value.trim() === '') ||
+  (Array.isArray(value) && value.length === 0);
+
+function valueIssue(field: TemplateField, value: unknown): string | null {
+  const options = field.options ?? [];
+  switch (field.type) {
+    case 'text':
+      return typeof value === 'string' ? null : `Mục "${field.label}" phải là chữ`;
+    case 'number':
+      return typeof value === 'number' && Number.isFinite(value)
+        ? null
+        : `Mục "${field.label}" phải là số`;
+    case 'single_choice':
+      return typeof value === 'string' && options.includes(value)
+        ? null
+        : `Mục "${field.label}" phải là một trong các lựa chọn của mẫu`;
+    case 'multi_choice':
+      return Array.isArray(value) &&
+        value.every((item) => typeof item === 'string' && options.includes(item)) &&
+        new Set(value).size === value.length
+        ? null
+        : `Mục "${field.label}" phải là các lựa chọn khác nhau của mẫu`;
+  }
+}
+
+/**
+ * Thông tin món đồ theo một phiên bản mẫu (TK 11, design add-listings D9): mục không có trong mẫu và giá trị sai kiểu
+ * luôn bị từ chối; mục bắt buộc chỉ đòi khi `complete` — lúc gửi, không lúc lưu nháp. Trả mọi lỗi, rỗng = hợp lệ.
+ */
+export function attributeIssues(
+  fields: TemplateField[],
+  attributes: unknown,
+  options: { complete: boolean },
+): string[] {
+  if (!isPlainObject(attributes)) return ['Thông tin theo mẫu phải là các cặp tên mục và giá trị'];
+  const byName = new Map(fields.map((field) => [field.name, field]));
+  const issues: string[] = [];
+  for (const [name, value] of Object.entries(attributes)) {
+    const field = byName.get(name);
+    if (!field) {
+      issues.push(`Mục "${name}" không có trong mẫu của danh mục`);
+      continue;
+    }
+    if (isBlank(value)) continue;
+    const issue = valueIssue(field, value);
+    if (issue) issues.push(issue);
+  }
+  if (options.complete) {
+    for (const field of fields) {
+      if (field.required && isBlank(attributes[field.name])) {
+        issues.push(`Thiếu mục bắt buộc "${field.label}"`);
+      }
+    }
+  }
+  return issues;
+}

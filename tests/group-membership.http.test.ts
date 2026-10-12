@@ -788,6 +788,13 @@ describe('danh sách thành viên', () => {
   });
 });
 
+const leftEventOf = async (user: TestUser) =>
+  (
+    await prisma.outboxEvent.findFirstOrThrow({
+      where: { type: 'group.member.left', payload: { path: ['accountId'], equals: user.id } },
+    })
+  ).payload;
+
 describe('tự rời nhóm', () => {
   it('Rời rồi vào lại nhóm mở cửa', async () => {
     const group = await createActiveGroup(app, { mode: 'public_open' });
@@ -804,6 +811,23 @@ describe('tự rời nhóm', () => {
       result: 'member',
       membership: { role: 'member', joinedVia: 'joined' },
     });
+  });
+
+  it('sự kiện rời nhóm mang công tắc "nhận tin người ngoài" đúng lúc rời — bên nghe của tin đăng không đọc lại', async () => {
+    const group = await createActiveGroup(app, { mode: 'public_open' });
+    const first = await addMember(app, group.groupId);
+    const second = await addMember(app, group.groupId);
+    const settings = (allowOutsiders: boolean) =>
+      api(app, 'PATCH', `/groups/${group.groupId}/settings`, group.owner.token, { allowOutsiders });
+    const leave = (user: TestUser) =>
+      api(app, 'POST', `/groups/${group.groupId}/leave`, user.token);
+
+    expect((await settings(true)).statusCode).toBe(200);
+    await leave(first);
+    expect(await leftEventOf(first)).toMatchObject({ reason: 'left', allowOutsiders: true });
+    expect((await settings(false)).statusCode).toBe(200);
+    await leave(second);
+    expect(await leftEventOf(second)).toMatchObject({ reason: 'left', allowOutsiders: false });
   });
 
   it('Điều hành viên rời nhóm', async () => {

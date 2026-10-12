@@ -57,10 +57,7 @@ afterAll(() => app.close());
 /** Phát một sự kiện với mã mới cho bên nghe thật, trả các dòng nó ghi. */
 async function emit(type: string, payload: Record<string, unknown>) {
   const id = randomUUID();
-  await app.modules.notification.handleGroupEvent(
-    { groupId: group.groupId, ...payload },
-    { id, type },
-  );
+  await app.modules.notification.handleEvent({ groupId: group.groupId, ...payload }, { id, type });
   return prisma.notification.findMany({ where: { sourceEventId: id } });
 }
 

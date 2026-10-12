@@ -6,6 +6,7 @@ import {
   type GroupMembershipService,
 } from './group.membership.service.js';
 import { sequentially } from '../../common/utils/sequential.js';
+import { createGroupPostingService, type GroupPostingService } from './group.posting.service.js';
 import { pickNominee } from './membership.calc.js';
 import { createGroupShared, type GroupServiceDeps } from './group.shared.js';
 
@@ -40,7 +41,10 @@ export interface GroupSystemService {
   isMember(groupId: string, accountId: string): Promise<boolean>;
 }
 
-export type GroupService = GroupAdminService & GroupMembershipService & GroupSystemService;
+export type GroupService = GroupAdminService &
+  GroupMembershipService &
+  GroupSystemService &
+  GroupPostingService;
 
 /**
  * Ghép ba mặt của `group` (quản trị, thành viên, hệ thống) trên một phần dùng chung — như `identity`, để mỗi file
@@ -139,6 +143,7 @@ export function createGroupService(deps: GroupServiceDeps): GroupService {
   return {
     ...createGroupAdminService(shared, reevaluateOwnerless),
     ...createGroupMembershipService(shared, reevaluateOwnerless),
+    ...createGroupPostingService(shared),
     ...system,
   };
 }

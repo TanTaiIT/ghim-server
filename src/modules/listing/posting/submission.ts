@@ -1,0 +1,285 @@
+import type {
+  Listing,
+  ListingHideReason,
+  ListingRenewal,
+  ListingRestriction,
+  ListingSubmissionKind,
+  Prisma,
+} from '@prisma/client';
+
+import type { Actor } from '../../../common/auth/actor.js';
+import {
+  BadRequestError,
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+} from '../../../common/errors/app-error.js';
+import { fold } from '../../../common/text/fold.js';
+import { nextClock } from '../display-period.calc.js';
+import type { ListingArrow } from '../listing.calc.js';
+import { LISTING_EVENTS, listingEvent, stateChangedEvent } from '../listing.outbox.js';
+import {
+  clockSettings,
+  type ListingShared,
+  placementError,
+  validationError,
+} from '../listing.shared.js';
+import { decideGroupPlacement, missingForSubmit, needsRegion } from './placement.calc.js';
+
+/** Các trường người đăng soạn — trạng thái gộp của tin sau khi áp phần sửa. */
+export interface ListingFields {
+  title: string | null;
+  description: string | null;
+  price: bigint | null;
+  negotiable: boolean;
+  delivery: boolean;
+  showPhone: boolean;
+  categoryId: string | null;
+  attributes: Prisma.JsonValue;
+  provinceCode: number | null;
+  wardCode: number | null;
+  placement: Listing['placement'];
+  groupId: string | null;
+  imageIds: string[];
+  badgeGroupId: string | null;
+}
+
+export const fieldsOf = (listing: Listing): ListingFields => ({
+  title: listing.title,
+  description: listing.description,
+  price: listing.price,
+  negotiable: listing.negotiable,
+  delivery: listing.delivery,
+  showPhone: listing.showPhone,
+  categoryId: listing.categoryId,
+  attributes: listing.attributes,
+  provinceCode: listing.provinceCode,
+  wardCode: listing.wardCode,
+  placement: listing.placement,
+  groupId: listing.groupId,
+  imageIds: listing.imageIds,
+  badgeGroupId: listing.badgeGroupId,
+});
+
+/** Cột nội dung ghi xuống, kèm chữ bỏ dấu cho tìm kiếm. */
+export const contentData = (fields: ListingFields) => ({
+  title: fields.title,
+  description: fields.description,
+  price: fields.price,
+  negotiable: fields.negotiable,
+  delivery: fields.delivery,
+  showPhone: fields.showPhone,
+  categoryId: fields.categoryId,
+  attributes: (fields.attributes ?? {}) as Prisma.InputJsonValue,
+  provinceCode: fields.provinceCode,
+  wardCode: fields.wardCode,
+  placement: fields.placement,
+  groupId: fields.placement === 'marketplace' ? null : fields.groupId,
+  imageIds: fields.imageIds,
+  badgeGroupId: fields.badgeGroupId,
+  searchFolded: fold([fields.title, fields.description].filter(Boolean).join(' ')),
+});
+
+const MISSING_LABELS: Record<string, string> = {
+  placement: 'nơi đăng',
+  groupId: 'nhóm',
+  title: 'tiêu đề',
+  price: 'giá',
+  categoryId: 'danh mục',
+  images: 'ít nhất một ảnh',
+};
+
+export const tooManyImages = (max: number): BadRequestError =>
+  new BadRequestError(`Mỗi tin tối đa ${max} ảnh`, 'TOO_MANY_IMAGES');
+
+export interface SubmissionInput {
+  actor: Actor;
+  listing: Listing;
+  after: ListingFields;
+  kind: ListingSubmissionKind;
+  arrow: ListingArrow;
+  /** Phiên bản app gửi kèm — ghi có điều kiện, và là `from_version` của lượt gửi. */
+  version: number;
+  deviceId: string | null;
+  renewal: ListingRenewal | null;
+  /** Kiểm lại luật nơi đăng trong nhóm (gửi lần đầu, gia hạn, đổi nơi đăng); sửa nội dung thì không. */
+  recheckPlacement: boolean;
+  /** Lý do tạm ẩn / hạn chế sau lượt sửa — tính từ dòng đã khoá (D3, đổi danh mục). */
+  hideReasons: (locked: ListingHideReason[]) => ListingHideReason[];
+  restrictions: (locked: ListingRestriction[]) => ListingRestriction[];
+}
+
+/**
+ * Một lượt "gửi" — gửi nháp, gửi lại sau sửa, gia hạn — theo thứ tự kiểm cố định của design mục 5: rẻ trước, nên cùng
+ * một lượt sai luôn ra cùng một lỗi; không dòng nào đổi khi bất kỳ bước nào ném (spec submission).
+ */
+export function createSubmission(shared: ListingShared) {
+  const { repository, groups, categories, media, identity, trust, screening, config, clock } =
+    shared;
+
+  /** Bước 3: tài khoản và mã máy — mọi lượt gửi bắt buộc `x-device-id` (D2, TK 8). */
+  const assertCanPost = async (actor: Actor, deviceId: string | null): Promise<string> => {
+    if (actor.role === 'master') throw new ForbiddenError('Tài khoản master không đăng tin');
+    if (!actor.emailVerified) {
+      throw new ForbiddenError('Xác nhận email trước khi gửi tin', 'EMAIL_NOT_VERIFIED');
+    }
+    if (!deviceId) throw validationError('Thiếu mã thiết bị (header x-device-id)');
+    await screening.precheck(actor.accountId);
+    return identity.deviceToken(deviceId);
+  };
+
+  /**
+   * Bước 4: đủ trường, danh mục đang bật, mẫu thông tin, khu vực. Trả phiên bản mẫu tin sẽ mang. Sửa tin mà vẫn ở danh
+   * mục cũ thì danh mục đang tắt không chặn: tin giữ lý do "danh mục bị tắt" và vẫn ẩn (spec suspension, "Còn lý do
+   * của danh mục") — chỉ tin mới, gia hạn, chuyển lên sàn và đổi sang danh mục khác mới cần danh mục đang bật.
+   */
+  const assertSubmittable = async (
+    listing: Listing,
+    after: ListingFields,
+    options: { editInPlace?: boolean } = {},
+  ): Promise<number | null> => {
+    const missing = missingForSubmit(after);
+    if (missing.length > 0) {
+      throw validationError(
+        `Còn thiếu: ${missing.map((name) => MISSING_LABELS[name] ?? name).join(', ')}`,
+      );
+    }
+    const max = config.get('listing.maxImages');
+    if (after.imageIds.length > max) throw tooManyImages(max);
+    const categoryId = after.categoryId ?? '';
+    const category = (await categories.statusOf([categoryId])).get(categoryId);
+    if (!category) throw validationError('Không có danh mục này');
+    const keepsCategory = options.editInPlace === true && listing.categoryId === after.categoryId;
+    if (!category.enabled && !keepsCategory) {
+      throw new ConflictError('Danh mục này đang tạm tắt, chưa nhận tin', 'CATEGORY_DISABLED');
+    }
+    // Ghim mẫu ở lần gửi đầu; đổi sang danh mục khác thì mang mẫu hiện hành của danh mục mới (TK 11).
+    const templateVersion =
+      listing.templateVersion !== null && listing.categoryId === after.categoryId
+        ? listing.templateVersion
+        : category.templateVersion;
+    const issues = await categories.validateAttributes(
+      categoryId,
+      templateVersion,
+      after.attributes,
+      {
+        complete: true,
+      },
+    );
+    if (issues.length > 0) throw validationError(issues.join('; '));
+    if (needsRegion(after)) {
+      throw new BadRequestError('Tin sàn chung cần tỉnh / thành và phường / xã', 'REGION_REQUIRED');
+    }
+    if (after.provinceCode !== null) {
+      const issue = await categories.validateRegion(after.provinceCode, after.wardCode);
+      if (issue) throw validationError(issue);
+    }
+    return templateVersion;
+  };
+
+  /** Bước 5, trong transaction: khoá nhóm cho lượt đăng và chạy luật nơi đăng trên ảnh chụp đó. */
+  const lockPlacement = async (
+    tx: Prisma.TransactionClient,
+    accountId: string,
+    after: ListingFields,
+  ): Promise<string | null> => {
+    if (after.placement === 'marketplace' || !after.placement || !after.groupId) return null;
+    const snapshot = await groups.lockForPosting(tx, after.groupId, accountId);
+    if (!snapshot) throw new NotFoundError('Không có nhóm này');
+    const outcome = decideGroupPlacement(after.placement, snapshot);
+    if (!outcome.ok) throw placementError(outcome.code);
+    return outcome.unitId;
+  };
+
+  const submit = async (input: SubmissionInput): Promise<Listing | null> => {
+    const { actor, listing, after } = input;
+    const deviceHash = await assertCanPost(actor, input.deviceId);
+    const templateVersion = await assertSubmittable(listing, after, {
+      editInPlace: input.kind === 'resubmit',
+    });
+    const owner = { kind: 'listing' as const, id: listing.id };
+    const score = await screening.scoreText({
+      listingId: listing.id,
+      title: after.title ?? '',
+      description: after.description,
+    });
+    await media.resolve({ owner, uploaderId: actor.accountId, imageIds: after.imageIds });
+    const now = clock();
+    let unitId: string | null = null;
+    const result = await repository.change({
+      id: listing.id,
+      states: [listing.state],
+      version: input.version,
+      before: async (tx, locked) => {
+        unitId = input.recheckPlacement
+          ? await lockPlacement(tx, actor.accountId, after)
+          : after.placement === 'marketplace'
+            ? null
+            : locked.unitId;
+        await trust.assertCanSubmit(tx, {
+          accountId: actor.accountId,
+          kind: input.kind,
+          placement: after.placement ?? 'marketplace',
+          groupId: after.placement === 'marketplace' ? null : after.groupId,
+        });
+      },
+      data: (locked) => {
+        const hideReasons = input.hideReasons(locked.hideReasons);
+        const clockColumns = nextClock(
+          { ...locked, renewal: input.renewal ?? locked.renewal },
+          { state: 'checking', hideReasons },
+          now,
+          clockSettings(config),
+        );
+        return {
+          ...contentData(after),
+          unitId,
+          templateVersion,
+          state: 'checking',
+          version: locked.version + 1,
+          fault: null,
+          hideReasons,
+          restrictions: input.restrictions(locked.restrictions),
+          ...clockColumns,
+        };
+      },
+      after: async (tx, updated) => {
+        await media.attach(tx, { owner, imageIds: after.imageIds });
+        await screening.openRun(tx, { listingId: updated.id, version: updated.version, score });
+      },
+      submission: {
+        kind: input.kind,
+        accountId: actor.accountId,
+        fromVersion: input.version,
+        at: now,
+      },
+      events: (updated, locked) => [
+        listingEvent(LISTING_EVENTS.submitted, {
+          listingId: updated.id,
+          version: updated.version,
+          ownerId: updated.ownerId,
+          kind: input.kind,
+          deviceHash,
+          at: now.toISOString(),
+          placement: updated.placement,
+          groupId: updated.groupId,
+        }),
+        stateChangedEvent(updated, locked, input.arrow),
+        ...(input.arrow === 'edit'
+          ? [
+              listingEvent(LISTING_EVENTS.edited, {
+                listingId: updated.id,
+                version: updated.version,
+                machine: true,
+              }),
+            ]
+          : []),
+      ],
+    });
+    return result?.after ?? null;
+  };
+
+  return { assertCanPost, assertSubmittable, lockPlacement, submit };
+}
+
+export type Submission = ReturnType<typeof createSubmission>;

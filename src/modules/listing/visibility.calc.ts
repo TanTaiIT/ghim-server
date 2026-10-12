@@ -3,6 +3,7 @@ import type {
   ListingPlacement,
   ListingRestriction,
   ListingState,
+  Prisma,
 } from '@prisma/client';
 
 /**
@@ -79,3 +80,41 @@ export function canView(
 
 const inGroup = (listing: VisibleListing, surface: Surface, groupId: string | null): boolean =>
   !GROUP_SURFACES.has(surface) || listing.groupId === groupId;
+
+/** Bề mặt danh sách — đường link chỉ mở một tin, không có danh sách nào. */
+export type ListSurface = Exclude<Surface, 'link'>;
+
+/**
+ * Cùng luật với `canView`, viết thành điều kiện Prisma cho mọi danh sách (CLAUDE.md luật 25). Test DB sinh mọi tổ hợp
+ * trạng thái × nơi đăng × lý do hạn chế × tạm ẩn × người xem và so kết quả SQL với `canView` — hai nơi lệch là đỏ.
+ * Người đăng không có ngoại lệ trên danh sách, đúng như `canView`.
+ */
+export function visibleWhere(
+  viewer: Viewer,
+  surface: ListSurface,
+  groupId: string | null = null,
+): Prisma.ListingWhereInput {
+  const shown: Prisma.ListingWhereInput = {
+    deletedAt: null,
+    state: 'live',
+    hideReasons: { isEmpty: true },
+    ...(RESTRICTED_OK.has(surface) ? {} : { restrictions: { isEmpty: true } }),
+  };
+  const memberOf = [...viewer.memberGroupIds];
+  if (MARKETPLACE_SURFACES.has(surface)) return { ...shown, placement: 'marketplace' };
+  if (GROUP_SURFACES.has(surface)) {
+    const membersOnly = groupId !== null && viewer.memberGroupIds.has(groupId);
+    return {
+      ...shown,
+      groupId,
+      placement: { in: membersOnly ? ['group_public', 'members_only'] : ['group_public'] },
+    };
+  }
+  return {
+    ...shown,
+    OR: [
+      { placement: { in: ['marketplace', 'group_public'] } },
+      { placement: 'members_only', groupId: { in: memberOf } },
+    ],
+  };
+}

@@ -10,9 +10,11 @@ import type { AccountSummary } from '../identity/identity.service.js';
 import {
   GROUP_MATRIX,
   type GroupFanOut,
+  type Handler,
   type MatrixContext,
   type NoticeDraft,
 } from './notification.matrix.js';
+import { LISTING_MATRIX } from './notification.listing-matrix.js';
 import type { NotificationRepository, NotificationRow } from './notification.repository.js';
 import {
   ALWAYS_ON,
@@ -43,14 +45,16 @@ export interface NotificationServiceDeps {
   repository: NotificationRepository;
   groups: NotificationGroupPort;
   identity: { accountSummaries(ids: string[]): Promise<Map<string, AccountSummary>> };
+  /** Tiêu đề tin cho câu thông báo — `notification` không đọc bảng `listings` (TK 30). */
+  listings: { titles(ids: string[]): Promise<Map<string, string>> };
   realtime: Realtime;
   config: RuntimeConfig;
   clock: () => Date;
 }
 
 export interface NotificationService {
-  /** Bên nghe outbox: áp ma trận cho một sự kiện `group.*`; sự kiện không có trong ma trận thì không làm gì. */
-  handleGroupEvent(payload: Record<string, unknown>, event: OutboxEventRef): Promise<void>;
+  /** Bên nghe outbox: áp ma trận cho một sự kiện `group.*`, `listing.*`; sự kiện không có trong ma trận thì không làm gì. */
+  handleEvent(payload: Record<string, unknown>, event: OutboxEventRef): Promise<void>;
   inbox(
     actor: Actor,
     page: { skip: number; take: number },
@@ -87,7 +91,7 @@ export const toNotificationDto = (row: Notification): NotificationDto => ({
  * đọc cờ đó (design mục 3).
  */
 export function createNotificationService(deps: NotificationServiceDeps): NotificationService {
-  const { repository, groups, identity, realtime, config, clock } = deps;
+  const { repository, groups, identity, listings, realtime, config, clock } = deps;
 
   const context: MatrixContext = {
     group: (groupId) => groups.findGroup(groupId),
@@ -104,6 +108,7 @@ export function createNotificationService(deps: NotificationServiceDeps): Notifi
       return body === null ? null : { body };
     },
     pendingCount: (groupId) => groups.countPendingRequests(groupId),
+    listingTitles: (ids) => listings.titles(ids),
   };
 
   /** Ai trong danh sách được nhắc — thông báo vẫn vào hộp thư của tất cả. */
@@ -182,8 +187,8 @@ export function createNotificationService(deps: NotificationServiceDeps): Notifi
       return;
     }
 
-    const { key, render } = draft.collapse;
-    const windowStart = now.getTime() - config.get('notification.collapseAlertMinutes') * MINUTE_MS;
+    const { key, render, alertMinutes = 'notification.collapseAlertMinutes' } = draft.collapse;
+    const windowStart = now.getTime() - config.get(alertMinutes) * MINUTE_MS;
     const fresh: string[] = [];
     const bumped: Notification[] = [];
     const bumpedAlerts = new Set<string>();
@@ -239,8 +244,8 @@ export function createNotificationService(deps: NotificationServiceDeps): Notifi
   };
 
   return {
-    async handleGroupEvent(payload, event) {
-      const handler = GROUP_MATRIX[event.type];
+    async handleEvent(payload, event) {
+      const handler: Handler | undefined = GROUP_MATRIX[event.type] ?? LISTING_MATRIX[event.type];
       if (!handler) return;
       const result = await handler(payload, context);
       await sequentially(result.drafts, ({ recipients, ...draft }) =>

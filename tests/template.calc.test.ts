@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { templateFieldsSchema } from '../src/modules/category/category.schema.js';
 import {
+  attributeIssues,
   duplicateFieldNames,
   fieldsToJson,
   lockedFieldIssue,
@@ -85,5 +86,59 @@ describe('fieldsToJson', () => {
       hang,
       { name: 'dung_luong', label: 'Dung lượng', type: 'text', required: false },
     ]);
+  });
+});
+
+describe('attributeIssues — thông tin món đồ theo một phiên bản mẫu (TK 11, D9)', () => {
+  const fields: TemplateField[] = [
+    {
+      name: 'hang',
+      label: 'Hãng',
+      type: 'single_choice',
+      required: true,
+      options: ['Honda', 'Yamaha'],
+    },
+    { name: 'nam', label: 'Năm sản xuất', type: 'number', required: false },
+    { name: 'mau', label: 'Màu', type: 'text', required: false },
+    {
+      name: 'phukien',
+      label: 'Phụ kiện',
+      type: 'multi_choice',
+      required: false,
+      options: ['Mũ', 'Áo mưa'],
+    },
+  ];
+  const draft = { complete: false };
+  const submit = { complete: true };
+
+  it('đủ và đúng kiểu → không lỗi', () => {
+    const value = { hang: 'Honda', nam: 2020, mau: 'Đỏ', phukien: ['Mũ', 'Áo mưa'] };
+    expect(attributeIssues(fields, value, submit)).toEqual([]);
+  });
+
+  it('mục không có trong mẫu luôn bị từ chối, kể cả lúc lưu nháp', () => {
+    expect(attributeIssues(fields, { pin: '80%' }, draft)).toEqual([
+      'Mục "pin" không có trong mẫu của danh mục',
+    ]);
+  });
+
+  it('sai kiểu, lựa chọn ngoài mẫu, chọn trùng → mỗi mục một lỗi', () => {
+    const issues = attributeIssues(
+      fields,
+      { hang: 'Suzuki', nam: '2020', mau: 5, phukien: ['Mũ', 'Mũ'] },
+      draft,
+    );
+    expect(issues).toHaveLength(4);
+  });
+
+  it('thiếu mục bắt buộc: lưu nháp được, gửi thì báo', () => {
+    expect(attributeIssues(fields, {}, draft)).toEqual([]);
+    expect(attributeIssues(fields, { hang: '  ' }, submit)).toEqual(['Thiếu mục bắt buộc "Hãng"']);
+  });
+
+  it('danh mục chưa phát hành mẫu chỉ nhận thông tin rỗng; không phải object thì từ chối', () => {
+    expect(attributeIssues([], {}, submit)).toEqual([]);
+    expect(attributeIssues([], { hang: 'Honda' }, draft)).toHaveLength(1);
+    expect(attributeIssues(fields, ['Honda'], draft)).toHaveLength(1);
   });
 });

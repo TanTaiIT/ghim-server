@@ -214,8 +214,13 @@ export interface IdentityService extends ActorResolver {
   deleteMyAccount(actor: Actor): Promise<void>;
   requestDeletion(input: { email: string; password: string }): Promise<void>;
 
-  /** `add-listings` gọi khi gửi tin; change này chưa có route nào gọi. */
-  recordListingSubmission(accountId: string, deviceId: string): Promise<void>;
+  /**
+   * Dấu băm của mã máy app gửi (`x-device-id`) — HMAC thuần, không chạm DB. `listing` ghi dấu này vào sự kiện gửi tin
+   * để mã thô không bao giờ nằm trong outbox (design add-listings mục 11).
+   */
+  deviceToken(deviceId: string): string;
+  /** Bên nghe `listing.listing.submitted` gọi: ghi một lượt đăng từ máy này lúc `at`, mở / đóng đánh dấu (spec device-registry). */
+  recordListingSubmission(accountId: string, deviceHash: string, at: Date): Promise<void>;
   getFlag(lookupCode: string): Promise<FlagDto>;
   clearFlag(actor: Actor, lookupCode: string, reason: string): Promise<void>;
 

@@ -1,4 +1,5 @@
 import {
+  CopyObjectCommand,
   CreateBucketCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
@@ -44,6 +45,8 @@ export interface Storage {
    */
   viewUrl(key: string, ttlSeconds: number, signedAt?: Date): Promise<string>;
   head(key: string): Promise<{ byteSize: number; contentType: string | null } | null>;
+  /** Chép trong kho, không qua server: bản sao ảnh cho tin chuyển lên sàn chung (TK 25). */
+  copy(fromKey: string, toKey: string): Promise<void>;
   deleteMany(keys: string[]): Promise<void>;
   list(input: { prefix: string; after?: string | undefined; limit: number }): Promise<{
     items: StoredObject[];
@@ -130,6 +133,12 @@ export function createS3Storage(config: StorageConfig): Storage {
         if (isMissing(error)) return null;
         throw error;
       }
+    },
+
+    async copy(fromKey, toKey) {
+      await client.send(
+        new CopyObjectCommand({ Bucket: bucket, Key: toKey, CopySource: `${bucket}/${fromKey}` }),
+      );
     },
 
     deleteMany: (keys) => deleteBatch([...new Set(keys)]),

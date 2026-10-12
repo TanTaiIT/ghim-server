@@ -1,0 +1,281 @@
+import type {
+  Listing,
+  ListingPlacement,
+  ListingRestriction,
+  ListingState,
+  ListingSubmissionKind,
+  Prisma,
+} from '@prisma/client';
+
+import type { Actor } from '../../common/auth/actor.js';
+import type { RuntimeConfig } from '../../common/config/runtime-config.js';
+import {
+  type AppError,
+  BadRequestError,
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+} from '../../common/errors/app-error.js';
+import type { CategoryService } from '../category/category.service.js';
+import type { GroupService } from '../group/group.service.js';
+import type { MediaService } from '../media/media.service.js';
+import { type ClockSettings, DAY_MS, remainingMs } from './display-period.calc.js';
+import { isDetached } from './hide.calc.js';
+import type { ListingRepository } from './listing.repository.js';
+import type { ListingDto, OwnListingDto } from './listing.schema.js';
+import type { PlacementBlock } from './posting/placement.calc.js';
+import { canView, type Viewer } from './visibility.calc.js';
+
+export type TrustTier = 'T0' | 'T1' | 'T2' | 'T3';
+type Tx = Prisma.TransactionClient;
+
+/**
+ * Chỗ cắm mức tin cậy (design mục 7): hai lời gọi đồng bộ của luật 12. Bản tạm ở `listing.ports.ts` tới khi có
+ * `add-trust-tiers`.
+ */
+export interface ListingTrustPort {
+  tierOf(accountId: string): Promise<TrustTier>;
+  /** Hạn mức, nhịp gửi — trong transaction gửi; ném lỗi của `trust` thì cả lượt quay lui. */
+  assertCanSubmit(
+    tx: Tx,
+    input: {
+      accountId: string;
+      kind: ListingSubmissionKind;
+      placement: ListingPlacement;
+      groupId: string | null;
+    },
+  ): Promise<void>;
+}
+
+/** Chỗ cắm máy duyệt (design mục 8): thời gian chờ, chấm chữ trước transaction, ghi lượt chấm trong transaction. */
+export interface ListingScreeningPort {
+  /** Ném 429 `SUBMISSION_COOLDOWN` khi người đăng đang trong thời gian chờ. */
+  precheck(accountId: string): Promise<void>;
+  /** Chấm chữ trước transaction; lỗi dịch vụ không ném ra (máy không phạt — lưới an toàn giữ cho người). */
+  scoreText(input: {
+    listingId: string;
+    title: string;
+    description: string | null;
+  }): Promise<unknown>;
+  openRun(tx: Tx, input: { listingId: string; version: number; score: unknown }): Promise<void>;
+}
+
+/** Việc đang chờ của người duyệt, báo cáo, hậu kiểm khoá nơi đăng (cam kết 19) — `add-review-queues` nối. */
+export interface OpenWork {
+  blocksPlacement(listingId: string): Promise<boolean>;
+}
+
+export type ListingGroupPort = Pick<
+  GroupService,
+  | 'lockForPosting'
+  | 'membersAmong'
+  | 'memberGroupIds'
+  | 'badgeHolders'
+  | 'badgeLabels'
+  | 'canRemoveBadge'
+  | 'completePrivatization'
+  | 'findGroup'
+>;
+export type ListingCategoryPort = Pick<
+  CategoryService,
+  'statusOf' | 'validateRegion' | 'validateAttributes'
+>;
+export type ListingMediaPort = Pick<MediaService, 'resolve' | 'attach' | 'viewUrl' | 'copyImages'>;
+
+export interface ListingServiceDeps {
+  repository: ListingRepository;
+  groups: ListingGroupPort;
+  categories: ListingCategoryPort;
+  media: ListingMediaPort;
+  identity: { deviceToken(deviceId: string): string };
+  trust: ListingTrustPort;
+  screening: ListingScreeningPort;
+  openWork: OpenWork;
+  config: RuntimeConfig;
+  clock: () => Date;
+}
+
+// ── LỖI ──────────────────────────────────────────────────────────────────────────────────────────
+
+export const listingNotFound = (): NotFoundError => new NotFoundError('Không có tin này');
+export const invalidTransition = (
+  message = 'Tin đang ở trạng thái không làm được việc này',
+): ConflictError => new ConflictError(message, 'INVALID_TRANSITION');
+export const versionConflict = (): ConflictError =>
+  new ConflictError('Tin vừa được sửa ở nơi khác — tải lại rồi thử lại', 'CONFLICT');
+
+const PLACEMENT_MESSAGES: Record<PlacementBlock, { status: 403 | 409; message: string }> = {
+  GROUP_LOCKED: { status: 409, message: 'Nhóm đang tạm khoá, chưa nhận tin mới' },
+  GROUP_CLOSED: { status: 409, message: 'Nhóm đã đóng' },
+  GROUP_MODE_CHANGING: {
+    status: 409,
+    message: 'Nhóm đang chuyển sang riêng tư — chưa đăng được mức "nhóm công khai"',
+  },
+  GROUP_BANNED: { status: 403, message: 'Bạn đã bị cấm khỏi nhóm này' },
+  NOT_GROUP_MEMBER: { status: 403, message: 'Mức "chỉ thành viên" chỉ dành cho thành viên nhóm' },
+  PLACEMENT_NOT_ALLOWED: { status: 409, message: 'Nhóm riêng tư không có mức "nhóm công khai"' },
+  OUTSIDER_POSTS_DISABLED: { status: 403, message: 'Nhóm này đang không nhận tin của người ngoài' },
+};
+
+export function placementError(code: PlacementBlock): AppError {
+  const { status, message } = PLACEMENT_MESSAGES[code];
+  return status === 403 ? new ForbiddenError(message, code) : new ConflictError(message, code);
+}
+
+export const validationError = (message: string): BadRequestError =>
+  new BadRequestError(message, 'VALIDATION_ERROR');
+
+// ── CHUNG ────────────────────────────────────────────────────────────────────────────────────────
+
+export const clockSettings = (config: RuntimeConfig): ClockSettings => ({
+  visibleDays: config.get('listing.visibleDays'),
+  renewExtendDays: config.get('listing.renewExtendDays'),
+});
+
+const RESTRICTION_ORDER: readonly ListingRestriction[] = ['machine', 'new_account', 'strike'];
+
+/** Đặt hay gỡ một lý do hạn chế, giữ thứ tự cố định để chạy lại ra cùng một mảng. */
+export function withRestriction(
+  current: readonly ListingRestriction[],
+  reason: ListingRestriction,
+  present: boolean,
+): ListingRestriction[] {
+  const set = new Set(current);
+  if (present) set.add(reason);
+  else set.delete(reason);
+  return RESTRICTION_ORDER.filter((item) => set.has(item));
+}
+
+export const isPublicPlacement = (placement: ListingPlacement | null): boolean =>
+  placement === 'marketplace' || placement === 'group_public';
+
+/** Người khác đi mũi tên của người đăng: thấy được tin → 403, không thấy → 404 như tin không tồn tại (design mục 3). */
+export function forbiddenOrMissing(listing: Listing, viewer: Viewer): AppError {
+  return canView(listing, viewer, 'link')
+    ? new ForbiddenError('Đây không phải tin của bạn')
+    : listingNotFound();
+}
+
+async function one<T>(rows: Promise<T[]>): Promise<T> {
+  const [row] = await rows;
+  if (!row) throw new Error('Thiếu DTO của tin');
+  return row;
+}
+
+export function createListingShared(deps: ListingServiceDeps) {
+  const { repository, groups, media, config } = deps;
+
+  /** Người xem như luật "ai thấy một tin" cần: nhóm người đó đang là thành viên (chỉ nhóm của tin là đủ). */
+  const viewerFor = async (actor: Actor | null, groupId: string | null): Promise<Viewer> => {
+    if (!actor) return { accountId: null, memberGroupIds: new Set() };
+    const member =
+      groupId !== null &&
+      (await groups.membersAmong(groupId, [actor.accountId])).has(actor.accountId);
+    return {
+      accountId: actor.accountId,
+      memberGroupIds: new Set(member && groupId ? [groupId] : []),
+    };
+  };
+
+  /** Tin của chính người gọi; người khác → 403 hay 404 tuỳ có thấy tin không, tin đã xoá → 404. */
+  const ownedBy = async (actor: Actor, id: string): Promise<Listing> => {
+    const listing = await repository.findById(id);
+    if (!listing || listing.deletedAt !== null) throw listingNotFound();
+    if (listing.ownerId !== actor.accountId) {
+      throw forbiddenOrMissing(listing, await viewerFor(actor, listing.groupId));
+    }
+    return listing;
+  };
+
+  const imagesOf = (listing: Listing) =>
+    Promise.all(listing.imageIds.map(async (id) => ({ id, url: await media.viewUrl(id) })));
+
+  const toDtos = async (rows: Listing[]): Promise<ListingDto[]> => {
+    const labels = await groups.badgeLabels(
+      rows.flatMap((row) => (row.badgeGroupId ? [row.badgeGroupId] : [])),
+    );
+    return Promise.all(
+      rows.map(async (row) => {
+        const label = row.badgeGroupId ? labels.get(row.badgeGroupId) : undefined;
+        return {
+          id: row.id,
+          ownerId: row.ownerId,
+          state: row.state,
+          placement: row.placement,
+          groupId: row.groupId,
+          title: row.title,
+          description: row.description,
+          price: row.price,
+          negotiable: row.negotiable,
+          delivery: row.delivery,
+          showPhone: row.showPhone,
+          categoryId: row.categoryId,
+          templateVersion: row.templateVersion,
+          attributes: (row.attributes ?? {}) as Record<string, unknown>,
+          provinceCode: row.provinceCode,
+          wardCode: row.wardCode,
+          images: await imagesOf(row),
+          // Nhóm tạm khoá thì huy hiệu ẩn lúc đọc, không lưu gì — mở khoá là hiện lại trên đúng các tin cũ.
+          badge:
+            row.badgeGroupId && label && !label.locked
+              ? { groupId: row.badgeGroupId, name: label.name }
+              : null,
+          firstLiveAt: row.firstLiveAt?.toISOString() ?? null,
+          expiresAt: row.expiresAt?.toISOString() ?? null,
+          createdAt: row.createdAt.toISOString(),
+          updatedAt: row.updatedAt.toISOString(),
+        };
+      }),
+    );
+  };
+
+  const moveUntil = (row: Listing): string | null => {
+    if (!row.leftGroupAt || !isDetached(row.hideReasons)) return null;
+    const days = config.get('listing.moveToMarketplaceDays');
+    return new Date(row.leftGroupAt.getTime() + days * DAY_MS).toISOString();
+  };
+
+  const toOwnDtos = async (rows: Listing[], now: Date): Promise<OwnListingDto[]> => {
+    const base = await toDtos(rows);
+    return rows.map((row, index) => {
+      const dto = base[index];
+      if (!dto) throw new Error('Thiếu DTO của tin');
+      return {
+        ...dto,
+        version: row.version,
+        unitId: row.unitId,
+        badgeGroupId: row.badgeGroupId,
+        hideReasons: row.hideReasons,
+        restrictions: row.restrictions,
+        remainingMs: row.expiresAt ? null : remainingMs(row, now),
+        renewal: row.renewal,
+        fault: row.fault,
+        moveUntil: moveUntil(row),
+      };
+    });
+  };
+
+  /** Ghi có điều kiện trượt: tin đã xoá → 404, phiên bản lệch → 409 `CONFLICT`, còn lại là sai trạng thái. */
+  const explainMiss = async (id: string, version: number): Promise<never> => {
+    const fresh = await repository.findById(id);
+    if (!fresh || fresh.deletedAt !== null) throw listingNotFound();
+    if (fresh.version !== version) throw versionConflict();
+    throw invalidTransition();
+  };
+
+  return {
+    ...deps,
+    viewerFor,
+    ownedBy,
+    explainMiss,
+    toDtos,
+    toOwnDtos,
+    toDto: (row: Listing) => one(toDtos([row])),
+    toOwnDto: (row: Listing, now: Date) => one(toOwnDtos([row], now)),
+  };
+}
+
+export type ListingShared = ReturnType<typeof createListingShared>;
+
+/** Trạng thái tin của người đăng sửa được nội dung (mũi tên "sửa" của TK 18). */
+export const EDITABLE_STATES: readonly ListingState[] = ['pending', 'live', 'rejected', 'removed'];

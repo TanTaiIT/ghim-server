@@ -1,4 +1,10 @@
-import { Prisma, type Group, type GroupOwnerOffer, type GroupState } from '@prisma/client';
+import {
+  Prisma,
+  type Group,
+  type GroupMode,
+  type GroupOwnerOffer,
+  type GroupState,
+} from '@prisma/client';
 
 import type { Actor } from '../../common/auth/actor.js';
 import { ConflictError, NotFoundError } from '../../common/errors/app-error.js';
@@ -410,24 +416,33 @@ export function createGroupAdminService(
         repository.updateGroup({
           id: groupId,
           expectStates: new Set<GroupState>(['going_private']),
-          data: {
-            state: 'active',
-            mode: target,
-            targetMode: null,
-            allowOutsiders: false,
-            showNameOnMarketplace: false,
-            ...(code ? { code } : {}),
+          prepare: async (tx, current) => {
+            // Đếm lại trong khoá: còn tin "nhóm công khai" thì chưa được thành riêng tư (cam kết 22) — bên nghe của
+            // `listing` chạy lại và hạ nốt.
+            if (((await shared.publicListings?.countInGroup(tx, groupId)) ?? 0) > 0) {
+              throw groupStateConflict('Nhóm còn tin "nhóm công khai" chưa hạ — thử lại sau');
+            }
+            return {
+              data: {
+                state: 'active',
+                mode: target,
+                targetMode: null,
+                allowOutsiders: false,
+                showNameOnMarketplace: false,
+                ...(code ? { code } : {}),
+              },
+              events: [
+                groupEvent(GROUP_EVENTS.privatizationCompleted, { groupId, mode: target }),
+                groupEvent(GROUP_EVENTS.modeChanged, {
+                  groupId,
+                  from: current.mode,
+                  to: target,
+                  actorId: null,
+                }),
+                groupEvent(GROUP_EVENTS.badgeRightsChanged, { groupId, accountId: null }),
+              ],
+            };
           },
-          events: [
-            groupEvent(GROUP_EVENTS.privatizationCompleted, { groupId, mode: target }),
-            groupEvent(GROUP_EVENTS.modeChanged, {
-              groupId,
-              from: group.mode,
-              to: target,
-              actorId: null,
-            }),
-            groupEvent(GROUP_EVENTS.badgeRightsChanged, { groupId, accountId: null }),
-          ],
         });
       const result =
         target === 'private_code'
@@ -442,77 +457,99 @@ export function createGroupAdminService(
       const ctx = await context(actor, groupId);
       requireSettings(ctx);
       const { group } = ctx;
-      const listings = (await shared.publicListings?.countInGroup(groupId)) ?? 0;
-      const plan = input.mode ? planModeChange(group.mode, input.mode, listings > 0) : null;
-      const finalMode = plan?.kind === 'immediate' ? plan.mode : group.mode;
-      const sideChanged = plan?.kind === 'immediate' && plan.resetSideSwitches;
 
-      if (
-        input.allowOutsiders === true &&
-        !isPublicMode(plan?.kind === 'going_private' ? plan.targetMode : finalMode)
-      ) {
-        throw new ConflictError(
-          'Chỉ nhóm công khai mới nhận tin người ngoài',
-          'GROUP_MODE_CONFLICT',
-        );
-      }
-      if (
-        input.showNameOnMarketplace === true &&
-        isPublicMode(plan?.kind === 'going_private' ? plan.targetMode : finalMode)
-      ) {
-        throw new ConflictError(
-          'Công tắc hiện tên nhóm trên tin sàn chỉ có ở nhóm riêng tư',
-          'GROUP_MODE_CONFLICT',
-        );
-      }
+      /**
+       * Chạy sau khi dòng nhóm đã khoá `FOR UPDATE`: lượt đăng tin "nhóm công khai" giữ `FOR SHARE` tới khi commit, nên
+       * lượt đếm ở đây thấy đủ — đếm trước khi khoá thì một tin chen vào sẽ nằm dưới nhóm riêng tư (cam kết 22).
+       */
+      const prepare = async (
+        tx: Prisma.TransactionClient,
+        current: { mode: GroupMode },
+        code?: string,
+      ) => {
+        const listings = input.mode
+          ? ((await shared.publicListings?.countInGroup(tx, groupId)) ?? 0)
+          : 0;
+        const plan = input.mode ? planModeChange(current.mode, input.mode, listings > 0) : null;
+        const finalMode = plan?.kind === 'immediate' ? plan.mode : current.mode;
+        const sideChanged = plan?.kind === 'immediate' && plan.resetSideSwitches;
 
-      const data: Prisma.GroupUpdateManyMutationInput = {
-        ...(input.name ? { name: input.name, nameFolded: fold(input.name) } : {}),
-        ...(input.description !== undefined ? { description: input.description || null } : {}),
-        ...(input.boardStyle ? { boardStyle: input.boardStyle } : {}),
-        ...(input.allowOutsiders !== undefined ? { allowOutsiders: input.allowOutsiders } : {}),
-        ...(input.showNameOnMarketplace !== undefined
-          ? { showNameOnMarketplace: input.showNameOnMarketplace }
-          : {}),
-      };
-      const events: OutboxEventInput[] = [];
-      let needsCode = false;
-      if (plan?.kind === 'immediate') {
-        data.mode = plan.mode;
-        if (plan.code === 'clear') data.code = null;
-        needsCode = plan.code === 'generate';
-        // Đổi phía thì công tắc của phía cũ mất nghĩa (CHECK của bảng); công tắc của phía mới mặc định tắt (TK 9).
-        if (sideChanged) {
-          if (isPublicMode(plan.mode)) {
-            data.showNameOnMarketplace = false;
-            data.allowOutsiders = input.allowOutsiders ?? false;
-          } else {
-            data.allowOutsiders = false;
-            data.showNameOnMarketplace = input.showNameOnMarketplace ?? false;
-          }
+        if (
+          input.allowOutsiders === true &&
+          !isPublicMode(plan?.kind === 'going_private' ? plan.targetMode : finalMode)
+        ) {
+          throw new ConflictError(
+            'Chỉ nhóm công khai mới nhận tin người ngoài',
+            'GROUP_MODE_CONFLICT',
+          );
         }
-        events.push(
-          groupEvent(GROUP_EVENTS.modeChanged, {
-            groupId,
-            from: group.mode,
-            to: plan.mode,
-            actorId: actor.accountId,
-          }),
-          groupEvent(GROUP_EVENTS.badgeRightsChanged, { groupId, accountId: null }),
-        );
-      } else if (plan?.kind === 'going_private') {
-        data.state = 'going_private';
-        data.targetMode = plan.targetMode;
-        data.allowOutsiders = false;
-        events.push(
-          groupEvent(GROUP_EVENTS.privatizationStarted, { groupId, targetMode: plan.targetMode }),
-        );
-      } else if (
-        input.showNameOnMarketplace !== undefined &&
-        input.showNameOnMarketplace !== group.showNameOnMarketplace
-      ) {
-        events.push(groupEvent(GROUP_EVENTS.badgeRightsChanged, { groupId, accountId: null }));
-      }
+        if (
+          input.showNameOnMarketplace === true &&
+          isPublicMode(plan?.kind === 'going_private' ? plan.targetMode : finalMode)
+        ) {
+          throw new ConflictError(
+            'Công tắc hiện tên nhóm trên tin sàn chỉ có ở nhóm riêng tư',
+            'GROUP_MODE_CONFLICT',
+          );
+        }
+
+        const data: Prisma.GroupUpdateManyMutationInput = {
+          ...(input.name ? { name: input.name, nameFolded: fold(input.name) } : {}),
+          ...(input.description !== undefined ? { description: input.description || null } : {}),
+          ...(input.boardStyle ? { boardStyle: input.boardStyle } : {}),
+          ...(input.allowOutsiders !== undefined ? { allowOutsiders: input.allowOutsiders } : {}),
+          ...(input.showNameOnMarketplace !== undefined
+            ? { showNameOnMarketplace: input.showNameOnMarketplace }
+            : {}),
+        };
+        const events: OutboxEventInput[] = [];
+        if (plan?.kind === 'immediate') {
+          data.mode = plan.mode;
+          if (plan.code === 'clear') data.code = null;
+          if (plan.code === 'generate') {
+            if (!code) throw new Error('Đổi sang nhóm có mã mà chưa sinh mã');
+            data.code = code;
+          }
+          // Đổi phía thì công tắc của phía cũ mất nghĩa (CHECK của bảng); công tắc của phía mới mặc định tắt (TK 9).
+          if (sideChanged) {
+            if (isPublicMode(plan.mode)) {
+              data.showNameOnMarketplace = false;
+              data.allowOutsiders = input.allowOutsiders ?? false;
+            } else {
+              data.allowOutsiders = false;
+              data.showNameOnMarketplace = input.showNameOnMarketplace ?? false;
+            }
+          }
+          events.push(
+            groupEvent(GROUP_EVENTS.modeChanged, {
+              groupId,
+              from: current.mode,
+              to: plan.mode,
+              actorId: actor.accountId,
+            }),
+            groupEvent(GROUP_EVENTS.badgeRightsChanged, { groupId, accountId: null }),
+          );
+        } else if (plan?.kind === 'going_private') {
+          data.state = 'going_private';
+          data.targetMode = plan.targetMode;
+          data.allowOutsiders = false;
+          events.push(
+            groupEvent(GROUP_EVENTS.privatizationStarted, { groupId, targetMode: plan.targetMode }),
+          );
+        } else if (
+          input.showNameOnMarketplace !== undefined &&
+          input.showNameOnMarketplace !== group.showNameOnMarketplace
+        ) {
+          events.push(groupEvent(GROUP_EVENTS.badgeRightsChanged, { groupId, accountId: null }));
+        }
+        return {
+          data,
+          events,
+          ...(plan?.kind === 'immediate' && plan.cancelPendingRequests
+            ? { cancelPendingRequests: { at: clock() } }
+            : {}),
+        };
+      };
 
       const write = (code?: string) =>
         repository.updateGroup({
@@ -520,18 +557,16 @@ export function createGroupAdminService(
           expectStates: ctx.isMaster
             ? new Set<GroupState>(['active', 'ownerless'])
             : new Set<GroupState>(['active']),
-          data: code ? { ...data, code } : data,
-          events,
+          prepare: (tx, current) => prepare(tx, current, code),
           audit: masterAudit(ctx, 'group.settings.update', groupId, {
             fields: Object.keys(input).join(','),
           }),
-          ...(plan?.kind === 'immediate' && plan.cancelPendingRequests
-            ? { cancelPendingRequests: { at: clock() } }
-            : {}),
         });
-      const result = needsCode
-        ? await withFreshCode(config.get('group.codeLength'), (code) => write(code))
-        : await write();
+      // Chỉ đích "riêng tư · có mã" mới có thể cần mã mới; có cần thật không thì chỉ biết sau khi đếm trong khoá.
+      const result =
+        input.mode === 'private_code'
+          ? await withFreshCode(config.get('group.codeLength'), (code) => write(code))
+          : await write();
       if (!result) throw groupStateConflict();
       return profile(ctx, result.group);
     },

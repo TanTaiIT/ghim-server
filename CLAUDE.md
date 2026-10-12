@@ -134,7 +134,7 @@ src/
                                 `emitToUser` / `disconnectUser` / `disconnectSession`; hướng dẫn cho app ở
                                 `docs/realtime.md`
     plugins/swagger.ts
-    schemas/{response,pagination,money}.ts   ← money.ts chỉ có `priceSchema`
+    schemas/{response,pagination,cursor,money}.ts ← money.ts chỉ có `priceSchema`; cursor.ts = phân trang con trỏ
     text/fold.ts              ← bỏ dấu + hoa + gộp khoảng trắng: tên dành riêng, tìm khu vực
     time/time.ts              ← định dạng ngày / giờ theo Asia/Ho_Chi_Minh cho câu báo người dùng
     utils/{defined,sequential}.ts
@@ -169,9 +169,10 @@ tests/*.db.test.ts            ← ghi thẳng bằng Prisma để kiểm ràng b
   việc (`membership` / `admin`) và cả ba calc dùng chung — muốn tách cụm thì sắp lại route cho khớp service trước.
 - **Không có `<module>.types.ts`**: DTO chính là response schema Zod trong `<module>.schema.ts`.
 - Tên module kebab-case, **số ít**. Đang có: `health`, `identity`, `platform`, `category`, `group`,
-  `notification`, `media`.
-- `buildApp(overrides)` nhận `repositories: { identity, platform, category, group, media }`, `storage` và hạ tầng dùng chung
-  (jobs, mailer, googleVerifier, privilegeSource, config, clock) — bỏ trống là bản thật.
+  `notification`, `media`, `listing`.
+- `buildApp(overrides)` nhận `repositories: { identity, platform, category, group, media, listing }`, `storage`, `trust`
+  (mức tin cậy cho `listing` — bản tạm tới `add-trust-tiers`) và hạ tầng dùng chung (jobs, mailer, googleVerifier,
+  privilegeSource, config, clock) — bỏ trống là bản thật.
   `privilegeSource` và `config` mặc định là bản thật của `platform` dựng trên repository của nó. Service
   của module tra qua `app.modules` (`app.modules.platform`…); `app.moduleList` là danh sách định nghĩa theo
   thứ tự dựng. Test HTTP dùng `buildTestApp` (`tests/test-app.ts`), cùng hình dạng overrides.
@@ -238,7 +239,9 @@ jobs với handler thuần. `../booking` không có trong workspace này; chỉ 
    - Thành công: `{ success: true, data }` qua `toOk(x)`, schema `ok(itemSchema)`.
    - Lỗi: `{ success: false, error: { code, message } }`.
    - Danh sách: `{ items, page, limit, total, totalPages }` qua `paginated()` / `toPage()`, trần 100.
-     Bảng tin, tìm kiếm, tin nhắn sẽ cần phân trang cursor — **(chưa có)** helper.
+     Bảng tin, tìm kiếm, hồ sơ, tin của tôi (và tin nhắn sau này): phân trang con trỏ `{ items, nextCursor }` qua
+     `cursorQuerySchema` / `cursorPaginated()` / `toCursorPage()` (`cursor.ts`) — trang theo số lặp hoặc sót khi tin
+     mới chen lên đầu, và `total` là một lượt `COUNT` toàn bảng. Con trỏ hỏng → 400 `VALIDATION_ERROR`.
    - Response schema là ranh giới DTO. KHÔNG khai response bằng `z.any()` hay schema lỏng.
    - Giữ lại: mọi response mặc định `Cache-Control: no-store`, lỗi luôn `no-store`. Route công khai
      chỉ mở sau khi service trả kết quả, bằng `cacheFor(reply, CACHE_*, toOk(x))` — thời hạn nằm ở spec
@@ -283,7 +286,7 @@ Mỗi luật dưới đây là một cam kết ở TK phần 27; số trong ngo�
     thì không. `ops` (đợt 7) nhận lại và mở rộng; hợp đồng bên nghe không đổi.
 13. **Trạng thái tin, cờ tạm ẩn, lý do hạn chế là ba thứ riêng** (15, 18, 19). Lý do hạn chế là một
     tập (`machine`, `new_account`, `strike`), mỗi lý do đặt/gỡ độc lập. Đường chuyển trạng thái tin
-    là **bảng thuần** trong `listing.calc.ts` **(chưa có)**, có unit test cho mọi mũi tên của sơ đồ TK
+    là **bảng thuần** trong `listing.calc.ts`, có unit test cho mọi mũi tên của sơ đồ TK
     phần 18 — và cho mọi mũi tên KHÔNG có.
 14. **Máy không phạt** (13, nguyên tắc 7). `screening` chỉ trả `pass_full` / `pass_limited` / `hold`.
     Lỗi dịch vụ, quá giờ, thiếu kết quả ảnh → `hold`, không bao giờ là cho qua.
@@ -409,7 +412,8 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
 
 - Vitest, file phẳng `tests/*.test.ts`. Env cho test khai trong `vitest.config.ts`, **không** có `.env.test`.
 - **Mọi test chạy trên Postgres thật và kho ảnh thật** — `pnpm db:test:up` và `pnpm storage:test:up` một lần,
-  rồi `pnpm test`. Không có repository giả:
+  rồi `pnpm test`. Máy không có Docker: `pnpm test:unit` chạy riêng test thuần (`*.calc.test.ts` và danh sách
+  trong `vitest.unit.config.ts`), không cần DB. Không có repository giả:
   giữ bản giả khớp DB tốn hơn chạy DB, và nó từng lệch mà vẫn xanh (giờ ghi nhật ký lấy đồng hồ của app thay
   vì `now()` của DB). `tests/db-global-setup.ts` áp migration lên DB mẫu `ghim_test` rồi nhân bản một DB cho
   mỗi worker, nên các file vẫn chạy song song; `tests/db-worker-setup.ts` xoá sạch dữ liệu **đầu mỗi file**.
@@ -427,6 +431,10 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   ảnh dựng thêm một `media` service với `storageClock` đẩy tới trước để tệp vừa tải trông như đã cũ.
   Ca tranh chấp bọc repository thật (`{ ...repositories.identity, method: … }`, truyền qua
   `buildTestApp({ repositories })`) để giữ hai lượt ở đúng điểm.
+  Tin đăng: `tests/listing-http-helpers.ts` đi luồng thật (nháp → ảnh → gửi → `machinePass`), `signedInAt` ký lại
+  phiên khi ca đẩy đồng hồ quá 30 ngày; mức tin cậy đè bằng `buildTestApp({ trust: createInterimTrust(…) })` —
+  mặc định của test là T0 như production. Ca tranh chấp có khoá nhóm dùng cổng `trust` giả dừng lượt gửi trong
+  transaction (`tests/listing-races.db.test.ts`); dữ liệu nền mức DB ở `tests/listing-helpers.ts`.
 - `tests/*.db.test.ts`: test repository và ghi thẳng bằng Prisma để kiểm ràng buộc chỉ DB trả lời được
   (partial unique "một việc mở mỗi tin", CHECK, EXCLUDE), kiểm đúng mã lỗi (`prismaErrorCode` / `sqlStateOf`).
 - Mỗi cam kết ở TK phần 27 thuộc đợt đang làm phải có test — kể cả các ca **thiếu, sai, hết chỗ,

@@ -10,7 +10,7 @@ import {
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod';
 
-import { corsOrigin, env, isTest, trustProxy } from './config/env.js';
+import { corsOrigin, env, isProduction, isTest, trustProxy } from './config/env.js';
 import { parseStorageUrl } from './config/storage-url.js';
 import { registerAuth } from './common/auth/auth.plugin.js';
 import type { PrivilegeSource } from './common/auth/privilege-source.js';
@@ -49,6 +49,18 @@ import {
   type IdentityRepository,
 } from './modules/identity/identity.repository.js';
 import type { IdentityService } from './modules/identity/identity.service.js';
+import { createListingModule } from './modules/listing/listing.module.js';
+import {
+  createInterimTrust,
+  interimScreening,
+  noOpenWork,
+} from './modules/listing/listing.ports.js';
+import {
+  createListingRepository,
+  type ListingRepository,
+} from './modules/listing/listing.repository.js';
+import type { ListingService } from './modules/listing/listing.service.js';
+import type { ListingTrustPort } from './modules/listing/listing.shared.js';
 import { createMediaModule } from './modules/media/media.module.js';
 import { createMediaRepository, type MediaRepository } from './modules/media/media.repository.js';
 import type { MediaService } from './modules/media/media.service.js';
@@ -83,6 +95,7 @@ export interface AppServices {
   group: GroupService;
   notification: NotificationService;
   media: MediaService;
+  listing: ListingService;
 }
 
 export interface Repositories {
@@ -91,6 +104,7 @@ export interface Repositories {
   category: CategoryRepository;
   group: GroupRepository;
   media: MediaRepository;
+  listing: ListingRepository;
 }
 
 declare module 'fastify' {
@@ -122,6 +136,8 @@ export interface AppDeps {
   storage: Storage;
   googleVerifier: GoogleTokenVerifier;
   privilegeSource: PrivilegeSource;
+  /** Mức tin cậy cho `listing` — bản tạm tới `add-trust-tiers`; test cần mức khác thì đè ở đây (design mục 7). */
+  trust: ListingTrustPort;
   config: RuntimeConfig;
   clock: () => Date;
 }
@@ -150,6 +166,10 @@ async function resolveConfig(
   return { config: versioned, versioned };
 }
 
+const listingNotBuilt = (): never => {
+  throw new Error('listing chưa dựng xong');
+};
+
 /**
  * Dựng app nhưng KHÔNG listen — `server.ts` mới mở cổng.
  *
@@ -163,6 +183,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     category: overrides.repositories?.category ?? createCategoryRepository(prisma),
     group: overrides.repositories?.group ?? createGroupRepository(prisma),
     media: overrides.repositories?.media ?? createMediaRepository(prisma),
+    listing: overrides.repositories?.listing ?? createListingRepository(prisma),
   };
   const { config, versioned } = await resolveConfig(overrides.config, repositories.platform);
   const deps: AppDeps = {
@@ -173,6 +194,9 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     googleVerifier: overrides.googleVerifier ?? createGoogleTokenVerifier(env.GOOGLE_CLIENT_IDS),
     privilegeSource:
       overrides.privilegeSource ?? createPlatformPrivilegeSource(repositories.platform),
+    // Production và test lấy mức an toàn nhất; dev chọn mức để thử đủ đường (design mục 7).
+    trust:
+      overrides.trust ?? createInterimTrust(isProduction || isTest ? 'T0' : env.DEV_TRUST_TIER),
     config,
     clock: overrides.clock ?? (() => new Date()),
   };
@@ -181,6 +205,9 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
   // `identity`. Chiều ngược lại — `identity` hỏi "có đang là chủ nhóm" lúc xoá tài khoản — đi qua tham chiếu muộn:
   // chỉ được gọi khi có request, lúc đó `group` đã dựng xong.
   let groupService: GroupService | null = null;
+  // `listing` dựng sau `media` và `group` vì cần cả hai; hai cổng ngược (chủ ảnh là tin, đếm tin "nhóm công khai")
+  // cũng nối muộn — chỉ được gọi khi có request hay việc nền, lúc đó `listing` đã dựng xong.
+  let listingService: ListingService | null = null;
   // Cổng realtime cần HTTP server của Fastify, mà module dựng trước Fastify: module cầm một tay nối, cổng thật gắn
   // vào ngay sau khi Fastify có server (dưới đây).
   let gateway: Realtime | null = null;
@@ -196,6 +223,13 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     storage: deps.storage,
     config: deps.config,
     clock: deps.clock,
+    owners: {
+      listing: {
+        canUpload: (accountId, listingId) =>
+          listingService?.canUpload(accountId, listingId) ?? listingNotBuilt(),
+        existing: (ids) => listingService?.existingListings(ids) ?? listingNotBuilt(),
+      },
+    },
   });
   const identity = createIdentityModule({
     ...deps,
@@ -225,8 +259,26 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     identity: identity.service,
     config: deps.config,
     clock: deps.clock,
+    publicListings: {
+      countInGroup: (tx, groupId) =>
+        listingService?.countGroupPublic(tx, groupId) ?? listingNotBuilt(),
+    },
   });
   groupService = group.service;
+  const listing = createListingModule({
+    repository: repositories.listing,
+    groups: group.service,
+    categories: category.service,
+    media: media.service,
+    identity: identity.service,
+    trust: deps.trust,
+    screening: interimScreening,
+    openWork: noOpenWork,
+    config: deps.config,
+    clock: deps.clock,
+    devMachineReview: env.DEV_MACHINE_REVIEW,
+  });
+  listingService = listing.service;
   const notification = createNotificationModule({
     repository: createNotificationRepository(prisma),
     groups: {
@@ -241,6 +293,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
       isMember: (groupId, accountId) => group.service.isMember(groupId, accountId),
     },
     identity: identity.service,
+    listings: listing.service,
     realtime,
     config: deps.config,
     clock: deps.clock,
@@ -251,6 +304,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     category.module,
     platform.module,
     group.module,
+    listing.module,
     notification.module,
     createOutboxModule(prisma),
   ];
@@ -335,6 +389,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     group: group.service,
     notification: notification.service,
     media: media.service,
+    listing: listing.service,
   });
   app.decorate('moduleList', moduleList);
 

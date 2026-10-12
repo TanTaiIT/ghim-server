@@ -19,6 +19,17 @@ const envSchema = z
     PORT: z.coerce.number().int().positive().max(65535).default(3100),
     APP_NAME: z.string().min(1).default('calendar-ghim'),
 
+    /**
+     * Bản tạm của mức tin cậy tới khi có `add-trust-tiers`: dev dùng mức này để bảng tin dev có tin hiện đầy đủ;
+     * production và test luôn T0 dù đặt gì (design add-listings mục 7).
+     */
+    DEV_TRUST_TIER: z.enum(['T0', 'T1', 'T2', 'T3']).default('T1'),
+    /**
+     * Máy duyệt tạm chỉ cho dev tới khi có `add-screening`: khác `off` thì tin gửi xong tự được cho qua / giữ theo giá trị
+     * này. Production bật là từ chối khởi động — như chốt tên DB (design add-listings mục 8).
+     */
+    DEV_MACHINE_REVIEW: z.enum(['off', 'pass_full', 'pass_limited', 'hold']).default('off'),
+
     DATABASE_URL: z.string().url(),
 
     /**
@@ -115,6 +126,13 @@ const envSchema = z
         path: ['SMTP_URL'],
         message:
           'bắt buộc ngoài test — dev dùng Mailpit (pnpm mail:up, smtp://ghim:ghim@localhost:1025)',
+      });
+    }
+    if (value.NODE_ENV === 'production' && value.DEV_MACHINE_REVIEW !== 'off') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['DEV_MACHINE_REVIEW'],
+        message: 'máy duyệt tạm chỉ dùng ở dev — production phải để off (hay bỏ trống)',
       });
     }
     if (value.NODE_ENV === 'production' && value.CORS_ORIGIN.trim() === '*') {

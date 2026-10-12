@@ -148,12 +148,16 @@ Thứ tự kiểm (rẻ trước, cố định để lỗi trả về luôn như
    chờ — chạy ngay đầu lượt gửi; `screening.scoreText` — chấm chữ — chạy sau bước 5, trước transaction (mục 8).
 7. `media.resolve` trước transaction; trong transaction: ghi có điều kiện `UPDATE … WHERE state = 'draft' AND
 version = $v`, `media.attach(tx)`, `screening.openRun(tx, …)`, thêm dòng `listing_submissions`, `appendEvents`
-   `listing.submitted`.
+   `listing.listing.submitted`.
 
 Không dòng nào đổi nếu bất kỳ bước nào trả lỗi — nháp giữ nguyên nội dung và ảnh (spec submission).
 
 Lượt "gửi" khác (gửi lại sau sửa, gia hạn, chuyển lên sàn chung) đi chung bước 3–7, chỉ khác `kind` của dòng
 `listing_submissions` — `trust` đếm theo `kind` (gia hạn sớm không chiếm thêm chỗ).
+
+Ngoại lệ ở bước 4 (chốt lúc code 12/10/2026): sửa tin mà vẫn ở danh mục cũ thì danh mục đang tắt **không** chặn —
+tin giữ lý do `category_disabled` và vẫn ẩn, đúng scenario "Còn lý do của danh mục" của spec suspension. Gửi nháp,
+gia hạn, chuyển lên sàn chung và đổi sang danh mục khác vẫn cần danh mục đang bật (spec placement, display-period).
 
 ### 6. Ngày hiển thị — `display-period.calc.ts`
 
@@ -217,7 +221,7 @@ version = listingVersion`, lệch thì bỏ qua. Cho qua: sang đang hiển th�
 - `screening.listing.recalled { listingId, listingVersion }` → mũi tên rút về chờ duyệt (cụm từ cấm mới);
   `screening.listing.restricted { listingId }` → thêm lý do `machine` (lưới an toàn thiếu kết quả ảnh).
 - **Máy tạm chỉ ở dev**: `DEV_MACHINE_REVIEW=pass_full | pass_limited | hold | off` (mặc định `off`). Khác `off`
-  thì `listing` tự nghe `listing.submitted` của chính nó và gọi `applyMachineOutcome`. `env.ts` từ chối khởi động
+  thì `listing` tự nghe `listing.listing.submitted` của chính nó và gọi `applyMachineOutcome`. `env.ts` từ chối khởi động
   ở production nếu biến này khác `off` (như luật tên DB). Test gọi thẳng `applyMachineOutcome`. `add-screening`
   gỡ máy tạm.
 
@@ -294,7 +298,7 @@ Sửa trong `group`:
   `media/image-storage` (mục "Sửa đi kèm").
 - **`identity`** — dấu thiết bị: app gửi `x-device-id` (đã chốt ở design `add-identity`). Mã thô **không** vào
   outbox: `identity` lộ `deviceToken(deviceId)` (HMAC thuần, không chạm DB — thuộc "hỏi identity"), `listing` ghi
-  dấu băm vào `listing.submitted`, bên nghe của `identity` gọi `recordListingSubmission(accountId, deviceHash, at)`
+  dấu băm vào `listing.listing.submitted`, bên nghe của `identity` gọi `recordListingSubmission(accountId, deviceHash, at)`
   (đổi chữ ký — hàm chưa ai gọi). Ghi qua outbox thay vì gọi thẳng vì đây là một lần ghi chéo module (luật 12).
 - **`notification`**: thêm dòng vào ma trận, không đổi hạ tầng.
 
@@ -372,18 +376,24 @@ dừng không được nhắc (chưa biết ngày hết hạn).
 
 Phát (`listing.outbox.ts`, payload chỉ mã và trạng thái):
 
-| Sự kiện                        | Payload                                                                           | Ai nghe (đợt)                                   |
-| ------------------------------ | --------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `listing.submitted`            | `listingId, version, ownerId, kind, deviceHash, placement, groupId?`              | identity (2), screening (3), máy tạm dev        |
-| `listing.state.changed`        | `listingId, ownerId, from, to, arrow, version, placement, groupId?, full, fault?` | notification N31 (2), trust (2, 5), review (4)  |
-| `listing.hidden.changed`       | `listingIds, ownerIds, groupId?, reason, change: added / removed`                 | notification N32 (2)                            |
-| `listing.detached`             | `listingIds, ownerIds, groupId, reason, moveUntil`                                | notification N33 (2)                            |
-| `listing.placement.downgraded` | `groupId, listingIds, ownerIds`                                                   | notification N34 (2)                            |
-| `listing.badge.removed`        | `listingId, ownerId, groupId, cause: rights / group`                              | notification N35 (2)                            |
-| `listing.expiry.reminder`      | `listingId, ownerId, expiresAt`                                                   | notification N37 (2)                            |
-| `listing.edited`               | `listingId, version, machine: boolean`                                            | review (4: việc tự huỷ khi máy cho qua bản sửa) |
-| `listing.deleted`              | `listingId, ownerId`                                                              | review (4), reports (4)                         |
-| `listing.moved`                | `fromListingId, toListingId, ownerId`                                             | review (4)                                      |
+| Sự kiện                        | Payload                                                                                              | Ai nghe (đợt)                                   |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `listing.listing.submitted`    | `listingId, version, ownerId, kind, deviceHash, at, placement, groupId?`                             | identity (2), screening (3), máy tạm dev        |
+| `listing.state.changed`        | `listingId, ownerId, from, to, arrow, version, placement, groupId?, full, firstLive, hidden, fault?` | notification N31 (2), trust (2, 5), review (4)  |
+| `listing.hidden.changed`       | `listingIds, ownerIds, groupId?, reason, change: added / removed`                                    | notification N32 (2)                            |
+| `listing.listing.detached`     | `listingIds, ownerIds, groupId, reason, moveUntil`                                                   | notification N33 (2)                            |
+| `listing.placement.downgraded` | `groupId, listingIds, ownerIds`                                                                      | notification N34 (2)                            |
+| `listing.badge.removed`        | `listingId, ownerId, groupId, cause: rights / group`                                                 | notification N35 (2)                            |
+| `listing.expiry.reminder`      | `listingId, ownerId, expiresAt`                                                                      | notification N37 (2)                            |
+| `listing.listing.edited`       | `listingId, version, machine: boolean`                                                               | review (4: việc tự huỷ khi máy cho qua bản sửa) |
+| `listing.listing.deleted`      | `listingId, ownerId`                                                                                 | review (4), reports (4)                         |
+| `listing.listing.moved`        | `fromListingId, toListingId, ownerId`                                                                | review (4)                                      |
+
+Tên sự kiện đủ ba phần `<module>.<thực thể>.<việc>` như mọi module (kiểu `OutboxEventType` của outbox bắt buộc): năm
+sự kiện về chính tin mang thực thể `listing` — `listing.listing.submitted`, `.edited`, `.deleted`, `.moved`, `.detached`
+(đổi 12/10/2026 lúc code; bản duyệt ghi hai phần). Cùng ngày, `listing.state.changed` thêm `firstLive` (tin vừa lên bảng
+lần đầu) và `hidden` (đang mang lý do tạm ẩn): N31 chỉ báo tin MỚI hiện trên bảng tin nhóm, không báo lượt qua máy
+sau sửa, khôi phục hay tin đang tạm ẩn — `notification` không đọc bảng `listings` để tự biết.
 
 Nghe (`listing.events.ts`): `identity.account.{locked,unlocked,deleted}`, `group.member.{left,joined,unit_changed}`,
 `group.ban.{created,lifted}`, `group.state.{locked,unlocked,closed}`, `group.privatization.started`,

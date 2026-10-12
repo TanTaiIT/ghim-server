@@ -1,3 +1,4 @@
+import type { RuntimeConfigKey } from '../../common/config/runtime-config.js';
 import { formatDateVN } from '../../common/time/time.js';
 import type { NotificationCategory } from './notification.schema.js';
 
@@ -15,8 +16,11 @@ export interface NoticeDraft {
   alertable: boolean;
   /** Chuyện về chính tư cách của người nhận trong nhóm: tắt tiếng nhóm không chặn nhắc (TK 24, chốt 11/10/2026). */
   personal: boolean;
-  /** Chuyện lặp lại theo nhóm: cập nhật dòng chưa đọc cùng khoá thay vì thêm dòng (luật gộp). */
-  collapse?: { key: string; render: (count: number) => string };
+  /**
+   * Chuyện lặp lại theo nhóm: cập nhật dòng chưa đọc cùng khoá thay vì thêm dòng (luật gộp). `alertMinutes` = khoá
+   * trần nhắc riêng của dòng ma trận (mặc định `notification.collapseAlertMinutes`).
+   */
+  collapse?: { key: string; render: (count: number) => string; alertMinutes?: RuntimeConfigKey };
 }
 
 /** Thông báo tới mọi thành viên (hay một đơn vị) — người nhận lấy theo trang, không nạp cả nhóm một lượt. */
@@ -52,23 +56,25 @@ export interface MatrixContext {
   unitName(groupId: string, unitId: string): Promise<string | null>;
   announcement(id: string): Promise<{ body: string } | null>;
   pendingCount(groupId: string): Promise<number>;
+  /** Tiêu đề tin theo mã — `listing` trả lời; tin không có (đã xoá hẳn) thì vắng trong kết quả. */
+  listingTitles(ids: string[]): Promise<Map<string, string>>;
 }
 
-type Payload = Record<string, unknown>;
-type Handler = (payload: Payload, ctx: MatrixContext) => Promise<MatrixResult>;
+export type Payload = Record<string, unknown>;
+export type Handler = (payload: Payload, ctx: MatrixContext) => Promise<MatrixResult>;
 
-const str = (payload: Payload, key: string): string | null => {
+export const str = (payload: Payload, key: string): string | null => {
   const value = payload[key];
   return typeof value === 'string' ? value : null;
 };
-const ids = (payload: Payload, key: string): string[] => {
+export const ids = (payload: Payload, key: string): string[] => {
   const value = payload[key];
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === 'string')
     : [];
 };
-const empty = (): MatrixResult => ({ drafts: [], fanOuts: [], hints: [] });
-const date = (iso: string | null): string => (iso ? formatDateVN(new Date(iso)) : '');
+export const empty = (): MatrixResult => ({ drafts: [], fanOuts: [], hints: [] });
+export const date = (iso: string | null): string => (iso ? formatDateVN(new Date(iso)) : '');
 const PREVIEW_LENGTH = 100;
 
 /** Thông báo "nhóm của bạn" cho một người. */

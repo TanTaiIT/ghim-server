@@ -24,6 +24,7 @@ export type IdentityOpsService = Pick<
   | 'lockAccount'
   | 'unlockAccount'
   | 'recordListingSubmission'
+  | 'deviceToken'
   | 'getFlag'
   | 'clearFlag'
   | 'listIdVerifications'
@@ -107,9 +108,10 @@ export function createIdentityOpsService(
 
     // ── DẤU THIẾT BỊ ────────────────────────────────────────────────────────────────────────────
 
-    async recordListingSubmission(accountId, deviceId) {
-      const now = clock();
-      const deviceHash = hashDeviceId(deviceId, hashKey);
+    deviceToken: (deviceId) => hashDeviceId(deviceId, hashKey),
+
+    // Mốc là lúc gửi tin, không lúc bên nghe chạy: chỗ trên máy xếp theo lần đăng đầu, và outbox có thể trễ.
+    async recordListingSubmission(accountId, deviceHash, now) {
       await repository.upsertDevicePost({ deviceHash, accountId, at: now });
 
       const [posts, lockedAccounts, clearances, open] = await Promise.all([
@@ -279,7 +281,7 @@ export function createIdentityOpsService(
     async seedDisposableDomainsIfEmpty() {
       if ((await repository.countDisposableDomains()) > 0) return 0;
       const seed = parseDomainList(
-        readFileSync(new URL('./data/disposable-domains.seed.txt', import.meta.url), 'utf8'),
+        readFileSync(new URL('../data/disposable-domains.seed.txt', import.meta.url), 'utf8'),
       );
       return repository.seedDisposableDomains(seed, clock());
     },

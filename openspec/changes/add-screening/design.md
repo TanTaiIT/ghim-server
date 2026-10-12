@@ -8,7 +8,7 @@
 ## Context
 
 - `add-listings` để sẵn: cổng `ListingScreeningPort` gọi lúc gửi (bản tạm không chặn, không chấm); sự kiện
-  `listing.submitted { listingId, version, ownerId, kind, deviceHash, placement, groupId? }`; bên nghe
+  `listing.listing.submitted { listingId, version, ownerId, kind, deviceHash, placement, groupId? }`; bên nghe
   `screening.result.recorded` (ghi có điều kiện `version`) và `screening.listing.recalled`; lý do hạn chế `machine`;
   máy tạm ở dev (`DEV_MACHINE_REVIEW`) mà change này gỡ.
 - `add-trust-tiers` để sẵn: `trust.tierOf`, cổng `HoldExplanation` cho bảng uy tín (bản tạm: "đang chờ người duyệt");
@@ -118,7 +118,7 @@ Câu 1–19 là câu hỏi mở của proposal; câu 20 chuyển từ design `ad
    trả kết quả chữ kèm hai phiên bản.
 2. **Mở lượt** (`openRun(tx)`, trong transaction gửi): ghi `screening_runs` (unique → không tạo lần hai). Chữ lỗi →
    kết luận `hold` / `error` ngay. Ảnh nào chưa có `image_checks` thì lượt chờ ảnh.
-3. **Kiểm ảnh**: bên nghe `listing.submitted` (sau commit) xếp `screening.check-image` cho ảnh còn thiếu (pg-boss, thử
+3. **Kiểm ảnh**: bên nghe `listing.listing.submitted` (sau commit) xếp `screening.check-image` cho ảnh còn thiếu (pg-boss, thử
    lại 2 lần): `media.readImage` → `sharp` → dHash → tìm ứng viên theo dải, loại ảnh của chính người đăng và ảnh khớp
    danh sách trắng → ghi `image_checks` → thử kết luận mọi lượt đang chờ ảnh đó. Hết lượt thử → `status = error`.
 4. **Kết luận** khi chữ xong và mọi ảnh có kết quả — hàm thuần `decide.calc.ts`:
@@ -206,7 +206,7 @@ tắt cụm có hiệu lực ngay, không phải quét lại tên (câu 4).
 | `screening.rescan-phrase` | khi bật cụm mức chắc   | mục 7                                            |
 
 Phát: `screening.result.recorded`, `screening.listing.recalled`, `screening.listing.restricted`,
-`screening.cooldown.started { accountId, until }`. Nghe: `listing.submitted` (xếp kiểm ảnh).
+`screening.cooldown.started { accountId, until }`. Nghe: `listing.listing.submitted` (xếp kiểm ảnh).
 
 Bàn vận hành (`/api/v1/ops/screening`): luật — `GET /rules`, `PATCH /rules/:code`, `PUT|DELETE
 /rules/:code/categories/:categoryId`, `PUT /bands/:categoryId` (master); cụm từ — `GET|POST /phrases`, `PATCH

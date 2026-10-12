@@ -274,3 +274,11 @@ describe('Tin trùng lên bảng ở vị trí tin cũ', () => {
     expect(clock.expiresAt).toEqual(day(40));
   });
 });
+
+describe('Kết quả chỉ mang cột đồng hồ', () => {
+  it('truyền cả dòng tin: không trả lại trạng thái, phiên bản hay cột nào khác của dòng', () => {
+    const row = { ...NEW_DRAFT, id: 'tin', state: 'draft' as const, version: 2 };
+    const clock = nextClock(row, { state: 'checking', hideReasons: [] }, day(1), SETTINGS);
+    expect(Object.keys(clock).toSorted()).toEqual(Object.keys(NEW_DRAFT).toSorted());
+  });
+});

@@ -56,7 +56,16 @@ export function nextClock(
   settings: ClockSettings,
   rankAt: Date | null = null,
 ): ListingClock {
-  const clock = { ...before };
+  // Chỉ chép cột đồng hồ: người gọi truyền cả dòng tin rồi spread kết quả vào lượt ghi, chép cả dòng thì `state`,
+  // `version` cũ đè lên giá trị mới.
+  const clock: ListingClock = {
+    firstLiveAt: before.firstLiveAt,
+    expiresAt: before.expiresAt,
+    clockRemainingMs: before.clockRemainingMs,
+    shownMs: before.shownMs,
+    shownSince: before.shownSince,
+    renewal: before.renewal,
+  };
   const goesLive = after.state === 'live';
 
   if (goesLive && clock.firstLiveAt === null) {

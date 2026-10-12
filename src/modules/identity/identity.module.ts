@@ -45,6 +45,20 @@ export function createIdentityModule(deps: IdentityModuleDeps): {
         await app.register(identityRoutes, { identity: service, config: deps.config });
       },
       jobs: (jobs) => registerIdentityJobs(jobs, deps),
+      // Tên sự kiện của `listing` viết thẳng: `listing` đã phụ thuộc `identity`, import ngược lại thành vòng.
+      listeners: (dispatcher) => {
+        dispatcher.register('listing.listing.submitted', async (payload) => {
+          const { ownerId, deviceHash, at } = payload;
+          if (
+            typeof ownerId !== 'string' ||
+            typeof deviceHash !== 'string' ||
+            typeof at !== 'string'
+          ) {
+            throw new Error('listing.listing.submitted thiếu ownerId / deviceHash / at');
+          }
+          await service.recordListingSubmission(ownerId, deviceHash, new Date(at));
+        });
+      },
       // Bảng rỗng = lần chạy đầu: không có danh sách thì lượt đăng ký đầu tiên bằng email tạm sẽ lọt.
       startup: async () => {
         const seeded = await service.seedDisposableDomainsIfEmpty();

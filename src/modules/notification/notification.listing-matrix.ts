@@ -1,0 +1,208 @@
+import type { OutboxEventType } from '../../common/outbox/outbox.js';
+import { LISTING_EVENTS } from '../listing/listing.outbox.js';
+import {
+  date,
+  empty,
+  type Handler,
+  ids,
+  type MatrixContext,
+  type MatrixResult,
+  type NoticeDraft,
+  type Payload,
+  str,
+} from './notification.matrix.js';
+
+type Change = 'added' | 'removed';
+
+/**
+ * N32: câu theo lý do tạm ẩn. Câu gỡ nói "không còn bị ẩn vì …", không nói "hiện lại": tin có thể còn lý do khác (vd
+ * nhóm mở khoá lúc danh mục vẫn tắt). Bị cấm không nêu lý do — luật chung của ma trận: câu không chứa lý do khoá hay cấm.
+ */
+const HIDDEN_TEXT: Record<string, Record<Change, (group: string) => string>> = {
+  group_locked: {
+    added: (group) => `Nhóm «${group}» đang tạm khoá nên tin của bạn trong nhóm tạm ẩn.`,
+    removed: (group) => `Nhóm «${group}» đã mở khoá, tin của bạn không còn bị ẩn vì nhóm khoá.`,
+  },
+  left_group: {
+    added: (group) =>
+      `Bạn đã rời nhóm «${group}» nên tin của bạn trong nhóm tạm ẩn — vào lại nhóm thì tin hiện lại.`,
+    removed: (group) => `Bạn đã vào lại nhóm «${group}», tin của bạn không còn bị ẩn vì rời nhóm.`,
+  },
+  removed_from_group: {
+    added: (group) => `Bạn không còn trong nhóm «${group}» nên tin của bạn trong nhóm tạm ẩn.`,
+    removed: (group) => `Bạn đã vào lại nhóm «${group}», tin của bạn không còn bị ẩn vì rời nhóm.`,
+  },
+  group_banned: {
+    added: (group) => `Tin của bạn trong nhóm «${group}» tạm ẩn.`,
+    removed: (group) => `Tin của bạn trong nhóm «${group}» không còn bị ẩn bởi nhóm.`,
+  },
+  category_disabled: {
+    added: () => 'Danh mục của tin bạn đang tạm tắt nên tin tạm ẩn.',
+    removed: () => 'Danh mục đã bật lại, tin của bạn không còn bị ẩn vì danh mục.',
+  },
+};
+
+const DETACHED_TEXT: Record<string, (group: string, until: string) => string> = {
+  group_closed: (group, until) =>
+    `Nhóm «${group}» đã đóng nên tin của bạn rời nhóm. Bạn có thể chuyển tin lên sàn chung trước ${until}.`,
+  group_privatized: (group, until) =>
+    `Nhóm «${group}» chuyển sang riêng tư nên tin của bạn rời nhóm. Bạn có thể chuyển tin lên sàn chung trước ${until}.`,
+  detached_by_group: (group, until) =>
+    `Quản trị nhóm «${group}» đã gỡ tin của bạn khỏi nhóm. Bạn có thể chuyển tin lên sàn chung trước ${until}.`,
+};
+
+const YOUR_LISTINGS = 'your_listings' as const;
+
+/** Thông báo "tin của bạn" cho người đăng — chuyện về chính họ nên tắt tiếng nhóm không chặn nhắc. */
+const toOwners = (
+  recipients: string[],
+  draft: Omit<NoticeDraft, 'recipients' | 'category' | 'personal'>,
+): MatrixResult => ({
+  ...empty(),
+  drafts: [{ recipients, category: YOUR_LISTINGS, personal: true, ...draft }],
+});
+
+async function titleOf(ctx: MatrixContext, listingId: string | null): Promise<string | null> {
+  if (!listingId) return null;
+  return (await ctx.listingTitles([listingId])).get(listingId) ?? null;
+}
+
+/**
+ * Ma trận N31–N35, N37 (design add-listings mục 11). Payload chỉ mang mã và trạng thái; tên nhóm, tiêu đề tin hỏi qua
+ * cổng. Khoá / xoá tài khoản không có dòng nào: người đó không vào được app.
+ */
+export const LISTING_MATRIX: Record<string, Handler> = {
+  // N31 — chỉ tin MỚI hiện đầy đủ trên bảng tin nhóm: không báo lượt qua máy sau sửa, khôi phục, tin hạn chế hay tạm ẩn.
+  async [LISTING_EVENTS.stateChanged](payload: Payload, ctx: MatrixContext) {
+    const groupId = str(payload, 'groupId');
+    const ownerId = str(payload, 'ownerId');
+    const shown =
+      str(payload, 'to') === 'live' &&
+      payload.firstLive === true &&
+      payload.full === true &&
+      payload.hidden !== true;
+    if (!shown || !groupId || !ownerId || str(payload, 'placement') === 'marketplace') {
+      return empty();
+    }
+    const group = await ctx.group(groupId);
+    if (!group) return empty();
+    const listingId = str(payload, 'listingId');
+    const title = await titleOf(ctx, listingId);
+    return {
+      ...empty(),
+      fanOuts: [
+        {
+          groupId,
+          unitId: null,
+          exclude: [ownerId],
+          draft: {
+            category: 'group_new_listings',
+            type: 'listing.group.new',
+            title: group.name,
+            body: title ? `«${title}» vừa đăng trong nhóm.` : 'Có tin mới trong nhóm.',
+            data: { groupId, listingId },
+            groupId,
+            alertable: true,
+            personal: false,
+            collapse: {
+              key: `group:${groupId}:new-listings`,
+              render: (count) => `Nhóm có ${count} tin mới.`,
+              alertMinutes: 'notification.groupListingsAlertMinutes',
+            },
+          },
+        },
+      ],
+    };
+  },
+
+  // N32
+  async [LISTING_EVENTS.hiddenChanged](payload, ctx) {
+    const change = str(payload, 'change');
+    const text = HIDDEN_TEXT[str(payload, 'reason') ?? ''];
+    if (!text || (change !== 'added' && change !== 'removed')) return empty();
+    const groupId = str(payload, 'groupId');
+    const group = groupId ? await ctx.group(groupId) : null;
+    if (groupId && !group) return empty();
+    const body = text[change](group?.name ?? '');
+    return toOwners(ids(payload, 'ownerIds'), {
+      type: `listing.hidden.${change}`,
+      title: group?.name ?? 'Tin đăng của bạn',
+      body,
+      data: { groupId, reason: str(payload, 'reason') },
+      groupId,
+      alertable: false,
+      collapse: { key: `listings:hidden:${groupId ?? 'category'}`, render: () => body },
+    });
+  },
+
+  // N33
+  async [LISTING_EVENTS.detached](payload, ctx) {
+    const text = DETACHED_TEXT[str(payload, 'reason') ?? ''];
+    const group = await ctx.group(str(payload, 'groupId') ?? '');
+    if (!text || !group) return empty();
+    return toOwners(ids(payload, 'ownerIds'), {
+      type: 'listing.detached',
+      title: group.name,
+      body: text(group.name, date(str(payload, 'moveUntil'))),
+      data: { groupId: group.id, moveUntil: str(payload, 'moveUntil') },
+      groupId: group.id,
+      alertable: true,
+    });
+  },
+
+  // N34
+  async [LISTING_EVENTS.placementDowngraded](payload, ctx) {
+    const group = await ctx.group(str(payload, 'groupId') ?? '');
+    if (!group) return empty();
+    const body = `Nhóm «${group.name}» chuyển sang riêng tư: tin "nhóm công khai" của bạn giờ chỉ thành viên nhóm thấy.`;
+    return toOwners(ids(payload, 'ownerIds'), {
+      type: 'listing.placement.downgraded',
+      title: group.name,
+      body,
+      data: { groupId: group.id },
+      groupId: group.id,
+      alertable: false,
+      collapse: { key: `listings:downgraded:${group.id}`, render: () => body },
+    });
+  },
+
+  // N35
+  async [LISTING_EVENTS.badgeRemoved](payload, ctx) {
+    const ownerId = str(payload, 'ownerId');
+    const group = await ctx.group(str(payload, 'groupId') ?? '');
+    if (!ownerId || !group) return empty();
+    const listingId = str(payload, 'listingId');
+    const title = (await titleOf(ctx, listingId)) ?? 'tin của bạn';
+    const body =
+      str(payload, 'cause') === 'group'
+        ? `Quản trị nhóm «${group.name}» đã gỡ huy hiệu nhóm khỏi tin «${title}».`
+        : `Huy hiệu nhóm «${group.name}» đã được gỡ khỏi tin «${title}» vì bạn không còn quyền mang huy hiệu.`;
+    return toOwners([ownerId], {
+      type: 'listing.badge.removed',
+      title: group.name,
+      body,
+      data: { groupId: group.id, listingId },
+      groupId: group.id,
+      alertable: false,
+      collapse: { key: `listings:badge-removed:${group.id}`, render: () => body },
+    });
+  },
+
+  // N37
+  async [LISTING_EVENTS.expiryReminder](payload, ctx) {
+    const ownerId = str(payload, 'ownerId');
+    if (!ownerId) return empty();
+    const listingId = str(payload, 'listingId');
+    const title = await titleOf(ctx, listingId);
+    return toOwners([ownerId], {
+      type: 'listing.expiry.reminder',
+      title: title ?? 'Tin sắp hết hạn',
+      body: `Tin hết hạn ngày ${date(str(payload, 'expiresAt'))}. Gia hạn để tin tiếp tục hiện.`,
+      data: { listingId, expiresAt: str(payload, 'expiresAt') },
+      groupId: null,
+      alertable: true,
+    });
+  },
+};
+
+export const LISTING_NOTICE_EVENTS = Object.keys(LISTING_MATRIX) as OutboxEventType[];
