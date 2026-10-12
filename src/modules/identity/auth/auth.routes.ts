@@ -1,9 +1,9 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 
-import type { RuntimeConfig } from '../../common/config/runtime-config.js';
-import { UnauthorizedError } from '../../common/errors/app-error.js';
-import { errorResponse, ok, toOk } from '../../common/schemas/response.js';
+import type { RuntimeConfig } from '../../../common/config/runtime-config.js';
+import { UnauthorizedError } from '../../../common/errors/app-error.js';
+import { errorResponse, ok, toOk } from '../../../common/schemas/response.js';
 import {
   type CLIENTS,
   DEFAULT_DEVICE_NAME,
@@ -22,8 +22,8 @@ import {
   resetPasswordBodySchema,
   tokensSchema,
   verifyEmailBodySchema,
-} from './identity.schema.js';
-import type { IdentityService, SessionOpened } from './identity.service.js';
+} from '../identity.schema.js';
+import type { IdentityService, SessionOpened } from '../identity.service.js';
 
 export interface IdentityAuthRoutesOptions {
   identity: IdentityService;

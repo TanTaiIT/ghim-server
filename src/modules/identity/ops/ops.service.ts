@@ -1,15 +1,15 @@
 import { readFileSync } from 'node:fs';
-import { auditActor } from '../../common/audit/audit.js';
-import { ConflictError, NotFoundError } from '../../common/errors/app-error.js';
-import { toPage, toSkipTake } from '../../common/schemas/pagination.js';
-import { hashEmail, normalizeEmail } from './email.calc.js';
-import { parseDomainList } from './identity.jobs.js';
-import type { OutboxEventInput } from './identity.repository.js';
-import { FLAG_CLEARED_REASONS } from './identity.schema.js';
-import { hashPassword } from './password.calc.js';
-import { hashDeviceId, requiredDeviceFlags } from './device.calc.js';
+import { auditActor } from '../../../common/audit/audit.js';
+import { ConflictError, NotFoundError } from '../../../common/errors/app-error.js';
+import { toPage, toSkipTake } from '../../../common/schemas/pagination.js';
+import { hashEmail, normalizeEmail } from '../email.calc.js';
+import { parseDomainList } from '../identity.jobs.js';
+import type { OutboxEventInput } from '../identity.repository.js';
+import { FLAG_CLEARED_REASONS } from '../identity.schema.js';
+import { hashPassword } from '../password.calc.js';
+import { hashDeviceId, requiredDeviceFlags } from '../device.calc.js';
 import { generateLookupCode, normalizeLookupCode } from './lookup-code.calc.js';
-import type { IdentityService, IdentityServiceDeps } from './identity.service.js';
+import type { IdentityService, IdentityServiceDeps } from '../identity.service.js';
 import {
   toDisposableDomainDto,
   toFlagDto,
@@ -17,7 +17,7 @@ import {
   oneFlagPerKind,
   emailTaken,
   type IdentityShared,
-} from './identity.shared.js';
+} from '../identity.shared.js';
 
 export type IdentityOpsService = Pick<
   IdentityService,

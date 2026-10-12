@@ -4,7 +4,7 @@ import {
   LOOKUP_CODE_ALPHABET,
   generateLookupCode,
   normalizeLookupCode,
-} from '../src/modules/identity/lookup-code.calc.js';
+} from '../src/modules/identity/ops/lookup-code.calc.js';
 import { fold } from '../src/common/text/fold.js';
 import { isReservedName } from '../src/modules/identity/reserved-names.js';
 

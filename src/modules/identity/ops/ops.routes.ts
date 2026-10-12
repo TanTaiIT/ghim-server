@@ -1,8 +1,8 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 
-import { actorOf } from '../../common/auth/actor.js';
-import { paginated, paginationQuerySchema } from '../../common/schemas/pagination.js';
-import { errorResponse, ok, toOk } from '../../common/schemas/response.js';
+import { actorOf } from '../../../common/auth/actor.js';
+import { paginated, paginationQuerySchema } from '../../../common/schemas/pagination.js';
+import { errorResponse, ok, toOk } from '../../../common/schemas/response.js';
 import {
   accountParamsSchema,
   clearFlagBodySchema,
@@ -17,8 +17,8 @@ import {
   idVerificationSchema,
   lockBodySchema,
   lookupCodeParamsSchema,
-} from './identity.schema.js';
-import type { IdentityService } from './identity.service.js';
+} from '../identity.schema.js';
+import type { IdentityService } from '../identity.service.js';
 
 export interface IdentityOpsRoutesOptions {
   identity: IdentityService;

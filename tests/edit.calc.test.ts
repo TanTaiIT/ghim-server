@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { classifyEdit, type EditableFields } from '../src/modules/listing/edit.calc.js';
+import { classifyEdit, type EditableFields } from '../src/modules/listing/posting/edit.calc.js';
 
 /* Scenario của spec listing/editing (phần không cần DB) và D3 của design add-listings. */
 const MARKET: EditableFields = {

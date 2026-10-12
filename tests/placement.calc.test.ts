@@ -6,7 +6,7 @@ import {
   missingForSubmit,
   needsRegion,
   type SubmittableFields,
-} from '../src/modules/listing/placement.calc.js';
+} from '../src/modules/listing/posting/placement.calc.js';
 
 /* Scenario của spec listing/placement, listing/submission và listing/suspension phần không cần DB. */
 const PUBLIC_GROUP: GroupPostingSnapshot = {

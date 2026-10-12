@@ -140,17 +140,19 @@ src/
     utils/{defined,sequential}.ts
   modules/<module>/
     <module>.module.ts        ← `create<Module>Module(deps)` → `{ service, module: AppModule }`
-    <module>.routes.ts        ← chỉ đăng ký plugin con; route thật tách theo mối quan tâm:
-    <module>.<quan-tâm>.routes.ts  ← vd identity.auth / identity.me / identity.ops — route + schema + guard
-    <module>.service.ts       ← business logic, factory `createXService(deps)`; quá 500 dòng thì tách
-                                theo mối quan tâm như route (vd `identity.{auth,account,ops}.service.ts`
-                                + `identity.shared.ts`), `createXService` ghép lại, interface không đổi
+    <module>.routes.ts        ← chỉ đăng ký plugin con; route thật tách theo cụm (xem `<cụm>/`)
+    <module>.service.ts       ← interface của module + factory `createXService(deps)`; quá 500 dòng thì tách
+                                service theo cụm, `createXService` ghép lại, interface không đổi; phần các cụm
+                                dùng chung ở `<module>.shared.ts`
     <module>.events.ts        ← (nếu có) bên nghe outbox của module
     <module>.repository.ts    ← toàn bộ truy vấn Prisma, kể cả transaction + ghi outbox
     <module>.schema.ts        ← Zod schema + hằng/tập giá trị của module
     <module>.calc.ts / <tên>.calc.ts ← hàm tính toán thuần, không chạm DB (vd email.calc, device.calc)
     <module>.jobs.ts          ← (nếu có) việc nền của module: `registerXJobs(jobs, deps)`
     <module>.mail.ts          ← (nếu có) mẫu thư thuần văn bản
+    <cụm>/                    ← (module lớn) một mối quan tâm: `<cụm>.routes.ts` (route + schema + guard),
+                                `<cụm>.service.ts`, calc chỉ cụm đó dùng — vd `identity/{auth,account,ops}/`,
+                                `listing/posting/`
     data/                     ← (nếu có) file tĩnh đi kèm, đọc bằng `new URL('./data/…', import.meta.url)`;
                                 tsc không chép nên `pnpm run build` có bước `build:data` chép `src/**/data` sang dist
   cli/                        ← script chạy tay, không qua HTTP: `create-master`, `reset-two-factor`
@@ -160,6 +162,11 @@ tests/*.db.test.ts            ← ghi thẳng bằng Prisma để kiểm ràng b
 ```
 
 - **Không có tầng controller**: handler trong `routes.ts` gọi service rồi trả response.
+- **Thư mục cụm** (chốt 12/10/2026): lập `<cụm>/` khi cụm có từ hai file trở lên chỉ cụm đó dùng. File dùng từ hai cụm
+  trở lên ở lại gốc module, nên không cụm nào import vào thư mục của cụm khác; gốc chỉ giữ phần khung (module,
+  routes, service, repository, schema, shared, events, jobs, outbox) và calc dùng chung. Module nhỏ để phẳng.
+  `group` để phẳng có chủ ý: route chia theo người dùng (công khai / quản trị nhóm / vận hành) còn service chia theo
+  việc (`membership` / `admin`) và cả ba calc dùng chung — muốn tách cụm thì sắp lại route cho khớp service trước.
 - **Không có `<module>.types.ts`**: DTO chính là response schema Zod trong `<module>.schema.ts`.
 - Tên module kebab-case, **số ít**. Đang có: `health`, `identity`, `platform`, `category`, `group`,
   `notification`, `media`.

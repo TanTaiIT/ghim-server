@@ -5,13 +5,13 @@ import {
   ForbiddenError,
   NotFoundError,
   TooManyRequestsError,
-} from '../../common/errors/app-error.js';
-import { formatDateVN } from '../../common/time/time.js';
-import { imageNotInStorage } from '../media/media.service.js';
-import { hashEmail, normalizeEmail } from './email.calc.js';
-import { hashPassword, verifyPassword } from './password.calc.js';
-import type { Account } from './identity.repository.js';
-import type { IdentityService, IdentityServiceDeps } from './identity.service.js';
+} from '../../../common/errors/app-error.js';
+import { formatDateVN } from '../../../common/time/time.js';
+import { imageNotInStorage } from '../../media/media.service.js';
+import { hashEmail, normalizeEmail } from '../email.calc.js';
+import { hashPassword, verifyPassword } from '../password.calc.js';
+import type { Account } from '../identity.repository.js';
+import type { IdentityService, IdentityServiceDeps } from '../identity.service.js';
 import {
   DAY_MS,
   TOTP_ISSUER,
@@ -25,7 +25,7 @@ import {
   emailTaken,
   assertDisplayNameAllowed,
   type IdentityShared,
-} from './identity.shared.js';
+} from '../identity.shared.js';
 
 export type IdentityAccountService = Pick<
   IdentityService,

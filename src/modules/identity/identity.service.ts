@@ -15,9 +15,9 @@ import type {
 } from './identity.repository.js';
 import type { GoogleTokenVerifier } from './google.verifier.js';
 import type { AvatarInput } from './identity.schema.js';
-import { createIdentityAccountService } from './identity.account.service.js';
-import { createIdentityAuthService } from './identity.auth.service.js';
-import { createIdentityOpsService } from './identity.ops.service.js';
+import { createIdentityAccountService } from './account/account.service.js';
+import { createIdentityAuthService } from './auth/auth.service.js';
+import { createIdentityOpsService } from './ops/ops.service.js';
 import { createIdentityShared } from './identity.shared.js';
 
 export interface IdentityServiceDeps {

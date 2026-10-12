@@ -1,7 +1,7 @@
-import { randomToken, sha256Hex } from '../../common/crypto/secrets.js';
-import { hashEmail, normalizeEmail } from './email.calc.js';
-import { hashPassword, verifyPassword } from './password.calc.js';
-import type { IdentityService, IdentityServiceDeps } from './identity.service.js';
+import { randomToken, sha256Hex } from '../../../common/crypto/secrets.js';
+import { hashEmail, normalizeEmail } from '../email.calc.js';
+import { hashPassword, verifyPassword } from '../password.calc.js';
+import type { IdentityService, IdentityServiceDeps } from '../identity.service.js';
 import {
   displayNameFromGoogle,
   codeInvalid,
@@ -14,7 +14,7 @@ import {
   emailTaken,
   assertDisplayNameAllowed,
   type IdentityShared,
-} from './identity.shared.js';
+} from '../identity.shared.js';
 
 export type IdentityAuthService = Pick<
   IdentityService,

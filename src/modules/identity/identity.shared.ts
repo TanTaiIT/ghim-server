@@ -101,7 +101,7 @@ export function toSessionDto(session: Session, currentId: string): SessionDto {
   };
 }
 
-/** `avatarUrl` tính trước (đường xem có ký là việc bất đồng bộ) — xem `avatarUrlOf` ở `identity.account.service.ts`. */
+/** `avatarUrl` tính trước (đường xem có ký là việc bất đồng bộ) — xem `avatarUrlOf` ở `account/account.service.ts`. */
 export function toPublicProfile(account: Account, avatarUrl: string | null): PublicProfileDto {
   return {
     id: account.id,
