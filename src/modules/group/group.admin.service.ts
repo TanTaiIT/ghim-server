@@ -145,6 +145,7 @@ export function createGroupAdminService(
     loadGroup,
     requireOwner,
     requireEligible,
+    requireTrustedForRole,
     masterAudit,
     daysFrom,
     toSummary,
@@ -312,6 +313,7 @@ export function createGroupAdminService(
       const now = clock();
       if (offer.status !== 'pending' || offer.expiresAt <= now) throw offerGone(offer, now);
       await requireEligible(actor.accountId);
+      await requireTrustedForRole(actor.accountId);
       const result = await repository.acceptOwnerOffer({
         offerId,
         accountId: actor.accountId,
@@ -649,6 +651,7 @@ export function createGroupAdminService(
         throw new ConflictError('Chủ nhóm không nhận vai điều hành viên');
       if (unitId) await unitOf(groupId, unitId);
       await requireEligible(accountId);
+      await requireTrustedForRole(accountId);
       const member = await repository.setModerator({
         groupId,
         accountId,

@@ -10,7 +10,7 @@ import {
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod';
 
-import { corsOrigin, env, isProduction, isTest, trustProxy } from './config/env.js';
+import { corsOrigin, env, isTest, trustProxy } from './config/env.js';
 import { parseStorageUrl } from './config/storage-url.js';
 import { registerAuth } from './common/auth/auth.plugin.js';
 import type { PrivilegeSource } from './common/auth/privilege-source.js';
@@ -50,11 +50,7 @@ import {
 } from './modules/identity/identity.repository.js';
 import type { IdentityService } from './modules/identity/identity.service.js';
 import { createListingModule } from './modules/listing/listing.module.js';
-import {
-  createInterimTrust,
-  interimScreening,
-  noOpenWork,
-} from './modules/listing/listing.ports.js';
+import { interimScreening, noOpenWork } from './modules/listing/listing.ports.js';
 import {
   createListingRepository,
   type ListingRepository,
@@ -62,6 +58,10 @@ import {
 import type { ListingService } from './modules/listing/listing.service.js';
 import type { ListingTrustPort } from './modules/listing/listing.shared.js';
 import { createMediaModule } from './modules/media/media.module.js';
+import { createTrustModule } from './modules/trust/trust.module.js';
+import { createTrustRepository, type TrustRepository } from './modules/trust/trust.repository.js';
+import type { TrustService } from './modules/trust/trust.service.js';
+import { genericHolds, noBuyerInterest } from './modules/trust/trust.shared.js';
 import { createMediaRepository, type MediaRepository } from './modules/media/media.repository.js';
 import type { MediaService } from './modules/media/media.service.js';
 import { createNotificationModule } from './modules/notification/notification.module.js';
@@ -96,6 +96,7 @@ export interface AppServices {
   notification: NotificationService;
   media: MediaService;
   listing: ListingService;
+  trust: TrustService;
 }
 
 export interface Repositories {
@@ -105,6 +106,7 @@ export interface Repositories {
   group: GroupRepository;
   media: MediaRepository;
   listing: ListingRepository;
+  trust: TrustRepository;
 }
 
 declare module 'fastify' {
@@ -136,14 +138,17 @@ export interface AppDeps {
   storage: Storage;
   googleVerifier: GoogleTokenVerifier;
   privilegeSource: PrivilegeSource;
-  /** Mức tin cậy cho `listing` — bản tạm tới `add-trust-tiers`; test cần mức khác thì đè ở đây (design mục 7). */
-  trust: ListingTrustPort;
   config: RuntimeConfig;
   clock: () => Date;
 }
 
 export type AppOverrides = Partial<Omit<AppDeps, 'repositories'>> & {
   repositories?: Partial<Repositories>;
+  /**
+   * Cổng mức tin cậy và hạn mức mà `listing` và `group` hỏi — bỏ trống là `trust` thật. Test không bàn về hạn mức đè
+   * bằng `createInterimTrust`: nhịp gửi thật của T0 (3 lượt / giờ, đồng hồ test đứng yên) chặn luồng của chúng.
+   */
+  trust?: ListingTrustPort;
 };
 
 /** `SMTP_URL` chỉ được trống ở test (env.ts), và ở test thì thư vào mảng. */
@@ -166,8 +171,8 @@ async function resolveConfig(
   return { config: versioned, versioned };
 }
 
-const listingNotBuilt = (): never => {
-  throw new Error('listing chưa dựng xong');
+const notBuilt = (module: string): never => {
+  throw new Error(`${module} chưa dựng xong`);
 };
 
 /**
@@ -184,6 +189,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     group: overrides.repositories?.group ?? createGroupRepository(prisma),
     media: overrides.repositories?.media ?? createMediaRepository(prisma),
     listing: overrides.repositories?.listing ?? createListingRepository(prisma),
+    trust: overrides.repositories?.trust ?? createTrustRepository(prisma),
   };
   const { config, versioned } = await resolveConfig(overrides.config, repositories.platform);
   const deps: AppDeps = {
@@ -194,9 +200,6 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     googleVerifier: overrides.googleVerifier ?? createGoogleTokenVerifier(env.GOOGLE_CLIENT_IDS),
     privilegeSource:
       overrides.privilegeSource ?? createPlatformPrivilegeSource(repositories.platform),
-    // Production và test lấy mức an toàn nhất; dev chọn mức để thử đủ đường (design mục 7).
-    trust:
-      overrides.trust ?? createInterimTrust(isProduction || isTest ? 'T0' : env.DEV_TRUST_TIER),
     config,
     clock: overrides.clock ?? (() => new Date()),
   };
@@ -208,6 +211,13 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
   // `listing` dựng sau `media` và `group` vì cần cả hai; hai cổng ngược (chủ ảnh là tin, đếm tin "nhóm công khai")
   // cũng nối muộn — chỉ được gọi khi có request hay việc nền, lúc đó `listing` đã dựng xong.
   let listingService: ListingService | null = null;
+  // `trust` dựng sau `listing` (hỏi dữ kiện tin qua cổng của nó), mà `listing` và `group` hỏi mức, hạn mức của
+  // `trust`: hai chiều nối muộn, như trên (design add-trust-tiers mục 1).
+  let trustService: TrustService | null = null;
+  const trust: ListingTrustPort = overrides.trust ?? {
+    tierOf: (accountId) => trustService?.tierOf(accountId) ?? notBuilt('trust'),
+    assertCanSubmit: (tx, input) => trustService?.assertCanSubmit(tx, input) ?? notBuilt('trust'),
+  };
   // Cổng realtime cần HTTP server của Fastify, mà module dựng trước Fastify: module cầm một tay nối, cổng thật gắn
   // vào ngay sau khi Fastify có server (dưới đây).
   let gateway: Realtime | null = null;
@@ -226,8 +236,8 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     owners: {
       listing: {
         canUpload: (accountId, listingId) =>
-          listingService?.canUpload(accountId, listingId) ?? listingNotBuilt(),
-        existing: (ids) => listingService?.existingListings(ids) ?? listingNotBuilt(),
+          listingService?.canUpload(accountId, listingId) ?? notBuilt('listing'),
+        existing: (ids) => listingService?.existingListings(ids) ?? notBuilt('listing'),
       },
     },
   });
@@ -259,9 +269,10 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     identity: identity.service,
     config: deps.config,
     clock: deps.clock,
+    trust: { tierOf: (accountId) => trust.tierOf(accountId) },
     publicListings: {
       countInGroup: (tx, groupId) =>
-        listingService?.countGroupPublic(tx, groupId) ?? listingNotBuilt(),
+        listingService?.countGroupPublic(tx, groupId) ?? notBuilt('listing'),
     },
   });
   groupService = group.service;
@@ -271,7 +282,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     categories: category.service,
     media: media.service,
     identity: identity.service,
-    trust: deps.trust,
+    trust,
     screening: interimScreening,
     openWork: noOpenWork,
     config: deps.config,
@@ -279,6 +290,16 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     devMachineReview: env.DEV_MACHINE_REVIEW,
   });
   listingService = listing.service;
+  const trustModule = createTrustModule({
+    repository: repositories.trust,
+    listings: listing.service,
+    identity: identity.service,
+    buyerInterest: noBuyerInterest,
+    holds: genericHolds,
+    config: deps.config,
+    clock: deps.clock,
+  });
+  trustService = trustModule.service;
   const notification = createNotificationModule({
     repository: createNotificationRepository(prisma),
     groups: {
@@ -305,6 +326,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     platform.module,
     group.module,
     listing.module,
+    trustModule.module,
     notification.module,
     createOutboxModule(prisma),
   ];
@@ -390,6 +412,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     notification: notification.service,
     media: media.service,
     listing: listing.service,
+    trust: trustModule.service,
   });
   app.decorate('moduleList', moduleList);
 

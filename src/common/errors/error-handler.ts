@@ -80,9 +80,14 @@ export function errorHandler(
   reply: FastifyReply,
 ): FastifyReply {
   if (error instanceof AppError) {
-    return reply
-      .status(error.statusCode)
-      .send({ success: false, error: { code: error.code, message: error.message } });
+    return reply.status(error.statusCode).send({
+      success: false,
+      error: {
+        code: error.code,
+        message: error.message,
+        ...(error.details ? { details: error.details } : {}),
+      },
+    });
   }
 
   // Mã Prisma ngoài bảng `PRISMA_ERRORS` rơi xuống nhánh 500 cuối: chưa lường trước thì chưa map.

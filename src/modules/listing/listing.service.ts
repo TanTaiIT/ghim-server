@@ -1,3 +1,4 @@
+import { createListingFactsService, type ListingFactsService } from './listing.facts.service.js';
 import {
   createListingReactionService,
   type ListingReactionService,
@@ -15,7 +16,8 @@ export type { ListingServiceDeps } from './listing.shared.js';
 export type ListingService = ListingPostingService &
   ListingReadService &
   ListingSystemService &
-  ListingReactionService;
+  ListingReactionService &
+  ListingFactsService;
 
 /**
  * Ghép bốn mặt của `listing` (người đăng, người xem, hệ thống, phản ứng với module khác) trên một phần dùng chung — như `group`, để mỗi file
@@ -28,5 +30,6 @@ export function createListingService(deps: ListingServiceDeps): ListingService {
     ...createListingReadService(shared),
     ...createListingSystemService(shared),
     ...createListingReactionService(shared),
+    ...createListingFactsService(shared),
   };
 }

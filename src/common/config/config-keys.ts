@@ -65,6 +65,8 @@ export const CONFIG_KEYS = {
   'trust.t3MinCleanListings': int(20, TRUST),
   'trust.maxCleanPer7Days': int(3, TRUST),
   'trust.soldCountsCleanAfterDays': int(2, TRUST),
+  // Tin sạch theo lối hiển thị: cộng dồn thời gian được thấy (design add-trust-tiers câu 3, 10).
+  'trust.cleanShownDays': int(7, TRUST),
   // Hạn mức T0 / T1 / T2 / T3
   'quota.liveListingsT0': int(10, QUOTA),
   'quota.liveListingsT1': int(20, QUOTA),

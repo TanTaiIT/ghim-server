@@ -134,3 +134,7 @@ export function renewEarlyCheck(
   if (left <= ms(windowDays)) return { ok: true };
   return { ok: false, opensAt: plus(now, left - ms(windowDays)) };
 }
+
+/** Tổng thời gian tin đã được thấy tới `now`, kể cả khoảng đang mở — dữ kiện tin sạch của `trust` (design add-trust-tiers mục 5). */
+export const shownMsAt = (clock: Pick<ListingClock, 'shownMs' | 'shownSince'>, now: Date): number =>
+  Number(clock.shownMs) + (clock.shownSince ? now.getTime() - clock.shownSince.getTime() : 0);

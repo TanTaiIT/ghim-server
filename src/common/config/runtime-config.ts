@@ -13,6 +13,11 @@ export const RUNTIME_CONFIG_DEFAULTS: Record<RuntimeConfigKey, number> = Object.
 
 export interface RuntimeConfig {
   get(key: RuntimeConfigKey): number;
+  /**
+   * Phiên bản bảng con số mà `get` đang đọc — kết quả tính theo con số (mức tin cậy) ghi kèm để biết nó cần tính lại
+   * khi master phát hành bảng mới (TK 27 cam kết 33). `0` = chưa có phiên bản nào, đang dùng giá trị khởi đầu.
+   */
+  version(): number;
 }
 
 /**
@@ -21,6 +26,7 @@ export interface RuntimeConfig {
  */
 export function createStaticRuntimeConfig(
   overrides: Partial<Record<RuntimeConfigKey, number>> = {},
+  version = 0,
 ): RuntimeConfig {
   const values: Record<string, number> = { ...RUNTIME_CONFIG_DEFAULTS, ...overrides };
   return {
@@ -31,5 +37,6 @@ export function createStaticRuntimeConfig(
       if (value === undefined) throw new Error(`Khoá cấu hình không tồn tại: ${key}`);
       return value;
     },
+    version: () => version,
   };
 }

@@ -86,6 +86,9 @@ computeTier({ accountCreatedAt, cleanAt: Date[] /* chưa void */, now, config })
 - **Mức** = mức cao nhất mà `now - accountCreatedAt >= tNMinDays` và `countedClean >= tNMinCleanListings`. Điều
   kiện gậy (T2, T3, trần T1 khi có gậy) thêm ở `add-strikes` vào đúng hàm này.
 - `next` cho bảng uy tín: số ngày tuổi và số tin sạch còn thiếu tới mức kế tiếp, theo cùng phiên bản bảng con số.
+- **Tuổi** (chốt lúc code 12/10/2026): số ngày lịch giờ Việt Nam kể cả ngày tạo — tạo ngày 1 thì ngày 1 là 1 ngày
+  tuổi. Chỉ cách đếm này thoả cùng lúc "ngày 30 có 5 tin sạch → T2" (spec, TK 20 ví dụ anh Minh) và "3 ngày tuổi còn
+  thiếu 4 ngày" (spec seller-dashboard); mốc tuổi rơi vào một ngày nên khớp lượt tính lại hằng ngày.
 - Unit test: mọi scenario của spec trust-tiers, thêm năm tin cùng ngày qua ba ngày liền, dời qua nhiều cửa sổ, và
   "tính hai lần cùng kết quả" bằng chạy lại trên cùng đầu vào.
 
@@ -191,6 +194,22 @@ Mã lỗi (spec): `LISTING_QUOTA_EXCEEDED`, `SUBMISSION_RATE_LIMITED` (429), `OU
 | Bên nghe tính lại đua với lượt hằng ngày     | Ghi `trust_tiers` có điều kiện `facts_hash` cũ; lượt thua tính lại trên dữ kiện mới                                                                                                                                                                                 |
 | Một tin vừa sạch theo lối 7 ngày vừa bán     | PK `listing_id` của `trust_clean_listings`; lượt sau `ON CONFLICT DO NOTHING`                                                                                                                                                                                       |
 | Bị gỡ vì vi phạm đua với lượt phát hiện sạch | Cả hai ghi bằng upsert trên PK: bên nghe đặt `voided_at` (thêm dòng có `clean_at` trống nếu chưa có), lượt phát hiện chỉ điền `clean_at` khi đang trống. Thứ tự nào cũng ra một dòng vừa có mốc vừa bị void; mức chỉ đếm dòng có `clean_at` và không có `voided_at` |
+
+### Chốt lúc code (12/10/2026)
+
+- **Tuổi theo ngày lịch** kể cả ngày tạo (mục 4).
+- **`RuntimeConfig.version()`**: phiên bản bảng con số mà `get` đang đọc, để kết quả ghi kèm và lượt hằng ngày biết tài
+  khoản nào còn mang phiên bản cũ (câu 9); bản tĩnh của test nhận phiên bản qua tham số.
+- **Lỗi mang `details`**: `AppError` có `details` tuỳ chọn, `errorHandler` trả ra — `LISTING_QUOTA_EXCEEDED` kèm
+  `occupying`, `howTo` (mã cách giải phóng chỗ: `mark_sold`, `delete`, `withdraw_pending`), `SUBMISSION_RATE_LIMITED` kèm
+  `retryAt`.
+- **Cổng gửi**: `assertCanSubmit` nhận `listingId`, `fromState`, `outsiderGroupId` (nhóm đích khi người gửi là người
+  ngoài) thay cho `placement`, `groupId`; tư cách người ngoài lấy từ ảnh chụp của `lockForPosting`.
+- **Lượt hằng ngày tính lại** mọi tài khoản có tin sạch hay đã có kết quả, trừ T3 theo bảng con số hiện hành — tập rộng
+  hơn danh sách ở mục 7 nhưng phủ đủ các trường hợp đó, và tính lại không ghi gì khi kết quả không đổi.
+- **Bảng uy tín** hiện mức và số tin sạch đã lưu; "còn thiếu" tính từ mức đó với bảng con số hiện hành — khác phiên bản
+  chỉ trong khoảng tới lượt hằng ngày kế tiếp.
+- **Bỏ `DEV_TRUST_TIER`** (bản tạm của `add-listings`); `createInterimTrust` còn lại làm cổng giả cho test.
 
 ### Sửa đi kèm (làm cùng change, sau khi duyệt)
 

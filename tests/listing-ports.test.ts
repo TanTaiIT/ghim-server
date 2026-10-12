@@ -37,9 +37,10 @@ describe('Cổng tạm', () => {
     await expect(
       trust.assertCanSubmit({} as never, {
         accountId: 'a',
+        listingId: 't',
         kind: 'submit',
-        placement: 'marketplace',
-        groupId: null,
+        fromState: 'draft',
+        outsiderGroupId: null,
       }),
     ).resolves.toBeUndefined();
   });

@@ -81,9 +81,10 @@ export function createMoveToMarketplace(shared: ListingShared, submission: Submi
         before: (tx) =>
           trust.assertCanSubmit(tx, {
             accountId: actor.accountId,
+            listingId: newId,
             kind: 'move',
-            placement: 'marketplace',
-            groupId: null,
+            fromState: old.state,
+            outsiderGroupId: null,
           }),
         after: async (tx, row) => {
           await copy.commit(tx);

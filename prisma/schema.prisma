@@ -143,6 +143,9 @@ model Account {
   images             Image[]
   listings           Listing[]
   listingSubmissions ListingSubmission[]
+  trustCleanListings TrustCleanListing[]
+  trustTier          TrustTierResult?
+  trustTierChanges   TrustTierChange[]
 
   @@index([emailHash])
   @@index([status, createdAt])
@@ -1162,4 +1165,90 @@ model ListingBadgeBlock {
 
   @@id([listingId, groupId])
   @@map("listing_badge_blocks")
+}
+
+// ── TRUST: ENUM ──────────────────────────────────────────────────────────────────────────────────
+
+/// Mức tin cậy (TK 20). Tài khoản chưa có dòng `trust_tiers` là T0.
+enum TrustTier {
+  T0
+  T1
+  T2
+  T3
+
+  @@map("trust_tier")
+}
+
+/// Lối thành tin sạch (TK 20): hiện đủ ngày, hay đã bán có người hỏi mua.
+enum TrustCleanVia {
+  shown
+  sold
+
+  @@map("trust_clean_via")
+}
+
+/// Vì sao tin thôi được tính là sạch: gỡ / từ chối vì vi phạm, hay báo cáo được xác nhận đúng (`add-reports`).
+enum TrustVoidCause {
+  violation
+  report
+
+  @@map("trust_void_cause")
+}
+
+// ── TRUST: BẢNG ──────────────────────────────────────────────────────────────────────────────────
+
+/// Dữ kiện "tin X thành sạch lúc D", không phải điểm (design add-trust-tiers mục 3). Không FK sang `listings`: dữ kiện
+/// sống lâu hơn tin, mức người bán lâu năm không tụt khi tin cũ bị dọn (câu 4). CHECK tay (migration init_trust):
+///   trust_clean_listings_clean_check: (clean_at IS NULL) = (via IS NULL)
+///   trust_clean_listings_void_check:  (voided_at IS NULL) = (void_cause IS NULL)
+///   trust_clean_listings_fact_check:  clean_at IS NOT NULL OR voided_at IS NOT NULL — dòng chỉ mang dấu void có khi tin bị
+///                                     gỡ trước lúc lượt phát hiện sạch ghi mốc (mục 13)
+model TrustCleanListing {
+  listingId String          @id @map("listing_id") @db.Uuid
+  accountId String          @map("account_id") @db.Uuid
+  via       TrustCleanVia?
+  cleanAt   DateTime?       @map("clean_at") @db.Timestamptz(3)
+  voidedAt  DateTime?       @map("voided_at") @db.Timestamptz(3)
+  voidCause TrustVoidCause? @map("void_cause")
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@map("trust_clean_listings")
+}
+
+/// Kết quả lần tính gần nhất — để trả nhanh `tierOf`, biết lúc mức đổi, và biết tài khoản nào còn mang phiên bản bảng
+/// con số cũ (design mục 3, câu 9). Chưa có dòng = T0. CHECK tay (migration init_trust):
+///   trust_tiers_counted_check: counted_clean >= 0
+model TrustTierResult {
+  accountId     String    @id @map("account_id") @db.Uuid
+  tier          TrustTier
+  countedClean  Int       @map("counted_clean")
+  /// SHA-256 của dữ kiện đã chuẩn hoá + phiên bản bảng con số: tính lại ra cùng dấu thì không ghi gì.
+  factsHash     String    @map("facts_hash")
+  configVersion Int       @map("config_version")
+  computedAt    DateTime  @map("computed_at") @db.Timestamptz(3)
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([configVersion])
+  @@map("trust_tiers")
+}
+
+/// Mỗi lần mức đổi một dòng, ghi kèm dấu dữ kiện và phiên bản bảng con số đã dùng (TK 27 cam kết 11, 33).
+/// CHECK tay (migration init_trust):
+///   trust_tier_changes_change_check: from_tier <> to_tier
+model TrustTierChange {
+  id            String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  accountId     String    @map("account_id") @db.Uuid
+  fromTier      TrustTier @map("from_tier")
+  toTier        TrustTier @map("to_tier")
+  factsHash     String    @map("facts_hash")
+  configVersion Int       @map("config_version")
+  at            DateTime  @db.Timestamptz(3)
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, at])
+  @@map("trust_tier_changes")
 }

@@ -226,7 +226,7 @@ export interface IdentityRepository {
   findAccountByEmail(emailNormalized: string): Promise<Account | null>;
   findAccountSummaries(
     ids: string[],
-  ): Promise<Pick<Account, 'id' | 'role' | 'status' | 'displayName'>[]>;
+  ): Promise<Pick<Account, 'id' | 'role' | 'status' | 'displayName' | 'createdAt'>[]>;
   /** Chỉ tài khoản chưa xoá. */
   findAccountIdsByEmailHashes(hashes: string[]): Promise<Pick<Account, 'id' | 'emailHash'>[]>;
   findAccountByGoogleSub(googleSub: string): Promise<Account | null>;
@@ -359,7 +359,7 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
         ? Promise.resolve([])
         : prisma.account.findMany({
             where: { id: { in: ids } },
-            select: { id: true, role: true, status: true, displayName: true },
+            select: { id: true, role: true, status: true, displayName: true, createdAt: true },
           }),
     findAccountIdsByEmailHashes: (hashes) =>
       hashes.length === 0

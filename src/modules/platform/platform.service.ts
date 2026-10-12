@@ -359,6 +359,7 @@ export function createVersionedRuntimeConfig(
   now: () => number = Date.now,
 ): VersionedRuntimeConfig {
   let values: Record<string, number> | null = null;
+  let loadedVersion = 0;
   let loadedAt = 0;
   let refreshing: Promise<void> | null = null;
 
@@ -368,6 +369,7 @@ export function createVersionedRuntimeConfig(
       ...RUNTIME_CONFIG_DEFAULTS,
       ...(current?.values as Record<string, number> | undefined),
     };
+    loadedVersion = current?.version ?? 0;
     loadedAt = now();
   };
 
@@ -387,6 +389,10 @@ export function createVersionedRuntimeConfig(
       const value = values[key];
       if (value === undefined) throw new Error(`Khoá cấu hình không tồn tại: ${key}`);
       return value;
+    },
+    version() {
+      if (!values) throw new Error('RuntimeConfig chưa load() — server.ts phải nạp trước khi dùng');
+      return loadedVersion;
     },
   };
 }

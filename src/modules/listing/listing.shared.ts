@@ -40,9 +40,12 @@ export interface ListingTrustPort {
     tx: Tx,
     input: {
       accountId: string;
+      listingId: string;
       kind: ListingSubmissionKind;
-      placement: ListingPlacement;
-      groupId: string | null;
+      /** Trạng thái trước lượt gửi: gửi lại tin bị từ chối / bị gỡ chiếm thêm chỗ, sửa tin đang hiện thì không. */
+      fromState: ListingState;
+      /** Nhóm đích khi người gửi là người ngoài (trần riêng mỗi nhóm); thành viên hay sàn chung thì `null`. */
+      outsiderGroupId: string | null;
     },
   ): Promise<void>;
 }

@@ -79,6 +79,8 @@ export interface AccountSummary {
   role: Account['role'];
   status: Account['status'];
   displayName: string;
+  /** Tuổi tài khoản của `trust` tính từ lúc tạo, không từ lúc xác nhận email (design add-trust-tiers câu 6). */
+  createdAt: Date;
 }
 
 export interface GoogleLoginInput {

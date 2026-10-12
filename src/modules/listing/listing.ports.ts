@@ -6,8 +6,8 @@ import type {
 } from './listing.shared.js';
 
 /**
- * Bản tạm tới `add-trust-tiers` (design mục 7): một mức cho mọi người, không chặn lượt gửi nào. Production và test
- * truyền T0 (an toàn nhất: tin công khai mang lý do "tài khoản mới"), dev truyền `DEV_TRUST_TIER`.
+ * Cổng giả cho test (`buildTestApp({ trust })`): một mức cho mọi người, không chặn lượt gửi nào — test không bàn về
+ * mức tin cậy hay hạn mức dùng nó; app thật nối `trust` (add-trust-tiers).
  */
 export const createInterimTrust = (tier: TrustTier): ListingTrustPort => ({
   tierOf: () => Promise.resolve(tier),

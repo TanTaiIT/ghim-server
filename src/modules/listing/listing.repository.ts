@@ -113,10 +113,40 @@ export interface ListingRepository {
     tx: Tx,
     input: { listingId: string; groupId: string; removedBy: string; at: Date },
   ): Promise<void>;
+  /** Dữ kiện hạn mức cho `trust`, đọc bằng `tx` của lượt gửi — sau khoá theo người (design add-trust-tiers mục 6). */
+  quotaFacts(
+    tx: Tx | null,
+    input: { accountId: string; since: Date; groupId: string | null },
+  ): Promise<{ live: number; submittedAt: Date[]; liveInGroup: number | null }>;
+  /** Tin đang chiếm chỗ — kèm vào lỗi hết chỗ để người dùng biết giải phóng tin nào. */
+  occupying(tx: Tx, accountId: string): Promise<Pick<Listing, 'id' | 'title' | 'state'>[]>;
+  /** Bảng uy tín: tin đang hiển thị hạn chế và tin chờ người duyệt của một người. */
+  dashboardRows(
+    accountId: string,
+  ): Promise<Pick<Listing, 'id' | 'title' | 'state' | 'restrictions'>[]>;
+  /** Tin đã được thấy đủ `minShownMs` và còn được thấy sau `since` — lượt hằng ngày của `trust` (mục 5). */
+  shownCandidates(input: {
+    minShownMs: number;
+    since: Date;
+    now: Date;
+  }): Promise<{ id: string; ownerId: string }[]>;
 }
 
 /** Lô của bên nghe: đủ lớn để ít lượt, đủ nhỏ để một transaction không giữ khoá quá lâu (design mục 9). */
 export const BATCH_SIZE = 500;
+
+/**
+ * Tin sống (spec trust/quotas): đang kiểm, chờ duyệt, đang hiển thị không tạm ẩn, chưa xoá — đếm chung mọi nơi đăng.
+ * Định nghĩa nằm một chỗ cạnh dữ liệu; `trust` chỉ nhận con số.
+ */
+const liveWhere = (ownerId: string): Prisma.ListingWhereInput => ({
+  ownerId,
+  deletedAt: null,
+  OR: [
+    { state: { in: ['checking', 'pending'] } },
+    { state: 'live', hideReasons: { isEmpty: true } },
+  ],
+});
 
 const orderBy = (order: ListingOrder): Prisma.ListingOrderByWithRelationInput[] =>
   order === 'live'
@@ -320,6 +350,46 @@ export function createListingRepository(prisma: PrismaClient): ListingRepository
         update: { removedBy, removedAt: at },
       });
     },
+
+    async quotaFacts(tx, { accountId, since, groupId }) {
+      const db = tx ?? prisma;
+      const [live, submissions, liveInGroup] = await Promise.all([
+        db.listing.count({ where: liveWhere(accountId) }),
+        db.listingSubmission.findMany({
+          where: { accountId, at: { gt: since } },
+          select: { at: true },
+        }),
+        groupId ? db.listing.count({ where: { ...liveWhere(accountId), groupId } }) : null,
+      ]);
+      return { live, submittedAt: submissions.map((row) => row.at), liveInGroup };
+    },
+
+    occupying: (tx, accountId) =>
+      tx.listing.findMany({
+        where: liveWhere(accountId),
+        orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+        select: { id: true, title: true, state: true },
+      }),
+
+    dashboardRows: (accountId) =>
+      prisma.listing.findMany({
+        where: {
+          ownerId: accountId,
+          deletedAt: null,
+          OR: [{ state: 'pending' }, { state: 'live', NOT: { restrictions: { isEmpty: true } } }],
+        },
+        orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+        select: { id: true, title: true, state: true, restrictions: true },
+      }),
+
+    // Khoảng đang mở chưa cộng vào `shown_ms`: cộng tại chỗ. Khoảng đã đóng thì lần ghi đóng nó làm mới `updated_at`.
+    shownCandidates: ({ minShownMs, since, now }) =>
+      prisma.$queryRaw<{ id: string; ownerId: string }[]>`
+        SELECT id::text AS id, owner_id::text AS "ownerId"
+        FROM listings
+        WHERE (shown_since IS NOT NULL
+               AND shown_ms + (EXTRACT(EPOCH FROM (${now}::timestamptz - shown_since)) * 1000)::bigint >= ${minShownMs})
+           OR (shown_since IS NULL AND shown_ms >= ${minShownMs} AND updated_at >= ${since})`,
 
     async existingIds(ids) {
       if (ids.length === 0) return new Set();

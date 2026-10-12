@@ -182,14 +182,22 @@ export function createSubmission(shared: ListingShared) {
     tx: Prisma.TransactionClient,
     accountId: string,
     after: ListingFields,
-  ): Promise<string | null> => {
-    if (after.placement === 'marketplace' || !after.placement || !after.groupId) return null;
+  ): Promise<{ unitId: string | null; outsider: boolean }> => {
+    if (after.placement === 'marketplace' || !after.placement || !after.groupId) {
+      return { unitId: null, outsider: false };
+    }
     const snapshot = await groups.lockForPosting(tx, after.groupId, accountId);
     if (!snapshot) throw new NotFoundError('Không có nhóm này');
     const outcome = decideGroupPlacement(after.placement, snapshot);
     if (!outcome.ok) throw placementError(outcome.code);
-    return outcome.unitId;
+    return { unitId: outcome.unitId, outsider: outcome.outsider };
   };
+
+  /** Sửa nội dung không khoá nhóm (nơi đăng không đổi): tư cách người ngoài đọc ngoài transaction là đủ cho trần riêng. */
+  const outsiderOf = async (accountId: string, after: ListingFields): Promise<boolean> =>
+    after.placement !== 'marketplace' &&
+    after.groupId !== null &&
+    !(await groups.membersAmong(after.groupId, [accountId])).has(accountId);
 
   const submit = async (input: SubmissionInput): Promise<Listing | null> => {
     const { actor, listing, after } = input;
@@ -205,22 +213,28 @@ export function createSubmission(shared: ListingShared) {
     });
     await media.resolve({ owner, uploaderId: actor.accountId, imageIds: after.imageIds });
     const now = clock();
+    const outsiderWithoutLock = input.recheckPlacement
+      ? false
+      : await outsiderOf(actor.accountId, after);
     let unitId: string | null = null;
     const result = await repository.change({
       id: listing.id,
       states: [listing.state],
       version: input.version,
       before: async (tx, locked) => {
-        unitId = input.recheckPlacement
+        const placed = input.recheckPlacement
           ? await lockPlacement(tx, actor.accountId, after)
-          : after.placement === 'marketplace'
-            ? null
-            : locked.unitId;
+          : {
+              unitId: after.placement === 'marketplace' ? null : locked.unitId,
+              outsider: outsiderWithoutLock,
+            };
+        unitId = placed.unitId;
         await trust.assertCanSubmit(tx, {
           accountId: actor.accountId,
+          listingId: locked.id,
           kind: input.kind,
-          placement: after.placement ?? 'marketplace',
-          groupId: after.placement === 'marketplace' ? null : after.groupId,
+          fromState: locked.state,
+          outsiderGroupId: placed.outsider ? after.groupId : null,
         });
       },
       data: (locked) => {

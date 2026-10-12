@@ -39,8 +39,11 @@ socket.io ở `/realtime`) và các module:
   — hướng dẫn cho app ở [`docs/media.md`](docs/media.md).
 - **`listing`** (đợt 2): nháp, gửi, vòng đời tám trạng thái, sửa (qua máy lại hay áp ngay), ngày hiển thị và gia
   hạn, tạm ẩn theo tài khoản / nhóm / danh mục, hai mức hiển thị, ai thấy tin, bảng tin / tìm kiếm / hồ sơ phân trang
-  con trỏ, huy hiệu nhóm, chuyển tin đã rời nhóm lên sàn chung, thông báo N31–N35, N37. Mức tin cậy và máy duyệt
-  còn là bản tạm (`DEV_TRUST_TIER`, `DEV_MACHINE_REVIEW` ở dev) tới `add-trust-tiers`, `add-screening`.
+  con trỏ, huy hiệu nhóm, chuyển tin đã rời nhóm lên sàn chung, thông báo N31–N35, N37. Máy duyệt còn là bản
+  tạm (`DEV_MACHINE_REVIEW` ở dev) tới `add-screening`.
+- **`trust`** (đợt 2): mức tin cậy T0–T3 tính lại từ tuổi tài khoản và tin sạch (tối đa 3 tin sạch mỗi 7 ngày, tin
+  vượt được dời), hạn mức tin sống và nhịp gửi theo mức, trần riêng của người ngoài, bảng uy tín `GET /me/trust`,
+  tính lại 00:30 mỗi ngày; nhận vai chủ nhóm / điều hành viên cần T1.
 
 ## Cần có
 
@@ -74,8 +77,8 @@ Mailpit).
 - Biến môi trường của `identity` (`JWT_SECRET`, `IDENTITY_HASH_KEY`, `SECRETS_ENCRYPTION_KEY`, `SMTP_URL`,
   `MAIL_FROM`, `GOOGLE_CLIENT_IDS`, `DISPOSABLE_DOMAINS_URL`): ý nghĩa và ràng buộc ở `src/config/env.ts`
 - Thử trọn vòng tin đăng ở dev: `DEV_MACHINE_REVIEW=pass_full` để máy tạm cho qua mọi lượt gửi (mặc định `off` —
-  tin đứng ở "đang kiểm"); `DEV_TRUST_TIER` (mặc định `T1`) đặt mức tin cậy mọi tài khoản mang. App gửi
-  `x-device-id` ở mọi lượt gửi tin.
+  tin đứng ở "đang kiểm"). Tài khoản mới ở T0: tin công khai mang lý do "tài khoản mới" (chưa lên bảng tin) và gửi
+  tối đa 3 lượt mỗi giờ — lên T1 sau 7 ngày tuổi và một tin hiện đủ 7 ngày. App gửi `x-device-id` ở mọi lượt gửi tin.
 
 ## Lệnh
 

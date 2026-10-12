@@ -169,10 +169,11 @@ tests/*.db.test.ts            ← ghi thẳng bằng Prisma để kiểm ràng b
   việc (`membership` / `admin`) và cả ba calc dùng chung — muốn tách cụm thì sắp lại route cho khớp service trước.
 - **Không có `<module>.types.ts`**: DTO chính là response schema Zod trong `<module>.schema.ts`.
 - Tên module kebab-case, **số ít**. Đang có: `health`, `identity`, `platform`, `category`, `group`,
-  `notification`, `media`, `listing`.
-- `buildApp(overrides)` nhận `repositories: { identity, platform, category, group, media, listing }`, `storage`, `trust`
-  (mức tin cậy cho `listing` — bản tạm tới `add-trust-tiers`) và hạ tầng dùng chung (jobs, mailer, googleVerifier,
-  privilegeSource, config, clock) — bỏ trống là bản thật.
+  `notification`, `media`, `listing`, `trust`.
+- `buildApp(overrides)` nhận `repositories: { identity, platform, category, group, media, listing, trust }`, `storage`,
+  `trust` (cổng mức tin cậy và hạn mức mà `listing`, `group` hỏi — bỏ trống là module `trust` thật) và hạ tầng dùng chung
+  (jobs, mailer, googleVerifier, privilegeSource, config, clock) — bỏ trống là bản thật. `RuntimeConfig.version()` cho
+  biết phiên bản bảng con số đang đọc (kết quả tính theo con số ghi kèm, cam kết 33).
   `privilegeSource` và `config` mặc định là bản thật của `platform` dựng trên repository của nó. Service
   của module tra qua `app.modules` (`app.modules.platform`…); `app.moduleList` là danh sách định nghĩa theo
   thứ tự dựng. Test HTTP dùng `buildTestApp` (`tests/test-app.ts`), cùng hình dạng overrides.
@@ -298,7 +299,7 @@ Mỗi luật dưới đây là một cam kết ở TK phần 27; số trong ngo�
 17. **Không ai, trừ master, xử việc của chính mình** (nguyên tắc 4) — kể cả tài khoản dùng chung
     thiết bị. Một hàm duy nhất trong `review` quyết ai được nhận việc; không viết
     `if (actor.id === listing.ownerId)` rải rác.
-18. **Mức tin cậy là hàm thuần** của dữ kiện (`trust.calc.ts` **(chưa có)**), tính lại từ đầu chứ
+18. **Mức tin cậy là hàm thuần** của dữ kiện (`trust/tier.calc.ts`, hạn mức ở `trust/quota.calc.ts`), tính lại từ đầu chứ
     không cộng trừ, lưu kèm dấu băm dữ kiện và phiên bản bảng con số (20). Mỗi luật có unit test.
 19. **Mọi con số ở TK phần 28 đọc từ bảng con số có phiên bản** (`platform`), không hardcode trong
     code. Kết quả máy và mức tin cậy ghi lại phiên bản đã dùng. Code đọc qua
@@ -434,9 +435,12 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   Ca tranh chấp bọc repository thật (`{ ...repositories.identity, method: … }`, truyền qua
   `buildTestApp({ repositories })`) để giữ hai lượt ở đúng điểm.
   Tin đăng: `tests/listing-http-helpers.ts` đi luồng thật (nháp → ảnh → gửi → `machinePass`), `signedInAt` ký lại
-  phiên khi ca đẩy đồng hồ quá 30 ngày; mức tin cậy đè bằng `buildTestApp({ trust: createInterimTrust(…) })` —
-  mặc định của test là T0 như production. Ca tranh chấp có khoá nhóm dùng cổng `trust` giả dừng lượt gửi trong
-  transaction (`tests/listing-races.db.test.ts`); dữ liệu nền mức DB ở `tests/listing-helpers.ts`.
+  phiên khi ca đẩy đồng hồ quá 30 ngày. Mặc định của test là module `trust` thật (tài khoản mới ở T0, 3 lượt gửi mỗi
+  giờ với đồng hồ đứng yên); test không bàn về mức hay hạn mức đè bằng `buildTestApp({ trust: createInterimTrust(…) })`.
+  Ca tranh chấp có khoá nhóm dùng cổng `trust` giả dừng lượt gửi trong transaction (`tests/listing-races.db.test.ts`);
+  dữ liệu nền mức DB ở `tests/listing-helpers.ts`. Mức tin cậy: `seedTier` (`tests/group-helpers.ts`) ghi thẳng mức
+  làm dữ liệu nền — `createActiveGroup` và `appointModerator` dùng nó vì nhận vai cần T1; luật lên mức đi luồng thật ở
+  `tests/trust-tiers.http.test.ts`.
 - `tests/*.db.test.ts`: test repository và ghi thẳng bằng Prisma để kiểm ràng buộc chỉ DB trả lời được
   (partial unique "một việc mở mỗi tin", CHECK, EXCLUDE), kiểm đúng mã lỗi (`prismaErrorCode` / `sqlStateOf`).
 - Mỗi cam kết ở TK phần 27 thuộc đợt đang làm phải có test — kể cả các ca **thiếu, sai, hết chỗ,

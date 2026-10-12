@@ -161,12 +161,11 @@ describe('loadEnv — khoá của identity', () => {
     );
   });
 
-  it('bản tạm của tin đăng: mặc định T1 / máy tắt; production bật máy duyệt tạm thì từ chối khởi động', () => {
-    expect(loadEnv(base)).toMatchObject({ DEV_TRUST_TIER: 'T1', DEV_MACHINE_REVIEW: 'off' });
+  it('máy duyệt tạm của tin đăng: mặc định tắt; production bật thì từ chối khởi động', () => {
+    expect(loadEnv(base)).toMatchObject({ DEV_MACHINE_REVIEW: 'off' });
     expect(loadEnv({ ...base, DEV_MACHINE_REVIEW: 'pass_full' }).DEV_MACHINE_REVIEW).toBe(
       'pass_full',
     );
-    expect(() => loadEnv({ ...base, DEV_TRUST_TIER: 'T9' })).toThrow(/DEV_TRUST_TIER/);
     expect(() => loadEnv({ ...production, DEV_MACHINE_REVIEW: 'hold' })).toThrow(
       /DEV_MACHINE_REVIEW/,
     );
