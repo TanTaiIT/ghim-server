@@ -276,7 +276,7 @@ Sửa trong `group`:
 - **Chuyển riêng tư**: bên nghe `group.privatization.started` hạ tin "nhóm công khai" của thành viên về "chỉ thành
   viên" (không qua máy, không đổi `version` — không phải sửa của người đăng) và đặt `group_privatized` cho tin
   người ngoài, theo lô; xong thì gọi `group.completePrivatization(groupId)`, hàm này đếm lại trong khoá. Trong lúc
-  chuyển, `lockForPosting` trả `privatizing` nên mức "nhóm công khai" bị chặn (bước 5).
+  chuyển, `lockForPosting` thấy nhóm ở `going_private` nên mức "nhóm công khai" bị chặn (bước 5).
 - Đơn vị con: tin theo đơn vị **hiện tại** của người đăng — nghe `group.member.unit_changed` và đổi `unit_id` các
   tin của người đó trong nhóm, để phạm vi của điều hành viên đơn vị (đợt 4) luôn đúng.
 
@@ -462,7 +462,7 @@ Mỗi dòng một test DB chạy hai lượt song song (khuôn `code-attempts.db
 
 ## Migration Plan
 
-Một migration `init_listing`: 3 bảng, 6 enum, CHECK viết tay (ghi `///` trên model), partial index. Sửa `group`
+Một migration `init_listing`: 3 bảng, 7 enum, CHECK viết tay (ghi `///` trên model), partial index. Sửa `group`
 (khoá, payload), `category` (sự kiện), `media` (chủ `listing`, chép ảnh), `identity` (chữ ký
 `recordListingSubmission`) không đổi bảng. Không đổi dữ liệu có sẵn. Lùi: revert code, drop bảng mới.
 

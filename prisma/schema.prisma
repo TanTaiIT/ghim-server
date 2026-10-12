@@ -125,22 +125,24 @@ model Account {
   createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  verificationCodes VerificationCode[]
-  sessions          Session[]
-  devicePosts       DevicePost[]
-  deviceClearances  DeviceClearance[]
-  flags             AccountFlag[]
-  idVerifications   IdVerification[]
-  staffPermission   StaffPermission?
-  groupMemberships  GroupMember[]
-  groupBans         GroupBan[]
-  groupJoinRequests GroupJoinRequest[]
-  groupInvitations  GroupInvitation[]
-  groupOwnerOffers  GroupOwnerOffer[]
-  notifications     Notification[]
-  notificationPrefs NotificationPreference[]
-  groupMutes        GroupNotificationMute[]
-  images            Image[]
+  verificationCodes  VerificationCode[]
+  sessions           Session[]
+  devicePosts        DevicePost[]
+  deviceClearances   DeviceClearance[]
+  flags              AccountFlag[]
+  idVerifications    IdVerification[]
+  staffPermission    StaffPermission?
+  groupMemberships   GroupMember[]
+  groupBans          GroupBan[]
+  groupJoinRequests  GroupJoinRequest[]
+  groupInvitations   GroupInvitation[]
+  groupOwnerOffers   GroupOwnerOffer[]
+  notifications      Notification[]
+  notificationPrefs  NotificationPreference[]
+  groupMutes         GroupNotificationMute[]
+  images             Image[]
+  listings           Listing[]
+  listingSubmissions ListingSubmission[]
 
   @@index([emailHash])
   @@index([status, createdAt])
@@ -450,6 +452,7 @@ model Category {
   templateVersions TemplateVersion[]
   draft            TemplateDraft?
   staffGrants      StaffCategoryGrant[]
+  listings         Listing[]
 
   @@map("categories")
 }
@@ -515,7 +518,8 @@ model Province {
   aliases     String[]
   searchText  String   @map("search_text")
 
-  wards Ward[]
+  wards    Ward[]
+  listings Listing[]
 
   @@map("provinces")
 }
@@ -528,7 +532,8 @@ model Ward {
   formerNames  String[] @map("former_names")
   searchText   String   @map("search_text")
 
-  province Province @relation(fields: [provinceCode], references: [code])
+  province Province  @relation(fields: [provinceCode], references: [code])
+  listings Listing[]
 
   @@unique([provinceCode, name])
   @@index([provinceCode])
@@ -684,6 +689,9 @@ model Group {
   ownerOffers   GroupOwnerOffer[]
   announcements GroupAnnouncement[]
   mutes         GroupNotificationMute[]
+  listings      Listing[]               @relation("listing_group")
+  badgeListings Listing[]               @relation("listing_badge")
+  badgeBlocks   ListingBadgeBlock[]
 
   @@index([state, mode])
   @@index([ownerlessSince], where: raw("state = 'ownerless'"), map: "groups_ownerless_idx")
@@ -954,4 +962,204 @@ model Image {
   @@index([createdAt], where: raw("confirmed_at IS NULL"), map: "images_unconfirmed_idx")
   @@index([releasedAt], where: raw("released_at IS NOT NULL"), map: "images_released_idx")
   @@map("images")
+}
+
+// ── LISTING: ENUM ────────────────────────────────────────────────────────────────────────────────
+
+/// Tám trạng thái của TK 18. Đổi trạng thái chỉ qua bảng mũi tên `listing.calc.ts` (CLAUDE.md luật 13).
+enum ListingState {
+  draft
+  checking
+  pending
+  live
+  rejected
+  sold
+  expired
+  removed
+
+  @@map("listing_state")
+}
+
+enum ListingPlacement {
+  marketplace
+  group_public
+  members_only
+
+  @@map("listing_placement")
+}
+
+/// Lý do tạm ẩn — tách khỏi trạng thái (TK 19). Ba lý do cuối là "rời nhóm hẳn": không gỡ, chỉ chuyển lên sàn chung.
+enum ListingHideReason {
+  account_locked
+  account_deleted
+  left_group
+  removed_from_group
+  group_banned
+  group_locked
+  category_disabled
+  group_closed
+  group_privatized
+  detached_by_group
+
+  @@map("listing_hide_reason")
+}
+
+/// Lý do hiển thị hạn chế (TK 15): mỗi lý do đặt và gỡ độc lập; mảng rỗng = đầy đủ.
+enum ListingRestriction {
+  machine
+  new_account
+  strike
+
+  @@map("listing_restriction")
+}
+
+enum ListingRenewal {
+  early
+  expired
+
+  @@map("listing_renewal")
+}
+
+/// Người duyệt từ chối / gỡ vì sai sót (sửa được) hay vi phạm (TK 17).
+enum ListingFault {
+  mistake
+  violation
+
+  @@map("listing_fault")
+}
+
+enum ListingSubmissionKind {
+  submit
+  resubmit
+  renew_early
+  renew_expired
+  move
+
+  @@map("listing_submission_kind")
+}
+
+// ── LISTING: BẢNG ────────────────────────────────────────────────────────────────────────────────
+
+/// Một tin, từ nháp tới hết đời (design add-listings mục 1). CHECK tay (migration init_listing):
+///   listings_arrays_check:           image_ids, hide_reasons, restrictions NOT NULL (Prisma tạo cột mảng cho phép null;
+///                                    null thì cardinality() ra null và tin lọt khỏi mọi partial index)
+///   listings_version_check:          version >= 1
+///   listings_price_check:            price IS NULL OR price >= 0
+///   listings_placement_group_check:  placement IS NULL OR (placement = 'marketplace') = (group_id IS NULL)
+///   listings_submitted_check:        state = 'draft' OR đủ nơi đăng, tiêu đề, giá, danh mục, ≥ 1 ảnh (danh mục chưa
+///                                    phát hành mẫu thì không có phiên bản để ghim)
+///   listings_badge_check:            badge_group_id IS NULL OR placement = 'marketplace'
+///   listings_ward_check:             ward_code IS NULL OR province_code IS NOT NULL
+///   listings_clock_check:            không cùng lúc expires_at và clock_remaining_ms
+///   listings_clock_started_check:    chưa lên bảng (first_live_at IS NULL) thì không có đồng hồ, không có shown_since
+///   listings_shown_check:            shown_ms >= 0
+///   listings_renewal_check:          renewal IS NULL OR state IN ('draft', 'checking', 'pending')
+///   listings_fault_check:            fault IS NULL OR state IN ('rejected', 'removed')
+model Listing {
+  id                 String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  ownerId            String               @map("owner_id") @db.Uuid
+  state              ListingState         @default(draft)
+  /// Tăng khi nội dung, nơi đăng hay trạng thái đổi — không tăng khi đặt / gỡ lý do tạm ẩn hay hạn chế, để việc
+  /// đang mở của người duyệt (ghi có điều kiện theo phiên bản) không hỏng vì nhóm bị khoá giữa chừng.
+  version            Int                  @default(1)
+  placement          ListingPlacement?
+  groupId            String?              @map("group_id") @db.Uuid
+  /// Không khoá ngoại: tin theo đơn vị hiện tại của người đăng (bên nghe đổi), và xoá đơn vị trống không được vướng
+  /// tin cũ; khoá ngoại ghép (group_id, unit_id) mà SET NULL thì xoá luôn cả group_id.
+  unitId             String?              @map("unit_id") @db.Uuid
+  categoryId         String?              @map("category_id") @db.Uuid
+  /// Ghim ở lần gửi đầu; sửa về sau kiểm theo đúng phiên bản này (TK 11).
+  templateVersion    Int?                 @map("template_version")
+  attributes         Json                 @default("{}") @db.JsonB
+  title              String?
+  description        String?
+  /// Đồng, BigInt, 0 = cho tặng.
+  price              BigInt?
+  negotiable         Boolean              @default(false)
+  delivery           Boolean              @default(false)
+  showPhone          Boolean              @default(false) @map("show_phone")
+  provinceCode       Int?                 @map("province_code")
+  wardCode           Int?                 @map("ward_code")
+  /// Thứ tự là dữ liệu: phần tử đầu là ảnh bìa. Quyền với ảnh nằm ở `images` (chủ = tin này).
+  imageIds           String[]             @default([]) @map("image_ids") @db.Uuid
+  badgeGroupId       String?              @map("badge_group_id") @db.Uuid
+  hideReasons        ListingHideReason[]  @default([]) @map("hide_reasons")
+  restrictions       ListingRestriction[] @default([])
+  /// Vị trí trên bảng tin: không đổi khi sửa hay gia hạn.
+  firstLiveAt        DateTime?            @map("first_live_at") @db.Timestamptz(3)
+  /// Đồng hồ ngày hiển thị: `expires_at` khi đang chạy, `clock_remaining_ms` khi đang dừng.
+  expiresAt          DateTime?            @map("expires_at") @db.Timestamptz(3)
+  clockRemainingMs   BigInt?              @map("clock_remaining_ms")
+  /// Thời gian tin thật sự được thấy (đang hiển thị, không tạm ẩn) — dữ kiện tin sạch của `trust`.
+  shownMs            BigInt               @default(0) @map("shown_ms")
+  shownSince         DateTime?            @map("shown_since") @db.Timestamptz(3)
+  renewal            ListingRenewal?
+  fault              ListingFault?
+  /// Lúc rời nhóm hẳn — mốc của hạn chuyển lên sàn chung.
+  leftGroupAt        DateTime?            @map("left_group_at") @db.Timestamptz(3)
+  movedFromListingId String?              @map("moved_from_listing_id") @db.Uuid
+  /// `expires_at` đã được nhắc: nhắc một lần cho mỗi hạn, gia hạn đổi hạn thì được nhắc lại.
+  remindedFor        DateTime?            @map("reminded_for") @db.Timestamptz(3)
+  /// `fold(title + ' ' + description)` — tìm có dấu / không dấu bằng LIKE.
+  searchFolded       String               @default("") @map("search_folded")
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt          DateTime?            @map("deleted_at") @db.Timestamptz(3)
+
+  owner       Account             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  group       Group?              @relation("listing_group", fields: [groupId], references: [id], onDelete: Restrict)
+  category    Category?           @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  province    Province?           @relation(fields: [provinceCode], references: [code], onDelete: Restrict)
+  ward        Ward?               @relation(fields: [wardCode], references: [code], onDelete: Restrict)
+  badgeGroup  Group?              @relation("listing_badge", fields: [badgeGroupId], references: [id], onDelete: Restrict)
+  /// Tin cũ bị xoá hẳn thì tin mới vẫn sống; chỉ mất dấu "đã chuyển từ đâu".
+  movedFrom   Listing?            @relation("listing_move", fields: [movedFromListingId], references: [id], onDelete: SetNull)
+  movedTo     Listing[]           @relation("listing_move")
+  submissions ListingSubmission[]
+  badgeBlocks ListingBadgeBlock[]
+
+  /// Mỗi tin chuyển lên sàn chung một lần (ALREADY_MOVED) — kể cả hai lượt song song.
+  @@unique([movedFromListingId], where: raw("moved_from_listing_id IS NOT NULL"), map: "listings_moved_from_key")
+  @@index([firstLiveAt(sort: Desc), id(sort: Desc)], where: raw("state = 'live' AND placement = 'marketplace' AND cardinality(hide_reasons) = 0 AND cardinality(restrictions) = 0 AND deleted_at IS NULL"), map: "listings_feed_idx")
+  @@index([categoryId, firstLiveAt(sort: Desc), id(sort: Desc)], where: raw("state = 'live' AND placement = 'marketplace' AND cardinality(hide_reasons) = 0 AND cardinality(restrictions) = 0 AND deleted_at IS NULL"), map: "listings_feed_category_idx")
+  @@index([firstLiveAt(sort: Desc), id(sort: Desc)], where: raw("state = 'live' AND placement = 'marketplace' AND cardinality(hide_reasons) = 0 AND deleted_at IS NULL"), map: "listings_search_idx")
+  @@index([groupId, firstLiveAt(sort: Desc), id(sort: Desc)], where: raw("state = 'live' AND cardinality(hide_reasons) = 0 AND deleted_at IS NULL"), map: "listings_group_feed_idx")
+  @@index([expiresAt], where: raw("state = 'live' AND expires_at IS NOT NULL"), map: "listings_expiry_idx")
+  @@index([groupId], where: raw("deleted_at IS NULL"), map: "listings_group_idx")
+  @@index([categoryId], where: raw("deleted_at IS NULL"), map: "listings_category_idx")
+  @@index([badgeGroupId], where: raw("badge_group_id IS NOT NULL"), map: "listings_badge_idx")
+  @@index([ownerId, updatedAt(sort: Desc)], where: raw("deleted_at IS NULL"), map: "listings_owner_idx")
+  @@map("listings")
+}
+
+/// Mỗi lượt gửi một dòng: chặn bấm Đăng hai lần, và là dữ kiện nhịp gửi của `trust`, lượt gửi dồn của `screening`.
+model ListingSubmission {
+  id          String                @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  listingId   String                @map("listing_id") @db.Uuid
+  accountId   String                @map("account_id") @db.Uuid
+  kind        ListingSubmissionKind
+  /// Phiên bản của tin lúc gửi — một phiên bản chỉ gửi được một lần.
+  fromVersion Int                   @map("from_version")
+  at          DateTime              @db.Timestamptz(3)
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, fromVersion])
+  @@index([accountId, at])
+  @@map("listing_submissions")
+}
+
+/// Huy hiệu nhóm đã gỡ khỏi tin này thì người đăng không gắn lại (TK 10, chốt 12/10/2026).
+model ListingBadgeBlock {
+  listingId String   @map("listing_id") @db.Uuid
+  groupId   String   @map("group_id") @db.Uuid
+  removedBy String   @map("removed_by") @db.Uuid
+  removedAt DateTime @map("removed_at") @db.Timestamptz(3)
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  group   Group   @relation(fields: [groupId], references: [id])
+
+  @@id([listingId, groupId])
+  @@map("listing_badge_blocks")
 }

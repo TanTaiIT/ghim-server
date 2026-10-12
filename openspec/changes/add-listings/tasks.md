@@ -10,17 +10,17 @@
 - [x] 0.1 Sửa proposal, delta spec, TK theo design đã duyệt (D3: `listing/editing`, `listing/suspension`; bản sao ảnh:
       `media/image-storage`; câu 18 của `add-screening`: `listing/visibility`); xác minh `pnpm run spec:validate` xanh
       — làm xong 12/10/2026
-- [ ] 0.2 `vitest.unit.config.ts` + script `pnpm test:unit`: chỉ chạy test không cần DB (`*.calc.test.ts` và các test
+- [x] 0.2 `vitest.unit.config.ts` + script `pnpm test:unit`: chỉ chạy test không cần DB (`*.calc.test.ts` và các test
       thuần sẵn có), không `globalSetup`; xác minh chạy xanh trên máy không có Postgres, và `pnpm test` (cấu hình cũ)
       vẫn gồm mọi file
 
 ## 1. Schema và migration
 
-- [ ] 1.1 Khai 6 enum và 3 bảng của design mục 2 vào `prisma/schema.prisma` (cột mảng `image_ids`, `hide_reasons`,
+- [x] 1.1 Khai 7 enum và 3 bảng của design mục 2 vào `prisma/schema.prisma` (cột mảng `image_ids`, `hide_reasons`,
       `restrictions`; partial index bảng tin, tìm kiếm, bảng tin nhóm, việc nền, bên nghe), comment `///` cho mọi CHECK
       viết tay; xác minh `pnpm exec prisma format && pnpm exec prisma validate`
 - [ ] 1.2 Migration `init_listing` sinh **không cần DB**: `prisma migrate diff --from-schema <schema ở HEAD>
-    --to-schema prisma/schema.prisma --script`, đọc SQL, thêm CHECK (giá không âm, nơi đăng ↔ nhóm, đủ trường khi
+--to-schema prisma/schema.prisma --script`, đọc SQL, thêm CHECK (giá không âm, nơi đăng ↔ nhóm, đủ trường khi
       khác nháp, huy hiệu chỉ ở sàn chung, đồng hồ chạy XOR dừng, `fault` chỉ ở bị từ chối / bị gỡ); xác minh trên CI:
       `migrate deploy` qua và `pnpm db:drift` ra "No difference detected"
 - [ ] 1.3 `tests/listing.db.test.ts`: mỗi CHECK (23514), unique (`listing_id`, `from_version`), unique
@@ -71,7 +71,7 @@
 
 - [ ] 4.1 `listing.repository.ts` phần ghi: tạo / lưu nháp, đi mũi tên có điều kiện (`state`, `version`), dòng
       `listing_submissions`, sự kiện outbox và nhật ký master cùng transaction; bên nghe theo lô 500 dòng (`SELECT …
-    FOR UPDATE` → hàm thuần → một `UPDATE … FROM unnest(…)`); xác minh test DB: ghi có điều kiện trả đúng khi trạng
+FOR UPDATE` → hàm thuần → một `UPDATE … FROM unnest(…)`); xác minh test DB: ghi có điều kiện trả đúng khi trạng
       thái / phiên bản đã đổi, lô 1200 tin đặt và gỡ đủ lý do, chạy lại không đổi gì (CI)
 - [ ] 4.2 Phần đọc: `visibleWhere(viewer, surface)`, bảng tin, tìm kiếm `search_folded`, bảng tin nhóm, hồ sơ, gợi ý,
       tin của tôi, phân trang con trỏ; xác minh test DB sinh mọi tổ hợp của design mục 12 và so kết quả SQL với
