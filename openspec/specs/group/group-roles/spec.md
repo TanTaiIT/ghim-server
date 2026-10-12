@@ -252,3 +252,45 @@ chỉ mở khi master mở khoá.
 
 - **WHEN** master khoá một nhóm, rồi master giao chủ nhóm đó cho Minh và Minh đồng ý
 - **THEN** Minh là chủ nhóm và nhóm vẫn tạm khoá
+
+### Requirement: Nhận vai chủ nhóm hay điều hành viên cần mức T1 trở lên
+
+Chỉ tài khoản đang ở mức T1 trở lên SHALL nhận được vai chủ nhóm hay điều hành viên. Bổ nhiệm điều hành viên,
+hay bấm đồng ý nhận vai chủ nhóm — do master giao hoặc do chủ cũ chuyển nhượng — khi người nhận đang ở mức T0
+MUST bị từ chối; mức được xét tại lúc người nhận thật sự nhận vai.
+
+#### Scenario: Bổ nhiệm điều hành viên đang ở T0
+
+- **WHEN** chủ nhóm bổ nhiệm một thành viên đang ở mức T0 làm điều hành viên
+- **THEN** response có HTTP 409 `TRUST_TIER_TOO_LOW` và thành viên đó không có vai điều hành viên
+
+#### Scenario: Bổ nhiệm điều hành viên đang ở T1
+
+- **WHEN** chủ nhóm bổ nhiệm một thành viên đang ở mức T1 làm điều hành viên
+- **THEN** thành viên đó có vai điều hành viên
+
+#### Scenario: Nhận chuyển nhượng chủ nhóm khi đang ở T0
+
+- **WHEN** người được chuyển nhượng vai chủ nhóm bấm đồng ý khi đang ở mức T0
+- **THEN** response có HTTP 409 `TRUST_TIER_TOO_LOW` và chủ nhóm cũ vẫn giữ vai
+
+#### Scenario: Tụt mức giữa lúc được giao và lúc đồng ý
+
+- **WHEN** master giao chủ cho một nhóm mới lập cho người đang ở mức T1, rồi người đó bị tính lại về T0 trước
+  khi bấm đồng ý
+- **THEN** lượt bấm đồng ý nhận HTTP 409 `TRUST_TIER_TOO_LOW` và nhóm vẫn chờ giao chủ
+
+#### Scenario: Nhận lời giao chủ khi đủ mức
+
+- **WHEN** master giao chủ cho một nhóm mới lập và người được giao bấm đồng ý khi đang ở mức T1
+- **THEN** người đó thành chủ nhóm
+
+### Requirement: Tụt mức không làm mất vai đang giữ
+
+Chủ nhóm hay điều hành viên bị tính lại xuống dưới T1 SHALL giữ vai đang có; mức chỉ được xét lúc nhận vai. Vai chỉ
+mất theo các đường của group/group-roles — gậy nặng, tài khoản bị khoá (chốt 12/10/2026).
+
+#### Scenario: Điều hành viên tụt về T0
+
+- **WHEN** điều hành viên của nhóm X bị tính lại về T0 vì tin sạch duy nhất bị gỡ vì vi phạm
+- **THEN** người đó vẫn là điều hành viên của nhóm X
