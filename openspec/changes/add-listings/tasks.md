@@ -19,10 +19,10 @@
 - [x] 1.1 Khai 7 enum và 3 bảng của design mục 2 vào `prisma/schema.prisma` (cột mảng `image_ids`, `hide_reasons`,
       `restrictions`; partial index bảng tin, tìm kiếm, bảng tin nhóm, việc nền, bên nghe), comment `///` cho mọi CHECK
       viết tay; xác minh `pnpm exec prisma format && pnpm exec prisma validate`
-- [ ] 1.2 Migration `init_listing` sinh **không cần DB**: `prisma migrate diff --from-schema <schema ở HEAD>
+- [x] 1.2 Migration `init_listing` sinh **không cần DB**: `prisma migrate diff --from-schema <schema ở HEAD>
 --to-schema prisma/schema.prisma --script`, đọc SQL, thêm CHECK (giá không âm, nơi đăng ↔ nhóm, đủ trường khi
       khác nháp, huy hiệu chỉ ở sàn chung, đồng hồ chạy XOR dừng, `fault` chỉ ở bị từ chối / bị gỡ); xác minh trên CI:
-      `migrate deploy` qua và `pnpm db:drift` ra "No difference detected"
+      `migrate deploy` qua và `pnpm db:drift` ra "No difference detected" — đã qua trên Neon Postgres 18.6 ngày 13/10/2026
 - [ ] 1.3 `tests/listing.db.test.ts`: mỗi CHECK (23514), unique (`listing_id`, `from_version`), unique
       `moved_from_listing_id`, PK `listing_badge_blocks`, FK sang `accounts`, `groups`, `categories`; xác minh CI xanh
 

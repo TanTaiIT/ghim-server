@@ -279,7 +279,7 @@ export function createIdentityOpsService(
     async seedDisposableDomainsIfEmpty() {
       if ((await repository.countDisposableDomains()) > 0) return 0;
       const seed = parseDomainList(
-        readFileSync(new URL('./data/disposable-domains.seed.txt', import.meta.url), 'utf8'),
+        readFileSync(new URL('../data/disposable-domains.seed.txt', import.meta.url), 'utf8'),
       );
       return repository.seedDisposableDomains(seed, clock());
     },
