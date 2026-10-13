@@ -213,7 +213,7 @@ change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-cate
 `harden-module-infra` → `tune-hot-paths` → `cache-public-reads-revoke-deleted-staff` →
 `harden-production-runtime` → `add-groups` → `add-notification-core` (kéo từ đợt 6, chốt 11/10/2026) — mười change
 này đã archive 10–11/10/2026 · đợt 2
-`add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` (cả hai đã archive 12/10/2026) · đợt 3 `add-screening` → `add-image-moderation` (khi chọn được dịch vụ kiểm ảnh, tách ra 12/10/2026) · đợt 4 `add-review-queues` →
+`add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` (cả hai đã archive 12/10/2026) · đợt 3 `add-screening` (đã archive 13/10/2026) → `add-image-moderation` (khi chọn được dịch vụ kiểm ảnh, tách ra 12/10/2026) · đợt 4 `add-review-queues` →
 `add-reports` · đợt 5 `add-strikes` · đợt 6 `add-messaging` → `add-notifications` · đợt 7
 `add-data-retention`.
 
@@ -365,7 +365,9 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   vào `identity/profile`); 9 của `listing/` (drafts, submission, placement, lifecycle, editing, display-period,
   suspension, visibility, deletion) — archive từ `add-listings` ngày 12/10/2026 (thêm requirement vào `group/badges`,
   `identity/profile`, `media/image-storage`); 3 của `trust/` (trust-tiers, quotas, seller-dashboard) — archive từ
-  `add-trust-tiers` cùng ngày (thêm requirement vào `group/group-roles`).
+  `add-trust-tiers` cùng ngày (thêm requirement vào `group/group-roles`); 7 của `screening/` (machine-decision,
+  risk-scoring, hard-gates, image-checks, banned-phrases, rule-management, explanations) — archive từ `add-screening`
+  ngày 13/10/2026 (thêm requirement vào `identity/profile`, `trust/seller-dashboard`).
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.

@@ -4,8 +4,8 @@ Mỗi lượt gửi tin (gửi nháp, gửi lại sau sửa, gia hạn, chuyển
 quả: **hiện đầy đủ**, **hiện hạn chế**, **giữ cho người duyệt**. Máy không từ chối tin, không trả tin về nháp, không
 ra gậy. App không gọi máy trực tiếp — chỉ đọc kết quả trên tin của mình và trên bảng uy tín.
 
-Hợp đồng đầy đủ: `openspec/changes/add-screening/specs/` (sau khi archive: `openspec/specs/screening/`); thiết kế ở
-`openspec/changes/add-screening/design.md`. Luật nghiệp vụ ở TK 13, TK 14.
+Hợp đồng đầy đủ: `openspec/specs/screening/`; thiết kế ở
+`openspec/changes/archive/2026-10-13-add-screening/design.md`. Luật nghiệp vụ ở TK 13, TK 14.
 
 ## Tin vừa gửi đứng ở "đang kiểm"
 
