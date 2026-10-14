@@ -34,7 +34,7 @@ socket.io ở `/realtime`) và các module:
   danh sách lớp), đơn vị con, vai, huy hiệu, thông báo của nhóm.
 - **`notification`**: hộp thư, bật tắt từng nhóm thông báo, tắt tiếng từng nhóm, gộp chuyện lặp lại, đẩy realtime
   — hướng dẫn cho app ở [`docs/realtime.md`](docs/realtime.md). Push lên điện thoại chưa làm.
-- **`media`** (đợt 2): kho ảnh chuẩn S3 (R2 ở production, RustFS khi dev / test), app tải thẳng bằng quyền tải
+- **`media`** (đợt 2): kho ảnh Cloudinary dùng tạm (về sau R2 chuẩn S3; test chạy RustFS), app tải thẳng bằng quyền tải
   một lần, nhãn "chưa xác nhận", dọn ảnh 6 giờ và đối chiếu hằng tháng; ảnh đại diện (ảnh trong kho hay ảnh Google)
   — hướng dẫn cho app ở [`docs/media.md`](docs/media.md).
 - **`listing`** (đợt 2): nháp, gửi, vòng đời tám trạng thái, sửa (qua máy lại hay áp ngay), ngày hiển thị và gia
@@ -120,6 +120,9 @@ Production chỉ chạy `pnpm db:deploy` (hoặc `pnpm db:deploy:prod` từ máy
 
 ## Trước khi chạy thật
 
+- **Kho ảnh**: hiện dùng tạm Cloudinary (`STORAGE_URL=cloudinary://…?folder=ghim-server`, mẫu ở
+  `.env.production.example`). Đường xem ảnh trên Cloudinary không hết hạn (lệch TK 25) — chuyển sang R2 trước khi có
+  người dùng thật.
 - **Kho ảnh R2**: bucket riêng cho production; khoá API chỉ có quyền đọc / ghi tệp của đúng bucket đó (server không
   tạo bucket ở production). Test cổng của kho (`tests/storage.test.ts`) mới chạy trên RustFS — chạy lại một lần trên
   R2 staging, bằng khoá có quyền tạo bucket:

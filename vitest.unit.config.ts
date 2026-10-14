@@ -11,6 +11,7 @@ import base from './vitest.config.js';
  */
 const PURE_TESTS = [
   'tests/build-regions.test.ts',
+  'tests/cloudinary-storage.test.ts',
   'tests/config-keys.test.ts',
   'tests/cursor.test.ts',
   'tests/env.test.ts',

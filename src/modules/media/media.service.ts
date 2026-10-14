@@ -164,9 +164,10 @@ export function createMediaService(deps: MediaServiceDeps): MediaService {
       return {
         imageId: image.id,
         upload: {
-          method: 'PUT',
+          method: grant.method,
           url: grant.url,
           headers: grant.headers,
+          fields: grant.fields,
           expiresAt: grant.expiresAt.toISOString(),
         },
       };

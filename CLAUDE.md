@@ -89,11 +89,14 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
   - Realtime (chốt 11/10/2026): **socket.io** gắn vào HTTP server của Fastify, đường dẫn `/realtime`, chỉ
     websocket. Chỉ chiều server → app; phòng theo người và theo phiên, không phòng theo nhóm. Hạ tầng dùng chung
     ở `src/common/realtime/`; nhắn tin (đợt 6) dùng lại. `socket.io-client` chỉ là devDependency để test.
-  - Kho ảnh (chốt 11/10/2026): **chuẩn S3** qua `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner` — Cloudflare
-    R2 ở production, **RustFS** trong docker-compose cho dev (`pnpm storage:up`, cổng 9100) và test (`storage-test`,
-    cổng 9110, tmpfs). Một biến `STORAGE_URL` (`src/config/storage-url.ts`); cửa duy nhất `src/lib/storage.ts`
-    (`Storage`: ký URL tải lên một lần kèm `If-None-Match: *`, ký đường xem có hạn, `head`, `read` có trần byte
-    cho máy duyệt băm ảnh, `deleteMany`, `list`).
+  - Kho ảnh (chốt 11/10/2026, đổi 14/10/2026): hai bộ nối sau cổng `Storage`, chọn bằng `STORAGE_URL`. **Cloudinary**
+    dùng tạm cho production và dev (`cloudinary://key:secret@cloud?folder=…`, `src/lib/cloudinary-storage.ts`, gọi API
+    bằng `fetch`, không SDK — change `use-cloudinary-storage`: Backblaze B2 không chặn được ghi đè ảnh). **Chuẩn S3**
+    qua `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner`: Cloudflare R2 về sau, **RustFS** trong docker-compose cho
+    test (`storage-test`, cổng 9110, tmpfs) và dev khi cần (`pnpm storage:up`, cổng 9100). Một biến `STORAGE_URL` (`src/config/storage-url.ts`); cửa duy nhất `src/lib/storage.ts`
+    (`Storage`: ký quyền tải một ảnh — S3 `PUT` kèm `If-None-Match: *`, Cloudinary `POST` biểu mẫu với
+    `overwrite=false` —, ký đường xem — S3 có hạn, Cloudinary không hết hạn —, `head`, `read` có trần byte cho máy
+    duyệt băm ảnh, `copy`, `deleteMany`, `list`).
     App tải thẳng, ảnh không qua server; hướng dẫn cho app ở `docs/media.md`. MinIO đã gỡ image khỏi Docker Hub.
 - **(chưa có)** — vẫn phải hỏi trước vì chưa chọn: push lên điện thoại (đề xuất Expo
   Push Service, hoãn tới khi app làm — design của `add-notification-core` mục 3), kiểm ảnh nhạy cảm, theo dõi lỗi

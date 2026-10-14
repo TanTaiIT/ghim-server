@@ -28,7 +28,7 @@ import { createJobs, type Jobs } from './lib/jobs.js';
 import { logger } from './lib/logger.js';
 import { createFakeMailer, createSmtpMailer, type Mailer } from './lib/mailer.js';
 import { prisma } from './lib/prisma.js';
-import { createS3Storage, type Storage } from './lib/storage.js';
+import { createStorage, type Storage } from './lib/storage.js';
 import { createCategoryModule } from './modules/category/category.module.js';
 import {
   createCategoryRepository,
@@ -211,7 +211,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     repositories,
     jobs: overrides.jobs ?? createJobs(env.DATABASE_URL, { max: env.JOBS_POOL_MAX }),
     mailer: overrides.mailer ?? defaultMailer(),
-    storage: overrides.storage ?? createS3Storage(parseStorageUrl(env.STORAGE_URL)),
+    storage: overrides.storage ?? createStorage(parseStorageUrl(env.STORAGE_URL)),
     googleVerifier: overrides.googleVerifier ?? createGoogleTokenVerifier(env.GOOGLE_CLIENT_IDS),
     privilegeSource:
       overrides.privilegeSource ?? createPlatformPrivilegeSource(repositories.platform),

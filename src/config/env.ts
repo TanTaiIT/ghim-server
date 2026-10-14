@@ -69,9 +69,9 @@ const envSchema = z
     SMTP_URL: z.string().url().optional(),
     MAIL_FROM: z.string().min(3),
     /**
-     * Kho ảnh chuẩn S3: `http(s)://<key>:<secret>@<host>[:port]/<bucket>[?region=auto]`. Production là Cloudflare R2,
-     * dev và test là RustFS trong docker-compose. Host phải là chỗ điện thoại với tới được: URL tải lên và đường xem
-     * ký theo host này.
+     * Kho ảnh: `cloudinary://<api_key>:<api_secret>@<cloud_name>?folder=…` (dùng tạm, change use-cloudinary-storage) hay
+     * chuẩn S3 `http(s)://<key>:<secret>@<host>[:port]/<bucket>[?region=auto]` (R2 về sau; test là RustFS trong
+     * docker-compose). Kho S3: host phải là chỗ điện thoại với tới được — URL tải lên và đường xem ký theo host này.
      */
     STORAGE_URL: z.string().url(),
     /**

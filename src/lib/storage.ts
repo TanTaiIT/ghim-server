@@ -12,12 +12,18 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-import type { StorageConfig } from '../config/storage-url.js';
+import type { S3StorageConfig, StorageConfig } from '../config/storage-url.js';
+import { createCloudinaryStorage } from './cloudinary-storage.js';
 
+/**
+ * Quyền tải một ảnh. `PUT` (kho S3): gửi thân tệp kèm đúng các `headers` — chữ ký phủ cả ba, sai một cái là kho từ chối.
+ * `POST` (Cloudinary): gửi biểu mẫu multipart gồm nguyên văn `fields`, tệp ở trường `file` sau cùng.
+ */
 export interface UploadGrant {
+  method: 'PUT' | 'POST';
   url: string;
-  /** App phải gửi đúng ba header này: chữ ký phủ cả ba, sai một cái là kho từ chối. */
   headers: Record<string, string>;
+  fields: Record<string, string>;
   expiresAt: Date;
 }
 
@@ -31,6 +37,8 @@ export interface StoredObject {
  * đồng hồ của chính nó. `signedAt` chỉ để test dựng một chữ ký đã quá hạn.
  */
 export interface Storage {
+  /** Công cụ kiểm kho biết chờ điều gì; module không rẽ nhánh theo nó. */
+  readonly kind: StorageConfig['kind'];
   readonly bucket: string;
   presignUpload(input: {
     key: string;
@@ -40,8 +48,9 @@ export interface Storage {
     signedAt?: Date;
   }): Promise<UploadGrant>;
   /**
-   * Đường xem có hạn. Ký từ đầu khung `ttlSeconds` hiện tại, hạn hai khung: cùng một ảnh trong cùng khung ra cùng
-   * một URL (app và CDN cache được), và URL nào cũng còn sống ít nhất `ttlSeconds`.
+   * Đường xem. Kho S3: có hạn — ký từ đầu khung `ttlSeconds` hiện tại, hạn hai khung: cùng một ảnh trong cùng khung ra
+   * cùng một URL (app và CDN cache được), và URL nào cũng còn sống ít nhất `ttlSeconds`. Cloudinary: có chữ ký nhưng
+   * không hết hạn (design use-cloudinary-storage, chấp nhận tới khi chuyển R2).
    */
   viewUrl(key: string, ttlSeconds: number, signedAt?: Date): Promise<string>;
   head(key: string): Promise<{ byteSize: number; contentType: string | null } | null>;
@@ -72,7 +81,10 @@ const isMissing = (error: unknown): boolean =>
     error.name === 'NotFound' ||
     error.name === 'NoSuchKey');
 
-export function createS3Storage(config: StorageConfig): Storage {
+export const createStorage = (config: StorageConfig): Storage =>
+  config.kind === 'cloudinary' ? createCloudinaryStorage(config) : createS3Storage(config);
+
+export function createS3Storage(config: S3StorageConfig): Storage {
   const client = new S3Client({
     endpoint: config.endpoint,
     region: config.region,
@@ -96,6 +108,7 @@ export function createS3Storage(config: StorageConfig): Storage {
   };
 
   return {
+    kind: 's3',
     bucket,
 
     async presignUpload({ key, contentType, byteSize, ttlSeconds, signedAt = new Date() }) {
@@ -112,8 +125,10 @@ export function createS3Storage(config: StorageConfig): Storage {
         { expiresIn: ttlSeconds, signingDate: signedAt, signableHeaders: SIGNED_UPLOAD_HEADERS },
       );
       return {
+        method: 'PUT',
         url,
         headers: { 'Content-Type': contentType, 'If-None-Match': '*' },
+        fields: {},
         expiresAt: new Date(signedAt.getTime() + ttlSeconds * 1000),
       };
     },
