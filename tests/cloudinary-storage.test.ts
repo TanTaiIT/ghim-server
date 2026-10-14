@@ -8,7 +8,8 @@ import {
 
 /*
  * Bộ nối Cloudinary (change use-cloudinary-storage) với `fetch` giả: chữ ký, trường của quyền tải, đường xem, cách gọi
- * Admin API. Đúng với Cloudinary thật hay không thì `pnpm cli:check-storage` kiểm trên tài khoản thật.
+ * Admin API. Cloudinary không chạy được trong docker-compose, nên khớp với kho thật hay không chỉ kiểm tay trên tài
+ * khoản thật (task 3.1 của change use-cloudinary-storage).
  */
 const CONFIG = {
   kind: 'cloudinary' as const,
