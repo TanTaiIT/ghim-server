@@ -25,8 +25,8 @@
 - [x] 1.2 Migration `init_listing` sinh **không cần DB**: `prisma migrate diff --from-schema <schema ở HEAD>
 --to-schema prisma/schema.prisma --script`, đọc SQL, thêm CHECK (giá không âm, nơi đăng ↔ nhóm, đủ trường khi
       khác nháp, huy hiệu chỉ ở sàn chung, đồng hồ chạy XOR dừng, `fault` chỉ ở bị từ chối / bị gỡ); xác minh trên CI:
-      `migrate deploy` qua và `pnpm db:drift` ra "No difference detected"
-- [x] 1.3 `tests/listing.db.test.ts`: mỗi CHECK (23514), unique (`listing_id`, `from_version`), unique
+      `migrate deploy` qua và `pnpm db:drift` ra "No difference detected" — đã qua trên Neon Postgres 18.6 ngày 13/10/2026
+- [ ] 1.3 `tests/listing.db.test.ts`: mỗi CHECK (23514), unique (`listing_id`, `from_version`), unique
       `moved_from_listing_id`, PK `listing_badge_blocks`, FK sang `accounts`, `groups`, `categories`; xác minh CI xanh
 
 ## 2. Phần tính toán thuần (xác minh bằng `pnpm test:unit`)
