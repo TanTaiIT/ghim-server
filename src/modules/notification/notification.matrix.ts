@@ -58,6 +58,8 @@ export interface MatrixContext {
   pendingCount(groupId: string): Promise<number>;
   /** Tiêu đề tin theo mã — `listing` trả lời; tin không có (đã xoá hẳn) thì vắng trong kết quả. */
   listingTitles(ids: string[]): Promise<Map<string, string>>;
+  /** Người đăng và tiêu đề của tin chưa xoá — `listing` trả lời; tin đã xoá hay không có thì vắng. */
+  listingTargets(ids: string[]): Promise<Map<string, { ownerId: string; title: string | null }>>;
 }
 
 export type Payload = Record<string, unknown>;

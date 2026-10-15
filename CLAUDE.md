@@ -223,6 +223,9 @@ tests/*.db.test.ts            ← ghi thẳng bằng Prisma để kiểm ràng b
 | 7    | `ops`          | 25, 26     | Outbox dispatcher, job theo lịch, dọn dữ liệu, tạm giữ bằng chứng                  |
 
 `media` lên đợt 2 (TK 29 xếp ở đợt 3) vì nháp tin đăng đã cần ảnh; chỉ phần **kiểm** ảnh ở đợt 3.
+`notification` nghe `group.*`, các `listing.*` có dòng ma trận (`notification.listing-matrix.ts`) và
+`media.image.missing` (`notification.media-matrix.ts`, N38 ảnh tin, N39 ảnh đại diện — change `notify-missing-images`);
+câu cần tiêu đề hay người đăng của tin thì hỏi `listing` qua cổng (`titles`, `noticeTargets`), không đọc bảng của nó.
 Endpoint của bàn vận hành nằm trong module sở hữu dữ liệu, đăng ký dưới tiền tố `/api/v1/ops/...` —
 không có module `ops-*` gom route của người khác.
 

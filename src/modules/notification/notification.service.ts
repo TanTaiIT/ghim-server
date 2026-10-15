@@ -7,6 +7,7 @@ import type { OutboxEventRef } from '../../common/outbox/dispatcher.js';
 import type { Realtime } from '../../common/realtime/realtime.js';
 import { sequentially } from '../../common/utils/sequential.js';
 import type { AccountSummary } from '../identity/identity.service.js';
+import type { ListingService } from '../listing/listing.service.js';
 import {
   GROUP_MATRIX,
   type GroupFanOut,
@@ -15,6 +16,7 @@ import {
   type NoticeDraft,
 } from './notification.matrix.js';
 import { LISTING_MATRIX } from './notification.listing-matrix.js';
+import { MEDIA_MATRIX } from './notification.media-matrix.js';
 import type { NotificationRepository, NotificationRow } from './notification.repository.js';
 import {
   ALWAYS_ON,
@@ -45,8 +47,8 @@ export interface NotificationServiceDeps {
   repository: NotificationRepository;
   groups: NotificationGroupPort;
   identity: { accountSummaries(ids: string[]): Promise<Map<string, AccountSummary>> };
-  /** Tiêu đề tin cho câu thông báo — `notification` không đọc bảng `listings` (TK 30). */
-  listings: { titles(ids: string[]): Promise<Map<string, string>> };
+  /** Tiêu đề, người đăng của tin cho câu thông báo — `notification` không đọc bảng `listings` (TK 30). */
+  listings: Pick<ListingService, 'titles' | 'noticeTargets'>;
   realtime: Realtime;
   config: RuntimeConfig;
   clock: () => Date;
@@ -109,6 +111,7 @@ export function createNotificationService(deps: NotificationServiceDeps): Notifi
     },
     pendingCount: (groupId) => groups.countPendingRequests(groupId),
     listingTitles: (ids) => listings.titles(ids),
+    listingTargets: (ids) => listings.noticeTargets(ids),
   };
 
   /** Ai trong danh sách được nhắc — thông báo vẫn vào hộp thư của tất cả. */
@@ -245,7 +248,8 @@ export function createNotificationService(deps: NotificationServiceDeps): Notifi
 
   return {
     async handleEvent(payload, event) {
-      const handler: Handler | undefined = GROUP_MATRIX[event.type] ?? LISTING_MATRIX[event.type];
+      const handler: Handler | undefined =
+        GROUP_MATRIX[event.type] ?? LISTING_MATRIX[event.type] ?? MEDIA_MATRIX[event.type];
       if (!handler) return;
       const result = await handler(payload, context);
       await sequentially(result.drafts, ({ recipients, ...draft }) =>

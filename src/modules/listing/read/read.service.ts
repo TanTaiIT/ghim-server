@@ -37,6 +37,11 @@ export interface ListingReadService {
   ): Promise<CursorPage<OwnListingDto>>;
   /** Cổng cho `notification`: tiêu đề tin theo mã, để câu thông báo nêu đúng món đồ. */
   titles(ids: string[]): Promise<Map<string, string>>;
+  /**
+   * Cổng cho `notification`: người đăng và tiêu đề của tin chưa xoá. Tin đã xoá thì vắng — người đăng không còn việc gì
+   * để làm với nó, nên không ai được báo (change notify-missing-images).
+   */
+  noticeTargets(ids: string[]): Promise<Map<string, { ownerId: string; title: string | null }>>;
 }
 
 /** Gợi ý ngắn, không phân trang: vài tin cùng danh mục để người xem đi tiếp. */
@@ -152,6 +157,17 @@ export function createListingReadService(shared: ListingShared): ListingReadServ
     async titles(ids) {
       const rows = await repository.findByIds(ids);
       return new Map(rows.flatMap((row) => (row.title ? [[row.id, row.title] as const] : [])));
+    },
+
+    async noticeTargets(ids) {
+      const rows = await repository.findByIds(ids);
+      return new Map(
+        rows.flatMap((row) =>
+          row.deletedAt === null
+            ? [[row.id, { ownerId: row.ownerId, title: row.title }] as const]
+            : [],
+        ),
+      );
     },
   };
 }

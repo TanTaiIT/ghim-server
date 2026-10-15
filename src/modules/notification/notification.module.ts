@@ -1,6 +1,7 @@
 import type { AppModule } from '../../common/module/app-module.js';
 import { GROUP_EVENTS } from '../group/group.outbox.js';
 import { LISTING_NOTICE_EVENTS } from './notification.listing-matrix.js';
+import { MEDIA_NOTICE_EVENTS } from './notification.media-matrix.js';
 import { notificationRoutes } from './notification.routes.js';
 import {
   createNotificationService,
@@ -20,9 +21,14 @@ export function createNotificationModule(deps: NotificationServiceDeps): {
       routes: async (app) => {
         await app.register(notificationRoutes, { notification: service });
       },
-      // Nghe mọi sự kiện `group.*` và các sự kiện `listing.*` có dòng ma trận; ma trận quyết loại nào thành thông báo.
+      // Nghe mọi sự kiện `group.*`, các sự kiện `listing.*` và `media.*` có dòng ma trận; ma trận quyết loại nào thành
+      // thông báo.
       listeners: (dispatcher) => {
-        for (const type of [...Object.values(GROUP_EVENTS), ...LISTING_NOTICE_EVENTS]) {
+        for (const type of [
+          ...Object.values(GROUP_EVENTS),
+          ...LISTING_NOTICE_EVENTS,
+          ...MEDIA_NOTICE_EVENTS,
+        ]) {
           dispatcher.register(type, (payload, event) => service.handleEvent(payload, event));
         }
       },
