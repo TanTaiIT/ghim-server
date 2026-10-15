@@ -60,6 +60,11 @@ MUST NOT bao giờ dẫn tới cho qua, và tin vẫn được nhận chứ khô
 - **WHEN** chữ của tin không trúng dấu hiệu nào nhưng việc kiểm một trong các ảnh báo lỗi
 - **THEN** kết quả máy là giữ cho người, không phải hiện đầy đủ hay hiện hạn chế
 
+#### Scenario: Lỗi lúc kết luận
+
+- **WHEN** việc đọc dữ kiện để kết luận lượt máy duyệt báo lỗi lúc một tin được gửi
+- **THEN** tin vẫn được nhận và kết quả máy là giữ cho người
+
 ### Requirement: Đang kiểm quá 5 phút thì giữ cho người
 
 Tin ở trạng thái đang kiểm quá 5 phút (giá trị khởi đầu) mà chưa đủ kết quả cho chữ và mọi ảnh SHALL bị giữ

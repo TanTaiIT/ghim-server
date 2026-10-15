@@ -1,3 +1,4 @@
+import { sequentially } from '../../../common/utils/sequential.js';
 import { logger } from '../../../lib/logger.js';
 import { bandsOf, toStored } from '../calc/dhash.calc.js';
 import { IMAGE_CHECK_RETRIES } from '../screening.jobs.js';
@@ -24,11 +25,12 @@ export function createImageService(
 ): ScreeningImageService {
   const { repository, media, hasher, clock } = shared;
 
+  /** Lần lượt: mỗi lượt kết luận giữ một kết nối trong transaction của nó — song song thì cạn pool khi đông (T24). */
   const concludeWaiting = async (imageId: string): Promise<void> => {
     const runs = await repository.openRunsWithImage(imageId);
-    await Promise.all(
-      runs.map((run) => repository.inTransaction((tx) => conclusion.conclude(tx, run))),
-    );
+    await sequentially(runs, async (run) => {
+      await repository.inTransaction((tx) => conclusion.conclude(tx, run));
+    });
   };
 
   return {
@@ -44,20 +46,23 @@ export function createImageService(
       const check = await repository.findImageCheck(imageId);
       if (check?.status !== 'pending') return;
       let bytes: Uint8Array | null;
+      let storageDown = false;
       try {
         bytes = await media.readImage(imageId);
       } catch (error) {
-        // Kho không trả lời: lỗi thoáng qua, để hàng việc thử lại; hết lượt thì giữ cho người.
+        // Kho không trả lời: lỗi thoáng qua, để hàng việc thử lại; hết lượt thì giữ cho người — và lượt gửi sau dùng
+        // ảnh này kiểm lại (T21).
         if ((await repository.bumpAttempts(imageId)) <= IMAGE_CHECK_RETRIES) throw error;
         logger.warn({ err: error, imageId }, 'screening: đọc ảnh hết lượt thử, giữ cho người');
         bytes = null;
+        storageDown = true;
       }
       // Kho mất tệp hay tệp không giải mã được thì thử lại cũng vậy: ghi lỗi ngay.
       const hash = bytes ? await hasher.dhash(bytes).catch(() => null) : null;
       const recorded = await repository.finishImageCheck(
         imageId,
         hash === null
-          ? { status: 'error' }
+          ? { status: 'error', kind: storageDown ? 'transient' : 'permanent' }
           : { status: 'done', dhash: toStored(hash), bands: bandsOf(hash) },
         clock(),
       );

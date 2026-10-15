@@ -170,6 +170,8 @@ export function createRunService(
         configVersion: scored.result.configVersion,
         ruleVersion: scored.result.ruleVersion,
       });
+      // Ảnh lỗi tạm của lượt trước được kiểm lại: lượt này chờ kết quả mới thay vì giữ ngay (T21).
+      await repository.retryTransient(tx, run.imageIds);
       await conclusion.conclude(tx, run);
     },
   };

@@ -1,8 +1,10 @@
-import type { ListingFault, ListingState } from '@prisma/client';
+import type { ListingFault, ListingState, Prisma } from '@prisma/client';
 
 import { sequentially } from '../../common/utils/sequential.js';
 import { computeTier, factsHash, type TrustTier } from './calc/tier.calc.js';
 import { DAY_MS, HOUR_MS, tierSettings, type TrustServiceDeps } from './trust.shared.js';
+
+type Tx = Prisma.TransactionClient;
 
 export interface ListingStateChange {
   listingId: string;
@@ -30,8 +32,6 @@ export interface TrustTierService {
   onAccountDeleted(accountId: string): Promise<void>;
 }
 
-/** Hai lượt tính đua nhau thì lượt thua đọc lại và tính lại; quá số lần này là có gì đó ghi liên tục — để lượt sau lo. */
-const MAX_ATTEMPTS = 3;
 const PAGE = 500;
 /** Lượt hằng ngày lỡ một ngày vẫn bắt kịp tin được thấy trong hai ngày qua (design mục 5). */
 const CATCH_UP_MS = 48 * HOUR_MS;
@@ -39,12 +39,10 @@ const CATCH_UP_MS = 48 * HOUR_MS;
 export function createTrustTierService(deps: TrustServiceDeps): TrustTierService {
   const { repository, listings, identity, buyerInterest, config, clock } = deps;
 
-  const recompute = async (accountId: string, attempt = 1): Promise<TrustTier> => {
-    const [summaries, current, clean] = await Promise.all([
-      identity.accountSummaries([accountId]),
-      repository.findTier(accountId),
-      repository.validClean(accountId),
-    ]);
+  const recomputeIn = async (tx: Tx, accountId: string): Promise<TrustTier> => {
+    const summaries = await identity.accountSummaries([accountId]);
+    const current = await repository.findTier(accountId, tx);
+    const clean = await repository.validClean(accountId, tx);
     const account = summaries.get(accountId);
     if (!account || account.status === 'deleted') return current?.tier ?? 'T0';
     const now = clock();
@@ -63,19 +61,29 @@ export function createTrustTierService(deps: TrustServiceDeps): TrustTierService
     ) {
       return current.tier;
     }
-    const written = await repository.writeTier({
-      accountId,
-      expectHash: current?.factsHash ?? null,
-      fromTier: current?.tier ?? 'T0',
-      tier: result.tier,
-      countedClean: result.countedClean,
-      factsHash: hash,
-      configVersion,
-      at: now,
-    });
-    if (written === 'stale' && attempt < MAX_ATTEMPTS) return recompute(accountId, attempt + 1);
+    await repository.writeTier(
+      {
+        accountId,
+        expectHash: current?.factsHash ?? null,
+        fromTier: current?.tier ?? 'T0',
+        tier: result.tier,
+        countedClean: result.countedClean,
+        factsHash: hash,
+        configVersion,
+        at: now,
+      },
+      tx,
+    );
     return result.tier;
   };
+
+  /**
+   * Dưới khoá theo tài khoản, đọc và ghi trong cùng transaction (T23): lượt tính chạy song song với một lượt gỡ vì vi phạm
+   * không ghi đè mức bằng dữ kiện cũ. Dữ kiện tin sạch ghi ngoài khoá, nhưng mỗi lượt ghi kéo theo một lượt tính xếp sau
+   * nó — lượt tính sau cùng luôn thấy dữ kiện mới nhất.
+   */
+  const recompute = (accountId: string): Promise<TrustTier> =>
+    repository.withAccountLock(accountId, (tx) => recomputeIn(tx, accountId));
 
   const recomputePages = async (after: string | null, done: number): Promise<number> => {
     const ids = await repository.recomputeCandidates({
@@ -115,14 +123,25 @@ export function createTrustTierService(deps: TrustServiceDeps): TrustTierService
         }
         return;
       }
+      // Hai lối giữ như cũ, nhưng chỉ ghi khi trạng thái hiện tại của tin còn đúng chiều: lượt gỡ được xử lại sau khiếu
+      // nại thắng không làm tin mất tư cách, lượt khôi phục xử lại khi tin lại bị gỡ không trả tư cách
+      // (fix-audit-screening-trust).
+      const removal = (to === 'removed' || to === 'rejected') && fault === 'violation';
+      const restore = to === 'live' && (from === 'removed' || from === 'rejected');
+      if (!removal && !restore) return;
+      const current = await listings.stateOf(listingId);
+      const violated =
+        current !== null &&
+        (current.state === 'removed' || current.state === 'rejected') &&
+        current.fault === 'violation';
       // Chỉ vi phạm mới mất tư cách; gỡ vì sai sót không trừ gì (TK 20).
-      if ((to === 'removed' || to === 'rejected') && fault === 'violation') {
+      if (removal && violated) {
         await repository.voidClean({ listingId, accountId: ownerId, cause: 'violation', at: now });
         await recompute(ownerId);
         return;
       }
       // Khôi phục, khiếu nại thắng: có lại tư cách với mốc cũ (câu 2).
-      if (to === 'live' && (from === 'removed' || from === 'rejected')) {
+      if (restore && current !== null && !violated) {
         await repository.unvoidClean(listingId, 'violation');
         await recompute(ownerId);
       }

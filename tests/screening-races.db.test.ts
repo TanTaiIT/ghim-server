@@ -20,7 +20,7 @@ import {
   tierPort,
   uniqueHash,
 } from './screening-helpers.js';
-import { buildTestApp } from './test-app.js';
+import { buildTestApp, repositories } from './test-app.js';
 
 /*
  * Bảng tranh chấp của design add-screening mục 14 — mỗi dòng hai lượt song song trên Postgres thật — cùng các việc nền
@@ -345,5 +345,38 @@ describe('Kiểm ảnh không bị bỏ (fix-audit-image-checks)', () => {
     });
     await deliverAll(app);
     expect((await getOwn(app, user, listing.id)).restrictions).toEqual([]);
+  });
+});
+
+describe('Kết luận trong transaction của lượt (fix-audit-screening-trust, T24)', () => {
+  it('đọc ứng viên ảnh trùng lỗi SQL lúc gửi: tin vẫn được nhận, giữ cho người; transaction ghi tiếp sau savepoint', async () => {
+    const reads: (object | undefined)[] = [];
+    const broken = await buildTestApp({
+      clock: () => now,
+      trust: tierPort(tiers),
+      jobs: createFakeJobs(),
+      repositories: {
+        screening: {
+          ...repositories.screening,
+          async duplicateCandidates(_input, tx) {
+            reads.push(tx);
+            await (tx ?? prisma).$executeRaw`SELECT 1 / 0`;
+            return [];
+          },
+        },
+      },
+    });
+    try {
+      const user = await newUser(broken);
+      tiers.set(user.id, 'T2');
+      const { listing, run } = await screened(broken, user);
+      expect(run).toMatchObject({ outcome: 'hold', cause: 'error' });
+      expect(listing.state).toBe('pending');
+      // Đọc qua đúng transaction của lượt gửi — không xin thêm kết nối của pool.
+      expect(reads.length).toBeGreaterThan(0);
+      expect(reads.every((tx) => tx !== undefined)).toBe(true);
+    } finally {
+      await broken.close();
+    }
   });
 });

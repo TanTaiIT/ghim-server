@@ -11,7 +11,7 @@ import type { MediaService } from '../media/media.service.js';
 import { buildPhraseMatcher, type PhraseMatcher } from './calc/phrase.calc.js';
 import type { BandThresholds, RawHit, RuleSnapshot } from './calc/score.calc.js';
 import { INITIAL_RULES } from './screening.rules.js';
-import type { ScreeningRepository } from './screening.repository.js';
+import type { ScreeningRepository, Tx } from './screening.repository.js';
 import type { SignalLimits } from './calc/signals.calc.js';
 
 // ── CỔNG ─────────────────────────────────────────────────────────────────────────────────────────
@@ -129,11 +129,11 @@ export function createRuleSource(repository: ScreeningRepository) {
   };
 
   /** Đúng phiên bản lượt đã đọc lúc chấm chữ — kết luận lúc ảnh về không đổi luật giữa chừng (design mục 5). */
-  const at = async (version: number): Promise<LoadedRules> => {
+  const at = async (version: number, tx?: Tx): Promise<LoadedRules> => {
     const cached = loaded.get(version);
     if (cached) return cached;
     if (version === 0) return remember(0, UNSEEDED);
-    const row = await repository.ruleVersion(version);
+    const row = await repository.ruleVersion(version, tx);
     if (!row) throw new Error(`Không có phiên bản luật ${version}`);
     return remember(version, row.snapshot);
   };

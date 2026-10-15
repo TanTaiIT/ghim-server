@@ -7,7 +7,7 @@ import type { TrustRepository } from './trust.repository.js';
 /** Dữ kiện tin đăng `trust` cần — `listing` trả lời, `trust` không đọc bảng `listings` (design mục 1, luật 12). */
 export type TrustListingPort = Pick<
   ListingFactsService,
-  'quotaFacts' | 'occupying' | 'dashboardFacts' | 'shownCandidates' | 'shownMs'
+  'quotaFacts' | 'occupying' | 'dashboardFacts' | 'shownCandidates' | 'shownMs' | 'stateOf'
 >;
 
 /** Tuổi tài khoản tính từ lúc tạo (câu 6) — `identity` trả lời; tài khoản đã xoá thì không tính lại. */

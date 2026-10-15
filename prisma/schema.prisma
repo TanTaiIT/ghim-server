@@ -1311,6 +1311,15 @@ enum ImageCheckStatus {
   @@map("image_check_status")
 }
 
+/// Loại lỗi của việc kiểm ảnh: `transient` = kho không trả lời sau mọi lượt thử — lượt gửi sau kiểm lại; `permanent` =
+/// tệp mất hay không giải mã được (fix-audit-screening-trust, T21).
+enum ImageCheckErrorKind {
+  transient
+  permanent
+
+  @@map("image_check_error_kind")
+}
+
 /// Dấu hiệu cộng điểm, hay cổng cứng giữ tin (TK 13, 14).
 enum ScreeningRuleKind {
   signal
@@ -1381,9 +1390,11 @@ model ScreeningRun {
 /// ứng viên: hai ảnh lệch ≤ 4 bit chắc chắn trùng nguyên ít nhất một dải (design mục 3). CHECK tay (migration
 /// init_screening):
 ///   image_checks_done_check: (status = 'done') = (dhash IS NOT NULL)
+/// CHECK tay (migration fix_audit_image_retry):
+///   image_checks_error_kind_check: (status = 'error') = (error_kind IS NOT NULL)
 model ImageCheck {
-  imageId        String           @id @map("image_id") @db.Uuid
-  ownerAccountId String           @map("owner_account_id") @db.Uuid
+  imageId        String               @id @map("image_id") @db.Uuid
+  ownerAccountId String               @map("owner_account_id") @db.Uuid
   status         ImageCheckStatus
   dhash          BigInt?
   band0          Int?
@@ -1391,11 +1402,12 @@ model ImageCheck {
   band2          Int?
   band3          Int?
   band4          Int?
-  attempts       Int              @default(0)
-  checkedAt      DateTime?        @map("checked_at") @db.Timestamptz(3)
+  attempts       Int                  @default(0)
+  checkedAt      DateTime?            @map("checked_at") @db.Timestamptz(3)
   /// Lần xếp việc kiểm gần nhất; trống = chưa xếp được (gửi việc hỏng). Ảnh `pending` trống hay xếp quá thời gian chờ
   /// ảnh thì được xếp lại — mỗi ảnh một lần mỗi khoảng, không dồn việc trùng (fix-audit-image-checks).
-  queuedAt       DateTime?        @map("queued_at") @db.Timestamptz(3)
+  queuedAt       DateTime?            @map("queued_at") @db.Timestamptz(3)
+  errorKind      ImageCheckErrorKind? @map("error_kind")
 
   @@index([queuedAt], where: raw("status = 'pending'"), map: "image_checks_pending_queued_idx")
   @@index([band0], where: raw("status = 'done'"), map: "image_checks_band0_idx")

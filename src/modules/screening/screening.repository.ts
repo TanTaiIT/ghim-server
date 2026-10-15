@@ -1,6 +1,7 @@
 import {
   type BannedPhrase,
   type ImageCheck,
+  type ImageCheckErrorKind,
   type ImageWhitelistEntry,
   Prisma,
   type PrismaClient,
@@ -78,7 +79,7 @@ export interface ScreeningRepository {
   /** Số phiên bản hiện hành — một lượt đọc khoá chính, để bộ nhớ đệm biết lúc nào phải nạp lại. */
   ruleVersionNumber(): Promise<number | null>;
   currentRuleVersion(): Promise<RuleVersion | null>;
-  ruleVersion(version: number): Promise<RuleVersion | null>;
+  ruleVersion(version: number, tx?: Tx): Promise<RuleVersion | null>;
   /**
    * Một lần đổi luật, ghi đè, dải hay cụm: dưới khoá, đổi → ảnh chụp phiên bản mới → nhật ký, cùng transaction (spec
    * rule-management: mỗi lần đổi là một phiên bản). `change` trả `null` = không có gì để đổi, không tạo phiên bản.
@@ -204,16 +205,31 @@ export interface ScreeningRepository {
   /** Ghi kết quả khi dòng còn `pending`; `false` = việc kiểm khác đã ghi trước (việc trùng không ghi đè). */
   finishImageCheck(
     imageId: string,
-    result: ({ status: 'done' } & StoredHash) | { status: 'error' },
+    result: ({ status: 'done' } & StoredHash) | { status: 'error'; kind: ImageCheckErrorKind },
     at: Date,
   ): Promise<boolean>;
+  /**
+   * Lượt gửi mới dùng ảnh lỗi tạm (kho không trả lời): đưa về `pending`, chưa xếp, để lượt chờ kết quả mới thay vì giữ
+   * ngay (fix-audit-screening-trust, T21). Trả các ảnh vừa đưa về.
+   */
+  retryTransient(tx: Tx, imageIds: string[]): Promise<string[]>;
   /** Ảnh đã kiểm của tài khoản khác chung ít nhất một dải — ứng viên trùng, còn phải so khoảng cách. */
-  duplicateCandidates(input: {
-    bands: readonly number[];
-    excludeOwner: string;
-    excludeImageIds: string[];
-  }): Promise<Pick<ImageCheck, 'imageId' | 'dhash' | 'ownerAccountId'>[]>;
-  whitelistCandidates(bands: readonly number[]): Promise<Pick<ImageWhitelistEntry, 'dhash'>[]>;
+  duplicateCandidates(
+    input: { bands: readonly number[]; excludeOwner: string; excludeImageIds: string[] },
+    tx?: Tx,
+  ): Promise<Pick<ImageCheck, 'imageId' | 'dhash' | 'ownerAccountId'>[]>;
+  whitelistCandidates(
+    bands: readonly number[],
+    tx?: Tx,
+  ): Promise<Pick<ImageWhitelistEntry, 'dhash'>[]>;
+  /**
+   * Chạy `work` trong một savepoint của `tx`: lỗi thì quay về savepoint — transaction ghi tiếp được — và trả lỗi thay vì
+   * ném. Kết luận lượt máy duyệt dùng để lỗi lúc đọc thành "giữ cho người" (fix-audit-screening-trust, T24).
+   */
+  guarded<T>(
+    tx: Tx,
+    work: () => Promise<T>,
+  ): Promise<{ ok: true; value: T } | { ok: false; error: unknown }>;
   addWhitelist(
     entry: StoredHash & { sourceImageId: string; addedBy: string; at: Date },
     audit: AuditEntry,
@@ -328,8 +344,8 @@ export function createScreeningRepository(prisma: PrismaClient): ScreeningReposi
       return row ? toRuleVersion(row) : null;
     },
 
-    async ruleVersion(version) {
-      const row = await prisma.screeningRuleVersion.findUnique({ where: { version } });
+    async ruleVersion(version, tx) {
+      const row = await (tx ?? prisma).screeningRuleVersion.findUnique({ where: { version } });
       return row ? toRuleVersion(row) : null;
     },
 
@@ -526,9 +542,19 @@ export function createScreeningRepository(prisma: PrismaClient): ScreeningReposi
         data:
           result.status === 'done'
             ? { status: 'done', dhash: result.dhash, ...bandColumns(result.bands), checkedAt: at }
-            : { status: 'error', checkedAt: at },
+            : { status: 'error', errorKind: result.kind, checkedAt: at },
       });
       return count === 1;
+    },
+
+    async retryTransient(tx, imageIds) {
+      if (imageIds.length === 0) return [];
+      const rows = await tx.$queryRaw<{ image_id: string }[]>`
+        UPDATE image_checks
+           SET status = 'pending', error_kind = NULL, attempts = 0, queued_at = NULL, checked_at = NULL
+         WHERE image_id = ANY(${imageIds}::uuid[]) AND status = 'error' AND error_kind = 'transient'
+        RETURNING image_id`;
+      return rows.map((row) => row.image_id);
     },
 
     async claimQueued(imageIds, staleBefore, now) {
@@ -563,8 +589,8 @@ export function createScreeningRepository(prisma: PrismaClient): ScreeningReposi
       });
     },
 
-    duplicateCandidates: ({ bands, excludeOwner, excludeImageIds }) =>
-      prisma.imageCheck.findMany({
+    duplicateCandidates: ({ bands, excludeOwner, excludeImageIds }, tx) =>
+      (tx ?? prisma).imageCheck.findMany({
         where: {
           status: 'done',
           ownerAccountId: { not: excludeOwner },
@@ -574,11 +600,23 @@ export function createScreeningRepository(prisma: PrismaClient): ScreeningReposi
         select: { imageId: true, dhash: true, ownerAccountId: true },
       }),
 
-    whitelistCandidates: (bands) =>
-      prisma.imageWhitelistEntry.findMany({
+    whitelistCandidates: (bands, tx) =>
+      (tx ?? prisma).imageWhitelistEntry.findMany({
         where: { OR: anyBand(bands) },
         select: { dhash: true },
       }),
+
+    async guarded(tx, work) {
+      await tx.$executeRaw`SAVEPOINT screening_conclude`;
+      try {
+        const value = await work();
+        await tx.$executeRaw`RELEASE SAVEPOINT screening_conclude`;
+        return { ok: true, value };
+      } catch (error) {
+        await tx.$executeRaw`ROLLBACK TO SAVEPOINT screening_conclude`;
+        return { ok: false, error };
+      }
+    },
 
     addWhitelist: ({ dhash, bands, sourceImageId, addedBy, at }, audit) =>
       prisma.$transaction(async (tx) => {

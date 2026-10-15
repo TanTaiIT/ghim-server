@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { hamming } from '../src/modules/screening/calc/dhash.calc.js';
 import { sharpHasher } from '../src/modules/screening/run/image-hash.js';
+import { prisma } from './db-helpers.js';
 import { createFakeJobs, type FakeJobs } from './fakes/jobs.fake.js';
 import { api, deliverAll, newUser, type TestUser } from './group-helpers.js';
 import { seedCategory } from './listing-helpers.js';
@@ -197,5 +198,75 @@ describe('Đọc ảnh từ kho cho máy băm (cổng media.readImage)', () => {
     await expect(
       storageOf(process.env.STORAGE_URL ?? '').read(`img/${imageId}`, 10),
     ).rejects.toThrow(/lớn hơn 10 byte/);
+  });
+});
+
+const checkJobsFor = (imageId: string) =>
+  jobs.sent.filter(
+    (job) =>
+      job.name === 'screening.check-image' && (job.data as { imageId: string }).imageId === imageId,
+  );
+
+describe('Lỗi tạm thời của kho được kiểm lại ở lượt gửi sau (fix-audit-screening-trust, T21)', () => {
+  it('kho không trả lời mọi lượt thử: lỗi tạm, giữ cho người; kho trở lại, sửa gửi lại: ảnh kiểm lại, tin lên', async () => {
+    const user = await userAt('T2');
+    const listing = await submittedWith(user, [await png(931)]);
+    const imageId = listing.images[0]?.id ?? '';
+    jobs.sent.length = 0;
+    const media = app.modules.media;
+    const read = media.readImage;
+    media.readImage = () => Promise.reject(new Error('Kho không trả lời'));
+    try {
+      const attempt = () => app.modules.screening.checkImage(imageId).catch(() => {});
+      await attempt();
+      await attempt();
+      await attempt();
+    } finally {
+      media.readImage = read;
+    }
+    await deliverAll(app);
+    expect(await prisma.imageCheck.findUniqueOrThrow({ where: { imageId } })).toMatchObject({
+      status: 'error',
+      errorKind: 'transient',
+    });
+    expect(await runOf(listing.id)).toMatchObject({ outcome: 'hold', cause: 'error' });
+
+    const held = await getOwn(app, user, listing.id);
+    const edited = await patch(app, user, held, { title: 'Đồ dùng đã sửa' }, deviceOf(user));
+    expect(edited.statusCode, edited.body).toBe(200);
+    await deliverAll(app);
+    expect((await prisma.imageCheck.findUniqueOrThrow({ where: { imageId } })).status).toBe(
+      'pending',
+    );
+    expect(checkJobsFor(imageId)).toHaveLength(1);
+    await checkAll();
+    expect((await getOwn(app, user, listing.id)).state).toBe('live');
+  });
+
+  it('ảnh lỗi thật (tệp không đọc được): sửa gửi lại giữ cho người ngay, không kiểm lại', async () => {
+    const user = await userAt('T2');
+    const listing = await submittedWith(user, [await png(932)]);
+    const imageId = listing.images[0]?.id ?? '';
+    jobs.sent.length = 0;
+    const media = app.modules.media;
+    const read = media.readImage;
+    media.readImage = () => Promise.resolve(null);
+    try {
+      await app.modules.screening.checkImage(imageId);
+    } finally {
+      media.readImage = read;
+    }
+    await deliverAll(app);
+    expect(await prisma.imageCheck.findUniqueOrThrow({ where: { imageId } })).toMatchObject({
+      status: 'error',
+      errorKind: 'permanent',
+    });
+
+    const held = await getOwn(app, user, listing.id);
+    const edited = await patch(app, user, held, { title: 'Đồ dùng sửa lần nữa' }, deviceOf(user));
+    expect(edited.statusCode, edited.body).toBe(200);
+    await deliverAll(app);
+    expect(await runOf(listing.id)).toMatchObject({ outcome: 'hold', cause: 'error' });
+    expect(checkJobsFor(imageId)).toHaveLength(0);
   });
 });

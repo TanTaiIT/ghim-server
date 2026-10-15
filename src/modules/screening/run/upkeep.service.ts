@@ -80,11 +80,14 @@ export function createUpkeepService(
       await sequentially(stale, async (run) => {
         await repository.addPendingChecks(run.imageIds, run.accountId);
       });
-      const concluded = await Promise.all(
-        stale.map((run) => repository.inTransaction((tx) => conclusion.conclude(tx, run, true))),
-      );
+      // Lần lượt: tồn đọng lớn mở song song mỗi lượt một transaction thì cạn pool (T24).
+      let timedOut = 0;
+      await sequentially(stale, async (run) => {
+        const decided = await repository.inTransaction((tx) => conclusion.conclude(tx, run, true));
+        if (decided) timedOut += 1;
+      });
       return {
-        timedOut: concluded.filter(Boolean).length,
+        timedOut,
         requeued: await imageQueue.queueStale(now, REQUEUE_LIMIT),
         restricted: await eachLiveBatch(restrictUnchecked),
       };

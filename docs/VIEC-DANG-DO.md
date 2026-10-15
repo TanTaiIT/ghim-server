@@ -27,9 +27,12 @@ mục code lệch spec thì sửa kèm test.
 - đợt 2 — `fix-audit-stuck-data` (C7, C8, C9, C10, T13), `fix-audit-image-checks` (C2, T20, L8, C11),
   `fix-audit-listeners` (C1).
 
-Bước tiếp: đợt 3 (T1–T24, trừ T10, T13, T20 đã xong). Cần chốt trước **T11** (bao nhiêu giây ân hạn khi làm mới token
-từ tab thứ hai) và **T12** (đổi email: đòi mật khẩu, báo email cũ, thu phiên khác). Phần C1 để lại cho đợt 3: T5,
-cặp vô hiệu / khôi phục tin sạch của `trust`, nội dung thông báo cũ của nhóm (N10–N14, N26–N28).
+Đợt 3 đang làm (T11, T12 theo phương án tech lead: ân hạn 30 giây; đổi email đòi mật khẩu + mã, báo email cũ, thu
+phiên khác), tách ba change:
+
+- phần C xong — `fix-audit-screening-trust` (T21, T22, T23, T24, cặp tin sạch của `trust`);
+- phần B còn lại — `review` (T1–T9, L11);
+- phần A còn lại — `identity`, `listing`, `group` (T11, T12, T14–T19).
 
 ## 1. Đang chờ quyết hoặc chờ duyệt
 

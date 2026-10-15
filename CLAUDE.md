@@ -426,7 +426,10 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   15/10/2026) thêm "Mọi ảnh của lượt gửi đều được kiểm" vào `screening/image-checks`, "Quét lại lần hai sau thời gian chờ
   ảnh" vào `screening/banned-phrases`, sửa lưới an toàn của `screening/machine-decision` (một lần mỗi phiên bản).
   `fix-audit-listeners` (đợt 2 phần C, archive 15/10/2026) thêm luật "theo trạng thái hiện tại" vào `listing/suspension`,
-  `group/group-roles`, `platform/staff-permissions`, `review/queues`.
+  `group/group-roles`, `platform/staff-permissions`, `review/queues`. `fix-audit-screening-trust` (đợt 3 phần C, archive
+  15/10/2026) thêm "Lỗi tạm thời của kho được kiểm lại ở lượt gửi sau" vào `screening/image-checks`, "Đổi cụm mức chắc
+  đang bật cũng quét lại" vào `screening/banned-phrases`, ca lỗi lúc kết luận vào `screening/machine-decision`, hai
+  requirement "theo trạng thái hiện tại" và "lần lượt" vào `trust/trust-tiers`.
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.

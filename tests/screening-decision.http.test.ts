@@ -177,7 +177,12 @@ describe('Lỗi khi chấm thì giữ cho người', () => {
     const [first, second] = draft.images;
     await markChecked([first?.id ?? ''], user.id);
     await prisma.imageCheck.create({
-      data: { imageId: second?.id ?? '', ownerAccountId: user.id, status: 'error' },
+      data: {
+        imageId: second?.id ?? '',
+        ownerAccountId: user.id,
+        status: 'error',
+        errorKind: 'permanent',
+      },
     });
     await submit(app, user, draft, deviceOf(user));
     await deliverAll(app);
