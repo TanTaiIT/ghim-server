@@ -7,6 +7,7 @@ import type { ReviewTask } from '../review.repository.js';
 import type { ClaimResultDto, QueueQuery, TaskDetailDto, TaskItemDto } from '../review.schema.js';
 import {
   type ReviewShared,
+  type Surface,
   taskClaimed,
   taskClosed,
   taskNotFound,
@@ -19,9 +20,6 @@ const GROUP_LEVELS: ReadonlySet<Route['level']> = new Set([
   'group_moderators',
   'group_owner',
 ]);
-
-/** Bàn vận hành (staff, master) hay app của nhóm (điều hành viên, chủ nhóm) — việc ngoài nhóm đang xem là 404. */
-export type Surface = { kind: 'ops' } | { kind: 'group'; groupId: string };
 
 interface Page<T> {
   items: T[];
@@ -55,7 +53,7 @@ export interface ReviewDeskService {
 
 export function createDeskService(shared: ReviewShared): ReviewDeskService {
   const { repository, listings, screening, identity, trust, media, groups, config, clock } = shared;
-  const { routesFor, viewerOf, sharedDevicesOf, withSharedDevices } = shared;
+  const { routesFor, viewerOf, sharedDevicesOf, withSharedDevices, locateTask } = shared;
 
   const items = async (
     tasks: readonly { task: ReviewTask; route: Route }[],
@@ -85,18 +83,6 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
   ): Promise<Page<TaskItemDto>> => {
     const { skip, take } = toSkipTake(query);
     return toPage(await items(routed.slice(skip, skip + take), accountId), routed.length, query);
-  };
-
-  /** Việc theo phạm vi đang xem, kèm người xử; `null` = không có hay ngoài phạm vi (404). */
-  const locate = async (actor: Actor, taskId: string, surface: Surface) => {
-    const task = await repository.findTask(taskId);
-    if (!task || (surface.kind === 'group' && task.groupId !== surface.groupId)) return null;
-    const viewer: Viewer =
-      surface.kind === 'ops'
-        ? await viewerOf(actor)
-        : { accountId: actor.accountId, isMaster: actor.role === 'master', categoryIds: new Set() };
-    const route = (await routesFor([task]))(task);
-    return { task, viewer, route, allowed: canHandle(route, actor.accountId, viewer.isMaster) };
   };
 
   /**
@@ -161,7 +147,7 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
     },
 
     async task(actor, taskId, surface) {
-      const found = await locate(actor, taskId, surface);
+      const found = await locateTask(actor, taskId, surface);
       if (!found?.allowed) throw found ? await refused(found.task, found.viewer) : taskNotFound();
       const { task, route } = found;
       const listing = await listings.forReviewer(task.listingId);
@@ -212,7 +198,7 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
     },
 
     async claim(actor, taskId, surface) {
-      const found = await locate(actor, taskId, surface);
+      const found = await locateTask(actor, taskId, surface);
       if (!found) throw taskNotFound();
       if (found.task.status !== 'open') throw taskClosed();
       if (!found.allowed) throw await refused(found.task, found.viewer);

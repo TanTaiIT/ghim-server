@@ -71,10 +71,12 @@ thêm người đã cho đạt và tài khoản dùng chung máy với họ. Mas
 `POST …/claim`: một câu `UPDATE … WHERE id = ? AND status = 'open' AND (claimed_by IS NULL OR claim_expires_at <
 now())` trả 0 hay 1 dòng — hai người nhận cùng lúc thì một người thắng (`TASK_CLAIMED`). Lưu `claimed_version` =
 phiên bản tin lúc nhận. Quá hạn giữ thì coi như chưa ai nhận ngay khi đọc; job mỗi phút dọn cột cho gọn. Quyết định
-kiểm lại theo thứ tự: việc còn mở (`TASK_CLOSED`) → đang nhận và chưa hết giờ (`TASK_NOT_CLAIMED`) → còn vai trên
-phạm vi (`FORBIDDEN`) → vẫn nằm trong danh sách người xử, tức chưa chuyển master hay đổi người xử do gộp
+kiểm lại theo thứ tự: việc còn mở (`TASK_CLOSED`) → còn vai trên phạm vi (`FORBIDDEN`) → đang nhận và chưa hết giờ
+(`TASK_NOT_CLAIMED`) → vẫn nằm trong danh sách người xử, tức chưa chuyển master hay đổi người xử do gộp
 (`TASK_REASSIGNED`) → phiên bản tin không đổi (`LISTING_CHANGED`) → kết quả hợp lệ với lý do và phạm vi
-(`OUTCOME_NOT_ALLOWED`, `VALIDATION_ERROR`).
+(`OUTCOME_NOT_ALLOWED`, `VALIDATION_ERROR`). Vai kiểm trước việc giữ: bãi nhiệm trả việc người đó đang nhận qua sự
+kiện, nên kiểm việc giữ trước thì người bị bãi nhiệm nhận `TASK_NOT_CLAIMED` thay vì 403 spec đòi (đổi lúc code,
+15/10/2026).
 
 ### 6. Quyết định ghi trong một transaction với tin
 

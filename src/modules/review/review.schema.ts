@@ -101,3 +101,59 @@ export type QueueQuery = z.infer<typeof queueQuerySchema>;
 export type TaskItemDto = z.infer<typeof taskItemSchema>;
 export type TaskDetailDto = z.infer<typeof taskDetailSchema>;
 export type ClaimResultDto = z.infer<typeof claimResultSchema>;
+
+// ── QUYẾT ĐỊNH ───────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * `mistake` = từ chối (tin chờ duyệt) hay gỡ (tin đang hiện) vì sai sót — server chọn theo trạng thái tin. `detach` chỉ
+ * với tin trong nhóm; kèm `platformViolation` thì sinh việc hàng 4 và bắt buộc có `note` (spec review/group-escalation).
+ * `dismiss` = bác việc nhóm chuyển lên.
+ */
+export const decisionBodySchema = z
+  .object({
+    outcome: z.enum(['pass', 'mistake', 'detach', 'dismiss']),
+    machineJudgment: z.enum(['machine_right', 'machine_overreach']).optional(),
+    reasonTemplateId: z.uuid().optional(),
+    platformViolation: z.boolean().optional(),
+    note: z.string().trim().min(1).max(1000).optional(),
+  })
+  .strict()
+  .refine((body) => !body.platformViolation || body.note !== undefined, {
+    message: 'Chuyển lên vì trái quy định sàn thì phải ghi lý do',
+    path: ['note'],
+  });
+
+export const decisionResultSchema = z.object({
+  decisionId: z.uuid(),
+  outcome: z.enum(['pass', 'reject', 'remove', 'detach', 'dismiss', 'restore']),
+  listingState: z.string(),
+});
+
+export const listingParamsSchema = z.object({ listingId: z.uuid() });
+export const directRemoveBodySchema = z.object({ reasonTemplateId: z.uuid() }).strict();
+
+// ── LÝ DO MẪU ────────────────────────────────────────────────────────────────────────────────────
+
+export const reasonTemplateSchema = z.object({
+  id: z.uuid(),
+  text: z.string(),
+  active: z.boolean(),
+  sort: z.number().int(),
+});
+export const templateParamsSchema = z.object({ templateId: z.uuid() });
+export const createTemplateBodySchema = z
+  .object({ text: z.string().trim().min(1).max(200), sort: z.number().int().min(0).default(0) })
+  .strict();
+export const updateTemplateBodySchema = z
+  .object({
+    text: z.string().trim().min(1).max(200).optional(),
+    active: z.boolean().optional(),
+    sort: z.number().int().min(0).optional(),
+  })
+  .strict();
+
+export type DecisionBody = z.infer<typeof decisionBodySchema>;
+export type DecisionResultDto = z.infer<typeof decisionResultSchema>;
+export type ReasonTemplateDto = z.infer<typeof reasonTemplateSchema>;
+export type CreateTemplateBody = z.infer<typeof createTemplateBodySchema>;
+export type UpdateTemplateBody = z.infer<typeof updateTemplateBodySchema>;

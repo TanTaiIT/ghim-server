@@ -5,7 +5,7 @@ import type { PrivilegeSource } from '../../common/auth/privilege-source.js';
 import type { RuntimeConfig } from '../../common/config/runtime-config.js';
 import { ConflictError, NotFoundError } from '../../common/errors/app-error.js';
 import type { Jobs } from '../../lib/jobs.js';
-import { type Route, routeOf } from './calc/route.calc.js';
+import { canHandle, type Route, routeOf } from './calc/route.calc.js';
 import { type Deadlines, queueOf } from './calc/task.calc.js';
 import type {
   ReviewCategoryPort,
@@ -142,6 +142,18 @@ export function createReviewShared(deps: ReviewServiceDeps) {
     };
   };
 
+  /** Việc theo phạm vi đang xem, kèm người xử; `null` = không có hay ngoài phạm vi (404). */
+  const locateTask = async (actor: Actor, taskId: string, surface: Surface) => {
+    const task = await deps.repository.findTask(taskId);
+    if (!task || (surface.kind === 'group' && task.groupId !== surface.groupId)) return null;
+    const viewer: Viewer =
+      surface.kind === 'ops'
+        ? await viewerOf(actor)
+        : { accountId: actor.accountId, isMaster: actor.role === 'master', categoryIds: new Set() };
+    const route = (await routesFor([task]))(task);
+    return { task, viewer, route, allowed: canHandle(route, actor.accountId, viewer.isMaster) };
+  };
+
   return {
     ...deps,
     random: deps.random ?? (() => Math.random() * 100),
@@ -150,8 +162,12 @@ export function createReviewShared(deps: ReviewServiceDeps) {
     sharedDevicesOf,
     routesFor,
     viewerOf,
+    locateTask,
   };
 }
+
+/** Bàn vận hành (staff, master) hay app của nhóm (điều hành viên, chủ nhóm) — việc ngoài nhóm đang xem là 404. */
+export type Surface = { kind: 'ops' } | { kind: 'group'; groupId: string };
 
 export interface Viewer {
   accountId: string;

@@ -1,8 +1,14 @@
 import { Prisma } from '@prisma/client';
-import type { PrismaClient, ReviewCloseCause, ReviewTask } from '@prisma/client';
+import type {
+  PrismaClient,
+  ReviewCloseCause,
+  ReviewDecision,
+  ReviewReasonTemplate,
+  ReviewTask,
+} from '@prisma/client';
 
 export type Tx = Prisma.TransactionClient;
-export type { ReviewTask };
+export type { ReviewDecision, ReviewReasonTemplate, ReviewTask };
 
 /** Hai lượt cùng sinh việc cho một tin: lượt thua chạm partial unique, đọc lại việc vừa mở rồi gộp vào (design mục 3). */
 const UNIQUE_VIOLATION = 'P2002';
@@ -49,6 +55,22 @@ export interface ReviewRepository {
   /** Trả việc về hàng chờ; chỉ khi đúng người đó còn đang giữ. */
   releaseClaim(id: string, accountId: string): Promise<boolean>;
   addSampleCandidate(listingId: string, listingVersion: number, at: Date): Promise<void>;
+  /** Quyết định không đổi gì trên tin (bác việc nhóm chuyển lên) vẫn ghi việc và nhật ký trong một transaction. */
+  inTransaction<T>(write: (tx: Tx) => Promise<T>): Promise<T>;
+  insertDecision(tx: Tx, data: Prisma.ReviewDecisionUncheckedCreateInput): Promise<ReviewDecision>;
+  findDecision(id: string): Promise<ReviewDecision | null>;
+  /** Lý do mẫu: master thấy cả lý do đã tắt, người xử chỉ thấy lý do đang bật. */
+  listTemplates(input: { includeInactive: boolean }): Promise<ReviewReasonTemplate[]>;
+  findTemplate(id: string): Promise<ReviewReasonTemplate | null>;
+  createTemplate(data: {
+    text: string;
+    sort: number;
+    createdBy: string;
+  }): Promise<ReviewReasonTemplate>;
+  updateTemplate(
+    id: string,
+    data: { text?: string; active?: boolean; sort?: number },
+  ): Promise<ReviewReasonTemplate | null>;
 }
 
 /** Khoá việc đang mở của tin trong `tx` rồi trao cho `write` — lượt khác chạm cùng việc phải chờ lượt này xong. */
@@ -153,6 +175,27 @@ export function createReviewRepository(prisma: PrismaClient): ReviewRepository {
         data: { claimedBy: null, claimExpiresAt: null, claimedVersion: null },
       });
       return count > 0;
+    },
+
+    inTransaction: (write) => prisma.$transaction((tx) => write(tx)),
+
+    insertDecision: (tx, data) => tx.reviewDecision.create({ data }),
+
+    findDecision: (id) => prisma.reviewDecision.findUnique({ where: { id } }),
+
+    listTemplates: ({ includeInactive }) =>
+      prisma.reviewReasonTemplate.findMany({
+        where: includeInactive ? {} : { active: true },
+        orderBy: [{ sort: 'asc' }, { createdAt: 'asc' }],
+      }),
+
+    findTemplate: (id) => prisma.reviewReasonTemplate.findUnique({ where: { id } }),
+
+    createTemplate: (data) => prisma.reviewReasonTemplate.create({ data }),
+
+    async updateTemplate(id, data) {
+      const { count } = await prisma.reviewReasonTemplate.updateMany({ where: { id }, data });
+      return count === 0 ? null : prisma.reviewReasonTemplate.findUnique({ where: { id } });
     },
 
     async addSampleCandidate(listingId, listingVersion, at) {

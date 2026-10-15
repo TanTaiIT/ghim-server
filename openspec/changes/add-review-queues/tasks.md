@@ -41,10 +41,10 @@ Theo `design.md`. Test HTTP, DB chạy trên CI (PR nháp nhánh `add-listings`)
 
 ## 5. Quyết định
 
-- [ ] 5.1 Quyết định trong cùng transaction với tin: đạt (bắt buộc nhận định máy với việc máy giữ), sai sót, gỡ khỏi
+- [x] 5.1 Quyết định trong cùng transaction với tin: đạt (bắt buộc nhận định máy với việc máy giữ), sai sót, gỡ khỏi
       nhóm, bác; kiểm thứ tự lỗi (design mục 5); nhật ký; mẫu người duyệt 5% trừ master; xác minh test HTTP spec
       `review/decisions`
-- [ ] 5.2 Gỡ trực tiếp, khôi phục tin sàn; lý do mẫu do master soạn; xác minh test HTTP các requirement tương ứng
+- [x] 5.2 Gỡ trực tiếp, khôi phục tin sàn; lý do mẫu do master soạn; xác minh test HTTP các requirement tương ứng
 
 ## 6. Nhóm chuyển lên và vòng đời nhóm
 
