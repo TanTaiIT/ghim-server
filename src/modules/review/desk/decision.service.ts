@@ -17,13 +17,14 @@ import type { ReviewSubject } from '../../listing/listing.ports.js';
 import { sampled } from '../calc/sampling.calc.js';
 import type { ReviewQueueService } from '../queue/queue.service.js';
 import type { Tx } from '../review.repository.js';
-import type {
-  CreateTemplateBody,
-  DecisionBody,
-  DecisionResultDto,
-  DirectDetachBody,
-  ReasonTemplateDto,
-  UpdateTemplateBody,
+import {
+  type CreateTemplateBody,
+  type DecisionBody,
+  type DecisionResultDto,
+  DEFAULT_REASON_TEMPLATES,
+  type DirectDetachBody,
+  type ReasonTemplateDto,
+  type UpdateTemplateBody,
 } from '../review.schema.js';
 import {
   listingChanged,
@@ -60,6 +61,8 @@ export interface ReviewDecisionService {
     listingId: string,
     body: DirectDetachBody,
   ): Promise<DecisionResultDto>;
+  /** Bước khởi động: sáu lý do khởi đầu khi bảng trống (test gọi tay — `buildTestApp` không chạy khởi động). */
+  ensureReasonTemplates(): Promise<{ reasonTemplates: number }>;
   reasonTemplates(input: { includeInactive: boolean }): Promise<ReasonTemplateDto[]>;
   createReasonTemplate(actor: Actor, body: CreateTemplateBody): Promise<ReasonTemplateDto>;
   updateReasonTemplate(
@@ -397,6 +400,12 @@ export function createDecisionService(
         ...(body.note === undefined ? {} : { note: body.note }),
         escalate: body.platformViolation === true,
       });
+    },
+
+    async ensureReasonTemplates() {
+      return {
+        reasonTemplates: await repository.seedTemplatesIfEmpty(DEFAULT_REASON_TEMPLATES),
+      };
     },
 
     async reasonTemplates(input) {

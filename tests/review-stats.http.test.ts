@@ -51,6 +51,8 @@ beforeAll(async () => {
     screening: interimScreening,
   });
   await app.ready();
+  // Lý do mẫu khởi đầu: `truncateAll` đầu mỗi file xoá cả bảng, `buildTestApp` không chạy bước khởi động.
+  await app.modules.review.ensureReasonTemplates();
   master = await newMaster(app);
 });
 

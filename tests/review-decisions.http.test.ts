@@ -63,6 +63,8 @@ const trust: ListingTrustPort = {
 beforeAll(async () => {
   app = await buildTestApp({ clock: () => now, config, trust, screening: interimScreening });
   await app.ready();
+  // Lý do mẫu khởi đầu: `truncateAll` đầu mỗi file xoá cả bảng, `buildTestApp` không chạy bước khởi động.
+  await app.modules.review.ensureReasonTemplates();
   master = await newMaster(app);
 });
 
@@ -410,6 +412,8 @@ describe('Gỡ khỏi nhóm', () => {
 
 describe('Lý do mẫu do master soạn', () => {
   it('khởi đầu có sáu lý do; master thêm một lý do, staff thấy khi từ chối vì sai sót', async () => {
+    // Bảng đã có lý do: bước khởi động không chèn lại, kể cả khi master đã sửa câu hay tắt lý do.
+    expect(await app.modules.review.ensureReasonTemplates()).toEqual({ reasonTemplates: 0 });
     const category = await seedCategory();
     const staff = await staffOf([category]);
     const text = `Ảnh chụp màn hình, không phải ảnh thật ${randomUUID().slice(0, 6)}`;

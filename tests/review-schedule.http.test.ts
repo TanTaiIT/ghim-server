@@ -121,7 +121,7 @@ const machineRun = (
     imageIds: [],
     decidedAt: TEST_NOW,
     outcome: input.outcome,
-    cause: input.outcome === 'hold' ? 'gate' : null,
+    cause: input.outcome === 'hold' ? 'gate' : 'score',
     score: input.score,
     band: 'medium',
     tier: input.tier,
@@ -199,6 +199,7 @@ describe('Quá hạn chỉ chuyển cấp, không bao giờ tự mở tin', () =
 
   it('việc hàng 5 đã gộp lý do máy giữ, quá hạn: sang hàng master, không bị huỷ, tin vẫn chờ duyệt', async () => {
     const category = await seedCategory();
+    await staffOf([category]); // có staff: việc đang ở bậc staff mới "chuyển" master khi quá hạn
     const poster = await newUser(app);
     const live = await sampledLive(poster, category);
     expect(await app.modules.listing.recallByMachine(live.id, live.version)).toBe(true);

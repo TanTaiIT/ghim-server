@@ -150,6 +150,19 @@ export const directRemoveBodySchema = z.object({ reasonTemplateId: z.uuid() }).s
 
 // ── LÝ DO MẪU ────────────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Sáu lý do khởi đầu (chốt 15/10/2026), theo thứ tự hiện. Bước khởi động chèn khi bảng trống — migration
+ * `init_review` cũng chèn đúng sáu câu này, nên trên DB đã có dữ liệu bước khởi động không làm gì.
+ */
+export const DEFAULT_REASON_TEMPLATES = [
+  'Ảnh chưa rõ sản phẩm',
+  'Thiếu thông tin quan trọng',
+  'Sai danh mục',
+  'Giá ghi sai',
+  'Tiêu đề không mô tả món hàng',
+  'Trùng tin đã đăng',
+] as const;
+
 export const reasonTemplateSchema = z.object({
   id: z.uuid(),
   text: z.string(),

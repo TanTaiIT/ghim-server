@@ -75,7 +75,7 @@ export const reviewOpsRoutes: FastifyPluginAsyncZod<ReviewOpsRoutesOptions> = as
       summary: 'Nhận việc — giữ 10 phút; người khác thấy "đang có người xử"',
       security: bearer,
       params: taskParamsSchema,
-      response: { 200: ok(claimResultSchema), ...errors },
+      response: { 200: ok(claimResultSchema), 400: errorResponse, ...errors },
     },
     handler: async (request) =>
       toOk(await review.claim(actorOf(request), request.params.taskId, { kind: 'ops' })),
@@ -119,7 +119,7 @@ export const reviewOpsRoutes: FastifyPluginAsyncZod<ReviewOpsRoutesOptions> = as
       summary: 'Khôi phục tin sàn đã bị gỡ — ngày hiển thị chạy tiếp từ chỗ đã dừng',
       security: bearer,
       params: listingParamsSchema,
-      response: { 200: ok(decisionResultSchema), ...errors },
+      response: { 200: ok(decisionResultSchema), 400: errorResponse, ...errors },
     },
     handler: async (request) =>
       toOk(await review.restore(actorOf(request), request.params.listingId)),

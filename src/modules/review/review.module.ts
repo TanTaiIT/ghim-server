@@ -22,7 +22,10 @@ export function createReviewModule(deps: ReviewServiceDeps): {
       },
       listeners: (dispatcher) => registerReviewListeners(dispatcher, service),
       jobs: (jobs) => registerReviewJobs(jobs, service),
-      startup: () => service.backfill(),
+      startup: async () => ({
+        ...(await service.ensureReasonTemplates()),
+        ...(await service.backfill()),
+      }),
     },
   };
 }

@@ -50,6 +50,8 @@ beforeAll(async () => {
     screening: interimScreening,
   });
   await app.ready();
+  // Lý do mẫu khởi đầu: `truncateAll` đầu mỗi file xoá cả bảng, `buildTestApp` không chạy bước khởi động.
+  await app.modules.review.ensureReasonTemplates();
   master = await newMaster(app);
 });
 
@@ -617,5 +619,62 @@ describe('Việc cần hai người do hai người khác nhau làm', () => {
     );
     expect(listingIdsOf(await opsQueue(other))).toContain(held.id);
     expect(listingIdsOf(await opsQueue(s))).not.toContain(held.id);
+  });
+});
+
+const REVIEW_ROUTES = [
+  'GET /ops/review/tasks',
+  'GET /ops/review/tasks/{taskId}',
+  'POST /ops/review/tasks/{taskId}/claim',
+  'POST /ops/review/tasks/{taskId}/decision',
+  'POST /ops/review/listings/{listingId}/remove',
+  'POST /ops/review/listings/{listingId}/restore',
+  'GET /ops/review/reason-templates',
+  'POST /ops/review/reason-templates',
+  'PATCH /ops/review/reason-templates/{templateId}',
+  'GET /ops/review/stats/board',
+  'GET /ops/review/stats/reviewers',
+  'GET /ops/review/stats/rules',
+  'GET /groups/{groupId}/review/tasks',
+  'GET /groups/{groupId}/review/tasks/{taskId}',
+  'POST /groups/{groupId}/review/tasks/{taskId}/claim',
+  'POST /groups/{groupId}/review/tasks/{taskId}/decision',
+  'POST /groups/{groupId}/review/listings/{listingId}/detach',
+  'GET /groups/{groupId}/review/reason-templates',
+];
+
+const reviewOperations = async () => {
+  const doc = (await app.inject({ method: 'GET', url: '/docs/json' })).json() as {
+    paths: Record<
+      string,
+      Record<string, { tags?: string[]; security?: unknown[]; responses: Record<string, unknown> }>
+    >;
+  };
+  return Object.entries(doc.paths).flatMap(([path, methods]) =>
+    Object.entries(methods)
+      .map(([method, op]) => ({
+        key: `${method.toUpperCase()} ${path.replace('/api/v1', '')}`,
+        ...op,
+      }))
+      .filter((op) => op.tags?.some((tag) => tag === 'Ops · Review' || tag === 'Review · Nhóm')),
+  );
+};
+
+describe('Swagger', () => {
+  it('liệt kê đủ route của người duyệt, không thừa', async () => {
+    expect((await reviewOperations()).map((op) => op.key).toSorted()).toEqual(
+      REVIEW_ROUTES.toSorted(),
+    );
+  });
+
+  it('mọi route cần đăng nhập và khai 401, 403; route ghi khai cả 400, 409', async () => {
+    for (const op of await reviewOperations()) {
+      const codes = Object.keys(op.responses);
+      expect(op.security, op.key).toEqual([{ bearerAuth: [] }]);
+      expect(codes, op.key).toEqual(expect.arrayContaining(['401', '403']));
+      if (!op.key.startsWith('GET ')) {
+        expect(codes, op.key).toEqual(expect.arrayContaining(['400', '409']));
+      }
+    }
   });
 });

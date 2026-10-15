@@ -22,7 +22,8 @@ export interface ReviewGroupRoutesOptions {
   review: ReviewService;
 }
 
-const TAGS = ['Groups · Review'];
+// Route của `review` dưới `/groups/...` — tag theo module như `Listings · Nhóm`, không lẫn vào route của `group`.
+const TAGS = ['Review · Nhóm'];
 const bearer = [{ bearerAuth: [] }];
 const errors = { 401: errorResponse, 403: errorResponse, 404: errorResponse, 409: errorResponse };
 
@@ -75,7 +76,7 @@ export const reviewGroupRoutes: FastifyPluginAsyncZod<ReviewGroupRoutesOptions> 
       summary: 'Nhận việc của nhóm — giữ 10 phút',
       security: bearer,
       params: groupTaskParamsSchema,
-      response: { 200: ok(claimResultSchema), ...errors },
+      response: { 200: ok(claimResultSchema), 400: errorResponse, ...errors },
     },
     handler: async (request) =>
       toOk(

@@ -494,7 +494,8 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   Người duyệt: mọi lượt gửi tin của test dùng chung một mã máy (`DEVICE`), nên mọi người đã đăng tin đều "dùng chung
   thiết bị" với nhau — staff, điều hành viên, master trong `tests/review-*.http.test.ts` không đăng tin, trừ ca cố ý
   kiểm luật đó (máy riêng: ghi thẳng `device_posts`). Job của `review` gọi thẳng `app.modules.review.everyMinute()`,
-  `everyHour()`, `weeklyPostcheck()` với đồng hồ đẩy tay; tỉ lệ lấy mẫu đè bằng `config` của `buildTestApp`.
+  `everyHour()`, `weeklyPostcheck()` với đồng hồ đẩy tay; tỉ lệ lấy mẫu đè bằng `config` của `buildTestApp`. Lý do
+  mẫu khởi đầu: gọi `app.modules.review.ensureReasonTemplates()` — `truncateAll` xoá cả bảng, như `ensureRules`.
 - `tests/*.db.test.ts`: test repository và ghi thẳng bằng Prisma để kiểm ràng buộc chỉ DB trả lời được
   (partial unique "một việc mở mỗi tin", CHECK, EXCLUDE), kiểm đúng mã lỗi (`prismaErrorCode` / `sqlStateOf`).
 - Mỗi cam kết ở TK phần 27 thuộc đợt đang làm phải có test — kể cả các ca **thiếu, sai, hết chỗ,

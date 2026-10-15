@@ -193,7 +193,8 @@ describe('xoá tài khoản → thu quyền qua outbox', () => {
       at: NOW,
       events: [{ type: 'identity.account.deleted', payload: { accountId: hung.id } }],
     });
-    expect(await dispatcher.runOnce()).toEqual({ published: 1, failed: 0 });
+    // Hai sự kiện chờ: `platform.staff.changed` của lượt cấp quyền (add-review-queues) và lượt xoá tài khoản.
+    expect(await dispatcher.runOnce()).toEqual({ published: 2, failed: 0 });
 
     expect(await prisma.staffPermission.count({ where: { accountId: hung.id } })).toBe(0);
     expect(await prisma.staffCategoryGrant.count({ where: { accountId: hung.id } })).toBe(0);

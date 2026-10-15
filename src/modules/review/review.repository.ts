@@ -97,6 +97,11 @@ export interface ReviewRepository {
     id: string,
     data: { text?: string; active?: boolean; sort?: number },
   ): Promise<ReviewReasonTemplate | null>;
+  /**
+   * Chèn lý do khởi đầu khi bảng trống, trả số dòng đã chèn. Bảng có dòng thì thôi — master có thể đã sửa câu hay tắt
+   * lý do, không chèn lại. Hai tiến trình khởi động cùng lúc: dòng trùng câu bị bỏ qua.
+   */
+  seedTemplatesIfEmpty(texts: readonly string[]): Promise<number>;
 }
 
 /** Khoá tin rồi việc đang mở của tin trong `tx`, trao cho `write` — lượt khác chạm cùng việc chờ lượt này xong. */
@@ -225,6 +230,15 @@ export function createReviewRepository(prisma: PrismaClient): ReviewRepository {
     async updateTemplate(id, data) {
       const { count } = await prisma.reviewReasonTemplate.updateMany({ where: { id }, data });
       return count === 0 ? null : prisma.reviewReasonTemplate.findUnique({ where: { id } });
+    },
+
+    async seedTemplatesIfEmpty(texts) {
+      if ((await prisma.reviewReasonTemplate.count()) > 0) return 0;
+      const { count } = await prisma.reviewReasonTemplate.createMany({
+        data: texts.map((text, index) => ({ text, sort: index + 1 })),
+        skipDuplicates: true,
+      });
+      return count;
     },
 
     async addSampleCandidate(listingId, listingVersion, at) {
