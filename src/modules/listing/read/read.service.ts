@@ -46,6 +46,12 @@ export interface ListingReadService {
   /** Cổng cho `review`: tin chờ duyệt của một người trong một nhóm — vào lại nhóm thì sinh lại việc (chốt 15/10/2026). */
   pendingInGroup(accountId: string, groupId: string): Promise<string[]>;
   /**
+   * Cổng cho `review` lúc khởi động: tin đang chờ duyệt và tin đang hiện mang lý do "máy", có từ trước khi có hàng chờ
+   * (design add-review-queues, Migration Plan). Bỏ tin đang bị ẩn — tin của người đã rời nhóm, của nhóm đã đóng cố ý
+   * không có việc (chốt 15/10/2026).
+   */
+  reviewBacklog(): Promise<{ held: string[]; machineRestricted: string[] }>;
+  /**
    * Cổng cho `notification`: người đăng và tiêu đề của tin chưa xoá. Tin đã xoá thì vắng — người đăng không còn việc gì
    * để làm với nó, nên không ai được báo (change notify-missing-images).
    */
@@ -56,6 +62,8 @@ export interface ListingReadService {
 const SUGGESTION_LIMIT = 10;
 /** Tin chờ duyệt của một người trong một nhóm: trần hạn mức tin sống còn nhỏ hơn nhiều. */
 const PENDING_IN_GROUP_LIMIT = 100;
+/** Việc bù lúc khởi động — giai đoạn đầu chỉ vài chục tin; lần khởi động sau bù tiếp phần còn lại. */
+const BACKLOG_LIMIT = 5000;
 
 const liveKey = (row: Listing): CursorKey => ({ at: row.firstLiveAt ?? row.createdAt, id: row.id });
 const updatedKey = (row: Listing): CursorKey => ({ at: row.updatedAt, id: row.id });
@@ -65,6 +73,15 @@ const keywordWhere = (q: string | undefined): Prisma.ListingWhereInput =>
 
 export function createListingReadService(shared: ListingShared): ListingReadService {
   const { repository, groups, clock, viewerFor, toDtos, toOwnDtos, toOwnDto } = shared;
+
+  const backlogIds = async (where: Prisma.ListingWhereInput): Promise<string[]> => {
+    const rows = await repository.list({
+      where: { ...where, deletedAt: null, hideReasons: { isEmpty: true } },
+      order: 'updated',
+      limit: BACKLOG_LIMIT,
+    });
+    return rows.map((row) => row.id);
+  };
 
   const page = async <T>(
     where: Prisma.ListingWhereInput,
@@ -189,6 +206,14 @@ export function createListingReadService(shared: ListingShared): ListingReadServ
     async forReviewer(id) {
       const row = await repository.findById(id);
       return row && row.deletedAt === null ? toOwnDto(row, clock()) : null;
+    },
+
+    async reviewBacklog() {
+      const [held, machineRestricted] = await Promise.all([
+        backlogIds({ state: 'pending' }),
+        backlogIds({ state: 'live', restrictions: { has: 'machine' } }),
+      ]);
+      return { held, machineRestricted };
     },
 
     async pendingInGroup(accountId, groupId) {

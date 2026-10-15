@@ -23,10 +23,10 @@ Theo `design.md`. Test HTTP, DB chạy trên CI (PR nháp nhánh `add-listings`)
 
 ## 3. Sinh, gộp, huỷ việc
 
-- [ ] 3.1 Repository upsert có gộp, bỏ lý do, huỷ (design mục 3); bên nghe sự kiện (design mục 7); bước khởi động
+- [x] 3.1 Repository upsert có gộp, bỏ lý do, huỷ (design mục 3); bên nghe sự kiện (design mục 7); bước khởi động
       sinh việc cho tin đang chờ duyệt từ trước; xác minh test DB hai lối sinh cùng lúc ra một việc, test HTTP các
       scenario sinh việc, gộp, bản sửa, rút về nháp của spec `review/queues`
-- [ ] 3.2 `review` cài `OpenWork.blocksPlacement` cho `listing`; xác minh test HTTP đổi nơi đăng khi tin đang có việc
+- [x] 3.2 `review` cài `OpenWork.blocksPlacement` cho `listing`; xác minh test HTTP đổi nơi đăng khi tin đang có việc
       mở → 409 `PLACEMENT_LOCKED`
 
 ## 4. Hàng chờ, nhận việc, xung đột lợi ích

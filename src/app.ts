@@ -54,7 +54,6 @@ import { createListingModule } from './modules/listing/listing.module.js';
 import {
   type ListingScreeningPort,
   type ListingTrustPort,
-  noOpenWork,
 } from './modules/listing/listing.ports.js';
 import {
   createListingRepository,
@@ -62,6 +61,12 @@ import {
 } from './modules/listing/listing.repository.js';
 import type { ListingService } from './modules/listing/listing.service.js';
 import { createMediaModule } from './modules/media/media.module.js';
+import { createReviewModule } from './modules/review/review.module.js';
+import {
+  createReviewRepository,
+  type ReviewRepository,
+} from './modules/review/review.repository.js';
+import type { ReviewService } from './modules/review/review.service.js';
 import { sharpHasher } from './modules/screening/run/image-hash.js';
 import { createScreeningModule } from './modules/screening/screening.module.js';
 import {
@@ -109,6 +114,7 @@ export interface AppServices {
   listing: ListingService;
   trust: TrustService;
   screening: ScreeningService;
+  review: ReviewService;
 }
 
 export interface Repositories {
@@ -120,6 +126,7 @@ export interface Repositories {
   listing: ListingRepository;
   trust: TrustRepository;
   screening: ScreeningRepository;
+  review: ReviewRepository;
 }
 
 declare module 'fastify' {
@@ -209,6 +216,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     listing: overrides.repositories?.listing ?? createListingRepository(prisma),
     trust: overrides.repositories?.trust ?? createTrustRepository(prisma),
     screening: overrides.repositories?.screening ?? createScreeningRepository(prisma),
+    review: overrides.repositories?.review ?? createReviewRepository(prisma),
   };
   const { config, versioned } = await resolveConfig(overrides.config, repositories.platform);
   const deps: AppDeps = {
@@ -249,6 +257,8 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
   };
   // Cổng của `listing` khai `score: unknown` — kết quả chỉ đi từ `scoreText` sang `openRun` của cùng lượt gửi.
   const screening: ListingScreeningPort = overrides.screening ?? lateScreening;
+  // `review` dựng sau mọi module nó hỏi; `listing` hỏi ngược "tin có việc đang mở không" lúc đổi nơi đăng — nối muộn.
+  let reviewService: ReviewService | null = null;
   // Cổng realtime cần HTTP server của Fastify, mà module dựng trước Fastify: module cầm một tay nối, cổng thật gắn
   // vào ngay sau khi Fastify có server (dưới đây).
   let gateway: Realtime | null = null;
@@ -318,7 +328,10 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     identity: identity.service,
     trust,
     screening,
-    openWork: noOpenWork,
+    openWork: {
+      blocksPlacement: (listingId) =>
+        reviewService?.blocksPlacement(listingId) ?? notBuilt('review'),
+    },
     config: deps.config,
     clock: deps.clock,
   });
@@ -349,6 +362,25 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     clock: deps.clock,
   });
   screeningService = screeningModule.service;
+  const review = createReviewModule({
+    repository: repositories.review,
+    listings: listing.service,
+    screening: screeningModule.service,
+    identity: identity.service,
+    trust: {
+      tierOf: (accountId) => trust.tierOf(accountId),
+      cleanCount: (accountId) => trustModule.service.cleanCount(accountId),
+    },
+    groups: group.service,
+    platform: platform.service,
+    categories: category.service,
+    media: media.service,
+    privileges: deps.privilegeSource,
+    jobs: deps.jobs,
+    config: deps.config,
+    clock: deps.clock,
+  });
+  reviewService = review.service;
   const notification = createNotificationModule({
     repository: createNotificationRepository(prisma),
     groups: {
@@ -377,6 +409,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     listing.module,
     trustModule.module,
     screeningModule.module,
+    review.module,
     notification.module,
     createOutboxModule(prisma),
   ];
@@ -464,6 +497,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     listing: listing.service,
     trust: trustModule.service,
     screening: screeningModule.service,
+    review: review.service,
   });
   app.decorate('moduleList', moduleList);
 

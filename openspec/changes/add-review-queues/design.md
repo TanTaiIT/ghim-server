@@ -98,17 +98,19 @@ Kết quả "vi phạm" (gậy) và xác nhận hàng 4 có gậy để `add-str
 
 ### 7. Việc sinh, gộp, huỷ theo sự kiện
 
-`review.events.ts` nghe outbox (bên nghe idempotent: upsert và `array_remove` lặp lại vô hại):
+`review.events.ts` nghe outbox (bên nghe idempotent: gộp và bỏ lý do lặp lại vô hại). Việc sinh từ thay đổi trạng
+thái của chính tin (`listing.state.changed`, ghi cùng transaction với tin), **không** từ `screening.result.recorded`:
+`listing` và `review` cùng nghe sự kiện của máy thì không có thứ tự, nên đọc tin lúc nghe kết quả máy có thể còn thấy
+trạng thái cũ (đổi lúc code, 15/10/2026).
 
 | Sự kiện                                          | Việc                                                                                                           |
 | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| `screening.result.recorded` hold                 | thêm `machine_hold`                                                                                            |
-| `screening.result.recorded` pass                 | bỏ `machine_hold`; `restrictMachine` → thêm `machine_restricted`, không thì bỏ nó                              |
-| `screening.listing.recalled`                     | thêm `machine_hold`                                                                                            |
-| `screening.listing.restricted` (lưới an toàn)    | thêm `machine_restricted` (lặp mỗi 5 phút → gộp vô hại)                                                        |
+| `listing.state.changed` hold · recall            | thêm `machine_hold` (máy giữ lúc gửi, rút tin đang hiện về khi bật cụm từ cấm)                                 |
+| `listing.state.changed` pass                     | bỏ `machine_hold`; tin mang lý do "máy" → thêm `machine_restricted`, không thì bỏ nó; ghi ứng viên lấy mẫu     |
+| `screening.listing.restricted` (lưới an toàn)    | tin đang hiện → thêm `machine_restricted` (lặp mỗi 5 phút → gộp vô hại)                                        |
 | `listing.listing.edited`                         | bỏ `sample_*` (câu 7)                                                                                          |
 | `listing.state.changed` withdraw · sold · expire | huỷ việc (câu 8; tin không còn ở bảng thì không còn gì để xem)                                                 |
-| `listing.state.changed` vào `live`               | ghi ứng viên lấy mẫu                                                                                           |
+| `listing.state.changed` approve · restore        | ghi ứng viên lấy mẫu (tin người cho lên cũng được xét lấy mẫu theo rủi ro)                                     |
 | `listing.listing.deleted`                        | huỷ việc                                                                                                       |
 | `group.member.left`                              | bỏ `machine_hold` khỏi việc về tin của người đó trong nhóm (câu 9); trả việc người đó đang nhận nếu mất vai    |
 | `group.member.joined`, `group.ban.lifted`        | tin chờ duyệt của người đó trong nhóm không có việc mở → thêm `machine_hold`, hạn mới                          |
