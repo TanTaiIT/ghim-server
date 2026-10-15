@@ -31,7 +31,7 @@ mục code lệch spec thì sửa kèm test.
 phiên khác), tách ba change:
 
 - phần C xong — `fix-audit-screening-trust` (T21, T22, T23, T24, cặp tin sạch của `trust`);
-- phần B còn lại — `review` (T1–T9, L11);
+- phần B xong — `fix-audit-review` (T1–T9, L11);
 - phần A còn lại — `identity`, `listing`, `group` (T11, T12, T14–T19).
 
 ## 1. Đang chờ quyết hoặc chờ duyệt

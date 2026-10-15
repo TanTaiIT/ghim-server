@@ -23,7 +23,7 @@ import {
   listingNotFound,
   withRestriction,
 } from '../listing.shared.js';
-import { type TrustTier } from '../listing.ports.js';
+import { type ListingLock, type TrustTier } from '../listing.ports.js';
 
 export interface MachineResult {
   listingId: string;
@@ -76,7 +76,7 @@ export interface ListingSystemService {
    * mới ghi việc (quyết định, hook `after`); ghi việc ngoài lượt đó cũng phải khoá tin trước, không thì hai bên chờ nhau
    * — một bên giữ chỗ trong chỉ mục việc mở, một bên giữ dòng tin mà khoá ngoại của việc cần.
    */
-  lockForReview(tx: Tx, listingId: string): Promise<void>;
+  lockForReview(tx: Tx, listingId: string): Promise<ListingLock | null>;
 }
 
 /** Lên bảng (máy cho qua, người duyệt đạt / khôi phục, khiếu nại thắng): tính lý do "tài khoản mới" (mục 7). */

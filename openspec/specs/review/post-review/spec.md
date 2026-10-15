@@ -100,3 +100,13 @@ xử xong cộng tự huỷ vì quá hạn — master SHALL nhận một cảnh 
 - **WHEN** trong một tuần có 10 việc hàng 5 khép lại: 8 xử xong, 2 tự huỷ vì quá hạn, và thêm 5 việc bị huỷ vì người
   đăng xoá tin
 - **THEN** tỉ lệ làm xong của tuần là 80% và master không nhận cảnh báo
+
+### Requirement: Tin đang tạm ẩn không bị lấy mẫu
+
+Tin đang tạm ẩn (khoá, cấm, rời nhóm, danh mục tắt…) MUST NOT bị lấy mẫu hậu kiểm, kể cả mẫu hậu kiểm người duyệt
+(chốt 15/10/2026).
+
+#### Scenario: Danh mục bị tắt
+
+- **WHEN** một tin vừa lên bảng thuộc danh mục bị tắt trước lượt lấy mẫu, tỉ lệ lấy mẫu 100%
+- **THEN** tin không bị lấy mẫu

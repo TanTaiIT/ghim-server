@@ -1739,6 +1739,8 @@ model ReviewSampleCandidate {
   listingId      String   @map("listing_id") @db.Uuid
   listingVersion Int      @map("listing_version")
   wentLiveAt     DateTime @map("went_live_at") @db.Timestamptz(3)
+  /// Người cho đạt / khôi phục phiên bản này — loại khỏi việc mẫu của chính quyết định đó (fix-audit-review, T2).
+  approvedBy     String?  @map("approved_by") @db.Uuid
 
   listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
 

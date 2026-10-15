@@ -1,5 +1,6 @@
 import type {
   ListingFault,
+  ListingHideReason,
   ListingPlacement,
   ListingRestriction,
   ListingState,
@@ -122,6 +123,14 @@ export interface ReviewSubject {
   restrictions: ListingRestriction[];
   /** Tin đã rời nhóm hẳn (nhóm đóng, gỡ khỏi nhóm…) — không còn gì để điều hành nhóm xử. */
   detached: boolean;
+  /** Lý do tạm ẩn: tin đang ẩn không bị lấy mẫu, tin của tài khoản đã xoá không sinh việc (fix-audit-review, T7). */
+  hideReasons: ListingHideReason[];
+}
+
+/** Dòng tin `review` đang giữ khoá trong lượt ghi việc: phiên bản và trạng thái tại lúc đó (fix-audit-review, T5). */
+export interface ListingLock {
+  version: number;
+  state: ListingState;
 }
 
 export interface QuotaFacts {

@@ -1,7 +1,13 @@
-import type { ReviewCloseCause, ReviewReason, ReviewTask } from '@prisma/client';
+import type {
+  ListingHideReason,
+  ListingState,
+  ReviewCloseCause,
+  ReviewReason,
+  ReviewTask,
+} from '@prisma/client';
 
 import { sequentially } from '../../../common/utils/sequential.js';
-import type { GroupLeave, ReviewSubject } from '../../listing/listing.ports.js';
+import type { GroupLeave, ListingLock, ReviewSubject } from '../../listing/listing.ports.js';
 import {
   deadlineOf,
   earliest,
@@ -22,6 +28,16 @@ export interface AddReason {
   sampledDecisionId?: string;
   /** Trong transaction của bên gọi — quyết định của người mở việc mới cùng lượt ghi. */
   tx?: Tx;
+  expect?: ListingExpect;
+}
+
+/**
+ * Tin phải còn đúng như lúc sự kiện phát — sự kiện cũ được xử lại sau thay đổi mới hơn thì trượt qua
+ * (fix-audit-review, T5). Kiểm trên dòng tin đang giữ khoá trong lượt ghi việc.
+ */
+export interface ListingExpect {
+  version: number;
+  states?: readonly ListingState[];
 }
 
 /** Thay đổi trạng thái tin `listing` phát (`listing.state.changed`) — phần `review` đọc. */
@@ -37,6 +53,7 @@ export interface ReviewQueueService {
     listingId: string,
     reasons: readonly ReviewReason[],
     cause: ReviewCloseCause,
+    expect?: ListingExpect,
   ): Promise<void>;
   onStateChanged(change: StateChange): Promise<void>;
   onEdited(listingId: string): Promise<void>;
@@ -45,6 +62,14 @@ export interface ReviewQueueService {
   onMemberLeft(groupId: string, accountId: string, leave: GroupLeave): Promise<void>;
   onMemberBack(groupId: string, accountId: string): Promise<void>;
   onGroupClosed(groupId: string): Promise<void>;
+  /** Người đăng xoá tài khoản: huỷ mọi việc mở về tin của họ (T4). */
+  onAccountDeleted(accountId: string): Promise<void>;
+  /** Tin vừa rời nhóm hẳn: chỉ còn việc nhóm chuyển lên staff (T7). */
+  onDetached(listingIds: string[]): Promise<void>;
+  /** Người (kể cả người ngoài) bị cấm khỏi nhóm: huỷ việc máy giữ về tin của họ trong nhóm (T7). */
+  onBanned(groupId: string, accountId: string): Promise<void>;
+  /** Thành viên đổi đơn vị: việc mở về tin của họ trong nhóm đi theo đơn vị mới (T8). */
+  onUnitChanged(groupId: string, accountId: string): Promise<void>;
   /** Tin chờ duyệt, tin hạn chế do máy có từ trước khi có hàng chờ — chạy lúc khởi động, gộp nên chạy lại vô hại. */
   backfill(): Promise<{ held: number; machineRestricted: number }>;
   /** Cổng `OpenWork` cho `listing`: tin có việc mở thì không đổi nơi đăng (spec listing/editing). */
@@ -52,12 +77,25 @@ export interface ReviewQueueService {
 }
 
 const SAMPLES = [...SAMPLE_REASONS];
+/** Lý do tạm ẩn vì nhóm: người ngoài được gỡ cấm mà tin còn mang một trong số này thì chưa có lại việc. */
+const GROUP_HIDE_REASONS: ReadonlySet<ListingHideReason> = new Set([
+  'left_group',
+  'removed_from_group',
+  'group_banned',
+]);
+
 /** Đóng nhóm huỷ việc máy giữ, hạn chế do máy, mẫu hậu kiểm; việc nhóm chuyển lên sàn vẫn xử (chốt 15/10/2026). */
 const CLOSED_GROUP_REASONS: readonly ReviewReason[] = [
   'machine_hold',
   'machine_restricted',
   ...SAMPLES,
 ];
+
+const matches = (listing: ListingLock | null, expect: ListingExpect | undefined): boolean =>
+  !expect ||
+  (listing !== null &&
+    listing.version === expect.version &&
+    (!expect.states || expect.states.includes(listing.state)));
 
 const scopeOf = (subject: ReviewSubject) => ({
   categoryId: subject.categoryId,
@@ -73,20 +111,30 @@ const scopeOf = (subject: ReviewSubject) => ({
 export function createQueueService(shared: ReviewShared): ReviewQueueService {
   const { repository, listings, groups, clock, deadlines, withSharedDevices } = shared;
 
-  /** Mọi lượt ghi việc khoá dòng tin trước rồi mới tới việc — cùng thứ tự với lượt đổi tin chạy hook `after`. */
+  /**
+   * Mọi lượt ghi việc khoá dòng tin trước rồi mới tới việc — cùng thứ tự với lượt đổi tin chạy hook `after`. Lượt ghi
+   * nhận phiên bản, trạng thái của dòng tin đang giữ khoá.
+   */
   const onOpenTask = (
     listingId: string,
-    write: (tx: Tx, open: ReviewTask | null) => Promise<void>,
+    write: (tx: Tx, open: ReviewTask | null, listing: ListingLock | null) => Promise<void>,
     tx?: Tx,
-  ): Promise<void> =>
-    repository.withOpenTask(listingId, write, {
-      lockListing: (locking) => listings.lockForReview(locking, listingId),
+  ): Promise<void> => {
+    let held: ListingLock | null = null;
+    return repository.withOpenTask(listingId, (locking, open) => write(locking, open, held), {
+      lockListing: async (locking) => {
+        held = await listings.lockForReview(locking, listingId);
+      },
       tx,
     });
+  };
 
   const addReason = async (listingId: string, input: AddReason): Promise<void> => {
     const subject = await listings.reviewSubject(listingId);
     if (!subject) return;
+    // Tin của tài khoản đã xoá không còn ai xem (T4); tin rời nhóm hẳn chỉ còn việc nhóm chuyển lên staff (T7).
+    if (subject.hideReasons.includes('account_deleted')) return;
+    if (subject.detached && input.reason !== 'group_escalation') return;
     const excluded = await withSharedDevices([subject.ownerId, ...(input.alsoExclude ?? [])]);
     const now = clock();
     const due = deadlineOf(input.reason, now, deadlines());
@@ -98,7 +146,8 @@ export function createQueueService(shared: ReviewShared): ReviewQueueService {
     };
     await onOpenTask(
       listingId,
-      async (tx, open) => {
+      async (tx, open, listing) => {
+        if (!matches(listing, input.expect)) return;
         if (!open) {
           await repository.insertTask(tx, {
             listingId,
@@ -130,9 +179,11 @@ export function createQueueService(shared: ReviewShared): ReviewQueueService {
     listingId: string,
     reasons: readonly ReviewReason[],
     cause: ReviewCloseCause,
+    expect?: ListingExpect,
   ): Promise<void> => {
     const subject = await listings.reviewSubject(listingId);
-    await onOpenTask(listingId, async (tx, open) => {
+    await onOpenTask(listingId, async (tx, open, listing) => {
+      if (!matches(listing, expect)) return;
       if (!open || !open.reasons.some((reason) => reasons.includes(reason))) return;
       const left = withoutReasons(open.reasons, reasons);
       if (left.length === 0) {
@@ -147,13 +198,30 @@ export function createQueueService(shared: ReviewShared): ReviewQueueService {
     });
   };
 
-  const cancel = (listingId: string, cause: ReviewCloseCause): Promise<void> =>
-    onOpenTask(listingId, async (tx, open) => {
-      if (open) await repository.closeTask(tx, open.id, cause, clock());
+  const cancel = (
+    listingId: string,
+    cause: ReviewCloseCause,
+    expect?: ListingExpect,
+  ): Promise<void> =>
+    onOpenTask(listingId, async (tx, open, listing) => {
+      if (open && matches(listing, expect)) await repository.closeTask(tx, open.id, cause, clock());
     });
 
+  /** Việc mở của tin lấy lại phạm vi (danh mục, nhóm, đơn vị) từ tin hiện tại. */
+  const rescope = async (listingId: string): Promise<void> => {
+    const subject = await listings.reviewSubject(listingId);
+    if (!subject) return;
+    await onOpenTask(listingId, async (tx, open) => {
+      if (open) await repository.updateTask(tx, open.id, scopeOf(subject));
+    });
+  };
+
   const wentLive = (change: StateChange) =>
-    repository.addSampleCandidate(change.listingId, change.version, clock());
+    repository.addSampleCandidate({
+      listingId: change.listingId,
+      listingVersion: change.version,
+      at: clock(),
+    });
 
   return {
     addReason,
@@ -161,18 +229,23 @@ export function createQueueService(shared: ReviewShared): ReviewQueueService {
 
     async onStateChanged(change) {
       const { listingId } = change;
+      // Đúng phiên bản sự kiện mang: lượt xử lại tới sau một thay đổi mới hơn của tin thì thôi (T5).
+      const atVersion: ListingExpect = { version: change.version };
       switch (change.arrow) {
         case 'hold':
         case 'recall':
-          return addReason(listingId, { reason: 'machine_hold' });
+          return addReason(listingId, {
+            reason: 'machine_hold',
+            expect: { ...atVersion, states: ['pending'] },
+          });
         case 'pass': {
-          await dropReasons(listingId, ['machine_hold'], 'machine_passed');
+          await dropReasons(listingId, ['machine_hold'], 'machine_passed', atVersion);
           // Đọc lý do hạn chế từ tin — máy cho qua hạn chế đặt lý do "máy" trong cùng lượt ghi đã phát sự kiện này.
           const subject = await listings.reviewSubject(listingId);
           if (subject?.restrictions.includes('machine')) {
-            await addReason(listingId, { reason: 'machine_restricted' });
+            await addReason(listingId, { reason: 'machine_restricted', expect: atVersion });
           } else {
-            await dropReasons(listingId, ['machine_restricted'], 'machine_passed');
+            await dropReasons(listingId, ['machine_restricted'], 'machine_passed', atVersion);
           }
           return wentLive(change);
         }
@@ -181,10 +254,10 @@ export function createQueueService(shared: ReviewShared): ReviewQueueService {
         case 'appealWin':
           return wentLive(change);
         case 'withdraw':
-          return cancel(listingId, 'withdrawn');
+          return cancel(listingId, 'withdrawn', atVersion);
         case 'markSold':
         case 'expire':
-          return cancel(listingId, 'listing_closed');
+          return cancel(listingId, 'listing_closed', atVersion);
         default:
           return undefined;
       }
@@ -209,14 +282,63 @@ export function createQueueService(shared: ReviewShared): ReviewQueueService {
     },
 
     async onMemberBack(groupId, accountId) {
-      // Lượt vào lại / gỡ cấm được xử lại khi người đó đã rời hay đang bị cấm: không sinh việc.
+      // Lượt vào lại / gỡ cấm được xử lại khi người đó đang bị cấm: không sinh việc.
       const [member, banned] = await Promise.all([
         groups.isMember(groupId, accountId),
         groups.isBanned(groupId, accountId),
       ]);
-      if (!member || banned) return;
+      if (banned) return;
       const held = await listings.pendingInGroup(accountId, groupId);
-      await sequentially(held, (listingId) => addReason(listingId, { reason: 'machine_hold' }));
+      // Người ngoài được gỡ cấm: chỉ tin không còn bị ẩn vì lý do của nhóm mới có lại việc (T7).
+      const eligible = member
+        ? held
+        : (
+            await Promise.all(
+              held.map(async (listingId) => {
+                const subject = await listings.reviewSubject(listingId);
+                const hidden = subject?.hideReasons.some((reason) =>
+                  GROUP_HIDE_REASONS.has(reason),
+                );
+                return subject && !subject.detached && !hidden ? [listingId] : [];
+              }),
+            )
+          ).flat();
+      await sequentially(eligible, (listingId) => addReason(listingId, { reason: 'machine_hold' }));
+    },
+
+    async onBanned(groupId, accountId) {
+      if (!(await groups.isBanned(groupId, accountId))) return;
+      const held = await listings.pendingInGroup(accountId, groupId, {
+        reason: 'banned',
+        allowOutsiders: false,
+      });
+      await sequentially(held, (listingId) =>
+        dropReasons(listingId, ['machine_hold'], 'member_left'),
+      );
+    },
+
+    async onDetached(listingIds) {
+      await sequentially(listingIds, async (listingId) => {
+        const subject = await listings.reviewSubject(listingId);
+        if (subject?.detached) await dropReasons(listingId, CLOSED_GROUP_REASONS, 'group_closed');
+      });
+    },
+
+    async onAccountDeleted(accountId) {
+      // Người đăng luôn nằm trong danh sách loại trừ của việc về tin của mình.
+      const tasks = await repository.openTasksExcluding(accountId);
+      await sequentially(tasks, async (task) => {
+        const subject = await listings.reviewSubject(task.listingId);
+        if (subject?.ownerId === accountId) await cancel(task.listingId, 'listing_deleted');
+      });
+    },
+
+    async onUnitChanged(groupId, accountId) {
+      const tasks = await repository.openTasksInGroup(groupId);
+      await sequentially(tasks, async (task) => {
+        const subject = await listings.reviewSubject(task.listingId);
+        if (subject?.ownerId === accountId) await rescope(task.listingId);
+      });
     },
 
     async onGroupClosed(groupId) {

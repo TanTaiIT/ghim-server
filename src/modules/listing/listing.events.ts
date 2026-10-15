@@ -59,9 +59,11 @@ export function registerListingListeners(
     ({ groupId, accountId, reason, allowOutsiders }) =>
       listing.onMembershipChanged(groupId, accountId, { reason, allowOutsiders }),
   );
-  on('group.member.joined', member, ({ groupId, accountId }) =>
-    listing.onMembershipChanged(groupId, accountId, null),
-  );
+  on('group.member.joined', member, async ({ groupId, accountId }) => {
+    await listing.onMembershipChanged(groupId, accountId, null);
+    // Vào lại nhóm với đơn vị khác: tin của người đó trong nhóm theo đơn vị hiện tại (fix-audit-review, T8).
+    await listing.onUnitChanged(groupId, accountId);
+  });
   on('group.member.unit_changed', member, ({ groupId, accountId }) =>
     listing.onUnitChanged(groupId, accountId),
   );

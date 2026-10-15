@@ -150,12 +150,17 @@ export function createGroupService(deps: GroupServiceDeps): GroupService {
       const [group, owner, moderators] = await Promise.all([
         repository.findGroup(groupId),
         repository.findOwner(groupId),
-        repository.listModerators(groupId),
+        usableModerators(groupId),
       ]);
       if (!group) return null;
+      // Chỉ tài khoản đang hoạt động xử việc; nhóm thiếu chủ không có chủ để việc chuyển tới (fix-audit-review, T3).
+      const ownerActive =
+        owner !== null &&
+        group.state !== 'ownerless' &&
+        (await statusOf(owner.accountId)) === 'active';
       return {
         moderationAllowed: ALLOWS_MODERATION.has(group.state),
-        ownerId: owner?.accountId ?? null,
+        ownerId: ownerActive ? owner.accountId : null,
         moderators: moderators.map((m) => ({ accountId: m.accountId, unitId: m.moderatorUnitId })),
       };
     },

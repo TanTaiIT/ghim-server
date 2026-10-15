@@ -429,7 +429,11 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   `group/group-roles`, `platform/staff-permissions`, `review/queues`. `fix-audit-screening-trust` (đợt 3 phần C, archive
   15/10/2026) thêm "Lỗi tạm thời của kho được kiểm lại ở lượt gửi sau" vào `screening/image-checks`, "Đổi cụm mức chắc
   đang bật cũng quét lại" vào `screening/banned-phrases`, ca lỗi lúc kết luận vào `screening/machine-decision`, hai
-  requirement "theo trạng thái hiện tại" và "lần lượt" vào `trust/trust-tiers`.
+  requirement "theo trạng thái hiện tại" và "lần lượt" vào `trust/trust-tiers`. `fix-audit-review` (đợt 3 phần B, archive
+  15/10/2026) thêm sáu requirement vào `review/queues` (người bị khoá, xoá tài khoản, theo trạng thái hiện tại, rời
+  nhóm hẳn / bị cấm, theo đơn vị, nhắc master), "Một việc một quyết định" vào `review/task-handling`, "Tin đang tạm ẩn
+  không bị lấy mẫu" vào `review/post-review`, "Tin còn việc chờ người duyệt không chuyển lên sàn chung được" vào
+  `listing/suspension`.
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.

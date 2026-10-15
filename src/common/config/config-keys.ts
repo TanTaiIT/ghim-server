@@ -199,6 +199,8 @@ export const CONFIG_KEYS = {
   'notification.collapseAlertMinutes': minutes(30, NOTIFICATION),
   // N31: tin mới trong nhóm nhắc tối đa một lần mỗi 2 giờ mỗi nhóm (design add-listings mục 11).
   'notification.groupListingsAlertMinutes': minutes(120, NOTIFICATION),
+  // N40–N42 báo master: TK 16 "nhắc lại mỗi ngày" — cảnh báo của dòng gộp không bật lại sớm hơn (fix-audit-review, T9).
+  'notification.reviewAlertMinutes': minutes(1440, NOTIFICATION),
   // Ảnh
   'media.maxImageBytes': int(5_242_880, MEDIA),
   // Chữ ký S3 (SigV4) sống tối đa 7 ngày.

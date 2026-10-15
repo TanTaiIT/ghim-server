@@ -219,12 +219,16 @@ export function createListingPostingService(shared: ListingShared): ListingPosti
     outcome: { placement: string | null; dropNewAccount: boolean },
   ) => {
     const now = clock();
+    // Thu hẹp vào nhóm: đơn vị của người đăng lấy lúc giữ khoá nhóm, như lượt gửi (fix-audit-review, T8).
+    let unitId = listing.unitId;
     const result = await repository.change({
       id: listing.id,
       states: [listing.state],
       version,
       before: async (tx) => {
-        if (outcome.placement) await submission.lockPlacement(tx, actor.accountId, after);
+        if (outcome.placement) {
+          unitId = (await submission.lockPlacement(tx, actor.accountId, after)).unitId;
+        }
       },
       data: (locked) => {
         // Sửa không qua máy không đổi danh mục (classifyEdit đưa đổi danh mục qua máy).
@@ -234,6 +238,7 @@ export function createListingPostingService(shared: ListingShared): ListingPosti
         });
         return {
           ...contentData(after),
+          unitId,
           version: locked.version + 1,
           hideReasons,
           restrictions: outcome.dropNewAccount

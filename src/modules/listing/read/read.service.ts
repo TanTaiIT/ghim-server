@@ -203,6 +203,7 @@ export function createListingReadService(shared: ListingShared): ListingReadServ
         categoryId: row.categoryId,
         restrictions: row.restrictions,
         detached: isDetached(row.hideReasons),
+        hideReasons: row.hideReasons,
       };
     },
 

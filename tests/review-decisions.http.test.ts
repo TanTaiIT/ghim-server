@@ -739,3 +739,36 @@ describe('Mẫu hậu kiểm người duyệt', () => {
     expect(await openTasks(held.id)).toEqual([]);
   });
 });
+
+/** Người giữ việc gửi cùng một quyết định hai lần một lúc. */
+async function decideTwice(staff: TestUser, taskId: string, body: object) {
+  const results = await Promise.all([
+    opsDecide(staff, taskId, body),
+    opsDecide(staff, taskId, body),
+  ]);
+  const statuses = results.map((res) => res.statusCode).toSorted((a, b) => a - b);
+  expect(statuses, results.map((res) => res.body).join('\n')).toEqual([200, 409]);
+  const rejected = results.find((res) => res.statusCode === 409);
+  expect(rejected && codeOf(rejected)).toBe('TASK_CLOSED');
+  expect(await prisma.reviewDecision.count({ where: { taskId } })).toBe(1);
+}
+
+describe('Một việc một quyết định (fix-audit-review, T6)', () => {
+  it('cho đạt tin máy giữ hai lần một lúc: một 200, một 409 TASK_CLOSED, một dòng nhật ký', async () => {
+    const category = await seedCategory();
+    const staff = await staffOf([category]);
+    const held = await heldBy(await newUser(app), { categoryId: category });
+    const taskId = await taskIdOf(held.id);
+    expect((await opsClaim(staff, taskId)).statusCode).toBe(200);
+    await decideTwice(staff, taskId, { outcome: 'pass', machineJudgment: 'machine_right' });
+  });
+
+  it('cho đạt việc hàng 5 hai lần một lúc — tin không đổi nên chỉ lượt đóng việc chặn: một dòng nhật ký', async () => {
+    const category = await seedCategory();
+    const staff = await staffOf([category]);
+    const live = await sampledLive(await newUser(app), category);
+    const taskId = await taskIdOf(live.id);
+    expect((await opsClaim(staff, taskId)).statusCode).toBe(200);
+    await decideTwice(staff, taskId, { outcome: 'pass' });
+  });
+});

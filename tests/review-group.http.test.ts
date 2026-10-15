@@ -25,6 +25,7 @@ import {
   liveListingOf,
   machineHold,
   type OwnListing,
+  signedInAt,
   submitted,
 } from './listing-http-helpers.js';
 import { seedCategory } from './listing-helpers.js';
@@ -116,6 +117,7 @@ async function school() {
   return {
     group,
     unit10a,
+    unit10b,
     mod10a: await moderator(unit10a),
     mod10b: await moderator(unit10b),
     whole: await moderator(null),
@@ -519,5 +521,103 @@ describe('Rời, bị gỡ hay bị cấm thì việc máy giữ trong nhóm c�
     await deliverAll(app);
     expect(await openTasks(held.id)).toHaveLength(1);
     expect((await getOwn(app, poster, held.id)).hideReasons).toEqual([]);
+  });
+});
+
+describe('Việc chờ khoá nơi đăng của tin đã rời nhóm (fix-audit-review, T1)', () => {
+  it('việc nhóm chuyển lên staff còn chờ: chuyển lên sàn chung → 409 PLACEMENT_LOCKED; staff bác xong thì chuyển được', async () => {
+    const category = await seedCategory();
+    const staff = await staffOf([category]);
+    const { group, mod10a, poster } = await school();
+    const held = await heldBy(poster, inGroup(group, category));
+    await escalate(mod10a, group, held.id);
+    const move = () =>
+      listingApi(app, 'POST', `/listings/${held.id}/move-to-marketplace`, poster, {});
+    const locked = await move();
+    expect(locked.statusCode, locked.body).toBe(409);
+    expect(codeOf(locked)).toBe('PLACEMENT_LOCKED');
+    expect(await prisma.listing.count({ where: { movedFromListingId: held.id } })).toBe(0);
+
+    const taskId = await taskIdOf(held.id);
+    expect((await opsClaim(staff, taskId)).statusCode).toBe(200);
+    const dismissed = await api(app, 'POST', `/ops/review/tasks/${taskId}/decision`, staff.token, {
+      outcome: 'dismiss',
+      note: 'Không thấy dấu hiệu hàng giả',
+    });
+    expect(dismissed.statusCode, dismissed.body).toBe(200);
+    await deliverAll(app);
+    const moved = await move();
+    expect(moved.statusCode, moved.body).toBe(201);
+  });
+});
+
+describe('Người xử việc của nhóm là tài khoản đang hoạt động (fix-audit-review, T3)', () => {
+  it('điều hành viên duy nhất của lớp 10A bị khoá: việc tin lớp 10A ở hàng điều hành cả nhóm', async () => {
+    const category = await seedCategory();
+    const { group, mod10a, whole, poster } = await school();
+    const lock = await api(
+      app,
+      'POST',
+      `/ops/accounts/${mod10a.id}/lock`,
+      (await signedInAt(app, master, now)).token,
+      { reason: 'Vi phạm quy định' },
+    );
+    expect(lock.statusCode, lock.body).toBe(204);
+    await deliverAll(app);
+    const held = await heldBy(poster, inGroup(group, category));
+    expect(await groupListingIds(whole, group.groupId)).toContain(held.id);
+  });
+});
+
+describe('Cấm người ngoài khỏi nhóm (fix-audit-review, T7)', () => {
+  it('người ngoài có tin "nhóm công khai" chờ duyệt bị cấm: việc huỷ; gỡ cấm thì có việc hàng 0 mới', async () => {
+    const category = await seedCategory();
+    const group = await createActiveGroup(app, { master });
+    await groupSettings(app, group.owner, group.groupId, { allowOutsiders: true });
+    const moderator = await addMember(app, group.groupId);
+    await appointModerator(app, group, moderator, null);
+    const outsider = await newUser(app);
+    const held = await heldBy(outsider, {
+      placement: 'group_public',
+      groupId: group.groupId,
+      categoryId: category,
+    });
+    const taskId = await taskIdOf(held.id);
+    const banPath = `/groups/${group.groupId}/bans/${outsider.id}`;
+    const ban = await api(app, 'PUT', banPath, group.owner.token);
+    expect(ban.statusCode, ban.body).toBe(204);
+    await deliverAll(app);
+    expect(await prisma.reviewTask.findUniqueOrThrow({ where: { id: taskId } })).toMatchObject({
+      status: 'cancelled',
+    });
+    expect(await groupListingIds(moderator, group.groupId)).not.toContain(held.id);
+
+    const unban = await api(app, 'DELETE', banPath, group.owner.token);
+    expect(unban.statusCode, unban.body).toBe(204);
+    await deliverAll(app);
+    const [task] = await openTasks(held.id);
+    expect(task).toMatchObject({ queue: 0, reasons: ['machine_hold'] });
+    expect(task?.id).not.toBe(taskId);
+    expect(await groupListingIds(moderator, group.groupId)).toContain(held.id);
+  });
+});
+
+describe('Việc theo đơn vị hiện tại của người đăng (fix-audit-review, T8)', () => {
+  it('chuyển người đăng từ lớp 10A sang 10B: việc ở hàng điều hành lớp 10B, không còn ở lớp 10A', async () => {
+    const category = await seedCategory();
+    const { group, unit10b, mod10a, mod10b, poster } = await school();
+    const held = await heldBy(poster, inGroup(group, category));
+    expect(await groupListingIds(mod10a, group.groupId)).toContain(held.id);
+    const moved = await api(
+      app,
+      'PATCH',
+      `/groups/${group.groupId}/members/${poster.id}`,
+      group.owner.token,
+      { unitId: unit10b },
+    );
+    expect(moved.statusCode, moved.body).toBe(200);
+    await deliverAll(app);
+    expect(await groupListingIds(mod10b, group.groupId)).toContain(held.id);
+    expect(await groupListingIds(mod10a, group.groupId)).not.toContain(held.id);
   });
 });
