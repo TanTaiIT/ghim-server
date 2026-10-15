@@ -17,6 +17,8 @@ công ty, cộng đồng). Máy duyệt trước, người duyệt phần máy k
   OpenSpec**. File này chỉ nói luật đặt ở **đâu trong code**. TK, change và code lệch nhau → hỏi, đừng
   tự chọn một bên. Hai luật đụng nhau → thứ tự ưu tiên ở TK phần 4 (pháp lý → không tự xử việc của mình
   → máy không phạt → người dùng biết vì sao → tiện lợi).
+- **Việc đang dở**: `docs/VIEC-DANG-DO.md` — việc chờ quyết, change còn lại, checklist chuyển R2, môi trường dev.
+  Làm xong việc nào thì xoá dòng đó; gác lại việc gì thì thêm vào.
 - **Hệ thống cũ**: `../../Vue/` (Express + MongoDB + agenda). Đọc để biết dữ liệu nào phải chuyển
   sang và tích hợp nào đang chạy; **không** chép pattern của nó sang đây.
 - Hai cửa, một backend:
