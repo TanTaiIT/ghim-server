@@ -35,6 +35,8 @@ export type IdentityOpsService = Pick<
   | 'unlockAccount'
   | 'recordListingSubmission'
   | 'deviceFlagsFor'
+  | 'sharedDeviceAccounts'
+  | 'masterIds'
   | 'deviceToken'
   | 'getFlag'
   | 'openFlagsOf'
@@ -178,6 +180,10 @@ export function createIdentityOpsService(
         audit: null,
       });
     },
+
+    sharedDeviceAccounts: (accountId, since) => repository.accountsSharingDevice(accountId, since),
+
+    masterIds: () => repository.activeMasterIds(),
 
     async deviceFlagsFor(accountId, deviceHash, at) {
       const [posts, lockedAccounts, clearances, open] = await Promise.all([

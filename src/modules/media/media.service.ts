@@ -60,6 +60,8 @@ export interface MediaService {
     input: { owner: ImageOwner; imageIds: string[] },
   ): Promise<void>;
   viewUrl(imageId: string): Promise<string>;
+  /** Chủ của từng ảnh — người duyệt thấy ảnh trùng nằm ở tin nào (design add-review-queues mục 8). */
+  ownersOf(imageIds: string[]): Promise<Map<string, ImageOwner>>;
   /** Bytes của ảnh cho máy duyệt băm (design add-screening mục 12); `null` khi kho không còn tệp. */
   readImage(imageId: string): Promise<Uint8Array | null>;
   /**
@@ -202,6 +204,11 @@ export function createMediaService(deps: MediaServiceDeps): MediaService {
         at: clock(),
       });
       if (!attached) throw imageNotInStorage();
+    },
+
+    async ownersOf(imageIds) {
+      const rows = await repository.findImages([...new Set(imageIds)]);
+      return new Map(rows.map((row) => [row.id, { kind: row.ownerKind, id: row.ownerId }]));
     },
 
     viewUrl: (imageId) =>

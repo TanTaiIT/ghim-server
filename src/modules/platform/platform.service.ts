@@ -94,6 +94,8 @@ export interface PlatformService {
   /** Bên nghe `identity.account.deleted`: thu hẳn, kể cả quyền đang treo; idempotent. */
   revokeStaffForDeletion(accountId: string): Promise<void>;
   listStaff(categoryId?: string): Promise<StaffPermissionDto[]>;
+  /** Cổng cho `review`: staff đang hoạt động của từng danh mục — người xử việc của danh mục đó (TK 16). */
+  activeStaffByCategory(categoryIds: string[]): Promise<Map<string, string[]>>;
 
   /**
    * Chạy lúc khởi động: bảng rỗng → phiên bản 1 từ sổ đăng ký; phiên bản hiện hành thiếu khoá nào
@@ -232,6 +234,8 @@ export function createPlatformService(deps: PlatformServiceDeps): PlatformServic
     async revokeStaffForDeletion(accountId) {
       await repository.removeStaff(accountId);
     },
+
+    activeStaffByCategory: (categoryIds) => repository.activeStaffByCategory(categoryIds),
 
     async listStaff(categoryId) {
       const rows = await repository.listStaff(categoryId === undefined ? {} : { categoryId });

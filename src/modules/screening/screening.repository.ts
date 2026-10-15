@@ -194,7 +194,7 @@ export interface ScreeningRepository {
     bands: readonly number[];
     excludeOwner: string;
     excludeImageIds: string[];
-  }): Promise<Pick<ImageCheck, 'imageId' | 'dhash'>[]>;
+  }): Promise<Pick<ImageCheck, 'imageId' | 'dhash' | 'ownerAccountId'>[]>;
   whitelistCandidates(bands: readonly number[]): Promise<Pick<ImageWhitelistEntry, 'dhash'>[]>;
   addWhitelist(
     entry: StoredHash & { sourceImageId: string; addedBy: string; at: Date },
@@ -511,7 +511,7 @@ export function createScreeningRepository(prisma: PrismaClient): ScreeningReposi
           imageId: { notIn: excludeImageIds },
           OR: anyBand(bands),
         },
-        select: { imageId: true, dhash: true },
+        select: { imageId: true, dhash: true, ownerAccountId: true },
       }),
 
     whitelistCandidates: (bands) =>

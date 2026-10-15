@@ -247,6 +247,13 @@ export interface IdentityService extends ActorResolver {
   recordListingSubmission(accountId: string, deviceHash: string, at: Date): Promise<void>;
   /** `screening` hỏi lúc chấm chữ, trước khi bên nghe kịp ghi lượt đăng: tính như đã ghi, không ghi gì. */
   deviceFlagsFor(accountId: string, deviceHash: string, at: Date): Promise<DeviceFlags>;
+  /**
+   * Tài khoản từng đăng tin từ cùng một máy với `accountId` kể từ `since` — `review` loại họ khỏi việc của nhau (TK 8,
+   * 16). Chỉ trả mã tài khoản, không bao giờ trả dấu máy.
+   */
+  sharedDeviceAccounts(accountId: string, since: Date): Promise<string[]>;
+  /** Master đang hoạt động — người nhận nhắc hạn và cảnh báo của hàng chờ (design add-review-queues mục 10). */
+  masterIds(): Promise<string[]>;
   getFlag(lookupCode: string): Promise<FlagDto>;
   /** Đánh dấu đang mở của một tài khoản — hỗ trợ tra mã của máy duyệt thấy mã đánh dấu để gỡ (spec explanations). */
   openFlagsOf(accountId: string): Promise<FlagDto[]>;

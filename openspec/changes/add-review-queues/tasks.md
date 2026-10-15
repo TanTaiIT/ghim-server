@@ -17,7 +17,7 @@ Theo `design.md`. Test HTTP, DB chạy trên CI (PR nháp nhánh `add-listings`)
 - [x] 2.1 `listing`: `review` nhận `after(tx)`, `approve` gỡ `machine`, `reject`/`remove` ghi `fault_reason` và người
       đăng thấy nó; `confirmLive`, `detachByGroup` (kiểm `version`); `reviewSubject`, `forReviewer`,
       `pendingInGroup`; xác minh test HTTP `listing` (các ca cũ vẫn xanh) và test mới cho ba thao tác
-- [ ] 2.2 `identity` `sharedDeviceAccounts` (180 ngày), `masterIds`; `trust` `cleanCount`; `screening` `runOf`,
+- [x] 2.2 `identity` `sharedDeviceAccounts` (180 ngày), `masterIds`; `trust` `cleanCount`; `screening` `runOf`,
       `duplicateMatches`; `group` `reviewersOf`; `platform` `activeStaffByCategory` và sự kiện
       `platform.staff.changed`; xác minh test DB từng cổng, test sự kiện của `platform`
 
