@@ -93,41 +93,42 @@ quyết định, kể cả của master, vào nhật ký quyết định), **21*
   gỡ / cấm, đóng nhóm), `add-categories` (danh mục, cài đặt "tin nhóm bị giữ do ai duyệt"), `add-listings`
   (trạng thái tin, lý do hạn chế, ngày hiển thị, mũi tên của người duyệt), `add-trust-tiers` (mức tin cậy, tin
   sạch), `add-screening` (kết quả máy, điểm, luật đã trúng, ảnh trùng, lưới an toàn, rút tin về khi bật cụm).
-- Tác động chéo (đổi trạng thái tin, gỡ lý do hạn chế) đi qua outbox — bảng outbox còn "(chưa có)" (CLAUDE.md
-  luật 12).
-- **Phải chọn trước khi làm** (CLAUDE.md: hỏi trước khi thêm package / dịch vụ): job nền chạy theo lịch — mỗi
-  phút (trả việc nhận quá 10 phút, chuyển cấp việc quá hạn), mỗi giờ (lấy mẫu, nhắc master, cảnh báo sắp chạm
-  hạn), mỗi tuần (báo hậu kiểm); job nền còn "(chưa có)" và `ops/background-jobs` tới đợt 7 mới có. Kênh nhắc
-  và cảnh báo master trước khi có hộp thư (đợt 6): chỉ trên bàn vận hành, hay cả email.
-- **Câu hỏi mở** — TK không nói hoặc tự mâu thuẫn, cần người dùng chốt trước khi viết design:
-  - Chuỗi chuyển tiếp trong nhóm: điều hành viên cấp cả nhóm và chủ nhóm thấy việc của mọi đơn vị con ngay từ
-    đầu, hay chỉ khi đơn vị con không còn ai xử được?
-  - "Tài khoản dùng chung thiết bị" xét từ lượt đăng tin (như `identity/device-registry`) hay cả phiên đăng
-    nhập — staff ít khi đăng tin từ máy mình, nên chỉ xét lượt đăng tin thì tài khoản phụ có thể lọt; và xét
-    trong 90 ngày hay toàn bộ 180 ngày dữ liệu thiết bị.
-  - Việc cần hai người (người xử hàng 4 khác người đề nghị, người hậu kiểm khác người đã duyệt) có tính cả tài
-    khoản dùng chung thiết bị như luật "không xử việc của mình" không.
-  - Master có phải bấm Nhận như mọi người, có quyết thay người đang nhận được không; quyết định "đạt" của
-    master có nằm trong 5% hậu kiểm người duyệt không (nguyên tắc 3 "không cơ chế kiểm soát master" đối với
-    cam kết 27).
-  - "Đạt" cho tin máy giữ mà ma trận ghi "hạn chế, chờ hậu kiểm" (vd tin T1 dải Vừa bị giữ vì cổng cứng): tin
-    lên đầy đủ, hay mang lý do "máy" và sinh việc hàng 3?
-  - "Máy đúng / máy quá tay": người xử tự chọn hay hệ thống suy ra; tỉ lệ "máy quá tay" của luật tính theo
-    kết quả "đạt" (TK 13) hay theo nhận định người xử ghi (TK 17) khi hai thứ khác nhau.
-  - Việc đã gộp nhiều lý do mà máy cho bản sửa qua: chỉ bỏ lý do máy giữ hay huỷ cả việc; tin đang hạn chế lý
-    do "máy" (hàng 3) hay đang trong mẫu (hàng 5) được sửa thì việc ra sao.
-  - Người đăng rút tin đang chờ duyệt về nháp thì việc bị huỷ hay giữ (TK 18 có mũi tên, TK 16 không nói).
-  - Rời / bị gỡ / bị cấm: tin chờ duyệt của người đó trong nhóm đi về đâu sau khi việc bị huỷ.
-  - Đóng nhóm: việc hàng 4 về tin của nhóm (đang ở chỗ staff) bị huỷ hay vẫn xử — TK 10 chỉ nêu ngoại lệ cho
-    báo cáo lừa đảo, hàng cấm.
-  - Gỡ khỏi nhóm đưa tin sang "bị gỡ" hay chỉ bỏ nơi đăng (cùng câu hỏi ở `add-listings`); ai khôi phục tin
-    trong nhóm; khôi phục là thao tác trực tiếp hay qua một việc; staff có gỡ trực tiếp một tin sàn không có
-    việc mở không (TK 6 "gỡ, khôi phục tin sàn").
-  - Việc quá hạn đã chuyển master: người xử ban đầu còn thấy và xử được không.
-  - Cảnh báo "một nửa số việc sắp chạm hạn": đếm trên toàn hệ thống, từng hàng hay từng người; gửi cho ai.
-  - Tỉ lệ hậu kiểm làm xong trong tuần: mẫu số là việc sinh trong tuần hay việc tới hạn trong tuần; hàng 3 có
-    tính không. "Bị lật" chỉ khi người hậu kiểm gỡ tin, hay cả khi gỡ khỏi nhóm.
-  - Danh sách lý do mẫu cho "sai sót": ai soạn, có theo danh mục không.
-  - Lưới an toàn sinh việc ở hàng nào (0 hay 3) cho tin đang hiện thiếu kết quả ảnh.
-  - Điều hành viên bị bãi nhiệm hay tạm mất vai khi đang nhận việc: việc trả về ngay như staff bị treo quyền,
-    hay chờ hết 10 phút.
+- Tác động chéo (đổi trạng thái tin, gỡ lý do hạn chế) theo CLAUDE.md luật 12: gọi đồng bộ khi cần trong cùng lượt,
+  còn lại đi qua outbox (đã có).
+- **Đã chọn** (15/10/2026): job nền theo lịch dùng pg-boss có sẵn (`src/lib/jobs.ts`), lịch nằm trong code như
+  `media.jobs.ts` — mỗi phút, mỗi giờ, mỗi tuần. Nhắc và cảnh báo master đi qua hộp thư thông báo có sẵn (nhóm "tài
+  khoản", luôn bật) cùng bảng tồn trên bàn vận hành; không gửi email.
+- **Câu hỏi mở — đã chốt 15/10/2026** (người dùng chọn phương án A cho cả 17 câu, sau khi xem tình huống và phương án
+  khác của từng câu):
+  1. Chuỗi trong nhóm: điều hành cấp cả nhóm và chủ nhóm chỉ thấy việc của đơn vị con khi đơn vị con không còn ai xử
+     được (đúng chuỗi TK 16); master luôn thấy mọi việc.
+  2. "Dùng chung thiết bị" = hai tài khoản từng đăng tin từ cùng một máy trong 180 ngày (toàn bộ dữ liệu thiết bị còn
+     giữ, TK 8). Hệ thống chỉ ghi dấu máy khi đăng tin; ghi thêm dấu máy lúc đăng nhập để bắt tài khoản phụ của staff
+     chưa từng đăng tin là việc sau (`docs/VIEC-DANG-DO.md`).
+  3. Việc cần hai người tính cả tài khoản dùng chung thiết bị, như luật "không xử việc của mình".
+  4. Master bấm Nhận như mọi người và không giành việc người khác đang giữ. Quyết định "đạt" của master không vào mẫu
+     5% hậu kiểm người duyệt (nguyên tắc 3); tin vẫn được xét lấy mẫu theo rủi ro.
+  5. "Đạt" cho tin máy giữ đưa tin lên đầy đủ, chỉ giữ lý do hạn chế độc lập (tài khoản mới…); không mang lý do "máy"
+     và không sinh việc hàng 3 — người vừa xem thay máy.
+  6. Người xử bắt buộc chọn "máy đúng" hay "máy quá tay" khi cho đạt việc máy giữ. Tỉ lệ của từng luật tính theo kết
+     quả "đạt"; số lần ghi "máy quá tay" hiện kèm.
+  7. Máy cho bản sửa qua thì bỏ lý do "máy giữ"; máy cho qua đầy đủ thì bỏ cả lý do "hạn chế do máy"; bản sửa nào cũng
+     bỏ lý do "mẫu hậu kiểm" (bản mới lên bảng được xét lấy mẫu lại). Máy vẫn giữ hay vẫn hạn chế thì giữ lý do, không
+     kéo dài hạn. Việc hết lý do thì huỷ, còn lý do thì xếp lại hàng theo lý do còn lại.
+  8. Người đăng rút tin chờ duyệt về nháp thì việc bị huỷ.
+  9. Rời, bị gỡ, bị cấm: việc máy giữ bị huỷ, tin vẫn chờ duyệt kèm lý do ẩn của nhóm; vào lại nhóm hay được gỡ cấm
+     mà tin vẫn chờ duyệt không có việc mở thì sinh lại việc hàng 0 với hạn mới.
+  10. Đóng nhóm không huỷ việc hàng 4 về tin của nhóm — vi phạm quy định sàn không phụ thuộc nhóm còn hay đóng.
+  11. "Gỡ khỏi nhóm" làm như TK 17 (tin rời nhóm, trạng thái không đổi, 30 ngày chuyển lên sàn — đã có ở `listing`);
+      không có "khôi phục vào nhóm". Khôi phục tin sàn là thao tác trực tiếp của staff danh mục và master, không qua
+      việc. Staff danh mục và master gỡ trực tiếp được một tin sàn đang hiện không có việc mở (TK 6), kèm lý do mẫu, ghi
+      nhật ký.
+  12. Việc quá hạn đã chuyển master thì người xử ban đầu không còn thấy, không xử được.
+  13. Cảnh báo "một nửa số việc sắp chạm hạn" đếm trên toàn hệ thống, gửi master, gộp thành một dòng chưa đọc.
+  14. Tỉ lệ hậu kiểm tuần: mẫu số là việc hàng 5 khép lại trong tuần (xử xong + tự huỷ vì quá hạn); không tính việc
+      huỷ vì lý do khác, không tính hàng 3. "Bị lật" là người hậu kiểm gỡ tin hoặc gỡ khỏi nhóm.
+  15. Lý do mẫu cho "sai sót" do master soạn trên bàn vận hành, dùng chung mọi danh mục; khởi đầu 6 lý do: Ảnh chưa rõ
+      sản phẩm · Thiếu thông tin quan trọng · Sai danh mục · Giá ghi sai · Tiêu đề không mô tả món hàng · Trùng tin đã
+      đăng.
+  16. Lưới an toàn chuyển tin đang hiện thiếu kết quả ảnh sang hạn chế thì sinh việc hàng 3.
+  17. Điều hành viên bị bãi nhiệm hay tạm mất vai khi đang nhận việc: việc trả về hàng chờ ngay, như staff bị treo quyền.

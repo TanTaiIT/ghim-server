@@ -9,7 +9,8 @@ cần hai người luôn do hai người khác nhau làm (TK 16, nguyên tắc 4
 
 Việc về một tin hay về một người MUST NOT hiện trong hàng chờ, và MUST NOT nhận hay quyết được, bởi người đăng
 tin đó, bởi chính người đó, hay bởi tài khoản dùng chung thiết bị với họ. Luật này SHALL áp cho mọi vai, trừ
-master.
+master. Hai tài khoản dùng chung thiết bị khi cả hai từng đăng tin từ cùng một máy trong 180 ngày gần nhất — toàn bộ
+dữ liệu thiết bị hệ thống còn giữ (chốt 15/10/2026).
 
 #### Scenario: Staff đăng tin trong danh mục của mình
 
@@ -99,7 +100,8 @@ Master SHALL nhận và quyết được mọi việc, kể cả việc về tà
 ### Requirement: Việc cần hai người do hai người khác nhau làm
 
 Người xử một việc chuyển từ nhóm MUST khác người đã đề nghị chuyển lên. Người hậu kiểm một tin MUST khác người
-đã cho tin đó lên bảng.
+đã cho tin đó lên bảng. "Khác người" SHALL loại cả tài khoản dùng chung thiết bị với người kia, như luật không xử
+việc của mình (chốt 15/10/2026).
 
 #### Scenario: Chủ nhóm đồng thời là staff
 
@@ -115,3 +117,9 @@ Người xử một việc chuyển từ nhóm MUST khác người đã đề ng
 
 - **WHEN** tin do staff A cho đạt được đưa vào mẫu hậu kiểm
 - **THEN** việc hàng 5 không hiện trong hàng của A mà hiện cho staff khác cùng danh mục
+
+#### Scenario: Người đề nghị có tài khoản staff trên cùng máy
+
+- **WHEN** chủ nhóm L chuyển một tin lên hàng 4, và tài khoản staff S được giao danh mục của tin đã từng đăng tin từ
+  cùng máy với L
+- **THEN** việc hàng 4 không hiện trong hàng của S mà hiện cho staff khác cùng danh mục

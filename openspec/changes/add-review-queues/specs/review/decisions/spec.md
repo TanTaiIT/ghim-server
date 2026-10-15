@@ -21,10 +21,21 @@ Kết quả "đạt" cho một việc máy giữ SHALL đưa tin lên bảng; ti
 - **WHEN** staff cho đạt việc hàng 0 về tin sàn của tài khoản T0
 - **THEN** tin chuyển sang đang hiển thị ở mức hạn chế với lý do "tài khoản mới"
 
+#### Scenario: Tin dải Vừa bị giữ vì cổng cứng
+
+- **WHEN** staff cho đạt việc hàng 0 về tin sàn của tài khoản T1, điểm rủi ro dải Vừa, bị giữ vì ảnh trùng
+- **THEN** tin hiển thị đầy đủ, không mang lý do hạn chế "máy" và không có việc hàng 3 nào về tin đó (chốt
+  15/10/2026)
+
 #### Scenario: Nhận định về máy
 
 - **WHEN** staff cho đạt một việc máy giữ
 - **THEN** nhật ký quyết định ghi nhận định "máy đúng" hoặc "máy quá tay" cùng các luật máy đã trúng
+
+#### Scenario: Thiếu nhận định về máy
+
+- **WHEN** staff cho đạt một việc máy giữ mà không chọn "máy đúng" hay "máy quá tay"
+- **THEN** response có HTTP 400 `VALIDATION_ERROR` và tin không đổi
 
 ### Requirement: Đạt cho tin đang hậu kiểm
 
@@ -87,10 +98,53 @@ ra được. Tin rời khỏi nhóm và không còn hiện trong nhóm.
 - **WHEN** staff đang nhận việc về một tin trong nhóm chọn "gỡ khỏi nhóm"
 - **THEN** response có HTTP 403 `FORBIDDEN` và tin không đổi
 
+### Requirement: Lý do mẫu do master soạn
+
+Master SHALL thêm, sửa câu và tắt được lý do mẫu cho kết quả "sai sót", dùng chung cho mọi danh mục; khởi đầu có sáu
+lý do: Ảnh chưa rõ sản phẩm · Thiếu thông tin quan trọng · Sai danh mục · Giá ghi sai · Tiêu đề không mô tả món hàng ·
+Trùng tin đã đăng. Lý do đã tắt MUST NOT dùng được cho quyết định mới (chốt 15/10/2026).
+
+#### Scenario: Master thêm lý do mẫu
+
+- **WHEN** master thêm lý do mẫu "Ảnh chụp màn hình, không phải ảnh thật"
+- **THEN** staff thấy lý do đó khi từ chối vì sai sót
+
+#### Scenario: Staff soạn lý do mẫu
+
+- **WHEN** staff thêm một lý do mẫu
+- **THEN** response có HTTP 403 `FORBIDDEN`
+
+#### Scenario: Dùng lý do đã tắt
+
+- **WHEN** staff từ chối vì sai sót kèm một lý do mẫu master đã tắt
+- **THEN** response có HTTP 400 `VALIDATION_ERROR` và tin không đổi
+
+### Requirement: Gỡ trực tiếp tin sàn đang hiện
+
+Staff được giao danh mục của tin và master SHALL gỡ được trực tiếp một tin sàn đang hiện mà không có việc mở, với
+mức "sai sót" kèm lý do mẫu (TK 6). Quyết định vào nhật ký như mọi quyết định, không gắn việc nào. Tin đang có việc mở
+thì MUST xử qua việc đó (chốt 15/10/2026).
+
+#### Scenario: Staff gỡ thẳng tin sàn
+
+- **WHEN** staff được giao Điện thoại gỡ vì sai sót một tin sàn Điện thoại đang hiện, kèm lý do mẫu "Sai danh mục"
+- **THEN** tin chuyển sang bị gỡ, người đăng thấy lý do đó, và nhật ký có một dòng quyết định không gắn việc
+
+#### Scenario: Tin đang có việc mở
+
+- **WHEN** staff gỡ thẳng một tin đang có việc hàng 3
+- **THEN** response có HTTP 409 `TASK_OPEN` và tin không đổi
+
+#### Scenario: Gỡ thẳng tin trong nhóm
+
+- **WHEN** staff gỡ thẳng một tin chỉ đăng trong nhóm, không ở sàn chung
+- **THEN** response có HTTP 409 `OUTCOME_NOT_ALLOWED` và tin không đổi
+
 ### Requirement: Khôi phục tin sàn đã bị gỡ
 
-Staff được giao danh mục của tin và master SHALL khôi phục được một tin sàn đang bị gỡ: tin trở lại hiển thị
-và ngày hiển thị chạy tiếp từ chỗ đã dừng lúc bị gỡ.
+Staff được giao danh mục của tin và master SHALL khôi phục được một tin sàn đang bị gỡ, bằng thao tác trực tiếp
+trên tin, không qua việc: tin trở lại hiển thị và ngày hiển thị chạy tiếp từ chỗ đã dừng lúc bị gỡ. Tin đã gỡ khỏi
+nhóm không có khôi phục vào nhóm (chốt 15/10/2026).
 
 #### Scenario: Khôi phục tin bị gỡ
 

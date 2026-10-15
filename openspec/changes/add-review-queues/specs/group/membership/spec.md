@@ -14,3 +14,9 @@ SHALL bị huỷ. Huỷ việc MUST NOT làm tin hiện lên; việc về tin c�
 
 - **WHEN** thành viên bị cấm khỏi nhóm cũng có một tin sàn đang chờ duyệt
 - **THEN** việc về tin sàn đó vẫn mở trong hàng của staff danh mục
+
+#### Scenario: Vào lại nhóm khi tin còn chờ duyệt
+
+- **WHEN** thành viên có tin chờ duyệt trong nhóm rời nhóm (việc bị huỷ), rồi vào lại nhóm khi tin vẫn chờ duyệt
+- **THEN** tin có một việc hàng 0 mới với hạn xử 24 giờ kể từ lúc vào lại, trong hàng của điều hành nhóm phụ trách
+  phạm vi của tin (chốt 15/10/2026)
