@@ -4,7 +4,7 @@ Theo `design.md`. Test HTTP, DB chạy trên CI (PR nháp nhánh `add-listings`)
 
 ## 1. Nền: bảng và phần tính thuần
 
-- [ ] 1.1 Migration `init_review` (design mục 2): enum `review_reason`, `review_task_status`, kết quả, nhận định;
+- [x] 1.1 Migration `init_review` (design mục 2): enum `review_reason`, `review_task_status`, kết quả, nhận định;
       bảng `review_tasks`, `review_decisions`, `review_reason_templates` (sáu lý do khởi đầu),
       `review_sample_candidates`; partial unique một việc mở mỗi tin; CHECK viết tay; cột `listings.fault_reason`;
       xác minh test DB: hai việc mở cùng tin bị chặn, việc mở thiếu lý do bị chặn, nhận việc thiếu cột bị chặn;

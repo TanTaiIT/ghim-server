@@ -1104,6 +1104,9 @@ model Listing {
   shownSince         DateTime?            @map("shown_since") @db.Timestamptz(3)
   renewal            ListingRenewal?
   fault              ListingFault?
+  /// Lý do mẫu người duyệt chọn khi từ chối / gỡ — người đăng thấy (add-review-queues). CHECK tay (migration
+  /// init_review): listings_fault_reason_check: fault_reason IS NULL OR fault IS NOT NULL
+  faultReason        String?              @map("fault_reason")
   /// Lúc rời nhóm hẳn — mốc của hạn chuyển lên sàn chung.
   leftGroupAt        DateTime?            @map("left_group_at") @db.Timestamptz(3)
   movedFromListingId String?              @map("moved_from_listing_id") @db.Uuid
@@ -1115,17 +1118,19 @@ model Listing {
   updatedAt          DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt          DateTime?            @map("deleted_at") @db.Timestamptz(3)
 
-  owner       Account             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  group       Group?              @relation("listing_group", fields: [groupId], references: [id], onDelete: Restrict)
-  category    Category?           @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  province    Province?           @relation(fields: [provinceCode], references: [code], onDelete: Restrict)
-  ward        Ward?               @relation(fields: [wardCode], references: [code], onDelete: Restrict)
-  badgeGroup  Group?              @relation("listing_badge", fields: [badgeGroupId], references: [id], onDelete: Restrict)
+  owner            Account                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  group            Group?                  @relation("listing_group", fields: [groupId], references: [id], onDelete: Restrict)
+  category         Category?               @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  province         Province?               @relation(fields: [provinceCode], references: [code], onDelete: Restrict)
+  ward             Ward?                   @relation(fields: [wardCode], references: [code], onDelete: Restrict)
+  badgeGroup       Group?                  @relation("listing_badge", fields: [badgeGroupId], references: [id], onDelete: Restrict)
   /// Tin cũ bị xoá hẳn thì tin mới vẫn sống; chỉ mất dấu "đã chuyển từ đâu".
-  movedFrom   Listing?            @relation("listing_move", fields: [movedFromListingId], references: [id], onDelete: SetNull)
-  movedTo     Listing[]           @relation("listing_move")
-  submissions ListingSubmission[]
-  badgeBlocks ListingBadgeBlock[]
+  movedFrom        Listing?                @relation("listing_move", fields: [movedFromListingId], references: [id], onDelete: SetNull)
+  movedTo          Listing[]               @relation("listing_move")
+  submissions      ListingSubmission[]
+  badgeBlocks      ListingBadgeBlock[]
+  reviewTasks      ReviewTask[]
+  sampleCandidates ReviewSampleCandidate[]
 
   /// Mỗi tin chuyển lên sàn chung một lần (ALREADY_MOVED) — kể cả hai lượt song song.
   @@unique([movedFromListingId], where: raw("moved_from_listing_id IS NOT NULL"), map: "listings_moved_from_key")
@@ -1532,4 +1537,184 @@ model CategoryKeyword {
 
   @@id([categoryId, keywordFolded])
   @@map("category_keywords")
+}
+
+// ── REVIEW: ENUM ─────────────────────────────────────────────────────────────────────────────────
+
+/// Lý do một việc có mặt trong hàng chờ; số hàng của việc = số nhỏ nhất trong các lý do (TK 16). `report` (hàng 1),
+/// `appeal` (hàng 2) do add-reports, add-strikes thêm.
+enum ReviewReason {
+  machine_hold
+  machine_restricted
+  group_escalation
+  sample_risk
+  sample_reviewer
+
+  @@map("review_reason")
+}
+
+enum ReviewTaskStatus {
+  open
+  decided
+  cancelled
+
+  @@map("review_task_status")
+}
+
+/// Vì sao việc khép lại — chỉ `expired` (mẫu quá hạn) tính vào "bỏ sót" của hậu kiểm tuần.
+enum ReviewCloseCause {
+  decided
+  expired
+  machine_passed
+  edited
+  withdrawn
+  listing_closed
+  listing_deleted
+  member_left
+  group_closed
+
+  @@map("review_close_cause")
+}
+
+/// `restore` và `remove` không qua việc là thao tác trực tiếp của staff danh mục và master (TK 6).
+enum ReviewOutcome {
+  pass
+  reject
+  remove
+  detach
+  dismiss
+  restore
+
+  @@map("review_outcome")
+}
+
+/// `violation` (kèm gậy) do add-strikes dùng — khai sẵn để khỏi ALTER TYPE.
+enum ReviewSeverity {
+  mistake
+  violation
+
+  @@map("review_severity")
+}
+
+/// Người xử ghi khi cho đạt việc máy giữ (TK 17): giữ là hợp lý dù tin ổn, hay không đáng giữ.
+enum ReviewMachineJudgment {
+  machine_right
+  machine_overreach
+
+  @@map("review_machine_judgment")
+}
+
+enum ReviewActorRole {
+  master
+  staff
+  moderator
+  owner
+
+  @@map("review_actor_role")
+}
+
+// ── REVIEW: BẢNG ─────────────────────────────────────────────────────────────────────────────────
+
+/// Một việc trong hàng chờ (design add-review-queues mục 2–5). Phạm vi (`category_id`, `group_id`, `unit_id`,
+/// `placement`) chép từ tin mỗi lần việc được chạm; ai xử tính lúc đọc từ phạm vi và `excluded_ids`. CHECK tay
+/// (migration init_review):
+///   review_tasks_reasons_check: status <> 'open' OR COALESCE(cardinality(reasons), 0) > 0
+///   review_tasks_queue_check:   queue BETWEEN 0 AND 5
+///   review_tasks_claim_check:   (claimed_by IS NULL) = (claim_expires_at IS NULL) AND (claimed_by IS NULL) = (claimed_version IS NULL)
+///   review_tasks_closed_check:  (status = 'open') = (closed_at IS NULL) AND (status = 'open') = (close_cause IS NULL)
+model ReviewTask {
+  id                String            @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  listingId         String            @map("listing_id") @db.Uuid
+  status            ReviewTaskStatus  @default(open)
+  reasons           ReviewReason[]
+  queue             Int               @db.SmallInt
+  categoryId        String?           @map("category_id") @db.Uuid
+  groupId           String?           @map("group_id") @db.Uuid
+  unitId            String?           @map("unit_id") @db.Uuid
+  placement         ListingPlacement?
+  dueAt             DateTime          @map("due_at") @db.Timestamptz(3)
+  /// Quá hạn đã chuyển master — chỉ master xử từ đây (TK 16).
+  escalatedAt       DateTime?         @map("escalated_at") @db.Timestamptz(3)
+  /// Người không được xử: người đăng, người chuyển lên, người đã cho đạt, và tài khoản dùng chung máy với họ.
+  excludedIds       String[]          @default([]) @map("excluded_ids") @db.Uuid
+  escalatedBy       String?           @map("escalated_by") @db.Uuid
+  escalationNote    String?           @map("escalation_note")
+  /// Mẫu hậu kiểm người duyệt: quyết định "đạt" đang được xem lại — để tính tỉ lệ bị lật.
+  sampledDecisionId String?           @map("sampled_decision_id") @db.Uuid
+  claimedBy         String?           @map("claimed_by") @db.Uuid
+  claimExpiresAt    DateTime?         @map("claim_expires_at") @db.Timestamptz(3)
+  /// Phiên bản tin lúc nhận — quyết định chỉ áp lên nội dung người xử đã thấy.
+  claimedVersion    Int?              @map("claimed_version")
+  remindedAt        DateTime?         @map("reminded_at") @db.Timestamptz(3)
+  closeCause        ReviewCloseCause? @map("close_cause")
+  closedAt          DateTime?         @map("closed_at") @db.Timestamptz(3)
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  /// Một tin, một việc đang mở (TK 16) — hai lối sinh việc cùng lúc vẫn ra một việc.
+  @@unique([listingId], where: raw("status = 'open'"), map: "review_tasks_open_listing_key")
+  @@index([categoryId], where: raw("status = 'open'"), map: "review_tasks_open_category_idx")
+  @@index([groupId], where: raw("status = 'open'"), map: "review_tasks_open_group_idx")
+  @@index([dueAt], where: raw("status = 'open'"), map: "review_tasks_open_due_idx")
+  @@index([closedAt], where: raw("status <> 'open'"), map: "review_tasks_closed_idx")
+  @@map("review_tasks")
+}
+
+/// Nhật ký quyết định của người (TK 17): không chứa nội dung tin; không FK sang tin hay tài khoản — giữ theo hạn lưu
+/// riêng (add-data-retention). CHECK tay (migration init_review):
+///   review_decisions_severity_check: (outcome IN ('reject', 'remove')) = (severity IS NOT NULL)
+///   review_decisions_judgment_check: machine_judgment IS NULL OR outcome = 'pass'
+model ReviewDecision {
+  id                  String                 @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  taskId              String?                @map("task_id") @db.Uuid
+  listingId           String                 @map("listing_id") @db.Uuid
+  actorId             String                 @map("actor_id") @db.Uuid
+  actorRole           ReviewActorRole        @map("actor_role")
+  outcome             ReviewOutcome
+  severity            ReviewSeverity?
+  reasonTemplateId    String?                @map("reason_template_id") @db.Uuid
+  reasonText          String?                @map("reason_text")
+  note                String?
+  machineJudgment     ReviewMachineJudgment? @map("machine_judgment")
+  machineOutcome      ScreeningOutcome?      @map("machine_outcome")
+  machineHits         String[]               @default([]) @map("machine_hits")
+  taskReasons         ReviewReason[]         @default([]) @map("task_reasons")
+  queue               Int?                   @db.SmallInt
+  listingStateAfter   ListingState           @map("listing_state_after")
+  posterTierAfter     TrustTier?             @map("poster_tier_after")
+  /// Quyết định "đạt" mà lần hậu kiểm này lật (gỡ tin hay gỡ khỏi nhóm).
+  overturnsDecisionId String?                @map("overturns_decision_id") @db.Uuid
+  decidedAt           DateTime               @map("decided_at") @db.Timestamptz(3)
+
+  @@index([actorId, decidedAt])
+  @@index([listingId, decidedAt])
+  @@index([overturnsDecisionId], where: raw("overturns_decision_id IS NOT NULL"), map: "review_decisions_overturns_idx")
+  @@map("review_decisions")
+}
+
+/// Lý do mẫu cho "sai sót" — master soạn, dùng chung mọi danh mục (chốt 15/10/2026).
+model ReviewReasonTemplate {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  text      String   @unique
+  active    Boolean  @default(true)
+  sort      Int      @default(0)
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("review_reason_templates")
+}
+
+/// Tin vừa lên bảng chờ lượt lấy mẫu mỗi giờ (TK 16) — lượt lấy mẫu xét rồi xoá.
+model ReviewSampleCandidate {
+  listingId      String   @map("listing_id") @db.Uuid
+  listingVersion Int      @map("listing_version")
+  wentLiveAt     DateTime @map("went_live_at") @db.Timestamptz(3)
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@id([listingId, listingVersion])
+  @@map("review_sample_candidates")
 }
