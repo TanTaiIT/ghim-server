@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { ForbiddenError } from '../src/common/errors/app-error.js';
 import { errorHandler } from '../src/common/errors/error-handler.js';
 import { ok } from '../src/common/schemas/response.js';
-import { StorageUnavailableError } from '../src/lib/storage.js';
+import { StorageUnavailableError } from '../src/lib/storage/storage.js';
 
 /**
  * Mọi lỗi ra ngoài qua MỘT cửa (`errorHandler`). Dựng một app tối giản với đúng handler đó và các

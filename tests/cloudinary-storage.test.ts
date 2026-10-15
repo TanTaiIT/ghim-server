@@ -6,8 +6,8 @@ import {
   createCloudinaryStorage,
   signDeliveryPath,
   signUploadParams,
-} from '../src/lib/cloudinary-storage.js';
-import { StorageUnavailableError } from '../src/lib/storage.js';
+} from '../src/lib/storage/cloudinary.storage.js';
+import { StorageUnavailableError } from '../src/lib/storage/storage.js';
 
 /*
  * Bộ nối Cloudinary (change use-cloudinary-storage) với `fetch` giả: chữ ký, trường của quyền tải, đường xem, cách gọi

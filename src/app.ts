@@ -28,7 +28,8 @@ import { createJobs, type Jobs } from './lib/jobs.js';
 import { logger } from './lib/logger.js';
 import { createFakeMailer, createSmtpMailer, type Mailer } from './lib/mailer.js';
 import { prisma } from './lib/prisma.js';
-import { createStorage, type Storage } from './lib/storage.js';
+import { createStorage } from './lib/storage/create-storage.js';
+import type { Storage } from './lib/storage/storage.js';
 import { createCategoryModule } from './modules/category/category.module.js';
 import {
   createCategoryRepository,

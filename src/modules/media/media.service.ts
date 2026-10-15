@@ -8,7 +8,7 @@ import {
   NotFoundError,
   TooManyRequestsError,
 } from '../../common/errors/app-error.js';
-import { IMAGE_KEY_PREFIX, imageKey, type Storage } from '../../lib/storage.js';
+import { IMAGE_KEY_PREFIX, imageKey, type Storage } from '../../lib/storage/storage.js';
 import type { ImageOwner, MediaRepository } from './media.repository.js';
 
 /**

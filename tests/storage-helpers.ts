@@ -6,7 +6,8 @@ import {
 } from '@aws-sdk/client-s3';
 
 import { parseStorageUrl } from '../src/config/storage-url.js';
-import { createS3Storage, type Storage } from '../src/lib/storage.js';
+import { createS3Storage } from '../src/lib/storage/s3.storage.js';
+import type { Storage } from '../src/lib/storage/storage.js';
 
 /**
  * Kho test: container `storage-test` (RustFS trên tmpfs), mỗi worker một bucket như mỗi worker một DB. Các hàm ở đây

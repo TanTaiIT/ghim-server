@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import type { CloudinaryStorageConfig } from '../config/storage-url.js';
+import type { CloudinaryStorageConfig } from '../../config/storage-url.js';
 import { type Storage, type StoredObject, StorageUnavailableError } from './storage.js';
 
 /*

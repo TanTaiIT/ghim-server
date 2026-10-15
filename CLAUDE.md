@@ -90,10 +90,10 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
     websocket. Chỉ chiều server → app; phòng theo người và theo phiên, không phòng theo nhóm. Hạ tầng dùng chung
     ở `src/common/realtime/`; nhắn tin (đợt 6) dùng lại. `socket.io-client` chỉ là devDependency để test.
   - Kho ảnh (chốt 11/10/2026, đổi 14/10/2026): hai bộ nối sau cổng `Storage`, chọn bằng `STORAGE_URL`. **Cloudinary**
-    dùng tạm cho production và dev (`cloudinary://key:secret@cloud?folder=…`, `src/lib/cloudinary-storage.ts`, gọi API
+    dùng tạm cho production và dev (`cloudinary://key:secret@cloud?folder=…`, `src/lib/storage/cloudinary.storage.ts`, gọi API
     bằng `fetch`, không SDK — change `use-cloudinary-storage`: Backblaze B2 không chặn được ghi đè ảnh). **Chuẩn S3**
     qua `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner`: Cloudflare R2 về sau, **RustFS** trong docker-compose cho
-    test (`storage-test`, cổng 9110, tmpfs) và dev khi cần (`pnpm storage:up`, cổng 9100). Một biến `STORAGE_URL` (`src/config/storage-url.ts`); cửa duy nhất `src/lib/storage.ts`
+    test (`storage-test`, cổng 9110, tmpfs) và dev khi cần (`pnpm storage:up`, cổng 9100). Một biến `STORAGE_URL` (`src/config/storage-url.ts`); cửa duy nhất `src/lib/storage/storage.ts`
     (`Storage`: ký quyền tải một ảnh — S3 `PUT` kèm `If-None-Match: *`, Cloudinary `POST` biểu mẫu với
     `overwrite=false` —, ký đường xem — S3 có hạn, Cloudinary không hết hạn —, `head`, `read` có trần byte cho máy
     duyệt băm ảnh, `copy`, `deleteMany`, `list`).
@@ -120,7 +120,10 @@ src/
   server.ts                   ← jobs.start(), `startup` của từng module, bật `app.outbox`, listen; tắt theo thứ tự
                                 HTTP (kèm socket) → bộ phát → jobs → Prisma
   config/{env,database-guard}.ts
-  lib/{prisma,logger,mailer,jobs,storage}.ts
+  lib/{prisma,logger,mailer,jobs}.ts
+  lib/storage/                ← kho ảnh: `storage.ts` (cổng `Storage`, `imageKey`, `StorageUnavailableError`),
+                                `s3.storage.ts`, `cloudinary.storage.ts` (tạm, tới khi R2), `create-storage.ts` (chọn
+                                bộ nối theo `STORAGE_URL`, chỉ `app.ts` gọi) — bộ nối không import nhau
   common/
     audit/audit.ts            ← `appendAudit(tx, entry)`: nhật ký bàn vận hành, cùng transaction với thay đổi
     auth/{auth.plugin,actor,privilege-source}.ts ← guard dùng chung: authenticate, requireVerifiedEmail,
@@ -252,7 +255,7 @@ jobs với handler thuần. `../booking` không có trong workspace này; chỉ 
    `src/common/errors/error-handler.ts` map lỗi sang HTTP, kể cả lỗi Prisma (`PRISMA_ERRORS`:
    `P2002` → 409, `P2025` → 404, `P2003` → 409) và lỗi Postgres qua driver adapter (`P2039`, map theo
    SQLSTATE ở `POSTGRES_ERRORS`: `23P01`, `23514` → 409). Cần thêm mã thì thêm vào bảng đó. Kho ảnh tạm không trả
-   lời (bộ nối ném `StorageUnavailableError` của `src/lib/storage.ts`) → 503 `STORAGE_UNAVAILABLE`.
+   lời (bộ nối ném `StorageUnavailableError` của `src/lib/storage/storage.ts`) → 503 `STORAGE_UNAVAILABLE`.
    Thông báo lỗi cho người dùng viết tiếng Việt, ngắn, nói cách sửa. Lỗi tự sửa được thì nói cụ thể;
    **dấu hiệu gian lận thì không** — chỉ "đang chờ người duyệt" (TK nguyên tắc 8).
 4. Response (`src/common/schemas/response.ts`, `pagination.ts`):

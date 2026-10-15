@@ -4,7 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createStaticRuntimeConfig } from '../src/common/config/runtime-config.js';
-import { imageKey } from '../src/lib/storage.js';
+import { imageKey } from '../src/lib/storage/storage.js';
 import { prisma } from './db-helpers.js';
 import { newUser, type TestUser } from './group-helpers.js';
 import { firstByteAt, requestUpload } from './media-helpers.js';

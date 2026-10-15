@@ -5,7 +5,7 @@ import {
   isResponseSerializationError,
 } from 'fastify-type-provider-zod';
 
-import { StorageUnavailableError } from '../../lib/storage.js';
+import { StorageUnavailableError } from '../../lib/storage/storage.js';
 import { AppError } from './app-error.js';
 
 /**

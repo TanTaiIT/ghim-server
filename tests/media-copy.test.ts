@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { createStaticRuntimeConfig } from '../src/common/config/runtime-config.js';
-import { imageKey } from '../src/lib/storage.js';
+import { imageKey } from '../src/lib/storage/storage.js';
 import { createMediaService } from '../src/modules/media/media.service.js';
 import { prisma } from './db-helpers.js';
 import { firstByteAt } from './media-helpers.js';

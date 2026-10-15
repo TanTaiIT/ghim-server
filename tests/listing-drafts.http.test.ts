@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { imageKey } from '../src/lib/storage.js';
+import { imageKey } from '../src/lib/storage/storage.js';
 import { createInterimTrust, interimScreening } from './fakes/listing-ports.fake.js';
 import { prisma } from './db-helpers.js';
 import { newMaster, newUser } from './group-helpers.js';
