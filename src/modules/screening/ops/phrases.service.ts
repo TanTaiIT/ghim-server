@@ -5,9 +5,9 @@ import type { Actor } from '../../../common/auth/actor.js';
 import { BadRequestError, ConflictError, NotFoundError } from '../../../common/errors/app-error.js';
 import { phraseWords } from '../calc/phrase.calc.js';
 import type { Tx } from '../screening.repository.js';
-import { SCREENING_JOBS } from '../screening.jobs.js';
+import { RESCAN_SETTLE_MINUTES, SCREENING_JOBS } from '../screening.jobs.js';
 import type { CreatePhraseBody, PatchPhraseBody, PhraseDto } from '../screening.schema.js';
-import { DAY_MS, type ScreeningShared } from '../screening.shared.js';
+import { DAY_MS, MINUTE_MS, type ScreeningShared } from '../screening.shared.js';
 
 export interface ScreeningPhrasesService {
   listPhrases(): Promise<PhraseDto[]>;
@@ -145,8 +145,18 @@ export function createPhrasesService(shared: ScreeningShared): ScreeningPhrasesS
         },
         reason ?? null,
       );
-      // Sau commit: việc quét đọc đúng chế độ vừa ghi. Cụm mơ hồ không quét (câu 3).
-      if (row.level === 'certain') await jobs.send(SCREENING_JOBS.rescanPhrase, { phraseId: id });
+      // Sau commit: việc quét đọc đúng chế độ vừa ghi. Cụm mơ hồ không quét (câu 3). Lượt hai chạy khi tin đang kiểm lúc
+      // bật đã có kết luận — quá thời gian chờ ảnh, cộng một chu kỳ rà và độ trễ outbox (fix-audit-image-checks, C11).
+      if (row.level === 'certain') {
+        await jobs.send(SCREENING_JOBS.rescanPhrase, { phraseId: id });
+        const settleMinutes =
+          config.get('screening.imageResultTimeoutMinutes') + RESCAN_SETTLE_MINUTES;
+        await jobs.send(
+          SCREENING_JOBS.rescanPhrase,
+          { phraseId: id },
+          { startAfter: new Date(now.getTime() + settleMinutes * MINUTE_MS) },
+        );
+      }
       return toPhraseDto(row);
     },
 

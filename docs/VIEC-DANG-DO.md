@@ -25,8 +25,7 @@ mục code lệch spec thì sửa kèm test.
 dùng giao tech lead chọn phương án:
 
 - phần A xong — `fix-audit-stuck-data` (C7, C8, C9 ẩn danh thay vì xoá cứng, C10, kèm T13);
-- phần B còn lại — `fix-audit-image-checks` (C2 kèm T20, L8; C11): kế hoạch đã có, cần migration (`image_checks.queued_at`,
-  bảng đánh dấu hạn chế một lần) và tuỳ chọn hàng việc;
+- phần B xong — `fix-audit-image-checks` (C2 kèm T20, L8; C11);
 - phần C còn lại — `fix-audit-listeners` (C1): mọi bên nghe theo cặp đối chiếu trạng thái hiện tại, ở `listing`,
   `group`, `platform`, `review`, `trust`.
 

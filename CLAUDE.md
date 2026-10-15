@@ -419,7 +419,9 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   chỉ dùng ở bàn vận hành" vào `review/queues`. `fix-audit-stuck-data` (đợt 2 phần A, archive 15/10/2026) sửa `listing/lifecycle`,
   `listing/suspension`, `listing/editing` (lý do ẩn trên mọi đường ghi, tin rời nhóm hẳn không rút về nháp), `group/membership`
   (rời nhóm chỉ huỷ việc của tin bị ẩn), `group/group-roles` (thiếu chủ không chuyển riêng tư), `identity/account-deletion`
-  (ẩn danh thay vì xoá cứng; thêm "Người dùng Google đã xoá tài khoản").
+  (ẩn danh thay vì xoá cứng; thêm "Người dùng Google đã xoá tài khoản"). `fix-audit-image-checks` (đợt 2 phần B, archive
+  15/10/2026) thêm "Mọi ảnh của lượt gửi đều được kiểm" vào `screening/image-checks`, "Quét lại lần hai sau thời gian chờ
+  ảnh" vào `screening/banned-phrases`, sửa lưới an toàn của `screening/machine-decision` (một lần mỗi phiên bản).
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.

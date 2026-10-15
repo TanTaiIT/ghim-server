@@ -13,6 +13,11 @@ export const SCREENING_JOBS = {
 export const IMAGE_CHECK_RETRIES = 2;
 const IMAGE_CHECK_CONCURRENCY = 4;
 const SAFETY_NET_CRON = '*/5 * * * *';
+/**
+ * Lượt quét cụm từ lần hai chạy sau thời gian chờ ảnh cộng chừng này phút: một chu kỳ rà (5 phút) để lượt quá hạn được
+ * kết luận, cộng độ trễ của outbox để kết quả tới được tin (fix-audit-image-checks, C11).
+ */
+export const RESCAN_SETTLE_MINUTES = 10;
 /** 02:00 giờ Việt Nam: lúc ít người gửi tin nhất. */
 const PRICE_STATS_CRON = '0 2 * * *';
 
@@ -33,6 +38,7 @@ export async function registerScreeningJobs(
     const result = await screening.safetyNet();
     // Tin đang hiện thiếu kết quả ảnh lẽ ra không có (cam kết 4) — có thì người trực phải thấy.
     if (result.restricted > 0) logger.warn(result, SCREENING_JOBS.safetyNet);
+    else if (result.requeued > 0) logger.info(result, SCREENING_JOBS.safetyNet);
   });
   await jobs.schedule(SCREENING_JOBS.priceStats, PRICE_STATS_CRON, async () => {
     logger.info({ categories: await screening.refreshPriceStats() }, SCREENING_JOBS.priceStats);

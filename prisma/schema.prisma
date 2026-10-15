@@ -1393,13 +1393,28 @@ model ImageCheck {
   band4          Int?
   attempts       Int              @default(0)
   checkedAt      DateTime?        @map("checked_at") @db.Timestamptz(3)
+  /// Lần xếp việc kiểm gần nhất; trống = chưa xếp được (gửi việc hỏng). Ảnh `pending` trống hay xếp quá thời gian chờ
+  /// ảnh thì được xếp lại — mỗi ảnh một lần mỗi khoảng, không dồn việc trùng (fix-audit-image-checks).
+  queuedAt       DateTime?        @map("queued_at") @db.Timestamptz(3)
 
+  @@index([queuedAt], where: raw("status = 'pending'"), map: "image_checks_pending_queued_idx")
   @@index([band0], where: raw("status = 'done'"), map: "image_checks_band0_idx")
   @@index([band1], where: raw("status = 'done'"), map: "image_checks_band1_idx")
   @@index([band2], where: raw("status = 'done'"), map: "image_checks_band2_idx")
   @@index([band3], where: raw("status = 'done'"), map: "image_checks_band3_idx")
   @@index([band4], where: raw("status = 'done'"), map: "image_checks_band4_idx")
   @@map("image_checks")
+}
+
+/// Lưới an toàn đã hạn chế "máy" tin này ở phiên bản này vì thiếu kết quả ảnh — mỗi phiên bản một lần, để lượt cho đạt
+/// của người duyệt là cuối cùng (fix-audit-image-checks, C2). Không khoá ngoại sang `listings`: bảng của module khác.
+model ScreeningUncheckedMark {
+  listingId      String   @map("listing_id") @db.Uuid
+  listingVersion Int      @map("listing_version")
+  markedAt       DateTime @map("marked_at") @db.Timestamptz(3)
+
+  @@id([listingId, listingVersion])
+  @@map("screening_unchecked_marks")
 }
 
 /// Ảnh mẫu của hãng nhiều người cùng dùng — trùng với ảnh ở đây thì không tính là ảnh trùng (spec image-checks).

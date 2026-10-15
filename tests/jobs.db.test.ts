@@ -45,6 +45,14 @@ describe('createJobs', () => {
       SELECT count(*) AS n FROM pgboss.job WHERE name = 'identity.thu-viec'`;
     expect(Number(queued?.n)).toBeGreaterThan(0);
 
+    // `startAfter` tới đúng cột hẹn giờ của pg-boss (quét cụm từ lần hai — fix-audit-image-checks).
+    const startAfter = new Date(Date.now() + 15 * 60_000);
+    await jobs.send('identity.thu-viec', { hen: true }, { startAfter });
+    const [delayed] = await prisma.$queryRaw<{ start_after: Date }[]>`
+      SELECT start_after FROM pgboss.job
+       WHERE name = 'identity.thu-viec' AND data->>'hen' = 'true'`;
+    expect(delayed?.start_after.getTime()).toBe(startAfter.getTime());
+
     await jobs.stop();
     await expect(jobs.send('identity.thu-viec', {})).rejects.toThrow(/chưa start/);
     // stop lần hai là no-op, không ném — shutdown có thể bị gọi từ hai tín hiệu.

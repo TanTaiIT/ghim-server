@@ -143,7 +143,10 @@ export function registerListingListeners(
     z.object({ listingId: z.string(), listingVersion: z.number().int() }),
     ({ listingId, listingVersion }) => listing.recallByMachine(listingId, listingVersion),
   );
-  on('screening.listing.restricted', z.object({ listingId: z.string() }), ({ listingId }) =>
-    listing.restrictByMachine(listingId),
+  // `listingVersion` có từ fix-audit-image-checks (L8); sự kiện cũ còn trong outbox không mang nó.
+  on(
+    'screening.listing.restricted',
+    z.object({ listingId: z.string(), listingVersion: z.number().int().optional() }),
+    ({ listingId, listingVersion }) => listing.restrictByMachine(listingId, listingVersion),
   );
 }

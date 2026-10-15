@@ -54,7 +54,8 @@ export interface ListingSystemService {
   /** Cụm từ cấm mới bật thật: rút tin đang hiện về chờ duyệt, không từ chối (cam kết 16). */
   recallByMachine(listingId: string, listingVersion: number): Promise<boolean>;
   /** Lưới an toàn thiếu kết quả ảnh: thêm lý do "máy" (design mục 8). */
-  restrictByMachine(listingId: string): Promise<boolean>;
+  /** Lưới an toàn hạn chế "máy"; có `version` thì chỉ khi tin còn đúng phiên bản đó — sự kiện tới trễ trượt qua (L8). */
+  restrictByMachine(listingId: string, version?: number): Promise<boolean>;
   /** Mũi tên của người duyệt / người xét khiếu nại — `review`, `add-strikes` gọi. */
   review(input: ReviewInput): Promise<Listing>;
   /**
@@ -174,10 +175,11 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
       return recalled !== null;
     },
 
-    async restrictByMachine(listingId) {
+    async restrictByMachine(listingId, version) {
       const changed = await repository.change({
         id: listingId,
         states: ['checking', 'pending', 'live', 'sold', 'expired'],
+        ...(version === undefined ? {} : { version }),
         data: (locked) => ({ restrictions: withRestriction(locked.restrictions, 'machine', true) }),
       });
       return changed !== null;

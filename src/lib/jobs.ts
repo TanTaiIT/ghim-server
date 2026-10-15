@@ -25,6 +25,11 @@ export interface JobWorkOptions {
   concurrency?: number;
 }
 
+export interface JobSendOptions {
+  /** Không chạy trước mốc này. */
+  startAfter?: Date;
+}
+
 export interface Jobs {
   start(): Promise<void>;
   stop(): Promise<void>;
@@ -35,13 +40,16 @@ export interface Jobs {
     handler: () => Promise<void>,
     options?: JobScheduleOptions,
   ): Promise<void>;
-  /** Việc theo sự kiện: `send(name, data)` xếp một lượt, handler chạy với thử lại theo options. */
+  /**
+   * Việc theo sự kiện: `send(name, data)` xếp một lượt, handler chạy với thử lại theo options. `startAfter` hẹn lượt
+   * chạy (quét lại cụm từ lần hai — fix-audit-image-checks).
+   */
   work<T extends object>(
     name: JobName,
     handler: (data: T) => Promise<void>,
     options?: JobWorkOptions,
   ): Promise<void>;
-  send<T extends object>(name: JobName, data: T): Promise<void>;
+  send<T extends object>(name: JobName, data: T, options?: JobSendOptions): Promise<void>;
 }
 
 /**
@@ -123,9 +131,9 @@ export function createJobs(connectionString: string, { max }: { max?: number } =
         });
       }),
 
-    async send(name, data) {
+    async send(name, data, options) {
       if (!started) throw new Error(`Jobs chưa start — không xếp việc ${name} được`);
-      await boss.send(name, data);
+      await boss.send(name, data, options?.startAfter ? { startAfter: options.startAfter } : {});
     },
   };
 }

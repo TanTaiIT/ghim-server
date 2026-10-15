@@ -223,3 +223,127 @@ describe('Việc nền chạy hai lần (đồng hồ cố định)', () => {
     expect(listings.json().data.machineNotice).toMatchObject({ kind: 'fraud' });
   });
 });
+
+const checkJobsFor = (imageIds: string[]) =>
+  jobs.sent.filter(
+    (job) =>
+      job.name === 'screening.check-image' &&
+      imageIds.includes((job.data as { imageId: string }).imageId),
+  );
+const restrictedEventsOf = (listingId: string) =>
+  prisma.outboxEvent.findMany({
+    where: {
+      type: 'screening.listing.restricted',
+      payload: { path: ['listingId'], equals: listingId },
+    },
+  });
+
+describe('Kiểm ảnh không bị bỏ (fix-audit-image-checks)', () => {
+  it('chấm chữ lỗi: lượt giữ ngay, nhưng mọi ảnh vẫn được xếp kiểm và có kết quả (C2)', async () => {
+    const { id: createdBy } = await newUser(app);
+    const broken = await prisma.category.create({
+      data: { name: `Hỏng ${Date.now()}`, createdBy },
+    });
+    const user = await newUser(app);
+    const draft = await readyDraft(app, user, { categoryId: broken.id }, 2);
+    const imageIds = draft.images.map((image) => image.id);
+    jobs.sent.length = 0;
+    await submit(app, user, draft, deviceOf(user));
+    await deliverAll(app);
+    expect(await runOf(draft.id)).toMatchObject({ outcome: 'hold', cause: 'error' });
+    expect(checkJobsFor(imageIds)).toHaveLength(2);
+
+    await jobs.runAll();
+    const checks = await prisma.imageCheck.findMany({ where: { imageId: { in: imageIds } } });
+    expect(checks.map((check) => check.status)).not.toContain('pending');
+    expect(checks).toHaveLength(2);
+    expect(await resultEventsOf(draft.id)).toHaveLength(1);
+    expect((await getOwn(app, user, draft.id)).state).toBe('pending');
+  });
+
+  it('gửi việc kiểm hỏng: ảnh trở về "chưa xếp", lượt chạy lại của bên nghe gửi lại ngay (T20)', async () => {
+    const user = await newUser(app);
+    const draft = await readyDraft(app, user);
+    const imageId = draft.images[0]?.id ?? '';
+    const send = jobs.send.bind(jobs);
+    jobs.send = () => Promise.reject(new Error('Hàng việc không trả lời'));
+    try {
+      await submit(app, user, draft, deviceOf(user));
+      await deliverAll(app);
+    } finally {
+      jobs.send = send;
+    }
+    expect(await prisma.imageCheck.findUniqueOrThrow({ where: { imageId } })).toMatchObject({
+      status: 'pending',
+      queuedAt: null,
+    });
+    // Sự kiện còn nằm lại outbox để thử lại: chạy lại bên nghe bằng tay thay vì chờ hạn lùi.
+    jobs.sent.length = 0;
+    const input = { listingId: draft.id, version: draft.version + 1, ownerId: user.id };
+    expect(await app.modules.screening.scheduleChecks(input)).toBe(1);
+    expect(checkJobsFor([imageId])).toHaveLength(1);
+    await prisma.outboxEvent.updateMany({
+      where: {
+        publishedAt: null,
+        type: 'listing.listing.submitted',
+        payload: { path: ['listingId'], equals: draft.id },
+      },
+      data: { publishedAt: new Date() },
+    });
+  });
+
+  it('ảnh kẹt chờ kiểm quá 5 phút: hai lượt rà liền nhau chỉ xếp lại một lần (C2, T20)', async () => {
+    const { imageId } = await waitingOnImage();
+    jobs.sent.length = 0;
+    now = new Date(LATER.getTime() + 6 * MINUTE_MS);
+    await app.modules.screening.safetyNet();
+    await app.modules.screening.safetyNet();
+    expect(checkJobsFor([imageId])).toHaveLength(1);
+    await deliverAll(app);
+  });
+
+  it('tin đang hiện thiếu kết quả ảnh: hạn chế một lần; người duyệt cho đạt thì lượt rà sau không hạn chế lại (C2)', async () => {
+    const owner = await newUser(app);
+    tiers.set(owner.id, 'T2');
+    const draft = await readyDraft(app, owner);
+    await submit(app, owner, draft, deviceOf(owner));
+    const live = await app.modules.listing.applyMachineOutcome({
+      listingId: draft.id,
+      listingVersion: draft.version + 1,
+      outcome: 'pass',
+      restrictMachine: false,
+    });
+    expect(live).toBe(true);
+    jobs.sent.length = 0;
+
+    await app.modules.screening.safetyNet();
+    await deliverAll(app);
+    const restricted = await getOwn(app, owner, draft.id);
+    expect(restricted.restrictions).toEqual(['machine']);
+    expect(await restrictedEventsOf(draft.id)).toMatchObject([
+      { payload: { listingId: draft.id, listingVersion: restricted.version } },
+    ]);
+
+    await app.modules.listing.confirmLive({ listingId: draft.id, version: restricted.version });
+    now = new Date(LATER.getTime() + 6 * MINUTE_MS);
+    await app.modules.screening.safetyNet();
+    await deliverAll(app);
+    expect((await getOwn(app, owner, draft.id)).restrictions).toEqual([]);
+    expect(await restrictedEventsOf(draft.id)).toHaveLength(1);
+  });
+
+  it('sự kiện hạn chế mang phiên bản cũ: không hạn chế tin đã đổi phiên bản (L8)', async () => {
+    const user = await newUser(app);
+    tiers.set(user.id, 'T2');
+    const { listing } = await screened(app, user);
+    expect(listing.restrictions).toEqual([]);
+    await prisma.outboxEvent.create({
+      data: {
+        type: 'screening.listing.restricted',
+        payload: { listingId: listing.id, listingVersion: listing.version - 1 },
+      },
+    });
+    await deliverAll(app);
+    expect((await getOwn(app, user, listing.id)).restrictions).toEqual([]);
+  });
+});
