@@ -83,6 +83,9 @@ export const CONFIG_KEYS = {
   'identity.sessionCapUser': int(20, ACCOUNT),
   'identity.sessionCapPrivileged': int(3, ACCOUNT),
   'identity.sessionIdleDays': days(30, ACCOUNT),
+  // Token vừa bị thay gửi lại trong khoảng này là tab khác / lượt thử lại, không phải token lộ (fix-audit-identity,
+  // T11). Rộng hơn 5 phút là bỏ lỡ dấu hiệu token lộ quá lâu.
+  'identity.refreshGraceSeconds': seconds(30, ACCOUNT, { max: 300 }),
   // Realtime hẹn giờ cắt socket theo hạn token: quá 2³¹−1 ms thì `setTimeout` bắn sau 1 ms.
   'identity.accessTokenMinutes': minutes(15, ACCOUNT, { max: 35_791 }),
   'identity.passwordMinLength': int(8, ACCOUNT, { max: PASSWORD_INPUT_MAX }),

@@ -3,12 +3,13 @@ import type { SecretBox } from '../../common/crypto/secrets.js';
 import type { JobName, Jobs } from '../../lib/jobs.js';
 import { logger } from '../../lib/logger.js';
 import type { Mailer } from '../../lib/mailer.js';
-import { renderCodeMail } from './identity.mail.js';
+import { type NoticeKind, renderCodeMail, renderNoticeMail } from './identity.mail.js';
 import type { IdentityRepository } from './identity.repository.js';
 import type { CodePurpose } from './identity.schema.js';
 
 export const IDENTITY_JOBS = {
   sendMail: 'identity.send-mail',
+  sendNotice: 'identity.send-notice',
   purgeUnverified: 'identity.purge-unverified',
   purgeExpired: 'identity.purge-expired',
   refreshDisposableDomains: 'identity.refresh-disposable-domains',
@@ -34,6 +35,13 @@ export interface SendMailJob {
   purpose: CodePurpose;
   sealedCode: string;
   ttlMinutes: number;
+}
+
+/** Thư báo không mang mã. `newEmail` đã che bớt trước khi vào bảng việc. */
+export interface SendNoticeJob {
+  to: string;
+  kind: NoticeKind;
+  newEmail: string;
 }
 
 export interface IdentityJobDeps {
@@ -72,6 +80,14 @@ export function createSendMailHandler({
   return async (job) => {
     const mail = renderCodeMail(job.purpose, secrets.open(job.sealedCode), job.ttlMinutes);
     await mailer.send({ to: job.to, ...mail });
+  };
+}
+
+export function createSendNoticeHandler({
+  mailer,
+}: Pick<IdentityJobDeps, 'mailer'>): (job: SendNoticeJob) => Promise<void> {
+  return async (job) => {
+    await mailer.send({ to: job.to, ...renderNoticeMail(job.kind, { newEmail: job.newEmail }) });
   };
 }
 
@@ -138,6 +154,9 @@ export function createRefreshDisposableDomainsHandler({
 
 export async function registerIdentityJobs(jobs: Jobs, deps: IdentityJobDeps): Promise<void> {
   await jobs.work<SendMailJob>(IDENTITY_JOBS.sendMail, createSendMailHandler(deps), {
+    retryLimit: SEND_MAIL_RETRY_LIMIT,
+  });
+  await jobs.work<SendNoticeJob>(IDENTITY_JOBS.sendNotice, createSendNoticeHandler(deps), {
     retryLimit: SEND_MAIL_RETRY_LIMIT,
   });
   await jobs.schedule(

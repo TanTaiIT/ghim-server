@@ -8,8 +8,9 @@ import {
 } from '../../../common/errors/app-error.js';
 import { formatDateVN } from '../../../common/time/time.js';
 import { imageNotInStorage } from '../../media/media.service.js';
-import { hashEmail, normalizeEmail } from '../calc/email.calc.js';
+import { hashEmail, maskEmail, normalizeEmail } from '../calc/email.calc.js';
 import { hashPassword, verifyPassword } from '../calc/password.calc.js';
+import { IDENTITY_JOBS, type SendNoticeJob } from '../identity.jobs.js';
 import type { Account } from '../identity.repository.js';
 import {
   type IdentityService,
@@ -28,6 +29,7 @@ import {
   assertConsumed,
   invalidCredentials,
   emailTaken,
+  passwordNotSet,
   assertDisplayNameAllowed,
   type IdentityShared,
 } from '../identity.shared.js';
@@ -59,7 +61,7 @@ export function createIdentityAccountService(
   deps: IdentityServiceDeps,
   shared: IdentityShared,
 ): IdentityAccountService {
-  const { repository, config, clock, hashKey, secrets } = deps;
+  const { repository, config, clock, hashKey, secrets, jobs } = deps;
   const {
     isPrivileged,
     passwordIssue,
@@ -189,9 +191,19 @@ export function createIdentityAccountService(
       );
     },
 
-    async requestEmailChange(actor, { email }) {
+    async requestEmailChange(actor, { email, currentPassword, totpCode }) {
       const now = clock();
       const account = await accountOf(actor);
+      // Xác thực lại trước mọi luật khác: token lộ không gửi được mã, không dò được email nào đã có tài khoản (T12).
+      if (!account.passwordHash) throw passwordNotSet();
+      if (!(await verifyPassword(account.passwordHash, currentPassword))) {
+        throw invalidCredentials('Mật khẩu hiện tại không đúng');
+      }
+      if (account.totpEnabledAt && account.totpSecretEnc) {
+        if (!totpCode || !(await totpMatches(account.totpSecretEnc, totpCode))) {
+          throw invalidCredentials('Mã từ ứng dụng tạo mã không đúng');
+        }
+      }
       if (account.emailChangedAt) {
         const intervalDays = config.get('identity.emailChangeIntervalDays');
         const nextAt = new Date(account.emailChangedAt.getTime() + intervalDays * DAY_MS);
@@ -231,10 +243,17 @@ export function createIdentityAccountService(
           emailHash: hashEmail(emailNormalized, hashKey),
           emailChangedAt: now,
         },
+        revokeSessions: { reason: 'email_changed', exceptId: actor.sessionId },
         at: now,
         events: [],
       });
       assertConsumed(applied);
+      deps.sessionsRevoked?.account(account.id);
+      await jobs.send<SendNoticeJob>(IDENTITY_JOBS.sendNotice, {
+        to: account.email,
+        kind: 'email_changed',
+        newEmail: maskEmail(live.targetEmail),
+      });
     },
 
     // ── MẬT KHẨU ────────────────────────────────────────────────────────────────────────────────

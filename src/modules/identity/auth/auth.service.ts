@@ -38,7 +38,7 @@ export function createIdentityAuthService(
   deps: IdentityServiceDeps,
   shared: IdentityShared,
 ): IdentityAuthService {
-  const { repository, clock, hashKey, googleVerifier } = deps;
+  const { repository, config, clock, hashKey, googleVerifier } = deps;
   const {
     isPrivileged,
     idleExpiry,
@@ -143,6 +143,16 @@ export function createIdentityAuthService(
         // Token đã bị xoay mà còn được gửi lên: hoặc client lỗi, hoặc token đã lộ. Cả hai đều
         // không đáng giữ phiên — thu hồi, người dùng thật chỉ cần đăng nhập lại.
         const reused = await repository.findSessionByPreviousRefreshHash(hash);
+        // `last_active_at` chỉ được ghi lúc mở phiên và lúc xoay token: nó là mốc của lượt thay gần nhất. Trong ân
+        // hạn không cấp gì — người cầm token cũ không được thêm gì, chỉ chưa bị coi là kẻ trộm (T11).
+        const graceMs = config.get('identity.refreshGraceSeconds') * 1000;
+        if (
+          reused &&
+          !reused.revokedAt &&
+          reused.lastActiveAt.getTime() + graceMs > now.getTime()
+        ) {
+          throw refreshConflict();
+        }
         if (reused && !reused.revokedAt) {
           await repository.updateSession(reused.id, {
             revokedAt: now,

@@ -32,7 +32,8 @@ phiên khác), tách ba change:
 
 - phần C xong — `fix-audit-screening-trust` (T21, T22, T23, T24, cặp tin sạch của `trust`);
 - phần B xong — `fix-audit-review` (T1–T9, L11);
-- phần A còn lại — `identity`, `listing`, `group` (T11, T12, T14–T19).
+- phần A1 xong — `fix-audit-identity` (T11, T12);
+- phần A2 còn lại — `listing`, `group` (T14–T19).
 
 ## 1. Đang chờ quyết hoặc chờ duyệt
 

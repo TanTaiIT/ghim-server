@@ -60,6 +60,8 @@ enum SessionRevokeReason {
   account_locked
   account_deleted
   refresh_reuse
+  /// Xác nhận email mới thu hồi mọi phiên khác (fix-audit-identity, T12).
+  email_changed
 
   @@map("session_revoke_reason")
 }

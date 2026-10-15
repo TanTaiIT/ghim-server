@@ -187,6 +187,13 @@ export const accountLocked = (account: Pick<Account, 'lockedReason'>): Forbidden
     'ACCOUNT_LOCKED',
   );
 
+/** Tài khoản chỉ có Google: chưa có mật khẩu để xác thực lại — đặt qua "quên mật khẩu" (fix-audit-identity, T12). */
+export const passwordNotSet = (): ConflictError =>
+  new ConflictError(
+    'Tài khoản chưa có mật khẩu — đặt mật khẩu qua "quên mật khẩu" rồi đổi email',
+    'PASSWORD_NOT_SET',
+  );
+
 export const emailTaken = (): ConflictError =>
   new ConflictError(
     'Email này đã có tài khoản — đăng nhập hoặc dùng "quên mật khẩu"',

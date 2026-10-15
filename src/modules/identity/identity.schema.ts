@@ -150,7 +150,12 @@ export const patchMeBodySchema = z.object({
   phone: phoneNumberSchema.nullable().optional(),
 });
 
-export const emailChangeBodySchema = z.object({ email: emailSchema });
+export const emailChangeBodySchema = z.object({
+  email: emailSchema,
+  currentPassword: passwordSchema,
+  /** Bắt buộc khi tài khoản đã bật lớp thứ hai. */
+  totpCode: codeSchema.optional(),
+});
 
 export const emailChangeConfirmBodySchema = z.object({ code: codeSchema });
 

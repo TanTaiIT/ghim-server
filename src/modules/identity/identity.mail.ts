@@ -9,6 +9,19 @@ export interface CodeMail {
  * Ba mẫu thư cho ba mục đích mã, cùng một luật mã (TK 7). Chữ nghĩa ở đây thuần văn bản, không
  * HTML: thư mã xác nhận không cần bố cục, và text đi qua mọi bộ lọc thư rác tốt hơn.
  */
+export type NoticeKind = 'email_changed';
+
+/** Thư báo không mang mã: gửi tới người cần biết chuyện vừa xảy ra trên tài khoản. */
+export function renderNoticeMail(kind: NoticeKind, detail: { newEmail: string }): CodeMail {
+  switch (kind) {
+    case 'email_changed':
+      return {
+        subject: 'Email đăng nhập Ghim của bạn vừa được đổi',
+        text: `Chào bạn,\n\nEmail đăng nhập tài khoản Ghim của bạn vừa được đổi sang ${detail.newEmail}. Mọi thiết bị khác đã bị đăng xuất.\n\nNếu không phải bạn đổi, liên hệ hỗ trợ Ghim ngay.\n\nGhim`,
+      };
+  }
+}
+
 export function renderCodeMail(purpose: CodePurpose, code: string, ttlMinutes: number): CodeMail {
   const expiry = `Mã có hiệu lực ${ttlMinutes} phút. Nếu không phải bạn yêu cầu, bỏ qua thư này.`;
   switch (purpose) {

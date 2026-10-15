@@ -12,10 +12,13 @@ import { buildTestApp, repositories } from './test-app.js';
  * request thật cùng tới server.
  */
 const NOW = new Date('2026-10-10T09:00:00+07:00');
+/** Quá khoảng ân hạn 30 giây của token vừa bị thay (fix-audit-identity, T11). */
+const AFTER_GRACE_MS = 31_000;
 const PASSWORD = 'ghim-rao-vat-2026!';
 
 const base = repositories.identity;
 let app: FastifyInstance;
+let now = NOW;
 let passwordHash: string;
 let gate: { expected: number; arrived: number; open: () => void; opened: Promise<void> } | null =
   null;
@@ -40,12 +43,13 @@ beforeAll(async () => {
       return row;
     },
   };
-  app = await buildTestApp({ repositories: { identity: gated }, clock: () => NOW });
+  app = await buildTestApp({ repositories: { identity: gated }, clock: () => now });
   await app.ready();
 });
 
 afterEach(() => {
   gate = null;
+  now = NOW;
 });
 
 afterAll(() => app.close());
@@ -81,15 +85,27 @@ describe('Làm mới phiên', () => {
     const res = await refresh(refreshToken);
     expect(res.statusCode).toBe(200);
     expect(res.json().data.refreshToken).not.toBe(refreshToken);
+    now = new Date(NOW.getTime() + AFTER_GRACE_MS);
     expect((await refresh(refreshToken)).statusCode).toBe(401);
   });
 
-  it('token đã được thay bị gửi lại → 401 SESSION_REVOKED, token mới của phiên cũng hết', async () => {
+  it('token đã được thay quá 30 giây bị gửi lại → 401 SESSION_REVOKED, token mới của phiên cũng hết', async () => {
     const { refreshToken } = await loggedIn();
     const fresh = (await refresh(refreshToken)).json().data.refreshToken as string;
+    now = new Date(NOW.getTime() + AFTER_GRACE_MS);
     const reuse = await refresh(refreshToken);
     expect(reuse.json().error.code).toBe('SESSION_REVOKED');
     expect((await refresh(fresh)).json().error.code).toBe('SESSION_REVOKED');
+  });
+
+  it('tab khác gửi token vừa được thay 10 giây sau → 409 REFRESH_CONFLICT; token mới làm mới tiếp được, phiên còn', async () => {
+    const { refreshToken } = await loggedIn();
+    const fresh = (await refresh(refreshToken)).json().data.refreshToken as string;
+    now = new Date(NOW.getTime() + 10_000);
+    const late = await refresh(refreshToken);
+    expect(late.statusCode).toBe(409);
+    expect(late.json().error.code).toBe('REFRESH_CONFLICT');
+    expect((await refresh(fresh)).statusCode).toBe(200);
   });
 
   it('hai lượt cùng lúc → một 200, một 409 REFRESH_CONFLICT; token của lượt 200 làm mới tiếp được', async () => {

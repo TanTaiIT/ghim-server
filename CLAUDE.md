@@ -433,7 +433,9 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   15/10/2026) thêm sáu requirement vào `review/queues` (người bị khoá, xoá tài khoản, theo trạng thái hiện tại, rời
   nhóm hẳn / bị cấm, theo đơn vị, nhắc master), "Một việc một quyết định" vào `review/task-handling`, "Tin đang tạm ẩn
   không bị lấy mẫu" vào `review/post-review`, "Tin còn việc chờ người duyệt không chuyển lên sàn chung được" vào
-  `listing/suspension`.
+  `listing/suspension`. `fix-audit-identity` (đợt 3 phần A1, archive 15/10/2026) sửa "Làm mới phiên" của
+  `identity/sessions` (30 giây ân hạn), thêm "Xin đổi email phải nhập lại mật khẩu" và "Đổi email xong báo email cũ và
+  đăng xuất thiết bị khác" vào `identity/email-change`.
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.

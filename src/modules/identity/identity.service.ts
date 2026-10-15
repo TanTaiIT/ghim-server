@@ -230,7 +230,10 @@ export interface IdentityService extends ActorResolver {
   updateMe(actor: Actor, input: PatchMeInput): Promise<MeDto>;
   setAvatar(actor: Actor, input: AvatarInput): Promise<MeDto>;
   clearAvatar(actor: Actor): Promise<MeDto>;
-  requestEmailChange(actor: Actor, input: { email: string }): Promise<void>;
+  requestEmailChange(
+    actor: Actor,
+    input: { email: string; currentPassword: string; totpCode?: string | undefined },
+  ): Promise<void>;
   confirmEmailChange(actor: Actor, input: { code: string }): Promise<void>;
 
   lockAccount(actor: Actor, accountId: string, reason: string): Promise<void>;
