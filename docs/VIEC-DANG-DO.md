@@ -21,6 +21,12 @@ và hướng sửa ở **`docs/RA-SOAT-15-10-2026.md`** (đánh dấu từng m�
 Mục nào đổi hành vi so với spec đang chạy thì đi qua một change OpenSpec (proposal có câu hỏi mở → bạn duyệt → code);
 mục code lệch spec thì sửa kèm test.
 
+**Đang dừng ở (15/10/2026):** đợt 1 đã có proposal nháp `openspec/changes/fix-audit-security/proposal.md` với 5 câu
+hỏi mở (C3 Google gặp đăng ký chưa xác nhận, C4 master và xoá / khoá, C5 đặt lại lớp thứ hai, C6 master trên app nhóm,
+T10 khoảng hợp lệ ghi ở đâu), mỗi câu có phương án A đề xuất. Bạn tạm dừng, sẽ chốt và sửa sau. Proposal **chưa commit**
+(chỉ ở máy này): change chưa có delta spec nên `spec:validate` (và CI) sẽ đỏ nếu commit lúc này. Bước tiếp: chốt 5 câu →
+viết delta spec, design, tasks → duyệt → code.
+
 ## 1. Đang chờ quyết hoặc chờ duyệt
 
 | Việc                                       | Tình trạng                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Bước tiếp                                                                                                                                   |
