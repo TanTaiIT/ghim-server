@@ -4,8 +4,8 @@ Máy duyệt chỉ giữ, hạn chế hay cho qua tin; mọi quyết định c�
 **một việc mở**, việc nằm trong một hàng, có hạn xử, và ai xử được thì server tính lúc đọc. Bàn vận hành (web) phục vụ
 staff và master; app Ghim phục vụ điều hành viên và chủ nhóm xử việc của nhóm.
 
-Hợp đồng đầy đủ: `openspec/specs/review/` (sau khi archive; trước đó ở `openspec/changes/add-review-queues/`); thiết kế
-ở `design.md` của change đó. Luật nghiệp vụ ở TK 16, TK 17.
+Hợp đồng đầy đủ: `openspec/specs/review/`; thiết kế ở `openspec/changes/archive/2026-10-15-add-review-queues/design.md`.
+Luật nghiệp vụ ở TK 16, TK 17.
 
 ## Hàng và hạn xử
 

@@ -246,7 +246,7 @@ change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-cate
 `harden-module-infra` → `tune-hot-paths` → `cache-public-reads-revoke-deleted-staff` →
 `harden-production-runtime` → `add-groups` → `add-notification-core` (kéo từ đợt 6, chốt 11/10/2026) — mười change
 này đã archive 10–11/10/2026 · đợt 2
-`add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` (cả hai đã archive 12/10/2026) · đợt 3 `add-screening` (đã archive 13/10/2026) → `add-image-moderation` (khi chọn được dịch vụ kiểm ảnh, tách ra 12/10/2026) · đợt 4 `add-review-queues` (đã code 15/10/2026, chờ CI để archive) →
+`add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` (cả hai đã archive 12/10/2026) · đợt 3 `add-screening` (đã archive 13/10/2026) → `add-image-moderation` (khi chọn được dịch vụ kiểm ảnh, tách ra 12/10/2026) · đợt 4 `add-review-queues` (đã archive 15/10/2026) →
 `add-reports` · đợt 5 `add-strikes` · đợt 6 `add-messaging` → `add-notifications` · đợt 7
 `add-data-retention`.
 
@@ -404,7 +404,10 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   risk-scoring, hard-gates, image-checks, banned-phrases, rule-management, explanations) — archive từ `add-screening`
   ngày 13/10/2026 (thêm requirement vào `identity/profile`, `trust/seller-dashboard`). Hạ tầng `use-cloudinary-storage`
   (archive 15/10/2026) chỉ sửa `media/image-storage`: chỗ chặn ảnh sai cỡ / loại, tải lại không lỗi, kho không trả lời
-  → 503.
+  → 503. 6 của `review/` (queues, task-handling, conflict-of-interest, decisions, group-escalation, post-review) —
+  archive từ `add-review-queues` ngày 15/10/2026 (thêm requirement vào `group/group-lifecycle`, `group/membership`,
+  `platform/staff-permissions`, `screening/rule-management`); `notify-missing-images` cùng ngày thêm vào
+  `media/image-cleanup` requirement "Báo ảnh đang dùng mà mất khỏi kho" (N38, N39).
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.

@@ -16,4 +16,4 @@
 
 ## 3. Kiểm tra tích hợp
 
-- [ ] 3.1 `pnpm run check`, `pnpm run build`, `pnpm db:drift` xanh
+- [x] 3.1 `pnpm run check`, `pnpm run build`, `pnpm db:drift` xanh
