@@ -319,6 +319,11 @@ Khi một danh mục bị tắt, mọi tin trong danh mục SHALL tạm ẩn v�
 - **WHEN** người đăng đổi một tin đang tạm ẩn vì danh mục bị tắt sang một danh mục đang bật
 - **THEN** lý do "danh mục bị tắt" được gỡ và tin chuyển sang đang kiểm
 
+#### Scenario: Rút về nháp rồi gửi sang danh mục đang bật
+
+- **WHEN** người đăng rút về nháp một tin chờ duyệt đang tạm ẩn vì danh mục bị tắt, đổi sang một danh mục đang bật rồi gửi
+- **THEN** lý do "danh mục bị tắt" được gỡ và tin chuyển sang đang kiểm
+
 ### Requirement: Đổi nơi đăng ra khỏi nhóm thì lý do của nhóm rơi theo
 
 Tin đang tạm ẩn vì một nhóm — người đăng tự rời, bị gỡ hay bị cấm khỏi nhóm, nhóm bị tạm khoá — mà người đăng đổi
@@ -335,3 +340,13 @@ không thuộc nhóm (tài khoản, danh mục) vẫn giữ (chốt 12/10/2026).
 
 - **WHEN** người đăng đổi lên sàn chung một tin "chỉ thành viên" đang tạm ẩn vì đã rời nhóm X và vì danh mục bị tắt
 - **THEN** lý do "đã rời nhóm" được gỡ, còn lý do "danh mục bị tắt" vẫn giữ
+
+#### Scenario: Rút về nháp rồi đưa lên sàn chung
+
+- **WHEN** tin chờ duyệt trong nhóm X tạm ẩn vì nhóm X bị tạm khoá, người đăng rút về nháp, đổi lên sàn chung có đủ tỉnh và phường rồi gửi
+- **THEN** lý do "nhóm bị tạm khoá" được gỡ và tin chuyển sang đang kiểm ở sàn chung
+
+#### Scenario: Gia hạn kèm đổi nơi đăng
+
+- **WHEN** tin hết hạn đang tạm ẩn vì người đăng bị cấm khỏi nhóm X được gia hạn kèm đổi lên sàn chung có đủ tỉnh và phường
+- **THEN** lý do "bị cấm khỏi nhóm" được gỡ và tin chuyển sang đang kiểm ở sàn chung

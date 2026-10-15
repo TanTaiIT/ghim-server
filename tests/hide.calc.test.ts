@@ -7,6 +7,9 @@ import {
   type HideEvent,
   type HideTarget,
   isDetached,
+  placementsHiddenOnLeave,
+  reasonsAfterRecheck,
+  reasonsAfterRewrite,
 } from '../src/modules/listing/calc/hide.calc.js';
 
 /* Scenario của spec listing/suspension phần không cần DB: lý do nào được đặt, gỡ, và không phụ thuộc thứ tự. */
@@ -169,5 +172,52 @@ describe('Đổi nơi đăng ra khỏi nhóm thì lý do của nhóm rơi theo (
 
   it('còn lý do của danh mục thì giữ', () => {
     expect(dropGroupReasons(['left_group', 'category_disabled'])).toEqual(['category_disabled']);
+  });
+});
+
+describe('Lý do trên mọi đường ghi tin (fix-audit-stuck-data, C7)', () => {
+  it('gửi nháp, gia hạn: bỏ mọi lý do của nhóm và "danh mục bị tắt", giữ lý do tài khoản và rời nhóm hẳn', () => {
+    expect(
+      reasonsAfterRecheck([
+        'account_locked',
+        'left_group',
+        'group_banned',
+        'group_locked',
+        'category_disabled',
+        'group_closed',
+      ]),
+    ).toEqual(['account_locked', 'group_closed']);
+  });
+
+  it('lưu nháp: đổi nhóm thì lý do của nhóm rơi; đổi sang danh mục đang bật thì "danh mục bị tắt" rơi', () => {
+    const reasons: ListingHideReason[] = ['group_locked', 'category_disabled'];
+    expect(reasonsAfterRewrite(reasons, { groupChanged: true, categoryEnabledNow: false })).toEqual(
+      ['category_disabled'],
+    );
+    expect(reasonsAfterRewrite(reasons, { groupChanged: false, categoryEnabledNow: true })).toEqual(
+      ['group_locked'],
+    );
+    expect(
+      reasonsAfterRewrite(reasons, { groupChanged: false, categoryEnabledNow: false }),
+    ).toEqual(reasons);
+  });
+});
+
+const leave = (allowOutsiders: boolean): HideEvent => ({
+  kind: 'member_left',
+  reason: 'left',
+  allowOutsiders,
+});
+
+describe('Mức bị ẩn khi rời nhóm (fix-audit-stuck-data, C8)', () => {
+  it('nhóm nhận tin người ngoài: chỉ tin "chỉ thành viên"; không nhận: cả "nhóm công khai"', () => {
+    expect(placementsHiddenOnLeave(true)).toEqual(['members_only']);
+    expect(placementsHiddenOnLeave(false)).toEqual(['members_only', 'group_public']);
+  });
+
+  it('cùng luật với lý do "đã rời nhóm"', () => {
+    expect(after(GROUP_PUBLIC, leave(true))).toEqual([]);
+    expect(after(GROUP_PUBLIC, leave(false))).toEqual(['left_group']);
+    expect(after(MEMBERS_ONLY, leave(true))).toEqual(['left_group']);
   });
 });

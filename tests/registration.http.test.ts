@@ -64,7 +64,7 @@ async function lastCode(): Promise<string> {
   return code;
 }
 
-async function deletedAccount(daysAgo: number): Promise<string> {
+async function deletedAccount(daysAgo: number): Promise<{ email: string; id: string }> {
   const email = nextEmail();
   const account = await repository.createAccount({
     email,
@@ -81,7 +81,7 @@ async function deletedAccount(daysAgo: number): Promise<string> {
     at: new Date(START.getTime() - daysAgo * DAY_MS),
     events: [],
   });
-  return email;
+  return { email, id: account.id };
 }
 
 async function registered(): Promise<{ email: string; code: string }> {
@@ -190,7 +190,7 @@ describe('POST /auth/register', () => {
 
   describe('email của tài khoản đã xoá', () => {
     it('xoá 10 ngày trước → 409 EMAIL_PENDING_DELETION kèm ngày được đăng ký lại', async () => {
-      const res = await register({ email: await deletedAccount(10) });
+      const res = await register({ email: (await deletedAccount(10)).email });
       expect(res.statusCode).toBe(409);
       // 90 ngày sau lúc xoá = 80 ngày sau START (2026-10-10) → 29/12/2026
       expect(res.json().error).toMatchObject({
@@ -199,8 +199,11 @@ describe('POST /auth/register', () => {
       });
     });
 
-    it('xoá quá 90 ngày → tài khoản mới được tạo như email chưa từng có', async () => {
-      const email = await deletedAccount(91);
+    it('xoá quá 90 ngày → tài khoản mới được tạo như email chưa từng có; dòng cũ ẩn danh, lịch sử còn', async () => {
+      const { email, id } = await deletedAccount(91);
+      await prisma.devicePost.create({
+        data: { deviceHash: 'may-cu', accountId: id, firstPostedAt: START, lastPostedAt: START },
+      });
       const res = await register({ email });
       expect(res.statusCode).toBe(201);
       const rows = await prisma.account.findMany({ where: { emailNormalized: email } });
@@ -209,6 +212,17 @@ describe('POST /auth/register', () => {
         id: res.json().data.accountId,
         status: 'pending_verification',
       });
+      // fix-audit-stuck-data, C9: không xoá cứng — dòng cũ mất danh tính, giữ dấu băm email và dòng con.
+      expect(await prisma.account.findUniqueOrThrow({ where: { id } })).toMatchObject({
+        status: 'deleted',
+        email: `deleted:${id}`,
+        emailNormalized: `deleted:${id}`,
+        emailHash: 'h',
+        displayName: 'Tài khoản đã xoá',
+        passwordHash: null,
+        googleSub: null,
+      });
+      expect(await prisma.devicePost.count({ where: { accountId: id } })).toBe(1);
     });
   });
 });

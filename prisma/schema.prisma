@@ -88,8 +88,8 @@ enum IdVerificationStatus {
 
 // ── IDENTITY: BẢNG ───────────────────────────────────────────────────────────────────────────────
 
-/// CHECK tay (migration init_identity):
-///   accounts_credential_check: password_hash IS NOT NULL OR google_sub IS NOT NULL
+/// CHECK tay (migration init_identity, nới ở anonymize_deleted_accounts):
+///   accounts_credential_check: status = 'deleted' OR password_hash IS NOT NULL OR google_sub IS NOT NULL
 ///   accounts_locked_check:     (status = 'locked')  = (locked_at IS NOT NULL)
 ///   accounts_deleted_check:    (status = 'deleted') = (deleted_at IS NOT NULL)
 /// CHECK tay (migration account_avatar):

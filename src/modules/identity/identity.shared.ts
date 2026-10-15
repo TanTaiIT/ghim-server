@@ -360,9 +360,28 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
   };
 
   /**
+   * Tài khoản đã xoá chặn email (và mã Google) của nó trong thời gian chờ → EMAIL_PENDING_DELETION kèm ngày. Hết thời gian
+   * chờ thì ẩn danh dòng cũ để email, mã Google tự do mà lịch sử chống gian lận còn (C9) — xoá hẳn là việc của
+   * `add-data-retention`.
+   */
+  const releaseDeleted = async (account: Account & { deletedAt: Date }, at: Date) => {
+    const holdMs = config.get('identity.deletedEmailHoldDays') * DAY_MS;
+    const reopenAt = new Date(account.deletedAt.getTime() + holdMs);
+    if (reopenAt > at) {
+      throw new ConflictError(
+        `Email này thuộc một tài khoản vừa xoá, đăng ký lại được từ ${formatDateVN(reopenAt)}`,
+        'EMAIL_PENDING_DELETION',
+      );
+    }
+    await repository.anonymizeDeletedAccount({
+      id: account.id,
+      deletedBefore: new Date(at.getTime() - holdMs),
+    });
+  };
+
+  /**
    * Luật "mỗi email một tài khoản" chung cho đăng ký, Google và đổi email: tài khoản còn sống →
-   * EMAIL_TAKEN; đã xoá trong 90 ngày chờ → EMAIL_PENDING_DELETION kèm ngày; qua 90 ngày → xoá
-   * hẳn dòng cũ để email tự do. Trả về dòng đang sống nếu có, để người gọi quyết nối hay từ chối.
+   * EMAIL_TAKEN; đã xoá thì qua `releaseDeleted`. Trả về dòng đang sống nếu có, để người gọi quyết nối hay từ chối.
    */
   const claimEmail = async (
     emailNormalized: string,
@@ -372,18 +391,7 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
     const existing = await repository.findAccountByEmail(emailNormalized);
     if (!existing || existing.id === ignoreAccountId) return null;
     if (existing.status !== 'deleted' || !existing.deletedAt) return existing;
-    const reopenAt = new Date(
-      existing.deletedAt.getTime() + config.get('identity.deletedEmailHoldDays') * DAY_MS,
-    );
-    if (reopenAt > at) {
-      throw new ConflictError(
-        `Email này thuộc một tài khoản vừa xoá, đăng ký lại được từ ${formatDateVN(reopenAt)}`,
-        'EMAIL_PENDING_DELETION',
-      );
-    }
-    // Hết hạn chờ: dòng cũ chỉ còn giữ chỗ email. Xoá hẳn ở đây là việc `add-data-retention`
-    // sẽ làm theo lịch; làm ngay để email đăng ký lại được như email mới (spec).
-    await repository.purgeAccount(existing.id);
+    await releaseDeleted({ ...existing, deletedAt: existing.deletedAt }, at);
     return null;
   };
 
@@ -453,6 +461,7 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
     isDisposableEmail,
     accountOf,
     claimEmail,
+    releaseDeleted,
     assertNotDisposable,
     softDelete,
     resolveActor,

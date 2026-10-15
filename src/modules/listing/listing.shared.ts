@@ -52,6 +52,15 @@ export const invalidTransition = (
 ): ConflictError => new ConflictError(message, 'INVALID_TRANSITION');
 export const versionConflict = (): ConflictError =>
   new ConflictError('Tin vừa được sửa ở nơi khác — tải lại rồi thử lại', 'CONFLICT');
+/** Tin đã rời nhóm hẳn chỉ chuyển lên sàn chung hay xoá được (spec editing) — mọi đường ghi khác dùng chung câu này. */
+export const listingDetached = (): ConflictError =>
+  new ConflictError(
+    'Tin đã rời nhóm hẳn — chỉ chuyển lên sàn chung hoặc xoá được',
+    'LISTING_DETACHED',
+  );
+/** Nơi đăng không đổi khi tin đang có việc chờ (spec editing) — sửa và gia hạn dùng chung. */
+export const placementLocked = (): ConflictError =>
+  new ConflictError('Tin đang có việc chờ xử, chưa đổi nơi đăng được', 'PLACEMENT_LOCKED');
 
 const PLACEMENT_MESSAGES: Record<PlacementBlock, { status: 403 | 409; message: string }> = {
   GROUP_LOCKED: { status: 409, message: 'Nhóm đang tạm khoá, chưa nhận tin mới' },

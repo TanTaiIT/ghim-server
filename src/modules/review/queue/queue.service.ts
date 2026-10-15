@@ -1,7 +1,7 @@
 import type { ReviewCloseCause, ReviewReason, ReviewTask } from '@prisma/client';
 
 import { sequentially } from '../../../common/utils/sequential.js';
-import type { ReviewSubject } from '../../listing/listing.ports.js';
+import type { GroupLeave, ReviewSubject } from '../../listing/listing.ports.js';
 import {
   deadlineOf,
   earliest,
@@ -42,7 +42,7 @@ export interface ReviewQueueService {
   onEdited(listingId: string): Promise<void>;
   onDeleted(listingId: string): Promise<void>;
   onMachineRestricted(listingId: string): Promise<void>;
-  onMemberLeft(groupId: string, accountId: string): Promise<void>;
+  onMemberLeft(groupId: string, accountId: string, leave: GroupLeave): Promise<void>;
   onMemberBack(groupId: string, accountId: string): Promise<void>;
   onGroupClosed(groupId: string): Promise<void>;
   /** Tin chờ duyệt, tin hạn chế do máy có từ trước khi có hàng chờ — chạy lúc khởi động, gộp nên chạy lại vô hại. */
@@ -199,8 +199,8 @@ export function createQueueService(shared: ReviewShared): ReviewQueueService {
       if (subject?.state === 'live') await addReason(listingId, { reason: 'machine_restricted' });
     },
 
-    async onMemberLeft(groupId, accountId) {
-      const held = await listings.pendingInGroup(accountId, groupId);
+    async onMemberLeft(groupId, accountId, leave) {
+      const held = await listings.pendingInGroup(accountId, groupId, leave);
       await sequentially(held, (listingId) =>
         dropReasons(listingId, ['machine_hold'], 'member_left'),
       );

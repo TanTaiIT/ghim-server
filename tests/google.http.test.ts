@@ -255,3 +255,57 @@ describe('ảnh đại diện Google (spec identity/profile, media/image-storage
     expect(account?.googlePictureUrl).toBe(PICTURE);
   });
 });
+
+describe('Người dùng Google đã xoá tài khoản (fix-audit-stuck-data, T13)', () => {
+  const DAY_MS = 86_400_000;
+  async function deletedGoogleUser(sub: string, email: string, daysAgo: number) {
+    const account = await repository.createAccount({
+      email,
+      emailNormalized: email,
+      emailHash: `h-${sub}`,
+      passwordHash: null,
+      googleSub: sub,
+      status: 'active',
+      displayName: 'Người cũ',
+      at: new Date(NOW.getTime() - (daysAgo + 1) * DAY_MS),
+    });
+    await repository.softDeleteAccount({
+      accountId: account.id,
+      at: new Date(NOW.getTime() - daysAgo * DAY_MS),
+      events: [],
+    });
+    identities.set(`tok-${sub}`, {
+      sub,
+      email,
+      emailVerified: true,
+      name: 'Quay lại',
+      picture: null,
+    });
+    return account;
+  }
+
+  it('đăng nhập Google trong thời gian chờ → 409 EMAIL_PENDING_DELETION kèm ngày; dòng cũ không đổi', async () => {
+    const old = await deletedGoogleUser('g-xoa-10', 'xoa10@ghim.vn', 10);
+    const res = await google('tok-g-xoa-10');
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error.code).toBe('EMAIL_PENDING_DELETION');
+    expect(await prisma.account.findUniqueOrThrow({ where: { id: old.id } })).toMatchObject({
+      status: 'deleted',
+      googleSub: 'g-xoa-10',
+    });
+  });
+
+  it('đăng nhập Google sau thời gian chờ → tài khoản mới đã xác nhận; dòng cũ đã xoá, nhả mã Google', async () => {
+    const old = await deletedGoogleUser('g-xoa-91', 'xoa91@ghim.vn', 91);
+    const res = await google('tok-g-xoa-91');
+    expect(res.statusCode, res.body).toBe(200);
+    const fresh = await repository.findAccountByGoogleSub('g-xoa-91');
+    expect(fresh).toMatchObject({ status: 'active', emailNormalized: 'xoa91@ghim.vn' });
+    expect(fresh?.id).not.toBe(old.id);
+    expect(await prisma.account.findUniqueOrThrow({ where: { id: old.id } })).toMatchObject({
+      status: 'deleted',
+      googleSub: null,
+      emailNormalized: `deleted:${old.id}`,
+    });
+  });
+});

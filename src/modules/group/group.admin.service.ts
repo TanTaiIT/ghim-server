@@ -466,13 +466,21 @@ export function createGroupAdminService(
        */
       const prepare = async (
         tx: Prisma.TransactionClient,
-        current: { mode: GroupMode },
+        current: { state: GroupState; mode: GroupMode },
         code?: string,
       ) => {
         const listings = input.mode
           ? ((await shared.publicListings?.countInGroup(tx, groupId)) ?? 0)
           : 0;
         const plan = input.mode ? planModeChange(current.mode, input.mode, listings > 0) : null;
+        // Thiếu chủ và đang chuyển riêng tư loại trừ nhau ở mọi chỗ khác (job 30 ngày, trả chủ, nhận chủ); riêng tư hoá lại
+        // đẩy tin người ngoài rời nhóm vĩnh viễn — việc đó chờ có chủ (spec group-roles, C10).
+        if (plan?.kind === 'going_private' && current.state === 'ownerless') {
+          throw new ConflictError(
+            'Nhóm đang thiếu chủ — giao chủ xong rồi mới chuyển sang riêng tư',
+            'GROUP_OWNER_REQUIRED',
+          );
+        }
         const finalMode = plan?.kind === 'immediate' ? plan.mode : current.mode;
         const sideChanged = plan?.kind === 'immediate' && plan.resetSideSwitches;
 

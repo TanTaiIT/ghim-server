@@ -17,6 +17,7 @@ import {
   machinePass,
   type OwnListing,
   patch,
+  signedInAt,
   submitted,
 } from './listing-http-helpers.js';
 import { buildTestApp, TEST_NOW } from './test-app.js';
@@ -285,6 +286,26 @@ describe('Tin có việc mở thì không đổi nơi đăng (spec listing/editi
     const widen = await patch(app, member, live, { placement: 'group_public' });
     expect(widen.statusCode).toBe(409);
     expect(widen.json().error.code).toBe('PLACEMENT_LOCKED');
+  });
+
+  it('gia hạn sớm kèm đổi nơi đăng khi tin đang trong mẫu hậu kiểm: 409 PLACEMENT_LOCKED (fix-audit-stuck-data)', async () => {
+    const group = await createActiveGroup(app);
+    const member = await addMember(app, group.groupId);
+    const live = await liveListingOf(app, member, {
+      placement: 'members_only',
+      groupId: group.groupId,
+    });
+    await app.modules.review.addReason(live.id, { reason: 'sample_risk' });
+    now = at(25 * 24);
+    const renew = await listingApi(
+      app,
+      'POST',
+      `/listings/${live.id}/renew`,
+      await signedInAt(app, member, now),
+      { version: live.version, placement: 'group_public' },
+    );
+    expect(renew.statusCode, renew.body).toBe(409);
+    expect(renew.json().error.code).toBe('PLACEMENT_LOCKED');
   });
 });
 

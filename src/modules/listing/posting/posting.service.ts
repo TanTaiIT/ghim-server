@@ -5,7 +5,7 @@ import { ConflictError, ForbiddenError, NotFoundError } from '../../../common/er
 import { formatDateVN } from '../../../common/time/time.js';
 import { imageNotInStorage } from '../../media/media.service.js';
 import { nextClock, renewEarlyCheck } from '../calc/display-period.calc.js';
-import { dropGroupReasons, isDetached } from '../calc/hide.calc.js';
+import { isDetached, reasonsAfterRecheck, reasonsAfterRewrite } from '../calc/hide.calc.js';
 import { transition } from '../calc/listing.calc.js';
 import { LISTING_EVENTS, listingEvent, stateChangedEvent } from '../listing.outbox.js';
 import {
@@ -18,8 +18,10 @@ import {
   clockSettings,
   EDITABLE_STATES,
   invalidTransition,
+  listingDetached,
   type ListingShared,
   listingNotFound,
+  placementLocked,
   validationError,
   versionConflict,
 } from '../listing.shared.js';
@@ -112,11 +114,14 @@ export function createListingPostingService(shared: ListingShared): ListingPosti
   const submission = createSubmission(shared);
   const own = (row: Listing) => toOwnDto(row, clock());
 
-  /** Kiểm được ngay cả lúc lưu nháp (D9): số ảnh, khu vực có thật, mẫu thông tin (không đòi mục bắt buộc). */
+  /**
+   * Kiểm được ngay cả lúc lưu nháp (D9): số ảnh, khu vực có thật, mẫu thông tin (không đòi mục bắt buộc). Trả danh mục
+   * có đang bật không — lưu nháp cần nó để gỡ "danh mục bị tắt" khi đổi danh mục (C7).
+   */
   const assertDraftFields = async (
     listing: Listing | null,
     fields: ListingFields,
-  ): Promise<void> => {
+  ): Promise<boolean> => {
     const max = config.get('listing.maxImages');
     if (fields.imageIds.length > max) throw tooManyImages(max);
     if (fields.wardCode !== null && fields.provinceCode === null) {
@@ -145,7 +150,7 @@ export function createListingPostingService(shared: ListingShared): ListingPosti
       if (Object.keys(attributes as object).length > 0) {
         throw validationError('Chọn danh mục trước khi điền thông tin theo mẫu');
       }
-      return;
+      return false;
     }
     const category = (await categories.statusOf([fields.categoryId])).get(fields.categoryId);
     if (!category) throw validationError('Không có danh mục này');
@@ -157,6 +162,7 @@ export function createListingPostingService(shared: ListingShared): ListingPosti
       complete: false,
     });
     if (issues.length > 0) throw validationError(issues.join('; '));
+    return category.enabled;
   };
 
   /** Gắn huy hiệu (design mục 14): một huy hiệu mỗi tin, huy hiệu nhóm đã gỡ thì không gắn lại, phải đang có quyền. */
@@ -180,16 +186,25 @@ export function createListingPostingService(shared: ListingShared): ListingPosti
 
   /** Lượt ghi không thành: tin đã xoá → 404, lệch phiên bản → 409 `CONFLICT`, còn lại là mũi tên không có. */
   const saveDraft = async (actor: Actor, listing: Listing, body: PatchListingBody) => {
+    if (isDetached(listing.hideReasons)) throw listingDetached();
     const after = merge(fieldsOf(listing), body);
-    await assertDraftFields(listing, after);
+    const categoryEnabled = await assertDraftFields(listing, after);
     await assertBadge(listing, after);
     const owner = { kind: 'listing' as const, id: listing.id };
     await media.resolve({ owner, uploaderId: actor.accountId, imageIds: after.imageIds });
+    const rewrite = {
+      groupChanged: listing.groupId !== after.groupId,
+      categoryEnabledNow: categoryEnabled && listing.categoryId !== after.categoryId,
+    };
     const result = await repository.change({
       id: listing.id,
       states: ['draft'],
       version: body.version,
-      data: (locked) => ({ ...contentData(after), version: locked.version + 1 }),
+      data: (locked) => ({
+        ...contentData(after),
+        hideReasons: reasonsAfterRewrite(locked.hideReasons, rewrite),
+        version: locked.version + 1,
+      }),
       after: (tx) => media.attach(tx, { owner, imageIds: after.imageIds }),
     });
     return result?.after ?? explainMiss(listing.id, body.version);
@@ -212,8 +227,11 @@ export function createListingPostingService(shared: ListingShared): ListingPosti
         if (outcome.placement) await submission.lockPlacement(tx, actor.accountId, after);
       },
       data: (locked) => {
-        const leftGroup = locked.groupId !== null && locked.groupId !== after.groupId;
-        const hideReasons = leftGroup ? dropGroupReasons(locked.hideReasons) : locked.hideReasons;
+        // Sửa không qua máy không đổi danh mục (classifyEdit đưa đổi danh mục qua máy).
+        const hideReasons = reasonsAfterRewrite(locked.hideReasons, {
+          groupChanged: locked.groupId !== after.groupId,
+          categoryEnabledNow: false,
+        });
         return {
           ...contentData(after),
           version: locked.version + 1,
@@ -260,18 +278,17 @@ export function createListingPostingService(shared: ListingShared): ListingPosti
       memberOfTarget,
     });
     if (!outcome.ok) {
-      throw new ConflictError(
-        outcome.code === 'LISTING_DETACHED'
-          ? 'Tin đã rời nhóm hẳn — chỉ chuyển lên sàn chung hoặc xoá được'
-          : 'Tin đang có việc chờ xử, chưa đổi nơi đăng được',
-        outcome.code,
-      );
+      throw outcome.code === 'LISTING_DETACHED' ? listingDetached() : placementLocked();
     }
     if (outcome.badge === 'attach') await assertBadge(listing, after);
     if (!outcome.machine) return applyNow(actor, listing, after, body.version, outcome);
     if (transition(listing.state, 'edit', 'owner', listing.fault) === null)
       throw invalidTransition();
-    const categoryEnabledNow = after.categoryId !== listing.categoryId;
+    // Đổi sang danh mục khác thì bước 4 của lượt gửi đã từ chối danh mục đang tắt (spec suspension).
+    const rewrite = {
+      groupChanged: listing.groupId !== after.groupId,
+      categoryEnabledNow: after.categoryId !== listing.categoryId,
+    };
     const updated = await submission.submit({
       actor,
       listing,
@@ -282,12 +299,7 @@ export function createListingPostingService(shared: ListingShared): ListingPosti
       deviceId,
       renewal: null,
       recheckPlacement: outcome.placement !== null,
-      hideReasons: (locked) => {
-        const leftGroup = listing.groupId !== null && listing.groupId !== after.groupId;
-        const kept = leftGroup ? dropGroupReasons(locked) : [...locked];
-        // Đổi sang danh mục đang bật (đã kiểm ở bước 4) thì lý do "danh mục bị tắt" được gỡ (spec suspension).
-        return categoryEnabledNow ? kept.filter((reason) => reason !== 'category_disabled') : kept;
-      },
+      hideReasons: (locked) => reasonsAfterRewrite(locked, rewrite),
       restrictions: (locked) =>
         outcome.dropNewAccount ? locked.filter((reason) => reason !== 'new_account') : [...locked],
     });
@@ -343,6 +355,7 @@ export function createListingPostingService(shared: ListingShared): ListingPosti
         throw invalidTransition('Tin không còn là nháp');
       }
       if (listing.version !== version) throw versionConflict();
+      if (isDetached(listing.hideReasons)) throw listingDetached();
       const updated = await submission.submit({
         actor,
         listing,
@@ -353,7 +366,7 @@ export function createListingPostingService(shared: ListingShared): ListingPosti
         deviceId,
         renewal: listing.renewal,
         recheckPlacement: true,
-        hideReasons: (locked) => [...locked],
+        hideReasons: reasonsAfterRecheck,
         restrictions: (locked) => [...locked],
       });
       if (updated) return own(updated);
@@ -365,10 +378,14 @@ export function createListingPostingService(shared: ListingShared): ListingPosti
     async withdraw(actor, id) {
       const listing = await ownedBy(actor, id);
       if (transition(listing.state, 'withdraw', 'owner') === null) throw invalidTransition();
+      if (isDetached(listing.hideReasons)) throw listingDetached();
       const now = clock();
       const result = await repository.change({
         id,
         states: ['pending'],
+        before: async (_tx, locked) => {
+          if (isDetached(locked.hideReasons)) throw listingDetached();
+        },
         data: (locked) => ({
           state: 'draft',
           version: locked.version + 1,
@@ -391,12 +408,7 @@ export function createListingPostingService(shared: ListingShared): ListingPosti
       if (transition(listing.state, early ? 'renewEarly' : 'renew', 'owner') === null) {
         throw invalidTransition('Chỉ gia hạn được tin đang hiển thị hay đã hết hạn');
       }
-      if (isDetached(listing.hideReasons)) {
-        throw new ConflictError(
-          'Tin đã rời nhóm hẳn — chỉ chuyển lên sàn chung hoặc xoá được',
-          'LISTING_DETACHED',
-        );
-      }
+      if (isDetached(listing.hideReasons)) throw listingDetached();
       if (early) {
         const check = renewEarlyCheck(listing, now, config.get('listing.renewWindowDays'));
         if (!check.ok) {
@@ -408,6 +420,9 @@ export function createListingPostingService(shared: ListingShared): ListingPosti
       }
       const after = merge(fieldsOf(listing), body);
       await assertDraftFields(listing, after);
+      const movesPlacement =
+        after.placement !== listing.placement || after.groupId !== listing.groupId;
+      if (movesPlacement && (await openWork.blocksPlacement(listing.id))) throw placementLocked();
       const updated = await submission.submit({
         actor,
         listing,
@@ -418,7 +433,7 @@ export function createListingPostingService(shared: ListingShared): ListingPosti
         deviceId,
         renewal: early ? 'early' : 'expired',
         recheckPlacement: true,
-        hideReasons: (locked) => [...locked],
+        hideReasons: reasonsAfterRecheck,
         restrictions: (locked) => [...locked],
       });
       return own(updated ?? (await explainMiss(id, body.version)));

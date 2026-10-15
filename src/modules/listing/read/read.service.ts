@@ -4,8 +4,8 @@ import type { Actor } from '../../../common/auth/actor.js';
 import { NotFoundError } from '../../../common/errors/app-error.js';
 import { type CursorKey, toCursorPage } from '../../../common/schemas/cursor.js';
 import { fold } from '../../../common/text/fold.js';
-import { isDetached } from '../calc/hide.calc.js';
-import type { ReviewSubject } from '../listing.ports.js';
+import { isDetached, placementsHiddenOnLeave } from '../calc/hide.calc.js';
+import type { GroupLeave, ReviewSubject } from '../listing.ports.js';
 import type { FeedQuery, ListingDto, OwnListingDto } from '../listing.schema.js';
 import { type ListingShared, listingNotFound } from '../listing.shared.js';
 import { canView, type ListSurface, visibleWhere } from '../calc/visibility.calc.js';
@@ -43,8 +43,11 @@ export interface ListingReadService {
   reviewSubject(id: string): Promise<ReviewSubject | null>;
   /** Cổng cho `review`: tin như người đăng thấy — người xử cần thấy đủ nội dung, kể cả tin chưa hiện (TK 17). */
   forReviewer(id: string): Promise<OwnListingDto | null>;
-  /** Cổng cho `review`: tin chờ duyệt của một người trong một nhóm — vào lại nhóm thì sinh lại việc (chốt 15/10/2026). */
-  pendingInGroup(accountId: string, groupId: string): Promise<string[]>;
+  /**
+   * Cổng cho `review`: tin chờ duyệt của một người trong một nhóm — vào lại nhóm thì sinh lại việc (chốt 15/10/2026).
+   * Có `leave` thì chỉ tin lượt rời đó làm ẩn: tin "nhóm công khai" ở lại làm tin người ngoài vẫn giữ việc (C8).
+   */
+  pendingInGroup(accountId: string, groupId: string, leave?: GroupLeave): Promise<string[]>;
   /**
    * Cổng cho `review` lúc khởi động: tin đang chờ duyệt và tin đang hiện mang lý do "máy", có từ trước khi có hàng chờ
    * (design add-review-queues, Migration Plan). Bỏ tin đang bị ẩn — tin của người đã rời nhóm, của nhóm đã đóng cố ý
@@ -216,9 +219,14 @@ export function createListingReadService(shared: ListingShared): ListingReadServ
       return { held, machineRestricted };
     },
 
-    async pendingInGroup(accountId, groupId) {
+    async pendingInGroup(accountId, groupId, leave) {
+      // Bị cấm hay xoá tài khoản ẩn mọi mức; tự rời, bị gỡ thì theo công tắc người ngoài lúc rời.
+      const hiddenOnly =
+        leave && (leave.reason === 'left' || leave.reason === 'removed')
+          ? { placement: { in: placementsHiddenOnLeave(leave.allowOutsiders) } }
+          : {};
       const rows = await repository.list({
-        where: { ownerId: accountId, groupId, state: 'pending', deletedAt: null },
+        where: { ownerId: accountId, groupId, state: 'pending', deletedAt: null, ...hiddenOnly },
         order: 'updated',
         limit: PENDING_IN_GROUP_LIMIT,
       });

@@ -77,8 +77,8 @@ function addAndRemove(
       // Xoá tài khoản đã có lý do riêng; tin sàn chung không thuộc nhóm nên không bị đụng.
       if (event.reason === 'account_deleted') return [[], []];
       const hides =
-        target.placement === 'members_only' ||
-        (target.placement === 'group_public' && !event.allowOutsiders);
+        target.placement !== null &&
+        placementsHiddenOnLeave(event.allowOutsiders).includes(target.placement);
       const reason = event.reason === 'left' ? 'left_group' : 'removed_from_group';
       return [hides ? [reason] : [], []];
     }
@@ -134,3 +134,30 @@ export const isDetached = (reasons: readonly ListingHideReason[]): boolean =>
 /** Người đăng đổi nơi đăng ra khỏi nhóm cũ: lý do của nhóm ấy rơi theo, lý do tài khoản và danh mục giữ (D3). */
 export const dropGroupReasons = (reasons: readonly ListingHideReason[]): ListingHideReason[] =>
   sorted(reasons.filter((reason) => !GROUP_REASONS.has(reason)));
+
+/**
+ * Mức nơi đăng bị ẩn khi người đăng tự rời hay bị gỡ khỏi nhóm: tin "nhóm công khai" ở lại làm tin người ngoài khi nhóm
+ * nhận tin người ngoài (spec suspension). `review` dùng chung để chỉ huỷ việc của tin thật sự bị ẩn (C8).
+ */
+export const placementsHiddenOnLeave = (allowOutsiders: boolean): ListingPlacement[] =>
+  allowOutsiders ? ['members_only'] : ['members_only', 'group_public'];
+
+/**
+ * Gửi nháp, gia hạn: bước kiểm nơi đăng (khoá, cấm, thành viên dưới khoá nhóm) và danh mục (bước 4) vừa chạy, nên lý do
+ * của nhóm hay của danh mục còn đúng thì lượt gửi đã bị từ chối — giữ lại chỉ làm tin ẩn mãi vì bên nghe không còn gỡ
+ * (C7). Lý do tài khoản không đụng: tài khoản bị khoá, xoá thì không gửi được.
+ */
+export const reasonsAfterRecheck = (reasons: readonly ListingHideReason[]): ListingHideReason[] =>
+  dropGroupReasons(reasons).filter((reason) => reason !== 'category_disabled');
+
+/**
+ * Đường ghi không kiểm lại nơi đăng (lưu nháp, sửa không qua máy): đổi nhóm thì lý do của nhóm cũ rơi theo, đổi sang
+ * danh mục đang bật thì "danh mục bị tắt" được gỡ (spec suspension).
+ */
+export function reasonsAfterRewrite(
+  reasons: readonly ListingHideReason[],
+  change: { groupChanged: boolean; categoryEnabledNow: boolean },
+): ListingHideReason[] {
+  const kept = change.groupChanged ? dropGroupReasons(reasons) : sorted(reasons);
+  return change.categoryEnabledNow ? kept.filter((reason) => reason !== 'category_disabled') : kept;
+}

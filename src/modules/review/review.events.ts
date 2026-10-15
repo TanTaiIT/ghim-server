@@ -11,6 +11,10 @@ import type { ReviewService } from './review.service.js';
 const listingRef = z.object({ listingId: z.string() });
 const stateChange = z.object({ listingId: z.string(), version: z.number(), arrow: z.string() });
 const member = z.object({ groupId: z.string(), accountId: z.string() });
+const memberLeft = member.extend({
+  reason: z.enum(['left', 'removed', 'banned', 'account_deleted']),
+  allowOutsiders: z.boolean(),
+});
 const groupOnly = z.object({ groupId: z.string() });
 const account = z.object({ accountId: z.string() });
 const ownerChange = z.object({ previousOwnerId: z.string().nullable() });
@@ -48,10 +52,14 @@ export function registerReviewListeners(dispatcher: OutboxDispatcher, review: Re
   );
 
   // ── NHÓM ───────────────────────────────────────────────────────────────────────────────────────
-  on(GROUP_EVENTS.memberLeft, member, async ({ groupId, accountId }) => {
-    await review.onMemberLeft(groupId, accountId);
-    await review.recheckClaims(accountId);
-  });
+  on(
+    GROUP_EVENTS.memberLeft,
+    memberLeft,
+    async ({ groupId, accountId, reason, allowOutsiders }) => {
+      await review.onMemberLeft(groupId, accountId, { reason, allowOutsiders });
+      await review.recheckClaims(accountId);
+    },
+  );
   on(GROUP_EVENTS.memberJoined, member, ({ groupId, accountId }) =>
     review.onMemberBack(groupId, accountId),
   );

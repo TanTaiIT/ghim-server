@@ -139,3 +139,55 @@ describe('IdentityRepository', () => {
     expect((await repository.findSessionById(session.id))?.prevRefreshTokenHash).toBe('hash-dau');
   });
 });
+
+describe('anonymizeDeletedAccount (fix-audit-stuck-data, C9)', () => {
+  const DAY = 86_400_000;
+  async function deleted(daysAgo: number) {
+    const account = await newAccount();
+    await repository.softDeleteAccount({
+      accountId: account.id,
+      at: new Date(NOW.getTime() - daysAgo * DAY),
+      events: [],
+    });
+    return account;
+  }
+  const cutoff = new Date(NOW.getTime() - 90 * DAY);
+
+  it('đã xoá quá hạn: bỏ email, tên, mật khẩu, mã xác nhận; giữ dấu băm; gọi lại là no-op', async () => {
+    const account = await deleted(91);
+    await issue(account.id);
+    expect(
+      await repository.anonymizeDeletedAccount({ id: account.id, deletedBefore: cutoff }),
+    ).toBe(true);
+    expect(await prisma.account.findUniqueOrThrow({ where: { id: account.id } })).toMatchObject({
+      status: 'deleted',
+      email: `deleted:${account.id}`,
+      emailNormalized: `deleted:${account.id}`,
+      emailHash: account.emailHash,
+      displayName: 'Tài khoản đã xoá',
+      passwordHash: null,
+    });
+    expect(await prisma.verificationCode.count({ where: { accountId: account.id } })).toBe(0);
+    expect(
+      await repository.anonymizeDeletedAccount({ id: account.id, deletedBefore: cutoff }),
+    ).toBe(false);
+  });
+
+  it('còn trong thời gian chờ hay đang hoạt động: không đổi gì', async () => {
+    const recent = await deleted(10);
+    const active = await newAccount();
+    const accounts = [recent, active];
+    const results = await Promise.all(
+      accounts.map((account) =>
+        repository.anonymizeDeletedAccount({ id: account.id, deletedBefore: cutoff }),
+      ),
+    );
+    expect(results).toEqual([false, false]);
+    const rows = await prisma.account.findMany({
+      where: { id: { in: accounts.map((a) => a.id) } },
+    });
+    expect(rows.map((row) => row.email).toSorted()).toEqual(
+      accounts.map((account) => account.email).toSorted(),
+    );
+  });
+});

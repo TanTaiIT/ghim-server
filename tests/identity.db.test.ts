@@ -108,10 +108,12 @@ describe('accounts', () => {
     await createAccount();
   });
 
-  it('CHECK accounts_credential_check: không mật khẩu và không Google thì từ chối', async () => {
+  it('CHECK accounts_credential_check: không mật khẩu và không Google thì từ chối, trừ dòng đã xoá (ẩn danh)', async () => {
     await expect(sqlStateOf(createAccount({ passwordHash: null, googleSub: null }))).resolves.toBe(
       CHECK,
     );
+    // fix-audit-stuck-data, C9: tài khoản đã xoá được ẩn danh — không còn mật khẩu lẫn mã Google.
+    await createAccount({ status: 'deleted', deletedAt: NOW, passwordHash: null, googleSub: null });
   });
 
   it('CHECK accounts_locked_check: locked đi đôi với locked_at', async () => {

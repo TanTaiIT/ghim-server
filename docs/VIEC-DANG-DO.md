@@ -21,10 +21,14 @@ và hướng sửa ở **`docs/RA-SOAT-15-10-2026.md`** (đánh dấu từng m�
 Mục nào đổi hành vi so với spec đang chạy thì đi qua một change OpenSpec (proposal có câu hỏi mở → bạn duyệt → code);
 mục code lệch spec thì sửa kèm test.
 
-**Đang dừng ở (15/10/2026):** đợt 1 xong — change `fix-audit-security` (C3, C4, C5, C6, T10), người dùng giao tech
-lead chọn phương án; `pnpm run check` xanh. Bản proposal nháp trên máy pc13 bỏ đi, dùng bản đã archive (`openspec/changes/archive/2026-10-15-fix-audit-security`). Bước tiếp:
-đợt 2 — cần chốt **C9** trước (dùng lại email của tài khoản đã xoá quá 90 ngày: ẩn danh hoá dòng cũ hay xoá cứng như
-hiện tại); C1, C2, C7, C8, C10, C11 là code lệch spec, sửa kèm test.
+**Đang dừng ở (15/10/2026):** đợt 1 xong (`fix-audit-security`: C3, C4, C5, C6, T10). Đợt 2 tách ba change, người
+dùng giao tech lead chọn phương án:
+
+- phần A xong — `fix-audit-stuck-data` (C7, C8, C9 ẩn danh thay vì xoá cứng, C10, kèm T13);
+- phần B còn lại — `fix-audit-image-checks` (C2 kèm T20, L8; C11): kế hoạch đã có, cần migration (`image_checks.queued_at`,
+  bảng đánh dấu hạn chế một lần) và tuỳ chọn hàng việc;
+- phần C còn lại — `fix-audit-listeners` (C1): mọi bên nghe theo cặp đối chiếu trạng thái hiện tại, ở `listing`,
+  `group`, `platform`, `review`, `trust`.
 
 ## 1. Đang chờ quyết hoặc chờ duyệt
 
@@ -91,9 +95,8 @@ DeviceCheck) là quyết định sản phẩm, không phải việc dở — xem
       reset mật khẩu `neondb_owner` của project Singapore (chuỗi kết nối đã gửi qua chat 15/10/2026) và cập nhật
       `DATABASE_URL`.
 - [ ] App `ghim-app`: bỏ EXIF (vị trí GPS) khi nén ảnh — server không thấy ảnh nên không gỡ được (`docs/media.md` bước 1).
-- [ ] CI (`.github/workflows/ci.yml`): `actions/checkout@v4`, `actions/setup-node@v4`, `pnpm/action-setup@v4` còn nhắm
-      Node 20 — GitHub đang ép chạy Node 24 và cảnh báo bỏ Node 20; nâng lên bản hỗ trợ Node 24. Nguồn: cảnh báo của
-      lượt CI 38716872756.
+- [ ] CI: đã nâng lên `actions/checkout@v6`, `actions/setup-node@v6`, `pnpm/action-setup@v6` (chạy Node 24) ngày
+      15/10/2026 — xem lượt CI kế tiếp còn xanh và hết cảnh báo Node 20 thì xoá dòng này.
 - [ ] CI: `runs-on: ubuntu-latest` chuyển sang Ubuntu 26 từ **19/10/2026** — xem lượt CI đầu tiên sau ngày đó (Postgres,
       RustFS trong container); hỏng thì ghim `ubuntu-24.04`. Nguồn: cảnh báo của cùng lượt CI.
 

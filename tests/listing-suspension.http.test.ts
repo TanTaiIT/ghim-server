@@ -593,3 +593,127 @@ describe('Danh mục bị tắt', () => {
     });
   });
 });
+
+const pendingIn = async (user: TestUser, fields: Record<string, unknown>) =>
+  machineHold(app, user, await submitted(app, user, fields));
+const withdraw = (user: TestUser, id: string) => act('POST', `/listings/${id}/withdraw`, user);
+
+describe('Lý do bám theo qua nháp và gia hạn (fix-audit-stuck-data, C7)', () => {
+  it('chờ duyệt trong nhóm bị khoá → rút về nháp → đưa lên sàn chung rồi gửi: "nhóm bị tạm khoá" rơi, tin lên sàn', async () => {
+    const group = await createActiveGroup(app, { master });
+    const member = await addMember(app, group.groupId);
+    const pending = await pendingIn(member, { placement: 'members_only', groupId: group.groupId });
+    await act('POST', `/ops/groups/${group.groupId}/lock`, master, { reason: 'Thử' });
+    expect(await reasonsOf(pending.id)).toEqual(['group_locked']);
+    expect((await withdraw(member, pending.id)).statusCode).toBe(200);
+
+    const moved = await patch(app, member, await getOwn(app, member, pending.id), {
+      placement: 'marketplace',
+      groupId: null,
+      ...(await someRegion(app)),
+    });
+    expect(moved.statusCode, moved.body).toBe(200);
+    expect(await reasonsOf(pending.id)).toEqual([]);
+    const sent = await submit(app, member, moved.json().data);
+    expect(sent.statusCode, sent.body).toBe(200);
+    const live = await machinePass(app, member, sent.json().data);
+    expect(live).toMatchObject({ state: 'live', placement: 'marketplace', hideReasons: [] });
+    expect(await opens(pending.id, await newUser(app))).toBe(200);
+  });
+
+  it('đã rời nhóm → rút về nháp → gửi lại cùng nhóm "nhóm công khai" khi nhóm nhận người ngoài: "đã rời" rơi khi gửi', async () => {
+    const group = await createActiveGroup(app);
+    const member = await addMember(app, group.groupId);
+    const pending = await pendingIn(member, { placement: 'members_only', groupId: group.groupId });
+    await act('POST', `/groups/${group.groupId}/leave`, member);
+    expect(await reasonsOf(pending.id)).toEqual(['left_group']);
+    expect((await withdraw(member, pending.id)).statusCode).toBe(200);
+    await groupSettings(app, group.owner, group.groupId, { allowOutsiders: true });
+
+    const widened = await patch(app, member, await getOwn(app, member, pending.id), {
+      placement: 'group_public',
+    });
+    expect(widened.statusCode, widened.body).toBe(200);
+    // Lưu nháp không đổi nhóm: lý do còn, vì chưa có bước kiểm nơi đăng.
+    expect(await reasonsOf(pending.id)).toEqual(['left_group']);
+    const sent = await submit(app, member, widened.json().data);
+    expect(sent.statusCode, sent.body).toBe(200);
+    expect(sent.json().data).toMatchObject({ state: 'checking', hideReasons: [] });
+  });
+
+  it('chờ duyệt ẩn vì danh mục tắt → rút về nháp → đổi sang danh mục đang bật: lý do rơi; gửi: đang kiểm', async () => {
+    const owner = await newUser(app);
+    const categoryId = await createCategory(app, master);
+    const pending = await pendingIn(owner, { categoryId });
+    await act('POST', `/ops/categories/${categoryId}/disable`, master);
+    expect(await reasonsOf(pending.id)).toEqual(['category_disabled']);
+    expect((await withdraw(owner, pending.id)).statusCode).toBe(200);
+
+    const disabled = await createCategory(app, master);
+    await act('POST', `/ops/categories/${disabled}/disable`, master);
+    const stillOff = await patch(app, owner, await getOwn(app, owner, pending.id), {
+      categoryId: disabled,
+    });
+    expect(stillOff.json().data.hideReasons).toEqual(['category_disabled']);
+    expect(codeOf(await submit(app, owner, stillOff.json().data))).toBe('CATEGORY_DISABLED');
+
+    const enabled = await createCategory(app, master);
+    const saved = await patch(app, owner, await getOwn(app, owner, pending.id), {
+      categoryId: enabled,
+    });
+    expect(saved.json().data.hideReasons).toEqual([]);
+    const sent = await submit(app, owner, saved.json().data);
+    expect(sent.json().data).toMatchObject({ state: 'checking', hideReasons: [] });
+  });
+
+  it('gia hạn sớm kèm đưa lên sàn chung khi đang bị cấm khỏi nhóm: "bị cấm" rơi, tin sang đang kiểm ở sàn', async () => {
+    const group = await createActiveGroup(app);
+    await groupSettings(app, group.owner, group.groupId, { allowOutsiders: true });
+    const member = await addMember(app, group.groupId);
+    const open = await inGroup(member, group, 'group_public');
+    now = new Date(TEST_NOW.getTime() + 25 * DAY_MS);
+    await act('PUT', `/groups/${group.groupId}/bans/${member.id}`, group.owner);
+    expect(await reasonsOf(open.id)).toEqual(['group_banned']);
+
+    const res = await act('POST', `/listings/${open.id}/renew`, member, {
+      version: (await row(open.id)).version,
+      placement: 'marketplace',
+      groupId: null,
+      ...(await someRegion(app)),
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json().data).toMatchObject({
+      state: 'checking',
+      placement: 'marketplace',
+      hideReasons: [],
+    });
+  });
+
+  it('chờ duyệt của nhóm đã đóng: rút về nháp 409 LISTING_DETACHED, tin vẫn chờ duyệt; xoá vẫn được', async () => {
+    const group = await createActiveGroup(app);
+    const member = await addMember(app, group.groupId);
+    const pending = await pendingIn(member, { placement: 'members_only', groupId: group.groupId });
+    await act('POST', `/groups/${group.groupId}/close`, group.owner);
+    expect(await reasonsOf(pending.id)).toContain('group_closed');
+
+    const res = await withdraw(member, pending.id);
+    expect(res.statusCode).toBe(409);
+    expect(codeOf(res)).toBe('LISTING_DETACHED');
+    expect((await row(pending.id)).state).toBe('pending');
+    expect((await act('DELETE', `/listings/${pending.id}`, member)).statusCode).toBe(204);
+  });
+
+  it('nháp còn mang lý do rời nhóm hẳn (dòng cũ): lưu và gửi đều 409 LISTING_DETACHED', async () => {
+    const owner = await newUser(app);
+    const draft = await readyDraft(app, owner);
+    await prisma.listing.update({
+      where: { id: draft.id },
+      data: { hideReasons: ['detached_by_group'] },
+    });
+    const fresh = await getOwn(app, owner, draft.id);
+    expect(codeOf(await patch(app, owner, fresh, { title: 'Sửa nháp đã rời nhóm' }))).toBe(
+      'LISTING_DETACHED',
+    );
+    expect(codeOf(await submit(app, owner, fresh))).toBe('LISTING_DETACHED');
+  });
+});

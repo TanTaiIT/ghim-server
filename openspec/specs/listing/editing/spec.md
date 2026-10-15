@@ -103,6 +103,11 @@ kiểm, để không ai chuyển tin đi chỗ khác cho thoát việc đang ch�
 - **WHEN** người đăng sửa giá, không đổi nơi đăng, của một tin đang chờ duyệt
 - **THEN** sửa được nhận và tin chuyển sang đang kiểm
 
+#### Scenario: Gia hạn kèm đổi nơi đăng khi đang hậu kiểm
+
+- **WHEN** người đăng gia hạn sớm một tin đang hậu kiểm kèm đổi nơi đăng
+- **THEN** response có HTTP 409 `PLACEMENT_LOCKED` và tin không đổi
+
 ### Requirement: Chuyển tin vào nhóm mình không phải thành viên
 
 Đổi nơi đăng vào một nhóm mà người đăng không phải thành viên SHALL được xét như gửi tin mới theo luật người
@@ -134,3 +139,8 @@ sửa được nữa. Người đăng chỉ chuyển được tin đó lên sàn
 
 - **WHEN** người đăng xoá một tin bị gỡ khỏi nhóm
 - **THEN** tin bị xoá
+
+#### Scenario: Rút về nháp tin đã rời nhóm
+
+- **WHEN** người đăng rút về nháp một tin chờ duyệt của nhóm đã đóng
+- **THEN** response có HTTP 409 `LISTING_DETACHED` và tin vẫn chờ duyệt

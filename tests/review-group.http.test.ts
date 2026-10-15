@@ -20,6 +20,7 @@ import {
 } from './group-helpers.js';
 import {
   getOwn,
+  groupSettings,
   listingApi,
   liveListingOf,
   machineHold,
@@ -383,6 +384,25 @@ describe('Đóng nhóm huỷ việc đang chờ về tin trong nhóm', () => {
   });
 });
 
+/** Nhóm công khai có điều hành cả nhóm và một người đăng có hai tin chờ duyệt: "nhóm công khai" và "chỉ thành viên". */
+async function twoHeld(allowOutsiders: boolean) {
+  const category = await seedCategory();
+  const group = await createActiveGroup(app, { master });
+  if (allowOutsiders) {
+    await groupSettings(app, group.owner, group.groupId, { allowOutsiders: true });
+  }
+  const moderator = await addMember(app, group.groupId);
+  await appointModerator(app, group, moderator, null);
+  const poster = await addMember(app, group.groupId);
+  const open = await heldBy(poster, {
+    placement: 'group_public',
+    groupId: group.groupId,
+    categoryId: category,
+  });
+  const inside = await heldBy(poster, inGroup(group, category));
+  return { group, moderator, poster, open, inside };
+}
+
 describe('Rời, bị gỡ hay bị cấm thì việc máy giữ trong nhóm của người đó bị huỷ', () => {
   it('bị gỡ khỏi nhóm khi có tin chờ duyệt: việc huỷ, tin không hiện trong nhóm', async () => {
     const category = await seedCategory();
@@ -421,6 +441,37 @@ describe('Rời, bị gỡ hay bị cấm thì việc máy giữ trong nhóm c�
     expect(await openTasks(inside.id)).toEqual([]);
     expect(await openTasks(market.id)).toHaveLength(1);
     expect(await opsListingIds(staff)).toContain(market.id);
+  });
+
+  it('tự rời nhóm đang nhận tin người ngoài: việc tin "nhóm công khai" vẫn mở ở hàng điều hành, tin "chỉ thành viên" huỷ', async () => {
+    const { group, moderator, poster, open, inside } = await twoHeld(true);
+    const left = await api(app, 'POST', `/groups/${group.groupId}/leave`, poster.token);
+    expect(left.statusCode, left.body).toBe(204);
+    await deliverAll(app);
+    expect(await openTasks(inside.id)).toEqual([]);
+    expect(await openTasks(open.id)).toHaveLength(1);
+    expect((await getOwn(app, poster, open.id)).hideReasons).toEqual([]);
+    expect(await groupListingIds(moderator, group.groupId)).toContain(open.id);
+  });
+
+  it('tự rời nhóm không nhận tin người ngoài, hay bị cấm khi nhóm nhận: việc cả hai tin huỷ', async () => {
+    const closed = await twoHeld(false);
+    await api(app, 'POST', `/groups/${closed.group.groupId}/leave`, closed.poster.token);
+    await deliverAll(app);
+    expect(await openTasks(closed.open.id)).toEqual([]);
+    expect(await openTasks(closed.inside.id)).toEqual([]);
+
+    const banned = await twoHeld(true);
+    const ban = await api(
+      app,
+      'PUT',
+      `/groups/${banned.group.groupId}/bans/${banned.poster.id}`,
+      banned.group.owner.token,
+    );
+    expect(ban.statusCode, ban.body).toBe(204);
+    await deliverAll(app);
+    expect(await openTasks(banned.open.id)).toEqual([]);
+    expect(await openTasks(banned.inside.id)).toEqual([]);
   });
 
   it('rời nhóm rồi vào lại khi tin còn chờ duyệt: việc hàng 0 mới hạn 24 giờ từ lúc vào lại, ở hàng điều hành nhóm', async () => {

@@ -99,6 +99,13 @@ export type ListingCategoryPort = Pick<
 >;
 export type ListingMediaPort = Pick<MediaService, 'resolve' | 'attach' | 'viewUrl' | 'copyImages'>;
 
+/** Một lượt rời nhóm như `group.member.left` mang theo — đủ để biết tin nào của người đó bị ẩn (C8). */
+export interface GroupLeave {
+  reason: 'left' | 'removed' | 'banned' | 'account_deleted';
+  /** Công tắc "nhận tin người ngoài" đúng lúc rời. */
+  allowOutsiders: boolean;
+}
+
 /** Dữ kiện của một tin để `review` định tuyến việc và kiểm quyết định (design add-review-queues mục 8). */
 export interface ReviewSubject {
   id: string;

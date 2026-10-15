@@ -49,6 +49,7 @@ export function createIdentityAuthService(
     totpMatches,
     openSession,
     claimEmail,
+    releaseDeleted,
     assertNotDisposable,
     softDelete,
   } = shared;
@@ -185,6 +186,12 @@ export function createIdentityAuthService(
       if (!google) throw invalidCredentials('Không xác thực được với Google, thử đăng nhập lại');
 
       let account = await repository.findAccountByGoogleSub(google.sub);
+      // Người dùng Google đã xoá tài khoản: như đăng ký lại cùng email — trong thời gian chờ thì 409 kèm ngày, sau đó
+      // dòng cũ được ẩn danh, nhả mã Google, và Google tạo tài khoản mới (spec account-deletion, T13).
+      if (account?.status === 'deleted' && account.deletedAt) {
+        await releaseDeleted({ ...account, deletedAt: account.deletedAt }, now);
+        account = null;
+      }
       if (!account) {
         const emailNormalized = normalizeEmail(google.email);
         let existing = await claimEmail(emailNormalized, now);
