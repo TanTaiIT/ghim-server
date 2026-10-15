@@ -3,13 +3,15 @@ import { createDeskService, type ReviewDeskService } from './desk/desk.service.j
 import { createQueueService, type ReviewQueueService } from './queue/queue.service.js';
 import { createReviewShared, type ReviewServiceDeps } from './review.shared.js';
 import { createScheduleService, type ReviewScheduleService } from './schedule/schedule.service.js';
+import { createStatsService, type ReviewStatsService } from './stats/stats.service.js';
 
 export type { ReviewServiceDeps } from './review.shared.js';
 
 export type ReviewService = ReviewQueueService &
   ReviewDeskService &
   ReviewDecisionService &
-  ReviewScheduleService;
+  ReviewScheduleService &
+  ReviewStatsService;
 
 /**
  * Người duyệt (design add-review-queues): hàng chờ (`queue/`) — việc sinh, gộp, huỷ theo chuyện xảy ra với tin và nhóm;
@@ -23,5 +25,6 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     ...createDeskService(shared),
     ...createDecisionService(shared, queue),
     ...createScheduleService(shared, queue),
+    ...createStatsService(shared),
   };
 }

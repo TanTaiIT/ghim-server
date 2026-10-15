@@ -75,6 +75,12 @@ export interface ReviewRepository {
   /** Việc hàng 5 khép lại trong `[from, to)`: xử xong và tự huỷ vì quá hạn — lý do huỷ khác không tính. */
   closedSamples(from: Date, to: Date): Promise<{ done: number; expired: number }>;
 
+  // ── SỐ LIỆU CHO MASTER ──
+  /** Quyết định "đạt" đã được hậu kiểm (việc mẫu người duyệt đã có quyết định), kèm người ra và có bị lật không. */
+  postcheckedPasses(): Promise<{ actorId: string; overturned: boolean }[]>;
+  /** Quyết định của người về việc máy giữ: luật máy đã trúng, kết quả, nhận định "máy quá tay". */
+  heldDecisions(): Promise<Pick<ReviewDecision, 'machineHits' | 'outcome' | 'machineJudgment'>[]>;
+
   /** Quyết định không đổi gì trên tin (bác việc nhóm chuyển lên) vẫn ghi việc và nhật ký trong một transaction. */
   inTransaction<T>(write: (tx: Tx) => Promise<T>): Promise<T>;
   insertDecision(tx: Tx, data: Prisma.ReviewDecisionUncheckedCreateInput): Promise<ReviewDecision>;
@@ -284,5 +290,36 @@ export function createReviewRepository(prisma: PrismaClient): ReviewRepository {
       const [done, expired] = await Promise.all([countOf('decided'), countOf('expired')]);
       return { done, expired };
     },
+
+    async postcheckedPasses() {
+      const sampledIds = (
+        await prisma.reviewTask.findMany({
+          where: { sampledDecisionId: { not: null }, status: 'decided' },
+          select: { sampledDecisionId: true },
+        })
+      ).flatMap((task) => task.sampledDecisionId ?? []);
+      if (sampledIds.length === 0) return [];
+      const [passes, overturning] = await Promise.all([
+        prisma.reviewDecision.findMany({
+          where: { id: { in: sampledIds } },
+          select: { id: true, actorId: true },
+        }),
+        prisma.reviewDecision.findMany({
+          where: { overturnsDecisionId: { in: sampledIds } },
+          select: { overturnsDecisionId: true },
+        }),
+      ]);
+      const overturned = new Set(overturning.map((row) => row.overturnsDecisionId));
+      return passes.map((pass) => ({ actorId: pass.actorId, overturned: overturned.has(pass.id) }));
+    },
+
+    heldDecisions: () =>
+      prisma.reviewDecision.findMany({
+        where: {
+          taskReasons: { has: 'machine_hold' },
+          outcome: { in: ['pass', 'reject', 'remove', 'detach'] },
+        },
+        select: { machineHits: true, outcome: true, machineJudgment: true },
+      }),
   };
 }

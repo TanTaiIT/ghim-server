@@ -168,6 +168,39 @@ export const updateTemplateBodySchema = z
   })
   .strict();
 
+// ── SỐ LIỆU CHO MASTER ───────────────────────────────────────────────────────────────────────────
+
+const count = z.number().int().min(0);
+
+export const boardSchema = z.object({
+  open: count,
+  queues: z.array(z.object({ queue: z.number().int(), open: count, overdue: count })),
+  /** Việc đang ở bậc master; quá `overdueAfterHours` giờ ở đó là quá hạn (spec review/queues). */
+  atMaster: z.object({ open: count, overdue: count, overdueAfterHours: count }),
+});
+
+export const reviewerRateSchema = z.object({
+  accountId: z.uuid(),
+  name: z.string().nullable(),
+  /** Quyết định "đạt" đã được hậu kiểm, và bao nhiêu trong số đó bị gỡ tin hay gỡ khỏi nhóm. */
+  reviewed: count,
+  overturned: count,
+  /** Phần trăm một chữ số thập phân; `null` = chưa có quyết định nào được hậu kiểm. */
+  rate: z.number().nullable(),
+});
+
+export const ruleRateSchema = z.object({
+  code: z.string(),
+  decided: count,
+  passed: count,
+  overreach: count,
+  passRate: z.number().nullable(),
+});
+
+export type BoardDto = z.infer<typeof boardSchema>;
+export type ReviewerRateDto = z.infer<typeof reviewerRateSchema>;
+export type RuleRateDto = z.infer<typeof ruleRateSchema>;
+
 export type DecisionBody = z.infer<typeof decisionBodySchema>;
 export type DirectDetachBody = z.infer<typeof directDetachBodySchema>;
 export type DecisionResultDto = z.infer<typeof decisionResultSchema>;

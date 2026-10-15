@@ -150,7 +150,9 @@ hành không, chủ nhóm, điều hành viên kèm phạm vi). `trust`: `cleanC
 | mỗi giờ  | lấy mẫu từ `review_sample_candidates` (100% điểm 45–59, 20% T0–T1, 5% còn lại; bỏ tin đang có việc mở; xoá ứng viên); nhắc master việc ở hàng master quá 72 giờ, nhắc lại mỗi 24 giờ; cảnh báo một nửa số việc chạm hạn trong 24 giờ |
 | mỗi tuần | thứ Hai 08:00: tỉ lệ hậu kiểm tuần trước dưới 80% thì cảnh báo master                                                                                                                                                                |
 
-Mẫu người duyệt (5%) quay ngay lúc quyết "đạt", trong transaction quyết định — trừ master (câu 4). Số ngẫu nhiên tiêm
+Việc đã ở bậc master từ lúc sinh (danh mục chưa có staff) thì lượt mỗi phút không chuyển nữa: thời gian ở hàng master —
+mốc nhắc 72 giờ — tính từ lúc sinh việc; việc chuyển lên thì tính từ `escalated_at` (đổi lúc code, 15/10/2026). Mẫu
+người duyệt (5%) quay ngay lúc quyết "đạt", trong transaction quyết định — trừ master (câu 4). Số ngẫu nhiên tiêm
 được để test. "Một nửa" và "24 giờ" của cảnh báo là hằng số trong code (TK 16 ghi, TK 28 không có).
 
 ### 10. Thông báo cho master

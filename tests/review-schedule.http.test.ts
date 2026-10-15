@@ -336,6 +336,10 @@ describe('Hàng của master có nhắc hạn', () => {
     await closeAllOpenTasks();
     const poster = await newUser(app);
     const held = await heldBy(poster, { categoryId: await seedCategory() });
+    // Danh mục chưa có staff: việc ở hàng master từ lúc sinh — quá hạn 24 giờ không "chuyển" nữa, mốc nhắc không dời.
+    now = at(25 * HOUR_MS);
+    expect((await review().everyMinute()).escalated).toBe(0);
+    expect((await taskOf(held.id)).escalatedAt).toBeNull();
     now = at(73 * HOUR_MS);
     expect((await review().everyHour()).reminded).toBe(1);
     await deliverAll(app);

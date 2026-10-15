@@ -60,7 +60,7 @@ Theo `design.md`. Test HTTP, DB chạy trên CI (PR nháp nhánh `add-listings`)
 
 ## 8. Số liệu cho master
 
-- [ ] 8.1 Bảng tồn, tỉ lệ bị lật theo người duyệt, tỉ lệ máy quá tay theo luật; xác minh test HTTP spec
+- [x] 8.1 Bảng tồn, tỉ lệ bị lật theo người duyệt, tỉ lệ máy quá tay theo luật; xác minh test HTTP spec
       `review/post-review` (tỉ lệ bị lật) và delta `screening/rule-management`
 
 ## 9. Tài liệu

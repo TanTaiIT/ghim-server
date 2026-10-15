@@ -111,9 +111,14 @@ export function createScheduleService(
       const now = clock();
       const escalated: string[] = [];
       const expired: string[] = [];
-      await sequentially(await repository.overdueTasks(now), async (task) => {
+      const overdue = await repository.overdueTasks(now);
+      const routeOf = await routesFor(overdue);
+      await sequentially(overdue, async (task) => {
         const action = overdueAction(task, now);
-        if (action === 'escalate' && (await repository.escalateTask(task.id, now))) {
+        // Việc đã ở bậc master (danh mục chưa có staff) thì không chuyển: thời gian ở hàng master — mốc nhắc — vẫn tính
+        // từ lúc sinh việc. Danh mục có staff sau đó thì lượt kế tiếp chuyển việc như thường.
+        const atMaster = routeOf(task).level === 'master';
+        if (action === 'escalate' && !atMaster && (await repository.escalateTask(task.id, now))) {
           escalated.push(task.id);
         }
         if (action === 'expire') {
