@@ -20,6 +20,7 @@ import {
   type TestUser,
 } from './group-helpers.js';
 import {
+  getOwn,
   listingApi,
   liveListingOf,
   machineHold,
@@ -111,6 +112,48 @@ const inGroup = (group: ActiveGroup, categoryId: string) => ({
   groupId: group.groupId,
   categoryId,
 });
+
+/** Mấy tài khoản từng đăng tin từ cùng một máy riêng, ngoài máy chung `DEVICE` của mọi lượt gửi trong test. */
+const shareDevice = async (...accountIds: string[]): Promise<void> => {
+  const device = `may-rieng-${randomUUID()}`;
+  await prisma.devicePost.createMany({
+    data: accountIds.map((accountId) => ({
+      deviceHash: device,
+      accountId,
+      firstPostedAt: TEST_NOW,
+      lastPostedAt: TEST_NOW,
+    })),
+  });
+};
+
+const anyTemplateId = async (user: TestUser): Promise<string> =>
+  (await api(app, 'GET', '/ops/review/reason-templates', user.token)).json().data[0].id as string;
+
+/**
+ * Nhóm không có điều hành viên: việc máy giữ về tin trong nhóm ở bậc chủ nhóm; chủ nhóm nhận rồi gỡ tin khỏi nhóm kèm
+ * "trái quy định sàn", sinh việc hàng 4. `prepare` dựng quan hệ của chủ nhóm trước lúc đó.
+ */
+async function escalatedByOwner(
+  categoryId: string,
+  prepare: (owner: TestUser) => Promise<unknown>,
+) {
+  const group = await createActiveGroup(app, { master });
+  await prepare(group.owner);
+  const held = await heldBy(await addMember(app, group.groupId), inGroup(group, categoryId));
+  const groupTask = await taskIdOf(held.id);
+  const claim = await groupClaim(group.owner, group.groupId, groupTask);
+  if (claim.statusCode !== 200) throw new Error(`Chủ nhóm nhận việc hỏng: ${claim.body}`);
+  const detached = await api(
+    app,
+    'POST',
+    `/groups/${group.groupId}/review/tasks/${groupTask}/decision`,
+    group.owner.token,
+    { outcome: 'detach', platformViolation: true, note: 'Bán hàng giả' },
+  );
+  if (detached.statusCode !== 200) throw new Error(`Chuyển lên hỏng: ${detached.body}`);
+  await deliverAll(app);
+  return { owner: group.owner, held, taskId: await taskIdOf(held.id) };
+}
 
 /** Hai staff cùng danh mục và một tin sàn bị giữ của danh mục đó. */
 const setup = async () => {
@@ -467,23 +510,112 @@ describe('Không ai, trừ master, xử việc của chính mình', () => {
     expect(listingIdsOf(await opsQueue(staff))).toContain(held.id);
   });
 
-  it('master đứng ngoài: tài khoản cá nhân dùng chung máy với master vẫn để master nhận việc', async () => {
+  it('chuỗi trong nhóm: mọi điều hành viên dùng chung máy với người đăng → chủ nhóm', async () => {
+    const category = await seedCategory();
+    const group = await createActiveGroup(app, { master });
+    const unit = await createUnit(app, group, `12A ${randomUUID().slice(0, 4)}`);
+    const moderator = await addMember(app, group.groupId, { unitId: unit });
+    await appointModerator(app, group, moderator, unit);
+    const poster = await addMember(app, group.groupId, { unitId: unit });
+    await shareDevice(moderator.id, poster.id);
+    const held = await heldBy(poster, inGroup(group, category));
+    expect(listingIdsOf(await groupQueue(moderator, group.groupId))).not.toContain(held.id);
+    expect(listingIdsOf(await groupQueue(group.owner, group.groupId))).toContain(held.id);
+  });
+
+  it('chuỗi trên sàn: staff duy nhất của danh mục đăng tin bị giữ → hàng master', async () => {
+    const category = await seedCategory();
+    const only = await staffOf([category]);
+    const held = await heldBy(only, { categoryId: category });
+    expect(listingIdsOf(await opsQueue(only))).not.toContain(held.id);
+    const detail = await api(
+      app,
+      'GET',
+      `/ops/review/tasks/${await taskIdOf(held.id)}`,
+      master.token,
+    );
+    expect(detail.json().data.level).toBe('master');
+  });
+
+  it('danh mục "tin nhóm bị giữ do sàn duyệt": staff A đăng vào nhóm → staff B thấy, điều hành nhóm không', async () => {
+    const pets = await seedCategory({ groupReview: 'platform' });
+    const { group, unit10a, mod10a } = await school();
+    const a = await addMember(app, group.groupId, { unitId: unit10a });
+    await grantStaff(a.id, [], [pets]);
+    const b = await staffOf([pets]);
+    const held = await heldBy(a, inGroup(group, pets));
+    expect(listingIdsOf(await opsQueue(b))).toContain(held.id);
+    expect(listingIdsOf(await opsQueue(a))).not.toContain(held.id);
+    expect(listingIdsOf(await groupQueue(mod10a, group.groupId))).not.toContain(held.id);
+  });
+
+  it('staff khôi phục tin sàn đang bị gỡ do chính mình đăng: 403, tin vẫn bị gỡ', async () => {
+    const category = await seedCategory();
+    const [a, b] = [await staffOf([category]), await staffOf([category])];
+    const live = await liveListingOf(app, a, { categoryId: category });
+    await deliverAll(app);
+    const removed = await api(app, 'POST', `/ops/review/listings/${live.id}/remove`, b.token, {
+      reasonTemplateId: await anyTemplateId(b),
+    });
+    expect(removed.statusCode, removed.body).toBe(200);
+    const res = await api(app, 'POST', `/ops/review/listings/${live.id}/restore`, a.token);
+    expect(res.statusCode).toBe(403);
+    expect(codeOf(res)).toBe('FORBIDDEN');
+    expect((await getOwn(app, a, live.id)).state).toBe('removed');
+  });
+
+  it('master đứng ngoài: tài khoản cá nhân dùng chung máy với master vẫn để master nhận và quyết việc', async () => {
     const owner = await newMaster(app);
     const personal = await newUser(app);
-    const device = `may-master-${randomUUID()}`;
-    await prisma.devicePost.createMany({
-      data: [owner.id, personal.id].map((accountId) => ({
-        deviceHash: device,
-        accountId,
-        firstPostedAt: TEST_NOW,
-        lastPostedAt: TEST_NOW,
-      })),
-    });
+    await shareDevice(owner.id, personal.id);
     const held = await heldBy(personal, { categoryId: await seedCategory() });
     const taskId = await taskIdOf(held.id);
     expect(
       (await prisma.reviewTask.findUniqueOrThrow({ where: { id: taskId } })).excludedIds,
     ).toContain(owner.id);
     expect((await opsClaim(owner, taskId)).statusCode).toBe(200);
+    const decided = await api(app, 'POST', `/ops/review/tasks/${taskId}/decision`, owner.token, {
+      outcome: 'pass',
+      machineJudgment: 'machine_right',
+    });
+    expect(decided.statusCode, decided.body).toBe(200);
+  });
+});
+
+describe('Việc cần hai người do hai người khác nhau làm', () => {
+  it('chủ nhóm đồng thời là staff chuyển lên hàng 4: không hiện cho chính người đó, hiện cho staff khác', async () => {
+    const category = await seedCategory();
+    const other = await staffOf([category]);
+    const { owner, held } = await escalatedByOwner(category, (escalator) =>
+      grantStaff(escalator.id, [], [category]),
+    );
+    expect(itemsOf(await opsQueue(other)).find((item) => item.listingId === held.id)).toMatchObject(
+      { queue: 4, reasons: ['group_escalation'] },
+    );
+    expect(listingIdsOf(await opsQueue(owner))).not.toContain(held.id);
+  });
+
+  it('người đã chuyển lên nhận chính việc hàng 4 bằng mã: 403, việc vẫn chờ người khác', async () => {
+    const category = await seedCategory();
+    const { owner, taskId } = await escalatedByOwner(category, (escalator) =>
+      grantStaff(escalator.id, [], [category]),
+    );
+    const res = await opsClaim(owner, taskId);
+    expect(res.statusCode).toBe(403);
+    expect(codeOf(res)).toBe('FORBIDDEN');
+    expect(await prisma.reviewTask.findUniqueOrThrow({ where: { id: taskId } })).toMatchObject({
+      status: 'open',
+      claimedBy: null,
+    });
+  });
+
+  it('staff S từng đăng tin cùng máy với chủ nhóm L đã chuyển lên: không hiện cho S, hiện cho staff khác', async () => {
+    const category = await seedCategory();
+    const [s, other] = [await staffOf([category]), await staffOf([category])];
+    const { held } = await escalatedByOwner(category, (escalator) =>
+      shareDevice(escalator.id, s.id),
+    );
+    expect(listingIdsOf(await opsQueue(other))).toContain(held.id);
+    expect(listingIdsOf(await opsQueue(s))).not.toContain(held.id);
   });
 });

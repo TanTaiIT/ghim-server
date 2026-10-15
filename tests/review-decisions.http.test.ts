@@ -89,6 +89,10 @@ const taskIdOf = async (listingId: string) =>
 const openTasks = (listingId: string) =>
   prisma.reviewTask.findMany({ where: { listingId, status: 'open' } });
 
+const queueListingIds = async (user: TestUser): Promise<string[]> =>
+  dataOf<{ items: { listingId: string }[] }>(
+    await api(app, 'GET', '/ops/review/tasks', user.token),
+  ).items.map((item) => item.listingId);
 const opsClaim = (user: TestUser, taskId: string) =>
   api(app, 'POST', `/ops/review/tasks/${taskId}/claim`, user.token);
 const opsDecide = (user: TestUser, taskId: string, body: object) =>
@@ -706,6 +710,9 @@ describe('Mẫu hậu kiểm người duyệt', () => {
       sampledDecisionId: first,
     });
     expect(sample?.excludedIds).toContain(a.id);
+    // Hậu kiểm quyết định của chính mình (spec review/conflict-of-interest): không hiện cho A, hiện cho B.
+    expect(await queueListingIds(a)).not.toContain(held.id);
+    expect(await queueListingIds(b)).toContain(held.id);
     expect((await opsClaim(a, sample?.id ?? '')).statusCode).toBe(404);
 
     const removed = await claimAndDecide(b, held.id, {

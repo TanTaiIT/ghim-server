@@ -36,7 +36,7 @@ Theo `design.md`. Test HTTP, DB chạy trên CI (PR nháp nhánh `add-listings`)
       của ai, xem hàng chờ) và `review/task-handling` (người xử thấy đủ bối cảnh)
 - [x] 4.2 Nhận việc 10 phút, hai người nhận cùng lúc, trả việc khi mất vai hay mất quyền staff (sự kiện `group`,
       `identity`, `platform`); xác minh test HTTP spec `review/task-handling` và delta `platform/staff-permissions`
-- [ ] 4.3 Không xử việc của mình, chuỗi chuyển tiếp trong nhóm và trên sàn, việc cần hai người; xác minh test HTTP
+- [x] 4.3 Không xử việc của mình, chuỗi chuyển tiếp trong nhóm và trên sàn, việc cần hai người; xác minh test HTTP
       spec `review/conflict-of-interest`
 
 ## 5. Quyết định
