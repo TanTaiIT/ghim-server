@@ -503,5 +503,21 @@ describe('Rời, bị gỡ hay bị cấm thì việc máy giữ trong nhóm c�
       dueAt: new Date(now.getTime() + 24 * HOUR_MS),
     });
     expect(await groupListingIds(whole, group.groupId)).toContain(held.id);
+
+    // fix-audit-listeners: lượt rời được xử lại sau khi đã vào lại không huỷ việc mới.
+    await prisma.outboxEvent.create({
+      data: {
+        type: 'group.member.left',
+        payload: {
+          groupId: group.groupId,
+          accountId: poster.id,
+          reason: 'left',
+          allowOutsiders: false,
+        },
+      },
+    });
+    await deliverAll(app);
+    expect(await openTasks(held.id)).toHaveLength(1);
+    expect((await getOwn(app, poster, held.id)).hideReasons).toEqual([]);
   });
 });

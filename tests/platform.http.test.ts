@@ -155,6 +155,11 @@ describe('GET /ops/staff', () => {
     const mai = await seedAccount();
     await grant(hung.id, { scopes: [], categoryIds: [computer] });
     await grant(mai.id, { scopes: [], categoryIds: [computer] });
+    // Treo chỉ áp cho tài khoản đang bị khoá (fix-audit-listeners).
+    await prisma.account.update({
+      where: { id: mai.id },
+      data: { status: 'locked', lockedAt: new Date(), lockedReason: 'Thử' },
+    });
     await app.modules.platform.suspendStaffForLock(mai.id);
 
     const res = await app.inject({

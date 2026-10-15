@@ -71,7 +71,7 @@ const scopeOf = (subject: ReviewSubject) => ({
  * do và lấy hạn sớm nhất; bỏ lý do không kéo dài hạn; hết lý do thì huỷ.
  */
 export function createQueueService(shared: ReviewShared): ReviewQueueService {
-  const { repository, listings, clock, deadlines, withSharedDevices } = shared;
+  const { repository, listings, groups, clock, deadlines, withSharedDevices } = shared;
 
   /** Mọi lượt ghi việc khoá dòng tin trước rồi mới tới việc — cùng thứ tự với lượt đổi tin chạy hook `after`. */
   const onOpenTask = (
@@ -200,6 +200,8 @@ export function createQueueService(shared: ReviewShared): ReviewQueueService {
     },
 
     async onMemberLeft(groupId, accountId, leave) {
+      // Lượt rời được xử lại sau khi người đó đã vào lại: không huỷ việc (fix-audit-listeners, C1).
+      if (await groups.isMember(groupId, accountId)) return;
       const held = await listings.pendingInGroup(accountId, groupId, leave);
       await sequentially(held, (listingId) =>
         dropReasons(listingId, ['machine_hold'], 'member_left'),
@@ -207,6 +209,12 @@ export function createQueueService(shared: ReviewShared): ReviewQueueService {
     },
 
     async onMemberBack(groupId, accountId) {
+      // Lượt vào lại / gỡ cấm được xử lại khi người đó đã rời hay đang bị cấm: không sinh việc.
+      const [member, banned] = await Promise.all([
+        groups.isMember(groupId, accountId),
+        groups.isBanned(groupId, accountId),
+      ]);
+      if (!member || banned) return;
       const held = await listings.pendingInGroup(accountId, groupId);
       await sequentially(held, (listingId) => addReason(listingId, { reason: 'machine_hold' }));
     },

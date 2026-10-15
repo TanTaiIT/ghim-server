@@ -30,7 +30,7 @@ export type ReviewIdentityPort = Pick<
   'sharedDeviceAccounts' | 'masterIds' | 'accountSummaries'
 >;
 export type ReviewTrustPort = Pick<TrustService, 'tierOf' | 'cleanCount'>;
-export type ReviewGroupPort = Pick<GroupService, 'reviewersOf'>;
+export type ReviewGroupPort = Pick<GroupService, 'reviewersOf' | 'isMember' | 'isBanned'>;
 export type ReviewPlatformPort = Pick<PlatformService, 'activeStaffByCategory'>;
 export type ReviewCategoryPort = Pick<CategoryService, 'settingsOf'>;
 export type ReviewMediaPort = Pick<MediaService, 'ownersOf'>;

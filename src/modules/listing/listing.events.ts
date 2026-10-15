@@ -1,4 +1,4 @@
-import type { ListingHideReason, Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 
 import type { OutboxDispatcher } from '../../common/outbox/dispatcher.js';
@@ -17,14 +17,10 @@ function parse<T>(schema: z.ZodType<T>, type: string, payload: Record<string, un
   return result.data;
 }
 
-/** Gỡ chỉ cần chạm tin đang mang lý do đó — bên nghe không quét lại cả nhóm hay cả danh mục. */
-const carrying = (...reasons: ListingHideReason[]): Prisma.ListingWhereInput => ({
-  hideReasons: { hasSome: reasons },
-});
-
 /**
- * Bên nghe của `listing` (design mục 9, 10, 14, 16). Mọi bên nghe chịu được nhận trùng và không dựa vào thứ tự: lý do
- * đặt / gỡ là phép tính trên dòng đã khoá (`hide.calc.ts`), kết quả máy ghi có điều kiện `version`.
+ * Bên nghe của `listing` (design mục 9, 10, 14, 16). Mọi bên nghe chịu được nhận trùng và không dựa vào thứ tự: cặp
+ * đặt / gỡ (khoá, cấm, rời, danh mục) lấy chiều từ trạng thái hiện tại, đọc sau khi đã khoá dòng — sự kiện chỉ là tín
+ * hiệu "có đổi" (fix-audit-listeners, C1); kết quả máy ghi có điều kiện `version`.
  */
 export function registerListingListeners(
   dispatcher: OutboxDispatcher,
@@ -44,10 +40,10 @@ export function registerListingListeners(
 
   // ── TÀI KHOẢN ──────────────────────────────────────────────────────────────────────────────────
   on('identity.account.locked', account, ({ accountId }) =>
-    hide({ ownerId: accountId }, { kind: 'account_locked' }),
+    listing.onAccountLockChanged(accountId),
   );
   on('identity.account.unlocked', account, ({ accountId }) =>
-    hide({ ownerId: accountId, ...carrying('account_locked') }, { kind: 'account_unlocked' }),
+    listing.onAccountLockChanged(accountId),
   );
   on('identity.account.deleted', account, ({ accountId }) =>
     hide({ ownerId: accountId }, { kind: 'account_deleted' }),
@@ -61,40 +57,22 @@ export function registerListingListeners(
       allowOutsiders: z.boolean(),
     }),
     ({ groupId, accountId, reason, allowOutsiders }) =>
-      hide(
-        { ownerId: accountId, groupId },
-        { kind: 'member_left', reason, allowOutsiders },
-        groupId,
-      ),
+      listing.onMembershipChanged(groupId, accountId, { reason, allowOutsiders }),
   );
   on('group.member.joined', member, ({ groupId, accountId }) =>
-    hide(
-      { ownerId: accountId, groupId, ...carrying('left_group', 'removed_from_group') },
-      { kind: 'member_joined' },
-      groupId,
-    ),
+    listing.onMembershipChanged(groupId, accountId, null),
   );
-  on(
-    'group.member.unit_changed',
-    member.extend({ unitId: z.string().nullable() }),
-    ({ groupId, accountId, unitId }) => listing.onUnitChanged(groupId, accountId, unitId),
+  on('group.member.unit_changed', member, ({ groupId, accountId }) =>
+    listing.onUnitChanged(groupId, accountId),
   );
   on('group.ban.created', member, ({ groupId, accountId }) =>
-    hide({ ownerId: accountId, groupId }, { kind: 'ban_created' }, groupId),
+    listing.onBanChanged(groupId, accountId),
   );
   on('group.ban.lifted', member, ({ groupId, accountId }) =>
-    hide(
-      { ownerId: accountId, groupId, ...carrying('group_banned') },
-      { kind: 'ban_lifted' },
-      groupId,
-    ),
+    listing.onBanChanged(groupId, accountId),
   );
-  on('group.state.locked', groupOnly, ({ groupId }) =>
-    hide({ groupId }, { kind: 'group_locked' }, groupId),
-  );
-  on('group.state.unlocked', groupOnly, ({ groupId }) =>
-    hide({ groupId, ...carrying('group_locked') }, { kind: 'group_unlocked' }, groupId),
-  );
+  on('group.state.locked', groupOnly, ({ groupId }) => listing.onGroupLockChanged(groupId));
+  on('group.state.unlocked', groupOnly, ({ groupId }) => listing.onGroupLockChanged(groupId));
   on('group.state.closed', groupOnly, ({ groupId }) =>
     hide({ groupId }, { kind: 'group_closed' }, groupId),
   );
@@ -111,10 +89,7 @@ export function registerListingListeners(
   on(
     'category.status.changed',
     z.object({ categoryId: z.string(), enabled: z.boolean() }),
-    ({ categoryId, enabled }) =>
-      enabled
-        ? hide({ categoryId, ...carrying('category_disabled') }, { kind: 'category_enabled' })
-        : hide({ categoryId }, { kind: 'category_disabled' }),
+    ({ categoryId }) => listing.onCategoryStatusChanged(categoryId),
   );
   // Bên phát ở `add-trust-tiers`. Tụt về T0 không đặt lại lý do lên tin đang hiện (design mục 7).
   on(

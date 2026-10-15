@@ -36,7 +36,11 @@ export interface ListingServiceDeps {
   groups: ListingGroupPort;
   categories: ListingCategoryPort;
   media: ListingMediaPort;
-  identity: { deviceToken(deviceId: string): string };
+  identity: {
+    deviceToken(deviceId: string): string;
+    /** Trạng thái hiện tại của tài khoản — bên nghe khoá / mở khoá đối chiếu (fix-audit-listeners). */
+    accountState(accountId: string): Promise<{ status: string } | null>;
+  };
   trust: ListingTrustPort;
   screening: ListingScreeningPort;
   openWork: OpenWork;

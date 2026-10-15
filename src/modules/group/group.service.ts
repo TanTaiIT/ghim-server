@@ -48,6 +48,10 @@ export interface GroupSystemService {
   unitName(groupId: string, unitId: string): Promise<string | null>;
   announcementBody(announcementId: string): Promise<string | null>;
   isMember(groupId: string, accountId: string): Promise<boolean>;
+  /** Đang bị cấm khỏi nhóm không — bên nghe của module khác đối chiếu trạng thái hiện tại (fix-audit-listeners). */
+  isBanned(groupId: string, accountId: string): Promise<boolean>;
+  /** Đơn vị hiện tại của thành viên (`null` = cả nhóm); `undefined` = không còn là thành viên. */
+  memberUnit(groupId: string, accountId: string): Promise<string | null | undefined>;
   /**
    * Người xử việc của nhóm cho `review` (TK 16): nhóm còn cho điều hành không, chủ nhóm, điều hành viên kèm phạm vi
    * (`unitId` null = cả nhóm). Nhóm không có thì `null`.
@@ -86,8 +90,14 @@ export function createGroupService(deps: GroupServiceDeps): GroupService {
     if (nominee !== group.nomineeId) await repository.setNominee(groupId, nominee);
   };
 
+  /** Trạng thái hiện tại của tài khoản — bên nghe khoá / mở khoá thôi khi nó đã khác chiều (fix-audit-listeners, C1). */
+  const statusOf = async (accountId: string) =>
+    (await deps.identity.accountSummaries([accountId])).get(accountId)?.status;
+
   const system: GroupSystemService = {
     async onAccountLocked(accountId) {
+      // Lượt khoá được xử lại sau khi đã mở khoá: nhóm không được thành thiếu chủ với chủ đang hoạt động.
+      if ((await statusOf(accountId)) !== 'locked') return;
       const at = clock();
       const { owned, moderatingOwnerless } = await repository.groupsAffectedByLock(accountId);
       await sequentially(owned, async (group) => {
@@ -107,6 +117,8 @@ export function createGroupService(deps: GroupServiceDeps): GroupService {
     },
 
     async onAccountUnlocked(accountId) {
+      // Lượt mở khoá được xử lại khi chủ lại đang bị khoá (hay đã xoá): không trả nhóm cho chủ đó.
+      if ((await statusOf(accountId)) !== 'active') return;
       await sequentially(await repository.groupsAwaitingOwner(accountId), async (group) => {
         await repository.restoreOwner({ groupId: group.id, at: clock() });
       });
@@ -164,6 +176,11 @@ export function createGroupService(deps: GroupServiceDeps): GroupService {
     },
     async isMember(groupId, accountId) {
       return (await repository.findMember(groupId, accountId)) !== null;
+    },
+    isBanned: (groupId, accountId) => repository.isBanned(groupId, accountId),
+    async memberUnit(groupId, accountId) {
+      const [member] = await repository.membersAmong(groupId, [accountId]);
+      return member?.unitId;
     },
   };
 

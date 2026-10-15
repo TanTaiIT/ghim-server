@@ -539,6 +539,22 @@ describe('Chủ cũ trở lại khi được mở khoá trước', () => {
     expect(await roleOf(group.groupId, group.moderator.id)).toBe('moderator');
   });
 
+  it('lượt khoá chủ được xử lại sau khi mở khoá: nhóm vẫn có chủ cũ, không đề cử (fix-audit-listeners)', async () => {
+    const group = await ownerlessGroup();
+    await unlockAccount(group.master, group.owner.id);
+    await prisma.outboxEvent.create({
+      data: { type: 'identity.account.locked', payload: { accountId: group.owner.id } },
+    });
+    await deliver();
+
+    expect(await groupRow(group.groupId)).toMatchObject({
+      state: 'active',
+      nomineeId: null,
+      ownerlessSince: null,
+    });
+    expect(await roleOf(group.groupId, group.owner.id)).toBe('owner');
+  });
+
   it('Xác nhận đề cử đã bị huỷ', async () => {
     const group = await ownerlessGroup();
     const offerId = offerIdOf(await offerOwner(group.master, group.groupId, group.moderator.id));

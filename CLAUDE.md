@@ -310,7 +310,10 @@ Mỗi luật dưới đây là một cam kết ở TK phần 27; số trong ngo�
     định của người, chỉ `trust` ghi gậy, chỉ `listing` đổi trạng thái tin. Module khác đọc qua service
     của chủ hoặc nhận sự kiện — không `prisma.<bảng của module khác>.update` ở đâu cả.
 12. **Tác động chéo đi qua outbox** ghi trong **cùng transaction** với thay đổi gốc (30). Bên nghe phải
-    chịu được nhận trùng. Gọi đồng bộ chỉ bốn chỗ (TK 30): `listing` hỏi `trust` hạn chế/hạn mức, `listing`
+    chịu được nhận trùng **và xử lại sự kiện cũ sau sự kiện mới**: bộ phát chạy lại mọi bên nghe của một sự kiện khi một
+    bên ném, và nhiều tiến trình phát song song. Bên nghe của một cặp (khoá / mở, cấm / gỡ cấm, rời / vào, tắt / bật)
+    coi sự kiện là tín hiệu "có đổi" và lấy chiều từ trạng thái hiện tại — ở `listing` đọc trong lô sau khi khoá dòng
+    (`applyBatch` `prepare`), ở module khác chặn đầu bên nghe (change `fix-audit-listeners`). Gọi đồng bộ chỉ bốn chỗ (TK 30): `listing` hỏi `trust` hạn chế/hạn mức, `listing`
     gọi `screening` chấm chữ lúc gửi, mọi module hỏi `identity` "người này là ai", và chủ ảnh (`identity`,
     `listing`) gọi `media` xác nhận ảnh: `resolve` trước transaction lưu, `attach(tx)` trong transaction lưu — lưu hỏng
     thì ảnh vẫn "chưa xác nhận". Bảng `outbox_events`
@@ -422,6 +425,8 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   (ẩn danh thay vì xoá cứng; thêm "Người dùng Google đã xoá tài khoản"). `fix-audit-image-checks` (đợt 2 phần B, archive
   15/10/2026) thêm "Mọi ảnh của lượt gửi đều được kiểm" vào `screening/image-checks`, "Quét lại lần hai sau thời gian chờ
   ảnh" vào `screening/banned-phrases`, sửa lưới an toàn của `screening/machine-decision` (một lần mỗi phiên bản).
+  `fix-audit-listeners` (đợt 2 phần C, archive 15/10/2026) thêm luật "theo trạng thái hiện tại" vào `listing/suspension`,
+  `group/group-roles`, `platform/staff-permissions`, `review/queues`.
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.

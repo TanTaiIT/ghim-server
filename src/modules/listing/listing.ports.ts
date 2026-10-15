@@ -92,6 +92,8 @@ export type ListingGroupPort = Pick<
   | 'canRemoveBadge'
   | 'completePrivatization'
   | 'findGroup'
+  | 'isBanned'
+  | 'memberUnit'
 >;
 export type ListingCategoryPort = Pick<
   CategoryService,

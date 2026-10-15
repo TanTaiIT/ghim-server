@@ -717,3 +717,94 @@ describe('Lý do bám theo qua nháp và gia hạn (fix-audit-stuck-data, C7)', 
     expect(codeOf(await submit(app, owner, fresh))).toBe('LISTING_DETACHED');
   });
 });
+
+/**
+ * Xử lại một sự kiện cũ đã phát — như lượt chạy lại tới trễ của bộ phát sau khi sự kiện mới hơn đã được xử
+ * (fix-audit-listeners, C1). Mọi bên nghe của loại đó chạy lại.
+ */
+async function replayOldest(type: string, match: Record<string, unknown>) {
+  const events = await prisma.outboxEvent.findMany({
+    where: { type, publishedAt: { not: null } },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+  });
+  const event = events.find((candidate) =>
+    Object.entries(match).every(
+      ([key, value]) => (candidate.payload as Record<string, unknown>)[key] === value,
+    ),
+  );
+  if (!event) throw new Error(`Không có sự kiện ${type} để xử lại`);
+  await prisma.outboxEvent.create({ data: { type, payload: event.payload ?? {} } });
+  await deliverAll(app);
+}
+
+const hiddenNoticesOf = async (listingId: string) =>
+  (await outboxEvents()).filter(
+    (event) =>
+      event.type === 'listing.hidden.changed' &&
+      (event.payload as { listingIds: string[] }).listingIds.includes(listingId),
+  ).length;
+
+describe('Tạm ẩn theo trạng thái hiện tại, không theo thứ tự xử (fix-audit-listeners, C1)', () => {
+  it('khoá rồi mở khoá nhóm, lượt khoá được xử lại: tin vẫn hiện, không thêm thông báo', async () => {
+    const group = await createActiveGroup(app, { master });
+    const member = await addMember(app, group.groupId);
+    const live = await inGroup(member, group, 'members_only');
+    await act('POST', `/ops/groups/${group.groupId}/lock`, master, { reason: 'Thử' });
+    await act('POST', `/ops/groups/${group.groupId}/unlock`, master);
+    const notices = await hiddenNoticesOf(live.id);
+
+    await replayOldest('group.state.locked', { groupId: group.groupId });
+    expect(await reasonsOf(live.id)).toEqual([]);
+    expect(await hiddenNoticesOf(live.id)).toBe(notices);
+    expect(await opens(live.id, await addMember(app, group.groupId))).toBe(200);
+  });
+
+  it('khoá, mở khoá rồi khoá lại tài khoản, lượt mở khoá được xử lại: tin vẫn ẩn "tài khoản bị khoá"', async () => {
+    const owner = await newUser(app);
+    const live = await liveListingOf(app, owner);
+    const lock = () => act('POST', `/ops/accounts/${owner.id}/lock`, master, { reason: 'Thử' });
+    await lock();
+    await act('POST', `/ops/accounts/${owner.id}/unlock`, master);
+    await lock();
+    expect(await reasonsOf(live.id)).toEqual(['account_locked']);
+
+    await replayOldest('identity.account.unlocked', { accountId: owner.id });
+    expect(await reasonsOf(live.id)).toEqual(['account_locked']);
+  });
+
+  it('rời rồi vào lại nhóm, lượt rời được xử lại: tin "chỉ thành viên" vẫn hiện', async () => {
+    const group = await createActiveGroup(app, { master });
+    const member = await addMember(app, group.groupId);
+    const live = await inGroup(member, group, 'members_only');
+    await act('POST', `/groups/${group.groupId}/leave`, member);
+    await rejoin(group, member);
+    expect(await reasonsOf(live.id)).toEqual([]);
+
+    await replayOldest('group.member.left', { groupId: group.groupId, accountId: member.id });
+    expect(await reasonsOf(live.id)).toEqual([]);
+  });
+
+  it('cấm rồi gỡ cấm, lượt cấm được xử lại: tin "nhóm công khai" vẫn hiện', async () => {
+    const group = await createActiveGroup(app);
+    await groupSettings(app, group.owner, group.groupId, { allowOutsiders: true });
+    const member = await addMember(app, group.groupId);
+    const open = await inGroup(member, group, 'group_public');
+    await act('PUT', `/groups/${group.groupId}/bans/${member.id}`, group.owner);
+    await act('DELETE', `/groups/${group.groupId}/bans/${member.id}`, group.owner);
+    expect(await reasonsOf(open.id)).toEqual([]);
+
+    await replayOldest('group.ban.created', { groupId: group.groupId, accountId: member.id });
+    expect(await reasonsOf(open.id)).toEqual([]);
+  });
+
+  it('tắt rồi bật danh mục, lượt tắt được xử lại: tin vẫn hiện', async () => {
+    const owner = await newUser(app);
+    const categoryId = await createCategory(app, master);
+    const live = await liveListingOf(app, owner, { categoryId });
+    await act('POST', `/ops/categories/${categoryId}/disable`, master);
+    await act('POST', `/ops/categories/${categoryId}/enable`, master);
+
+    await replayOldest('category.status.changed', { categoryId, enabled: false });
+    expect(await reasonsOf(live.id)).toEqual([]);
+  });
+});

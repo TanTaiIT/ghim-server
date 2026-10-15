@@ -75,6 +75,6 @@ export function registerReviewListeners(dispatcher: OutboxDispatcher, review: Re
   );
   on(GROUP_EVENTS.locked, groupOnly, ({ groupId }) => review.recheckGroupClaims(groupId));
   on(PLATFORM_EVENTS.staffChanged, account, ({ accountId }) => review.recheckClaims(accountId));
-  on('identity.account.locked', account, ({ accountId }) => review.releaseAllClaims(accountId));
+  on('identity.account.locked', account, ({ accountId }) => review.onAccountLocked(accountId));
   on('identity.account.deleted', account, ({ accountId }) => review.releaseAllClaims(accountId));
 }

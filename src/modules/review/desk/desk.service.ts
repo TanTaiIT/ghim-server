@@ -47,6 +47,8 @@ export interface ReviewDeskService {
   recheckClaims(accountId: string): Promise<number>;
   /** Tài khoản bị khoá, bị xoá: trả mọi việc họ đang giữ. */
   releaseAllClaims(accountId: string): Promise<number>;
+  /** Tài khoản bị khoá trả mọi việc đang giữ — chỉ khi nó còn đang bị khoá lúc xử (fix-audit-listeners, C1). */
+  onAccountLocked(accountId: string): Promise<number>;
   /** Nhóm thôi cho điều hành (bị khoá…): trả việc của nhóm đang ở tay người không còn xử được. */
   recheckGroupClaims(groupId: string): Promise<number>;
 }
@@ -234,6 +236,10 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
     },
 
     releaseAllClaims: (accountId) => repository.releaseAllClaims(accountId),
+    async onAccountLocked(accountId) {
+      const [summary] = [...(await identity.accountSummaries([accountId])).values()];
+      return summary?.status === 'locked' ? repository.releaseAllClaims(accountId) : 0;
+    },
 
     async recheckGroupClaims(groupId) {
       const now = clock();

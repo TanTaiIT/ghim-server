@@ -14,20 +14,22 @@ và hướng sửa ở **`docs/RA-SOAT-15-10-2026.md`** (đánh dấu từng m�
 | Đợt | Mục                          | Nội dung                                                                                                                      |
 | --- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | 1 ✔ | C3, C4, C5, C6, T10          | Bảo mật: chiếm tài khoản qua Google, master tự xoá / khoá, đăng ký lại lớp thứ hai, master qua app nhóm, trần / sàn cấu hình  |
-| 2   | C1, C2, C7, C8, C9, C10, C11 | Dữ liệu kẹt hay mất: bên nghe đối chiếu trạng thái hiện tại, kiểm ảnh bị bỏ, lý do ẩn bám theo, việc mất, xoá cứng dây chuyền |
+| 2 ✔ | C1, C2, C7, C8, C9, C10, C11 | Dữ liệu kẹt hay mất: bên nghe đối chiếu trạng thái hiện tại, kiểm ảnh bị bỏ, lý do ẩn bám theo, việc mất, xoá cứng dây chuyền |
 | 3   | T1–T24                       | Mức trung bình — vài mục cần chốt chính sách trước (T11 ân hạn làm mới token, T12 đổi email)                                  |
 | 4   | L1–L13                       | Mức thấp                                                                                                                      |
 
 Mục nào đổi hành vi so với spec đang chạy thì đi qua một change OpenSpec (proposal có câu hỏi mở → bạn duyệt → code);
 mục code lệch spec thì sửa kèm test.
 
-**Đang dừng ở (15/10/2026):** đợt 1 xong (`fix-audit-security`: C3, C4, C5, C6, T10). Đợt 2 tách ba change, người
-dùng giao tech lead chọn phương án:
+**Đang dừng ở (15/10/2026):** đợt 1 và đợt 2 xong, người dùng giao tech lead chọn phương án:
 
-- phần A xong — `fix-audit-stuck-data` (C7, C8, C9 ẩn danh thay vì xoá cứng, C10, kèm T13);
-- phần B xong — `fix-audit-image-checks` (C2 kèm T20, L8; C11);
-- phần C còn lại — `fix-audit-listeners` (C1): mọi bên nghe theo cặp đối chiếu trạng thái hiện tại, ở `listing`,
-  `group`, `platform`, `review`, `trust`.
+- đợt 1 — `fix-audit-security` (C3, C4, C5, C6, T10);
+- đợt 2 — `fix-audit-stuck-data` (C7, C8, C9, C10, T13), `fix-audit-image-checks` (C2, T20, L8, C11),
+  `fix-audit-listeners` (C1).
+
+Bước tiếp: đợt 3 (T1–T24, trừ T10, T13, T20 đã xong). Cần chốt trước **T11** (bao nhiêu giây ân hạn khi làm mới token
+từ tab thứ hai) và **T12** (đổi email: đòi mật khẩu, báo email cũ, thu phiên khác). Phần C1 để lại cho đợt 3: T5,
+cặp vô hiệu / khôi phục tin sạch của `trust`, nội dung thông báo cũ của nhóm (N10–N14, N26–N28).
 
 ## 1. Đang chờ quyết hoặc chờ duyệt
 

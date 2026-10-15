@@ -229,6 +229,8 @@ export function createPlatformService(deps: PlatformServiceDeps): PlatformServic
     },
 
     async suspendStaffForLock(accountId) {
+      // Lượt khoá được xử lại sau khi mở khoá và master đã trả quyền: không treo lại (fix-audit-listeners, C1).
+      if ((await identity.accountState(accountId))?.status !== 'locked') return;
       await repository.suspendStaff({ accountId, reason: SUSPENDED_REASON_LOCKED, at: clock() });
     },
 
