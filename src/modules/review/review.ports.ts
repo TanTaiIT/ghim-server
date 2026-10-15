@@ -22,6 +22,7 @@ export type ReviewListingPort = Pick<
   | 'review'
   | 'confirmLive'
   | 'detachByGroup'
+  | 'lockForReview'
 >;
 export type ReviewScreeningPort = Pick<ScreeningService, 'runOf' | 'duplicateMatches'>;
 export type ReviewIdentityPort = Pick<

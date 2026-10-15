@@ -48,7 +48,7 @@ Theo `design.md`. Test HTTP, DB chạy trên CI (PR nháp nhánh `add-listings`)
 
 ## 6. Nhóm chuyển lên và vòng đời nhóm
 
-- [ ] 6.1 Gỡ khỏi nhóm kèm "trái quy định sàn" sinh việc hàng 4, gỡ khỏi nhóm trực tiếp; đóng nhóm, rời / gỡ / cấm,
+- [x] 6.1 Gỡ khỏi nhóm kèm "trái quy định sàn" sinh việc hàng 4, gỡ khỏi nhóm trực tiếp; đóng nhóm, rời / gỡ / cấm,
       vào lại nhóm; xác minh test HTTP spec `review/group-escalation`, delta `group/group-lifecycle`,
       `group/membership`
 

@@ -48,10 +48,15 @@ liệu; CHECK viết tay theo mục Migration của CLAUDE.md.
 
 ### 3. Một tin một việc: upsert có gộp
 
-Mọi lối sinh việc đi qua một câu SQL `INSERT … ON CONFLICT (listing_id) WHERE status = 'open' DO UPDATE` trong
-repository: hợp lý do, `due_at = LEAST(cũ, mới)`, `queue = LEAST`. Hai lối sinh cùng lúc vẫn ra một việc (partial
-unique làm trọng tài, có test DB). Bỏ lý do là `array_remove`; hết lý do thì cùng câu đó đóng việc
-(`status = 'cancelled'`, `close_cause`). Hạn xử không bao giờ kéo dài.
+Mọi lối sinh, gộp, bỏ lý do đi qua `withOpenTask` của repository: khoá dòng tin (`FOR KEY SHARE`, cổng
+`listing.lockForReview`), khoá việc đang mở của tin (`FOR UPDATE`), rồi thêm hay sửa: hợp lý do, `due_at` sớm nhất,
+`queue` theo lý do. Hai lối sinh cùng lúc vẫn ra một việc: partial unique làm trọng tài, lượt thua thử lại và gộp (có
+test DB). Hết lý do thì đóng việc (`status = 'cancelled'`, `close_cause`). Hạn xử không bao giờ kéo dài. Code dùng khoá
+và thử lại thay cho một câu `INSERT … ON CONFLICT` như bản đầu của mục này (đổi lúc code, 15/10/2026).
+
+Khoá tin trước việc là thứ tự của lượt đổi tin: quyết định khoá tin rồi mới ghi việc trong hook `after` (mục 6). Lượt
+ghi việc bên ngoài mà không khoá tin trước thì chèn việc, giữ chỗ trong chỉ mục việc mở, rồi chờ khoá ngoại tới dòng
+tin; lượt đổi tin lại chờ chỗ trong chỉ mục — deadlock, thấy khi thử trên dev (đổi lúc code, 15/10/2026).
 
 ### 4. Ai xử: tính lúc đọc, không lưu
 
@@ -86,17 +91,20 @@ duyệt trong **cùng transaction** đổi trạng thái tin (mẫu như `media.
 `machine`, kiểm `version`) và `detachByGroup` (gỡ khỏi nhóm — kiểm `version` rồi chạy `onHideEvent` sẵn có). Mọi lối
 đều kiểm `version`; lệch → `LISTING_CHANGED`.
 
-| Kết quả                 | Ai                          | Hàng / phạm vi                   | Lên tin                                                        |
-| ----------------------- | --------------------------- | -------------------------------- | -------------------------------------------------------------- |
-| đạt (`pass`)            | người xử                    | 0                                | `approve`, gỡ `machine`; bắt buộc nhận định máy                |
-| đạt (`pass`)            | người xử                    | 3, 5                             | `confirmLive` (gỡ `machine`)                                   |
-| từ chối / gỡ — sai sót  | người xử                    | 0 → `reject`, 3/5 → `remove`     | `fault = mistake`, `fault_reason`                              |
-| gỡ khỏi nhóm (`detach`) | điều hành, chủ nhóm, master | tin trong nhóm                   | `detachByGroup`; kèm "trái quy định sàn" + lý do → việc hàng 4 |
-| bác (`dismiss`)         | staff danh mục, master      | 4                                | không đổi                                                      |
-| gỡ trực tiếp            | staff danh mục, master      | tin sàn đang hiện, không việc mở | `remove` (sai sót)                                             |
-| khôi phục               | staff danh mục, master      | tin sàn bị gỡ                    | `restore`                                                      |
+| Kết quả                 | Ai                                                    | Hàng / phạm vi                   | Lên tin                                                        |
+| ----------------------- | ----------------------------------------------------- | -------------------------------- | -------------------------------------------------------------- |
+| đạt (`pass`)            | người xử                                              | 0                                | `approve`, gỡ `machine`; bắt buộc nhận định máy                |
+| đạt (`pass`)            | người xử                                              | 3, 5                             | `confirmLive` (gỡ `machine`)                                   |
+| từ chối / gỡ — sai sót  | người xử                                              | 0 → `reject`, 3/5 → `remove`     | `fault = mistake`, `fault_reason`                              |
+| gỡ khỏi nhóm (`detach`) | điều hành, chủ nhóm, master                           | tin trong nhóm                   | `detachByGroup`; kèm "trái quy định sàn" + lý do → việc hàng 4 |
+| bác (`dismiss`)         | staff danh mục, master                                | 4                                | không đổi                                                      |
+| gỡ trực tiếp            | staff danh mục, master                                | tin sàn đang hiện, không việc mở | `remove` (sai sót)                                             |
+| khôi phục               | staff danh mục, master                                | tin sàn bị gỡ                    | `restore`                                                      |
+| gỡ khỏi nhóm trực tiếp  | chủ nhóm, điều hành cả nhóm, điều hành đơn vị của tin | tin trong nhóm, không việc mở    | `detachByGroup`; kèm "trái quy định sàn" + lý do → việc hàng 4 |
 
-Kết quả "vi phạm" (gậy) và xác nhận hàng 4 có gậy để `add-strikes`.
+Gỡ khỏi nhóm trực tiếp không theo chuỗi chuyển tiếp như việc (mục 4): ai có vai trên phạm vi của tin đều làm được, trừ
+người đăng và tài khoản dùng chung máy với họ (đổi lúc code, 15/10/2026). Kết quả "vi phạm" (gậy) và xác nhận hàng 4
+có gậy để `add-strikes`.
 
 ### 7. Việc sinh, gộp, huỷ theo sự kiện
 

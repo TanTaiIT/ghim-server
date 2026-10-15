@@ -21,6 +21,7 @@ import type {
   CreateTemplateBody,
   DecisionBody,
   DecisionResultDto,
+  DirectDetachBody,
   ReasonTemplateDto,
   UpdateTemplateBody,
 } from '../review.schema.js';
@@ -52,6 +53,13 @@ export interface ReviewDecisionService {
   ): Promise<DecisionResultDto>;
   /** Khôi phục tin sàn đã bị gỡ — thao tác trực tiếp, không qua việc; ngày hiển thị chạy tiếp. */
   restore(actor: Actor, listingId: string): Promise<DecisionResultDto>;
+  /** Gỡ khỏi nhóm một tin của nhóm không có việc mở, kèm "trái quy định sàn" thì chuyển lên (design mục 11). */
+  detachDirectly(
+    actor: Actor,
+    groupId: string,
+    listingId: string,
+    body: DirectDetachBody,
+  ): Promise<DecisionResultDto>;
   reasonTemplates(input: { includeInactive: boolean }): Promise<ReasonTemplateDto[]>;
   createReasonTemplate(actor: Actor, body: CreateTemplateBody): Promise<ReasonTemplateDto>;
   updateReasonTemplate(
@@ -171,12 +179,21 @@ export function createDecisionService(
     }
   };
 
-  const conflictOfInterest = async (actor: Actor, viewer: Viewer, ownerId: string) => {
-    if (viewer.isMaster) return;
+  const conflictOfInterest = async (actor: Actor, isMaster: boolean, ownerId: string) => {
+    if (isMaster) return;
     if ((await withSharedDevices([ownerId])).includes(actor.accountId)) {
       throw new ForbiddenError('Không xử tin của chính mình hay của tài khoản dùng chung thiết bị');
     }
   };
+
+  /** Gỡ khỏi nhóm kèm "trái quy định sàn": việc hàng 4, người chuyển lên và máy của họ không xử nó (TK 17). */
+  const escalate = (tx: Tx, listingId: string, actor: Actor, note: string) =>
+    queue.addReason(listingId, {
+      reason: 'group_escalation',
+      alsoExclude: [actor.accountId],
+      escalation: { by: actor.accountId, note },
+      tx,
+    });
 
   /** Gỡ / khôi phục trực tiếp: staff của danh mục hay master, chỉ tin sàn chung, không tin của chính mình. */
   const directSubject = async (actor: Actor, listingId: string) => {
@@ -189,17 +206,37 @@ export function createDecisionService(
     if (subject.placement !== 'marketplace') {
       throw outcomeNotAllowed('Thao tác trực tiếp chỉ áp cho tin sàn chung');
     }
-    await conflictOfInterest(actor, viewer, subject.ownerId);
-    return { subject, viewer };
+    await conflictOfInterest(actor, viewer.isMaster, subject.ownerId);
+    return { subject, role: viewer.isMaster ? ('master' as const) : ('staff' as const) };
   };
 
+  /**
+   * Vai trong nhóm với một tin của nhóm: chủ nhóm, điều hành cả nhóm, điều hành đúng đơn vị của tin. Không theo chuỗi
+   * chuyển tiếp như việc: thao tác trực tiếp là của ai có quyền trên phạm vi tin.
+   */
+  const groupRoleOver = async (
+    actor: Actor,
+    groupId: string,
+    unitId: string | null,
+  ): Promise<'owner' | 'moderator' | null> => {
+    const reviewers = await groups.reviewersOf(groupId);
+    if (!reviewers?.moderationAllowed) return null;
+    if (reviewers.ownerId === actor.accountId) return 'owner';
+    const covers = reviewers.moderators.some(
+      (m) => m.accountId === actor.accountId && (m.unitId === null || m.unitId === unitId),
+    );
+    return covers ? 'moderator' : null;
+  };
+
+  /** Quyết định không qua việc: gỡ / khôi phục tin sàn, gỡ khỏi nhóm — nhật ký không gắn việc. */
   const directDecision = async (
     actor: Actor,
     subject: ReviewSubject,
-    viewer: Viewer,
-    outcome: 'remove' | 'restore',
-    template: ReviewReasonTemplate | null,
+    role: ReviewActorRole,
+    outcome: 'remove' | 'restore' | 'detach',
+    extra: { template?: ReviewReasonTemplate; note?: string; escalate?: boolean } = {},
   ): Promise<DecisionResultDto> => {
+    const { template, note } = extra;
     const facts = await snapshot(subject);
     const written: { decision?: ReviewDecision } = {};
     let state = subject.state;
@@ -208,23 +245,25 @@ export function createDecisionService(
       subject,
       subject.version,
       template?.text ?? null,
-      null,
+      subject.groupId,
       async (tx, row) => {
         state = row?.state ?? state;
         written.decision = await repository.insertDecision(tx, {
           listingId: subject.id,
           actorId: actor.accountId,
-          actorRole: viewer.isMaster ? 'master' : 'staff',
+          actorRole: role,
           outcome,
           severity: outcome === 'remove' ? 'mistake' : null,
           reasonTemplateId: template?.id ?? null,
           reasonText: template?.text ?? null,
+          note: note ?? null,
           machineOutcome: facts.machineOutcome,
           machineHits: facts.machineHits,
           listingStateAfter: state,
           posterTierAfter: facts.tier,
           decidedAt: clock(),
         });
+        if (extra.escalate && note) await escalate(tx, subject.id, actor, note);
       },
     );
     if (!written.decision) throw new Error('Quyết định không được ghi');
@@ -325,12 +364,7 @@ export function createDecisionService(
             });
           }
           if (outcome === 'detach' && body.platformViolation && body.note) {
-            await queue.addReason(task.listingId, {
-              reason: 'group_escalation',
-              alsoExclude: [actor.accountId],
-              escalation: { by: actor.accountId, note: body.note },
-              tx,
-            });
+            await escalate(tx, task.listingId, actor, body.note);
           }
         },
       );
@@ -339,15 +373,30 @@ export function createDecisionService(
     },
 
     async removeDirectly(actor, listingId, { reasonTemplateId }) {
-      const { subject, viewer } = await directSubject(actor, listingId);
+      const { subject, role } = await directSubject(actor, listingId);
       if (await repository.hasOpenTask(listingId)) throw taskOpen();
       const template = await activeTemplate(reasonTemplateId);
-      return directDecision(actor, subject, viewer, 'remove', template);
+      return directDecision(actor, subject, role, 'remove', { template });
     },
 
     async restore(actor, listingId) {
-      const { subject, viewer } = await directSubject(actor, listingId);
-      return directDecision(actor, subject, viewer, 'restore', null);
+      const { subject, role } = await directSubject(actor, listingId);
+      return directDecision(actor, subject, role, 'restore');
+    },
+
+    async detachDirectly(actor, groupId, listingId, body) {
+      const subject = await listings.reviewSubject(listingId);
+      if (!subject || subject.groupId !== groupId || subject.placement === 'marketplace') {
+        throw new NotFoundError('Không có tin này trong nhóm');
+      }
+      const role = await groupRoleOver(actor, groupId, subject.unitId);
+      if (!role) throw new ForbiddenError();
+      await conflictOfInterest(actor, false, subject.ownerId);
+      if (await repository.hasOpenTask(listingId)) throw taskOpen();
+      return directDecision(actor, subject, role, 'detach', {
+        ...(body.note === undefined ? {} : { note: body.note }),
+        escalate: body.platformViolation === true,
+      });
     },
 
     async reasonTemplates(input) {

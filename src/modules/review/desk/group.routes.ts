@@ -8,6 +8,8 @@ import {
   claimResultSchema,
   decisionBodySchema,
   decisionResultSchema,
+  directDetachBodySchema,
+  groupListingParamsSchema,
   groupParamsSchema,
   groupTaskParamsSchema,
   reasonTemplateSchema,
@@ -101,6 +103,28 @@ export const reviewGroupRoutes: FastifyPluginAsyncZod<ReviewGroupRoutesOptions> 
           actorOf(request),
           request.params.taskId,
           { kind: 'group', groupId: request.params.groupId },
+          request.body,
+        ),
+      ),
+  });
+
+  app.post('/groups/:groupId/review/listings/:listingId/detach', {
+    preHandler: user,
+    schema: {
+      tags: TAGS,
+      summary:
+        'Gỡ khỏi nhóm một tin không có việc mở — chủ nhóm, điều hành cả nhóm hay của đơn vị tin; kèm "trái quy định sàn" thì chuyển lên staff',
+      security: bearer,
+      params: groupListingParamsSchema,
+      body: directDetachBodySchema,
+      response: { 200: ok(decisionResultSchema), 400: errorResponse, ...errors },
+    },
+    handler: async (request) =>
+      toOk(
+        await review.detachDirectly(
+          actorOf(request),
+          request.params.groupId,
+          request.params.listingId,
           request.body,
         ),
       ),

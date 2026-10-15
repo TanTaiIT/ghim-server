@@ -180,6 +180,26 @@ describe('Một tin, một việc đang mở', () => {
     expect(open).toHaveLength(1);
     expect(open[0]?.reasons).toEqual(['machine_restricted', 'sample_risk']);
   });
+
+  it('sinh việc trong transaction đổi tin cùng lúc với một lượt sinh việc ngoài: không chờ nhau, một việc mở', async () => {
+    const user = await newUser(app);
+    const live = await liveListingOf(app, user);
+    const { review, listing } = app.modules;
+    // Như quyết định của người: khoá tin, ghi việc trong hook `after` — lượt ngoài phải khoá tin trước (design mục 3).
+    await Promise.all([
+      listing.confirmLive({
+        listingId: live.id,
+        version: live.version,
+        after: (tx) => review.addReason(live.id, { reason: 'sample_reviewer', tx }),
+      }),
+      review.addReason(live.id, { reason: 'sample_risk' }),
+    ]);
+    const open = await prisma.reviewTask.findMany({
+      where: { listingId: live.id, status: 'open' },
+    });
+    expect(open).toHaveLength(1);
+    expect(open[0]?.reasons).toEqual(['sample_reviewer', 'sample_risk']);
+  });
 });
 
 describe('Bản sửa của người đăng', () => {

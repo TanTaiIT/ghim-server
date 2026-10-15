@@ -25,6 +25,7 @@ const iso = z.iso.datetime();
 export const taskParamsSchema = z.object({ taskId: z.uuid() });
 export const groupParamsSchema = z.object({ groupId: z.uuid() });
 export const groupTaskParamsSchema = z.object({ groupId: z.uuid(), taskId: z.uuid() });
+export const groupListingParamsSchema = z.object({ groupId: z.uuid(), listingId: z.uuid() });
 
 export const queueQuerySchema = paginationQuerySchema.extend({
   queue: z.coerce.number().int().min(0).max(5).optional(),
@@ -109,19 +110,34 @@ export type ClaimResultDto = z.infer<typeof claimResultSchema>;
  * với tin trong nhóm; kèm `platformViolation` thì sinh việc hàng 4 và bắt buộc có `note` (spec review/group-escalation).
  * `dismiss` = bác việc nhóm chuyển lên.
  */
+const escalation = {
+  platformViolation: z.boolean().optional(),
+  note: z.string().trim().min(1).max(1000).optional(),
+};
+const hasNoteWhenEscalating = (body: {
+  platformViolation?: boolean | undefined;
+  note?: string | undefined;
+}): boolean => !body.platformViolation || body.note !== undefined;
+const noteRequired = {
+  message: 'Chuyển lên vì trái quy định sàn thì phải ghi lý do',
+  path: ['note'],
+};
+
 export const decisionBodySchema = z
   .object({
     outcome: z.enum(['pass', 'mistake', 'detach', 'dismiss']),
     machineJudgment: z.enum(['machine_right', 'machine_overreach']).optional(),
     reasonTemplateId: z.uuid().optional(),
-    platformViolation: z.boolean().optional(),
-    note: z.string().trim().min(1).max(1000).optional(),
+    ...escalation,
   })
   .strict()
-  .refine((body) => !body.platformViolation || body.note !== undefined, {
-    message: 'Chuyển lên vì trái quy định sàn thì phải ghi lý do',
-    path: ['note'],
-  });
+  .refine(hasNoteWhenEscalating, noteRequired);
+
+/** Gỡ khỏi nhóm một tin không có việc mở (design mục 11) — kèm `platformViolation` thì như quyết định `detach`. */
+export const directDetachBodySchema = z
+  .object(escalation)
+  .strict()
+  .refine(hasNoteWhenEscalating, noteRequired);
 
 export const decisionResultSchema = z.object({
   decisionId: z.uuid(),
@@ -153,6 +169,7 @@ export const updateTemplateBodySchema = z
   .strict();
 
 export type DecisionBody = z.infer<typeof decisionBodySchema>;
+export type DirectDetachBody = z.infer<typeof directDetachBodySchema>;
 export type DecisionResultDto = z.infer<typeof decisionResultSchema>;
 export type ReasonTemplateDto = z.infer<typeof reasonTemplateSchema>;
 export type CreateTemplateBody = z.infer<typeof createTemplateBodySchema>;

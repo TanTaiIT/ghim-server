@@ -21,13 +21,14 @@ const isUniqueViolation = (error: unknown): boolean =>
 
 export interface ReviewRepository {
   /**
-   * Một lượt ghi vào việc đang mở của một tin: khoá việc (nếu có) rồi để `write` thêm, sửa hay đóng. Có `tx` thì chạy
-   * trong transaction của bên gọi (quyết định của người); không thì tự mở và thử lại khi hai lượt cùng sinh việc.
+   * Một lượt ghi vào việc đang mở của một tin: khoá dòng tin (`lockListing`), khoá việc (nếu có), rồi để `write` thêm,
+   * sửa hay đóng. Có `tx` thì chạy trong transaction của bên gọi (quyết định của người); không thì tự mở và thử lại khi
+   * hai lượt cùng sinh việc. Khoá tin trước việc là thứ tự của lượt đổi tin — ngược lại thì hai lượt chờ nhau.
    */
   withOpenTask<T>(
     listingId: string,
     write: (tx: Tx, open: ReviewTask | null) => Promise<T>,
-    tx?: Tx,
+    options: { lockListing: (tx: Tx) => Promise<void>; tx?: Tx | undefined },
   ): Promise<T>;
   insertTask(tx: Tx, data: Prisma.ReviewTaskUncheckedCreateInput): Promise<ReviewTask>;
   updateTask(tx: Tx, id: string, data: Prisma.ReviewTaskUncheckedUpdateInput): Promise<ReviewTask>;
@@ -73,12 +74,14 @@ export interface ReviewRepository {
   ): Promise<ReviewReasonTemplate | null>;
 }
 
-/** Khoá việc đang mở của tin trong `tx` rồi trao cho `write` — lượt khác chạm cùng việc phải chờ lượt này xong. */
+/** Khoá tin rồi việc đang mở của tin trong `tx`, trao cho `write` — lượt khác chạm cùng việc chờ lượt này xong. */
 async function inTx<T>(
   listingId: string,
   write: (tx: Tx, open: ReviewTask | null) => Promise<T>,
+  lockListing: (tx: Tx) => Promise<void>,
   tx: Tx,
 ): Promise<T> {
+  await lockListing(tx);
   await tx.$queryRaw`SELECT id FROM review_tasks
     WHERE listing_id = ${listingId}::uuid AND status = 'open' FOR UPDATE`;
   const open = await tx.reviewTask.findFirst({ where: { listingId, status: 'open' } });
@@ -89,19 +92,20 @@ export function createReviewRepository(prisma: PrismaClient): ReviewRepository {
   const withRetry = async <T>(
     listingId: string,
     write: (tx: Tx, open: ReviewTask | null) => Promise<T>,
+    lockListing: (tx: Tx) => Promise<void>,
     attempt = 1,
   ): Promise<T> => {
     try {
-      return await prisma.$transaction((tx) => inTx(listingId, write, tx));
+      return await prisma.$transaction((tx) => inTx(listingId, write, lockListing, tx));
     } catch (error) {
       if (!isUniqueViolation(error) || attempt >= MAX_ATTEMPTS) throw error;
-      return withRetry(listingId, write, attempt + 1);
+      return withRetry(listingId, write, lockListing, attempt + 1);
     }
   };
 
   return {
-    withOpenTask: (listingId, write, tx) =>
-      tx ? inTx(listingId, write, tx) : withRetry(listingId, write),
+    withOpenTask: (listingId, write, { lockListing, tx }) =>
+      tx ? inTx(listingId, write, lockListing, tx) : withRetry(listingId, write, lockListing),
 
     insertTask: (tx, data) => tx.reviewTask.create({ data }),
 

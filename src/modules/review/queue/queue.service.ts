@@ -1,4 +1,4 @@
-import type { ReviewCloseCause, ReviewReason } from '@prisma/client';
+import type { ReviewCloseCause, ReviewReason, ReviewTask } from '@prisma/client';
 
 import { sequentially } from '../../../common/utils/sequential.js';
 import type { ReviewSubject } from '../../listing/listing.ports.js';
@@ -73,6 +73,17 @@ const scopeOf = (subject: ReviewSubject) => ({
 export function createQueueService(shared: ReviewShared): ReviewQueueService {
   const { repository, listings, clock, deadlines, withSharedDevices } = shared;
 
+  /** Mọi lượt ghi việc khoá dòng tin trước rồi mới tới việc — cùng thứ tự với lượt đổi tin chạy hook `after`. */
+  const onOpenTask = (
+    listingId: string,
+    write: (tx: Tx, open: ReviewTask | null) => Promise<void>,
+    tx?: Tx,
+  ): Promise<void> =>
+    repository.withOpenTask(listingId, write, {
+      lockListing: (locking) => listings.lockForReview(locking, listingId),
+      tx,
+    });
+
   const addReason = async (listingId: string, input: AddReason): Promise<void> => {
     const subject = await listings.reviewSubject(listingId);
     if (!subject) return;
@@ -84,7 +95,7 @@ export function createQueueService(shared: ReviewShared): ReviewQueueService {
         : {}),
       ...(input.sampledDecisionId ? { sampledDecisionId: input.sampledDecisionId } : {}),
     };
-    await repository.withOpenTask(
+    await onOpenTask(
       listingId,
       async (tx, open) => {
         if (!open) {
@@ -119,7 +130,7 @@ export function createQueueService(shared: ReviewShared): ReviewQueueService {
     cause: ReviewCloseCause,
   ): Promise<void> => {
     const subject = await listings.reviewSubject(listingId);
-    await repository.withOpenTask(listingId, async (tx, open) => {
+    await onOpenTask(listingId, async (tx, open) => {
       if (!open || !open.reasons.some((reason) => reasons.includes(reason))) return;
       const left = withoutReasons(open.reasons, reasons);
       if (left.length === 0) {
@@ -135,7 +146,7 @@ export function createQueueService(shared: ReviewShared): ReviewQueueService {
   };
 
   const cancel = (listingId: string, cause: ReviewCloseCause): Promise<void> =>
-    repository.withOpenTask(listingId, async (tx, open) => {
+    onOpenTask(listingId, async (tx, open) => {
       if (open) await repository.closeTask(tx, open.id, cause, clock());
     });
 

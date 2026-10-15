@@ -100,6 +100,8 @@ export interface ListingRepository {
   }): Promise<Listing[]>;
   /** Tin "nhóm công khai" còn trong nhóm — đếm trong transaction đổi chế độ của `group` (cam kết 22). */
   countGroupPublic(tx: Tx, groupId: string): Promise<number>;
+  /** `FOR KEY SHARE` dòng tin trong `tx` của bên gọi: chờ lượt đổi tin đang chạy xong, không chặn lượt đọc. */
+  holdKey(tx: Tx, id: string): Promise<void>;
   existingIds(ids: string[]): Promise<Set<string>>;
   badgeBlocked(listingId: string, groupId: string): Promise<boolean>;
   /** Tin này đã được chuyển lên sàn chung chưa (kiểm trước cho câu lỗi; unique mới là chốt thật). */
@@ -325,6 +327,10 @@ export function createListingRepository(prisma: PrismaClient): ListingRepository
         orderBy: orderBy(order),
         take: limit + 1,
       }),
+
+    holdKey: async (tx, id) => {
+      await tx.$executeRaw`SELECT 1 FROM listings WHERE id = ${id}::uuid FOR KEY SHARE`;
+    },
 
     countGroupPublic: (tx, groupId) =>
       tx.listing.count({

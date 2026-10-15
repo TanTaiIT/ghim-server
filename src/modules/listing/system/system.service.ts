@@ -70,6 +70,12 @@ export interface ListingSystemService {
   existingListings(ids: string[]): Promise<Set<string>>;
   /** Cổng `PublicListingCounter` cho `group` — đếm trong transaction đổi chế độ (cam kết 22). */
   countGroupPublic(tx: Tx, groupId: string): Promise<number>;
+  /**
+   * Cổng cho `review`: giữ khoá dòng tin trong `tx` của nó trước khi sinh hay gộp việc. Lượt đổi tin khoá dòng tin rồi
+   * mới ghi việc (quyết định, hook `after`); ghi việc ngoài lượt đó cũng phải khoá tin trước, không thì hai bên chờ nhau
+   * — một bên giữ chỗ trong chỉ mục việc mở, một bên giữ dòng tin mà khoá ngoại của việc cần.
+   */
+  lockForReview(tx: Tx, listingId: string): Promise<void>;
 }
 
 /** Lên bảng (máy cho qua, người duyệt đạt / khôi phục, khiếu nại thắng): tính lý do "tài khoản mới" (mục 7). */
@@ -304,5 +310,6 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
 
     existingListings: (ids) => repository.existingIds(ids),
     countGroupPublic: (tx, groupId) => repository.countGroupPublic(tx, groupId),
+    lockForReview: (tx, listingId) => repository.holdKey(tx, listingId),
   };
 }
