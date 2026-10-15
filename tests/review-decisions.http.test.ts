@@ -634,7 +634,7 @@ describe('Người quyết phải còn quyền lúc quyết', () => {
       `/groups/${group.groupId}/moderators/${mod10a.id}`,
       group.owner.token,
     );
-    expect(dismissed.statusCode, dismissed.body).toBe(200);
+    expect(dismissed.statusCode, dismissed.body).toBe(204);
     await deliverAll(app);
     const res = await groupDecide(mod10a, group.groupId, taskId, { outcome: 'detach' });
     expect(res.statusCode).toBe(403);

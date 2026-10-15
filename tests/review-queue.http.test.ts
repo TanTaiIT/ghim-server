@@ -244,18 +244,19 @@ describe('Bản sửa của người đăng', () => {
   it('việc gộp còn lý do khác: máy cho bản sửa qua hạn chế → còn "hạn chế do máy", hàng 3, hạn không đổi', async () => {
     const user = await newUser(app);
     const limited = await limitedOf(user);
-    const due = (await openTaskOf(limited.id))?.dueAt;
     const held = await afterMachine(
       user,
       await editTitle(user, limited, 'Xe đạp cũ, bản sửa 1'),
       'hold',
     );
-    expect((await openTaskOf(limited.id))?.queue).toBe(0);
+    // Gộp máy giữ: hạn rút về 24 giờ. Bỏ lý do sau đó không kéo dài lại 72 giờ — "giữ nguyên hạn xử" (spec).
+    const merged = await openTaskOf(limited.id);
+    expect(merged).toMatchObject({ queue: 0, dueAt: at(24) });
     await afterMachine(user, await editTitle(user, held, 'Xe đạp cũ, bản sửa 2'), 'limited');
     expect(await openTaskOf(limited.id)).toMatchObject({
       queue: 3,
       reasons: ['machine_restricted'],
-      dueAt: due,
+      dueAt: merged?.dueAt,
     });
   });
 });

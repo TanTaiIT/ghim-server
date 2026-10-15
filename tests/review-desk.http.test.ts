@@ -365,7 +365,7 @@ describe('Mất vai hay mất quyền thì việc đang nhận trả về ngay',
       `/groups/${group.groupId}/moderators/${mod10a.id}`,
       group.owner.token,
     );
-    expect(dismissed.statusCode, dismissed.body).toBe(200);
+    expect(dismissed.statusCode, dismissed.body).toBe(204);
     await deliverAll(app);
     expect((await groupClaim(mod10a2, group.groupId, taskId)).statusCode).toBe(200);
   });
