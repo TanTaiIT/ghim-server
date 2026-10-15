@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { noOpenWork } from '../src/modules/listing/listing.ports.js';
 import { createInterimTrust, interimScreening } from './fakes/listing-ports.fake.js';
 
 /* Chỗ cắm tạm của design add-listings mục 7, 8: test không bàn về mức tin cậy hay máy duyệt đè cổng bằng các bản này. */
@@ -19,7 +18,7 @@ describe('Cổng tạm', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('máy duyệt tạm không chặn, không chấm; không việc nào khoá nơi đăng', async () => {
+  it('máy duyệt tạm không chặn, không chấm', async () => {
     await expect(interimScreening.precheck('a', 'submit')).resolves.toBeUndefined();
     expect(
       await interimScreening.scoreText({
@@ -35,6 +34,5 @@ describe('Cổng tạm', () => {
         imageIds: [],
       }),
     ).toBeNull();
-    expect(await noOpenWork.blocksPlacement('t')).toBe(false);
   });
 });

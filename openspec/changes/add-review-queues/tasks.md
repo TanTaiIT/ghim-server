@@ -65,7 +65,7 @@ Theo `design.md`. Test HTTP, DB chạy trên CI (PR nháp nhánh `add-listings`)
 
 ## 9. Tài liệu
 
-- [ ] 9.1 CLAUDE.md: module `review` (bảng Module, cụm, cổng, sự kiện, mã lỗi), mục "(chưa có)" liên quan; `docs/review.md`
+- [x] 9.1 CLAUDE.md: module `review` (bảng Module, cụm, cổng, sự kiện, mã lỗi), mục "(chưa có)" liên quan; `docs/review.md`
       cho bàn vận hành và app (hàng chờ, nhận việc, quyết định, mã lỗi); `docs/VIEC-DANG-DO.md` bỏ dòng "tin bị giữ
       không có đường ra", thêm "ghi dấu máy lúc đăng nhập của staff"
 

@@ -168,7 +168,8 @@ src/
                                 `identity/calc/email.calc.ts`, `listing/calc/listing.calc.ts`); gốc module không chứa calc
     <cụm>/                    ← (module lớn) một mối quan tâm: `<cụm>.routes.ts` (route + schema + guard),
                                 `<cụm>.service.ts`, calc chỉ cụm đó dùng — vd `identity/{auth,account,ops}/`,
-                                `listing/{posting,read,system}/`, `screening/{run,ops}/`
+                                `listing/{posting,read,system}/`, `screening/{run,ops}/`,
+                                `review/{queue,desk,schedule,stats}/`
     data/                     ← (nếu có) file tĩnh đi kèm, đọc bằng `new URL('./data/…', import.meta.url)`;
                                 tsc không chép nên `pnpm run build` có bước `build:data` chép `src/**/data` sang dist
   cli/                        ← script chạy tay, không qua HTTP: `create-master`, `reset-two-factor`
@@ -191,8 +192,9 @@ tests/*.db.test.ts            ← ghi thẳng bằng Prisma để kiểm ràng b
   là `new URL('../data/…', import.meta.url)` — typecheck không bắt sai đường dẫn này, chỉ khởi động server mới bắt.
 - **Không có `<module>.types.ts`**: DTO chính là response schema Zod trong `<module>.schema.ts`.
 - Tên module kebab-case, **số ít**. Đang có: `health`, `identity`, `platform`, `category`, `group`,
-  `notification`, `media`, `listing`, `trust`, `screening`.
-- `buildApp(overrides)` nhận `repositories: { identity, platform, category, group, media, listing, trust, screening }`,
+  `notification`, `media`, `listing`, `trust`, `screening`, `review`.
+- `buildApp(overrides)` nhận `repositories: { identity, platform, category, group, media, listing, trust, screening,
+review }`,
   `storage`, `trust` (cổng mức tin cậy và hạn mức mà `listing`, `group` hỏi — bỏ trống là module `trust` thật),
   `screening` (cổng máy duyệt `listing` gọi trong lượt gửi — bỏ trống là module `screening` thật) và hạ tầng dùng chung
   (jobs, mailer, googleVerifier, privilegeSource, config, clock) — bỏ trống là bản thật. `RuntimeConfig.version()` cho
@@ -224,8 +226,18 @@ tests/*.db.test.ts            ← ghi thẳng bằng Prisma để kiểm ràng b
 
 `media` lên đợt 2 (TK 29 xếp ở đợt 3) vì nháp tin đăng đã cần ảnh; chỉ phần **kiểm** ảnh ở đợt 3.
 `notification` nghe `group.*`, các `listing.*` có dòng ma trận (`notification.listing-matrix.ts`) và
-`media.image.missing` (`notification.media-matrix.ts`, N38 ảnh tin, N39 ảnh đại diện — change `notify-missing-images`);
+`media.image.missing` (`notification.media-matrix.ts`, N38 ảnh tin, N39 ảnh đại diện — change `notify-missing-images`),
+`review.*` (`notification.review-matrix.ts`, N40–N42 cho mọi master, người nhận hỏi `identity.masterIds`);
 câu cần tiêu đề hay người đăng của tin thì hỏi `listing` qua cổng (`titles`, `noticeTargets`), không đọc bảng của nó.
+
+`review` (change `add-review-queues`, hướng dẫn cho bàn vận hành và app ở `docs/review.md`): `queue/` sinh, gộp, huỷ
+việc theo `listing.state.changed` và sự kiện `group`, `platform`, `identity`; `desk/` hàng chờ, nhận việc, quyết
+định (bàn vận hành `/ops/review`, app `/groups/:groupId/review`); `schedule/` ba job (mỗi phút, mỗi giờ, thứ Hai
+08:00); `stats/` số liệu cho master. Ai xử việc tính lúc đọc (`calc/route.calc.ts`), không lưu. Quyết định đổi tin qua
+cổng của `listing` (`review`, `confirmLive`, `detachByGroup`) với hook `after(tx)` — đóng việc, ghi nhật ký, quay mẫu
+người duyệt trong cùng transaction đổi tin. Ngược lại `review` cài `OpenWork.blocksPlacement` cho `listing`. Mã lỗi
+riêng: `TASK_CLAIMED`, `TASK_NOT_CLAIMED`, `TASK_CLOSED`, `TASK_REASSIGNED`, `TASK_OPEN`, `LISTING_CHANGED`,
+`OUTCOME_NOT_ALLOWED` (409).
 Endpoint của bàn vận hành nằm trong module sở hữu dữ liệu, đăng ký dưới tiền tố `/api/v1/ops/...` —
 không có module `ops-*` gom route của người khác.
 
@@ -234,7 +246,7 @@ change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-cate
 `harden-module-infra` → `tune-hot-paths` → `cache-public-reads-revoke-deleted-staff` →
 `harden-production-runtime` → `add-groups` → `add-notification-core` (kéo từ đợt 6, chốt 11/10/2026) — mười change
 này đã archive 10–11/10/2026 · đợt 2
-`add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` (cả hai đã archive 12/10/2026) · đợt 3 `add-screening` (đã archive 13/10/2026) → `add-image-moderation` (khi chọn được dịch vụ kiểm ảnh, tách ra 12/10/2026) · đợt 4 `add-review-queues` →
+`add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` (cả hai đã archive 12/10/2026) · đợt 3 `add-screening` (đã archive 13/10/2026) → `add-image-moderation` (khi chọn được dịch vụ kiểm ảnh, tách ra 12/10/2026) · đợt 4 `add-review-queues` (đã code 15/10/2026, chờ CI để archive) →
 `add-reports` · đợt 5 `add-strikes` · đợt 6 `add-messaging` → `add-notifications` · đợt 7
 `add-data-retention`.
 
@@ -322,10 +334,11 @@ Mỗi luật dưới đây là một cam kết ở TK phần 27; số trong ngo�
     thị. Quá hạn chỉ chuyển cấp; riêng việc lấy mẫu hậu kiểm được tự huỷ.
 16. **Một tin, một việc mở** (16): partial unique trên bảng việc `WHERE` việc còn mở — không dựa vào
     service kiểm trước. Quyết định của người là **ghi có điều kiện** theo phiên bản tin lúc mở việc;
-    tin đã đổi → 409, người xử tải lại.
+    tin đã đổi → 409, người xử tải lại. Mọi lượt ghi việc đi qua `withOpenTask` của `review.repository.ts`: khoá dòng
+    tin (cổng `listing.lockForReview`) **trước** rồi mới khoá việc — đúng thứ tự của lượt đổi tin, không thì deadlock.
 17. **Không ai, trừ master, xử việc của chính mình** (nguyên tắc 4) — kể cả tài khoản dùng chung
-    thiết bị. Một hàm duy nhất trong `review` quyết ai được nhận việc; không viết
-    `if (actor.id === listing.ownerId)` rải rác.
+    thiết bị. Một hàm duy nhất trong `review` quyết ai được nhận việc (`canHandle` ở `review/calc/route.calc.ts`, loại
+    người theo `excluded_ids` của việc); không viết `if (actor.id === listing.ownerId)` rải rác.
 18. **Mức tin cậy là hàm thuần** của dữ kiện (`trust/calc/tier.calc.ts`, hạn mức ở `trust/calc/quota.calc.ts`), tính lại từ đầu chứ
     không cộng trừ, lưu kèm dấu băm dữ kiện và phiên bản bảng con số (20). Mỗi luật có unit test.
 19. **Mọi con số ở TK phần 28 đọc từ bảng con số có phiên bản** (`platform`), không hardcode trong
@@ -478,6 +491,10 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   dữ liệu nền mức DB ở `tests/listing-helpers.ts`. Mức tin cậy: `seedTier` (`tests/group-helpers.ts`) ghi thẳng mức
   làm dữ liệu nền — `createActiveGroup` và `appointModerator` dùng nó vì nhận vai cần T1; luật lên mức đi luồng thật ở
   `tests/trust-tiers.http.test.ts`.
+  Người duyệt: mọi lượt gửi tin của test dùng chung một mã máy (`DEVICE`), nên mọi người đã đăng tin đều "dùng chung
+  thiết bị" với nhau — staff, điều hành viên, master trong `tests/review-*.http.test.ts` không đăng tin, trừ ca cố ý
+  kiểm luật đó (máy riêng: ghi thẳng `device_posts`). Job của `review` gọi thẳng `app.modules.review.everyMinute()`,
+  `everyHour()`, `weeklyPostcheck()` với đồng hồ đẩy tay; tỉ lệ lấy mẫu đè bằng `config` của `buildTestApp`.
 - `tests/*.db.test.ts`: test repository và ghi thẳng bằng Prisma để kiểm ràng buộc chỉ DB trả lời được
   (partial unique "một việc mở mỗi tin", CHECK, EXCLUDE), kiểm đúng mã lỗi (`prismaErrorCode` / `sqlStateOf`).
 - Mỗi cam kết ở TK phần 27 thuộc đợt đang làm phải có test — kể cả các ca **thiếu, sai, hết chỗ,

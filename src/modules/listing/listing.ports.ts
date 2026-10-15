@@ -77,15 +77,10 @@ export interface ListingScreeningPort {
   notices(listingIds: string[]): Promise<Map<string, MachineNotice>>;
 }
 
-/** Việc đang chờ của người duyệt, báo cáo, hậu kiểm khoá nơi đăng (cam kết 19) — `add-review-queues` nối. */
+/** Việc đang chờ của người duyệt, báo cáo, hậu kiểm khoá nơi đăng (cam kết 19) — `review` cài (`blocksPlacement`). */
 export interface OpenWork {
   blocksPlacement(listingId: string): Promise<boolean>;
 }
-
-/** Chưa có hàng đợi duyệt, báo cáo hay hậu kiểm nên không việc nào khoá nơi đăng — `add-review-queues` thay. */
-export const noOpenWork: OpenWork = {
-  blocksPlacement: () => Promise.resolve(false),
-};
 
 export type ListingGroupPort = Pick<
   GroupService,
