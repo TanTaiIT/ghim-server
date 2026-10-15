@@ -16,6 +16,7 @@ export type ReviewListingPort = Pick<
   ListingService,
   | 'reviewSubject'
   | 'forReviewer'
+  | 'titles'
   | 'pendingInGroup'
   | 'reviewBacklog'
   | 'review'

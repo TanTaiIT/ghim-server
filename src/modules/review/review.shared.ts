@@ -1,8 +1,12 @@
+import type { GroupReview } from '@prisma/client';
+
+import type { Actor } from '../../common/auth/actor.js';
 import type { PrivilegeSource } from '../../common/auth/privilege-source.js';
 import type { RuntimeConfig } from '../../common/config/runtime-config.js';
 import { ConflictError, NotFoundError } from '../../common/errors/app-error.js';
 import type { Jobs } from '../../lib/jobs.js';
-import type { Deadlines } from './calc/task.calc.js';
+import { type Route, routeOf } from './calc/route.calc.js';
+import { type Deadlines, queueOf } from './calc/task.calc.js';
 import type {
   ReviewCategoryPort,
   ReviewGroupPort,
@@ -13,7 +17,7 @@ import type {
   ReviewScreeningPort,
   ReviewTrustPort,
 } from './review.ports.js';
-import type { ReviewRepository } from './review.repository.js';
+import type { ReviewRepository, ReviewTask } from './review.repository.js';
 
 const DAY_MS = 86_400_000;
 
@@ -85,12 +89,75 @@ export function createReviewShared(deps: ReviewServiceDeps) {
     return [...new Set([...accountIds, ...shared.flat()])];
   };
 
+  const sharedDevicesOf = (accountId: string): Promise<string[]> =>
+    identity.sharedDeviceAccounts(
+      accountId,
+      new Date(clock().getTime() - config.get('device.dataRetentionDays') * DAY_MS),
+    );
+
+  /**
+   * Ai xử từng việc, tính lúc đọc (design mục 4): nạp người dự tuyển một lượt cho cả lô — staff đang hoạt động theo
+   * danh mục, người xử của từng nhóm, cài đặt "tin nhóm bị giữ do ai duyệt", master — rồi trả hàm tính cho từng việc.
+   */
+  const routesFor = async (tasks: readonly ReviewTask[]): Promise<(task: ReviewTask) => Route> => {
+    const categoryIds = [...new Set(tasks.flatMap((task) => task.categoryId ?? []))];
+    const groupIds = [...new Set(tasks.flatMap((task) => task.groupId ?? []))];
+    const [staff, masters, settings, reviewers] = await Promise.all([
+      deps.platform.activeStaffByCategory(categoryIds),
+      identity.masterIds(),
+      Promise.all(
+        categoryIds.map(
+          async (id) => [id, (await deps.categories.settingsOf(id)).groupReview] as const,
+        ),
+      ),
+      Promise.all(groupIds.map(async (id) => [id, await deps.groups.reviewersOf(id)] as const)),
+    ]);
+    const groupReview = new Map<string, GroupReview>(settings);
+    const groups = new Map(reviewers);
+    return (task) =>
+      routeOf({
+        queue: queueOf(task.reasons),
+        placement: task.placement,
+        groupId: task.groupId,
+        unitId: task.unitId,
+        groupReview: (task.categoryId && groupReview.get(task.categoryId)) || 'group',
+        escalated: task.escalatedAt !== null,
+        excluded: new Set(task.excludedIds),
+        group: (task.groupId && groups.get(task.groupId)) || null,
+        categoryStaff: (task.categoryId && staff.get(task.categoryId)) || [],
+        masters,
+      });
+  };
+
+  /** Người hỏi trên bàn vận hành: master, hay danh mục staff đang hoạt động (đọc lại mỗi lượt, không tin token). */
+  const viewerOf = async (actor: Actor): Promise<Viewer> => {
+    if (actor.role === 'master') {
+      return { accountId: actor.accountId, isMaster: true, categoryIds: new Set() };
+    }
+    const grant = await deps.privileges.staffGrant(actor.accountId);
+    return {
+      accountId: actor.accountId,
+      isMaster: false,
+      categoryIds: new Set(grant?.status === 'active' ? grant.categoryIds : []),
+    };
+  };
+
   return {
     ...deps,
     random: deps.random ?? (() => Math.random() * 100),
     deadlines,
     withSharedDevices,
+    sharedDevicesOf,
+    routesFor,
+    viewerOf,
   };
+}
+
+export interface Viewer {
+  accountId: string;
+  isMaster: boolean;
+  /** Danh mục staff đang hoạt động; master thì rỗng — master xử mọi việc. */
+  categoryIds: ReadonlySet<string>;
 }
 
 export type ReviewShared = ReturnType<typeof createReviewShared>;

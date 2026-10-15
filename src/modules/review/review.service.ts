@@ -1,9 +1,10 @@
+import { createDeskService, type ReviewDeskService } from './desk/desk.service.js';
 import { createQueueService, type ReviewQueueService } from './queue/queue.service.js';
 import { createReviewShared, type ReviewServiceDeps } from './review.shared.js';
 
 export type { ReviewServiceDeps } from './review.shared.js';
 
-export type ReviewService = ReviewQueueService;
+export type ReviewService = ReviewQueueService & ReviewDeskService;
 
 /**
  * Người duyệt (design add-review-queues): hàng chờ (`queue/`) — việc sinh, gộp, huỷ theo chuyện xảy ra với tin và nhóm,
@@ -13,5 +14,6 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
   const shared = createReviewShared(deps);
   return {
     ...createQueueService(shared),
+    ...createDeskService(shared),
   };
 }

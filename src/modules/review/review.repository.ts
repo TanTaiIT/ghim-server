@@ -7,6 +7,8 @@ export type { ReviewTask };
 /** Hai lượt cùng sinh việc cho một tin: lượt thua chạm partial unique, đọc lại việc vừa mở rồi gộp vào (design mục 3). */
 const UNIQUE_VIOLATION = 'P2002';
 const MAX_ATTEMPTS = 3;
+/** Một lượt xem hàng chờ đọc tối đa ngần này việc mở rồi mới lọc ai xử được (design mục 4, Risks). */
+const OPEN_TASKS_CAP = 2000;
 
 const isUniqueViolation = (error: unknown): boolean =>
   error instanceof Prisma.PrismaClientKnownRequestError && error.code === UNIQUE_VIOLATION;
@@ -29,6 +31,21 @@ export interface ReviewRepository {
   openTasksInGroup(groupId: string): Promise<ReviewTask[]>;
   /** Việc đang mở mà người này đang giữ (chưa hết giờ) — xét lại khi họ mất vai hay mất quyền. */
   claimsOf(accountId: string, now: Date): Promise<ReviewTask[]>;
+  /** Việc đang mở theo danh mục (staff), theo nhóm (điều hành), hay tất cả (master) — hạn sớm trước. */
+  openTasks(filter: { categoryIds?: string[]; groupId?: string }): Promise<ReviewTask[]>;
+  /**
+   * Nhận việc: chỉ thắng khi việc còn mở và chưa ai giữ, hay người giữ đã hết giờ, hay chính người này nhận lại — hai
+   * người nhận cùng lúc thì đúng một người thắng (spec review/task-handling).
+   */
+  claim(input: {
+    id: string;
+    accountId: string;
+    now: Date;
+    expiresAt: Date;
+    listingVersion: number;
+  }): Promise<boolean>;
+  /** Tài khoản bị khoá, bị xoá: trả mọi việc người đó đang giữ. */
+  releaseAllClaims(accountId: string): Promise<number>;
   /** Trả việc về hàng chờ; chỉ khi đúng người đó còn đang giữ. */
   releaseClaim(id: string, accountId: string): Promise<boolean>;
   addSampleCandidate(listingId: string, listingVersion: number, at: Date): Promise<void>;
@@ -98,6 +115,37 @@ export function createReviewRepository(prisma: PrismaClient): ReviewRepository {
       prisma.reviewTask.findMany({
         where: { status: 'open', claimedBy: accountId, claimExpiresAt: { gt: now } },
       }),
+
+    openTasks: ({ categoryIds, groupId }) =>
+      prisma.reviewTask.findMany({
+        where: {
+          status: 'open',
+          ...(categoryIds ? { categoryId: { in: categoryIds } } : {}),
+          ...(groupId ? { groupId } : {}),
+        },
+        orderBy: [{ dueAt: 'asc' }, { id: 'asc' }],
+        take: OPEN_TASKS_CAP,
+      }),
+
+    async claim({ id, accountId, now, expiresAt, listingVersion }) {
+      const { count } = await prisma.reviewTask.updateMany({
+        where: {
+          id,
+          status: 'open',
+          OR: [{ claimedBy: null }, { claimExpiresAt: { lte: now } }, { claimedBy: accountId }],
+        },
+        data: { claimedBy: accountId, claimExpiresAt: expiresAt, claimedVersion: listingVersion },
+      });
+      return count > 0;
+    },
+
+    async releaseAllClaims(accountId) {
+      const { count } = await prisma.reviewTask.updateMany({
+        where: { status: 'open', claimedBy: accountId },
+        data: { claimedBy: null, claimExpiresAt: null, claimedVersion: null },
+      });
+      return count;
+    },
 
     async releaseClaim(id, accountId) {
       const { count } = await prisma.reviewTask.updateMany({
