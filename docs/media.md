@@ -5,12 +5,15 @@ không giữ bí mật nào của kho. Kho hiện là **Cloudinary** (dùng tạ
 Cloudflare R2, còn test chạy RustFS (chuẩn S3). App không cần biết kho nào — chỉ làm theo `upload.method` (bước 3).
 
 Hợp đồng đầy đủ: `openspec/specs/media/` (`image-storage`, `image-cleanup`) và `openspec/specs/identity/profile/`;
-thiết kế ở `openspec/changes/archive/2026-10-11-add-media/design.md`. Luật nghiệp vụ ở TK 25.
+thiết kế ở `openspec/changes/archive/2026-10-11-add-media/design.md` và, cho Cloudinary,
+`openspec/changes/archive/2026-10-15-use-cloudinary-storage/design.md`. Luật nghiệp vụ ở TK 25.
 
 ## Ba bước
 
 1. **Nén trên máy** (TK 25): JPEG, PNG hoặc WebP, tối đa 5 MB. **Không gửi HEIC** — server từ chối, và Android /
    web không xem được. Nén hỏng thì báo lỗi cho người dùng, đừng tải ảnh gốc.
+   **Bỏ metadata EXIF khi nén** (vị trí GPS, máy chụp, giờ chụp): ảnh đi thẳng vào kho, server không thấy và không gỡ
+   được, nên người xem tải ảnh về là đọc được chỗ người bán chụp — thường là nhà họ.
 2. **Xin quyền tải** cho đúng chủ của ảnh:
 
    ```http
@@ -71,13 +74,14 @@ lưu URL lâu dài — luôn lấy URL mới từ response, để chuyển kho k
 
 ## Mã lỗi
 
-| Lúc              | HTTP · mã                  | Nghĩa                                                                                                               |
-| ---------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Xin quyền tải    | 400 `VALIDATION_ERROR`     | Không phải JPEG / PNG / WebP, hoặc quá 5 MB (câu báo có trần)                                                       |
-| Xin quyền tải    | 404 `NOT_FOUND`            | Chủ không phải của mình (hay không tồn tại — server không phân biệt)                                                |
-| Xin quyền tải    | 429 `UPLOAD_LIMIT`         | Quá 120 lượt xin trong một giờ                                                                                      |
-| Tải lên kho      | 4xx                        | Chữ ký sai, quyền quá hạn, không phải ảnh, URL đã dùng rồi (kho S3) — xin quyền mới                                 |
-| Lưu chủ cùng ảnh | 400 `IMAGE_NOT_IN_STORAGE` | Ảnh chưa tải xong, lệch cỡ / loại đã khai, của người khác, tải cho chủ khác, đã bị dọn, hay là đường link ngoài kho |
+| Lúc              | HTTP · mã                  | Nghĩa                                                                                                                  |
+| ---------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Xin quyền tải    | 400 `VALIDATION_ERROR`     | Không phải JPEG / PNG / WebP, hoặc quá 5 MB (câu báo có trần)                                                          |
+| Xin quyền tải    | 404 `NOT_FOUND`            | Chủ không phải của mình (hay không tồn tại — server không phân biệt)                                                   |
+| Xin quyền tải    | 429 `UPLOAD_LIMIT`         | Quá 120 lượt xin trong một giờ                                                                                         |
+| Tải lên kho      | 4xx                        | Chữ ký sai, quyền quá hạn, không phải ảnh, URL đã dùng rồi (kho S3) — xin quyền mới                                    |
+| Lưu chủ cùng ảnh | 400 `IMAGE_NOT_IN_STORAGE` | Ảnh chưa tải xong, lệch cỡ / loại đã khai, của người khác, tải cho chủ khác, đã bị dọn, hay là đường link ngoài kho    |
+| Lưu chủ cùng ảnh | 503 `STORAGE_UNAVAILABLE`  | Kho ảnh tạm không trả lời (quá giờ, quá trần lượt gọi) — chưa có gì được lưu; giữ nguyên màn hình, thử lại sau ít phút |
 
 Mọi con số trên là giá trị khởi đầu của bảng con số (TK 28, nhóm "Ảnh"); master chỉnh được, app đừng chép cứng —
 đọc câu báo lỗi.

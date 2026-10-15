@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { ForbiddenError } from '../src/common/errors/app-error.js';
 import { errorHandler } from '../src/common/errors/error-handler.js';
 import { ok } from '../src/common/schemas/response.js';
+import { StorageUnavailableError } from '../src/lib/storage.js';
 
 /**
  * Mọi lỗi ra ngoài qua MỘT cửa (`errorHandler`). Dựng một app tối giản với đúng handler đó và các
@@ -42,6 +43,10 @@ app.get('/forbidden', async () => {
 
 app.get('/unexpected', async () => {
   throw new Error('SELECT * FROM users WHERE email = ...');
+});
+
+app.get('/storage-unavailable', async () => {
+  throw new StorageUnavailableError('đọc thông tin ảnh', new Error('Cloudinary 420 Rate Limit'));
 });
 
 app.post('/validate', {
@@ -103,6 +108,15 @@ describe('errorHandler — lỗi Postgres qua driver adapter (P2039)', () => {
   it('P2039 mang SQLSTATE chưa lường trước → 500', async () => {
     const res = await app.inject({ method: 'GET', url: '/postgres/57014' });
     expect(res.statusCode).toBe(500);
+  });
+});
+
+describe('errorHandler — kho ảnh không trả lời', () => {
+  it('503 STORAGE_UNAVAILABLE kèm câu thử lại, không lộ lỗi gốc của kho', async () => {
+    const res = await app.inject({ method: 'GET', url: '/storage-unavailable' });
+    expect(res.statusCode).toBe(503);
+    expect(res.json()).toMatchObject({ success: false, error: { code: 'STORAGE_UNAVAILABLE' } });
+    expect(res.body).not.toContain('Cloudinary');
   });
 });
 

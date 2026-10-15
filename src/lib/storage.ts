@@ -33,6 +33,17 @@ export interface StoredObject {
 }
 
 /**
+ * Kho không trả lời kịp, hay đang chặn vì quá trần lượt gọi: lỗi thoáng qua, làm lại sau là được. `errorHandler` dịch
+ * thành 503 `STORAGE_UNAVAILABLE` thay vì 500 "Lỗi hệ thống"; việc nền ném ra để hàng việc thử lại.
+ */
+export class StorageUnavailableError extends Error {
+  constructor(action: string, cause?: unknown) {
+    super(`Kho ảnh không trả lời (${action})`, { cause });
+    this.name = 'StorageUnavailableError';
+  }
+}
+
+/**
  * Cửa duy nhất vào kho ảnh. Ký URL luôn theo **giờ thật** chứ không theo đồng hồ của app: kho kiểm hạn chữ ký bằng
  * đồng hồ của chính nó. `signedAt` chỉ để test dựng một chữ ký đã quá hạn.
  */

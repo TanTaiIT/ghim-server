@@ -31,7 +31,9 @@ mình: hồ sơ của mình, hay một tin của mình kể cả tin còn là nh
 ### Requirement: Giới hạn của một lượt tải
 
 Kho SHALL chỉ nhận ảnh JPEG, PNG hoặc WebP, mỗi ảnh tối đa 5 MB, đúng cỡ đã khai lúc xin. Quyền tải SHALL chỉ dùng
-được trong 15 phút; mỗi tài khoản xin tối đa 120 lượt mỗi giờ (cả ba con số là giá trị khởi đầu).
+được trong 15 phút; mỗi tài khoản xin tối đa 120 lượt mỗi giờ (cả ba con số là giá trị khởi đầu). Ảnh sai cỡ hay sai
+loại MUST bị từ chối — ngay ở kho, hoặc ở bước xác nhận ảnh khi kho không tự ràng được — và MUST NOT dùng được cho chủ
+nào. Khi kho là Cloudinary, hạn quyền tải là hạn chữ ký của Cloudinary — 1 giờ (chốt 14/10/2026).
 
 #### Scenario: Tệp không phải ảnh
 
@@ -50,23 +52,24 @@ Kho SHALL chỉ nhận ảnh JPEG, PNG hoặc WebP, mỗi ảnh tối đa 5 MB, 
 
 #### Scenario: Tải đúng cỡ đã khai
 
-- **WHEN** người dùng tải lên một tệp nặng hơn dung lượng đã khai lúc xin
-- **THEN** kho từ chối lượt tải và không có ảnh nào được ghi
+- **WHEN** người dùng tải lên một tệp nặng hơn dung lượng đã khai lúc xin, rồi đặt ảnh đó làm ảnh đại diện
+- **THEN** lượt tải bị kho từ chối, hoặc lần đặt ảnh nhận HTTP 400 `IMAGE_NOT_IN_STORAGE`; không ảnh nào dùng được
 
 #### Scenario: Quyền tải quá hạn
 
-- **WHEN** người dùng tải lên bằng một quyền tải đã quá 15 phút
+- **WHEN** người dùng tải lên bằng một quyền tải đã quá 15 phút (kho Cloudinary: quá 1 giờ)
 - **THEN** kho từ chối lượt tải và không có ảnh nào được ghi
 
 ### Requirement: Ảnh đã tải không bị ghi đè
 
 Mỗi quyền tải lên SHALL chỉ dùng được cho đúng một ảnh. Ảnh đã nằm trong kho MUST NOT bị ghi đè nội dung —
-muốn đổi ảnh thì tải ảnh mới — để không ai đổi được ruột ảnh sau khi tin đã qua duyệt.
+muốn đổi ảnh thì tải ảnh mới — để không ai đổi được ruột ảnh sau khi tin đã qua duyệt. Kho không báo lỗi cho lượt tải
+lại (Cloudinary) vẫn MUST giữ nguyên nội dung cũ (chốt 14/10/2026).
 
 #### Scenario: Dùng lại quyền tải để thay ruột ảnh
 
 - **WHEN** người dùng dùng lại quyền tải của một ảnh đã tải xong để tải một nội dung khác
-- **THEN** lượt tải bị từ chối và ảnh trong kho giữ nguyên nội dung cũ
+- **THEN** ảnh trong kho giữ nguyên nội dung cũ, dù lượt tải lại bị từ chối hay không
 
 #### Scenario: Đổi ảnh đại diện
 
@@ -149,3 +152,15 @@ nội dung — mỗi ảnh vẫn có đúng một chủ suốt đời (TK 25).
 
 - **WHEN** tin cũ bị xoá hẳn sau khi đã chuyển lên sàn chung
 - **THEN** ảnh của tin mới vẫn còn trong kho
+
+### Requirement: Kho ảnh tạm không trả lời
+
+Khi kho ảnh không trả lời kịp hay đang chặn vì quá trần lượt gọi, thao tác cần tới kho SHALL trả HTTP 503
+`STORAGE_UNAVAILABLE` kèm câu báo thử lại sau, không phải 500 `INTERNAL_ERROR`, và MUST NOT lưu gì nửa chừng — người
+dùng làm lại y nguyên là được. Kho trả lỗi khác (khoá hay chữ ký sai) vẫn là lỗi hệ thống (chốt 15/10/2026).
+
+#### Scenario: Đặt ảnh đại diện lúc kho không trả lời
+
+- **WHEN** người dùng đặt ảnh đại diện bằng ảnh vừa tải, đúng lúc kho ảnh không trả lời
+- **THEN** response có HTTP 503 `STORAGE_UNAVAILABLE`, ảnh đại diện giữ nguyên như trước và ảnh vừa tải vẫn mang
+  nhãn "chưa xác nhận"

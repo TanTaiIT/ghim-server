@@ -251,7 +251,8 @@ jobs với handler thuần. `../booking` không có trong workspace này; chỉ 
 3. Mọi lỗi throw qua `AppError` hoặc subclass trong `src/common/errors/app-error.ts`. Chỉ
    `src/common/errors/error-handler.ts` map lỗi sang HTTP, kể cả lỗi Prisma (`PRISMA_ERRORS`:
    `P2002` → 409, `P2025` → 404, `P2003` → 409) và lỗi Postgres qua driver adapter (`P2039`, map theo
-   SQLSTATE ở `POSTGRES_ERRORS`: `23P01`, `23514` → 409). Cần thêm mã thì thêm vào bảng đó.
+   SQLSTATE ở `POSTGRES_ERRORS`: `23P01`, `23514` → 409). Cần thêm mã thì thêm vào bảng đó. Kho ảnh tạm không trả
+   lời (bộ nối ném `StorageUnavailableError` của `src/lib/storage.ts`) → 503 `STORAGE_UNAVAILABLE`.
    Thông báo lỗi cho người dùng viết tiếng Việt, ngắn, nói cách sửa. Lỗi tự sửa được thì nói cụ thể;
    **dấu hiệu gian lận thì không** — chỉ "đang chờ người duyệt" (TK nguyên tắc 8).
 4. Response (`src/common/schemas/response.ts`, `pagination.ts`):
@@ -380,7 +381,9 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   `identity/profile`, `media/image-storage`); 3 của `trust/` (trust-tiers, quotas, seller-dashboard) — archive từ
   `add-trust-tiers` cùng ngày (thêm requirement vào `group/group-roles`); 7 của `screening/` (machine-decision,
   risk-scoring, hard-gates, image-checks, banned-phrases, rule-management, explanations) — archive từ `add-screening`
-  ngày 13/10/2026 (thêm requirement vào `identity/profile`, `trust/seller-dashboard`).
+  ngày 13/10/2026 (thêm requirement vào `identity/profile`, `trust/seller-dashboard`). Hạ tầng `use-cloudinary-storage`
+  (archive 15/10/2026) chỉ sửa `media/image-storage`: chỗ chặn ảnh sai cỡ / loại, tải lại không lỗi, kho không trả lời
+  → 503.
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.

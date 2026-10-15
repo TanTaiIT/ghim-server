@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -5,6 +7,7 @@ import {
   signDeliveryPath,
   signUploadParams,
 } from '../src/lib/cloudinary-storage.js';
+import { StorageUnavailableError } from '../src/lib/storage.js';
 
 /*
  * Bộ nối Cloudinary (change use-cloudinary-storage) với `fetch` giả: chữ ký, trường của quyền tải, đường xem, cách gọi
@@ -25,9 +28,10 @@ interface Call {
   authorization: string | null;
 }
 
-/** `fetch` giả trả lần lượt các response cho trước và ghi lại mỗi lượt gọi. */
-function fakeFetch(responses: Response[]) {
+/** `fetch` giả trả lần lượt các response cho trước (một `Error` thì ném ra) và ghi lại mỗi lượt gọi. */
+function fakeFetch(responses: (Response | Error)[]) {
   const calls: Call[] = [];
+  const signals: (AbortSignal | null)[] = [];
   const request = (async (input: string | URL | Request, init?: RequestInit) => {
     const headers = new Headers(init?.headers);
     calls.push({
@@ -35,11 +39,13 @@ function fakeFetch(responses: Response[]) {
       method: init?.method ?? 'GET',
       authorization: headers.get('authorization'),
     });
+    signals.push(init?.signal ?? null);
     const next = responses.shift();
     if (!next) throw new Error('Hết response giả');
+    if (next instanceof Error) throw next;
     return next;
   }) as typeof fetch;
-  return { request, calls };
+  return { request, calls, signals };
 }
 
 const json = (body: unknown, status = 200) =>
@@ -128,13 +134,14 @@ describe('Admin API', () => {
     });
   });
 
-  it('xoá nhiều: lô 100 public_id, kèm invalidate để CDN thôi trả ảnh đã xoá', async () => {
+  it('xoá nhiều: lô 50 public_id, URL còn xa trần 8 KB, kèm invalidate để CDN thôi trả ảnh đã xoá', async () => {
     const { request, calls } = fakeFetch([json({}), json({}), json({})]);
-    const storage = createCloudinaryStorage(CONFIG, request);
-    await storage.deleteMany(Array.from({ length: 250 }, (_, index) => `img/${index}`));
+    const storage = createCloudinaryStorage({ ...CONFIG, folder: 'ghim-server-dev' }, request);
+    await storage.deleteMany(Array.from({ length: 120 }, () => `img/${randomUUID()}`));
     expect(calls.map((call) => call.method)).toEqual(['DELETE', 'DELETE', 'DELETE']);
     const sizes = calls.map((call) => new URL(call.url).searchParams.getAll('public_ids[]').length);
-    expect(sizes).toEqual([100, 100, 50]);
+    expect(sizes).toEqual([50, 50, 20]);
+    expect(Math.max(...calls.map((call) => call.url.length))).toBeLessThan(4096);
     expect(calls.every((call) => new URL(call.url).searchParams.get('invalidate') === 'true')).toBe(
       true,
     );
@@ -179,5 +186,47 @@ describe('Admin API', () => {
     const error = await storage.read('img/abc', 10).catch((caught: unknown) => caught);
     expect(String(error)).toContain('401');
     expect(String(error)).not.toContain(CONFIG.apiSecret);
+    // Khoá hay chữ ký sai là lỗi cấu hình: phải ra 500 cho người sửa, không phải "thử lại sau".
+    expect(error).not.toBeInstanceOf(StorageUnavailableError);
+  });
+});
+
+const unavailable = (promise: Promise<unknown>) =>
+  expect(promise).rejects.toBeInstanceOf(StorageUnavailableError);
+
+describe('Kho không trả lời', () => {
+  it('quá giờ hay mất mạng: StorageUnavailableError; mọi lượt gọi mang hạn giờ', async () => {
+    const { request, signals } = fakeFetch([
+      new DOMException('The operation was aborted due to timeout', 'TimeoutError'),
+      new TypeError('fetch failed'),
+    ]);
+    const storage = createCloudinaryStorage(CONFIG, request);
+    await unavailable(storage.head('img/abc'));
+    await unavailable(storage.copy('img/abc', 'img/def'));
+    expect(signals.every((signal) => signal instanceof AbortSignal)).toBe(true);
+  });
+
+  it('quá trần lượt gọi (420, 429) hay 5xx: StorageUnavailableError, câu lỗi không mang secret', async () => {
+    const { request } = fakeFetch([
+      json({ error: { message: 'Rate Limit Exceeded' } }, 420),
+      json({}, 429),
+      new Response('', { status: 503 }),
+    ]);
+    const storage = createCloudinaryStorage(CONFIG, request);
+    const error = await storage.head('img/abc').catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(StorageUnavailableError);
+    expect(String((error as Error).cause)).toContain('420');
+    expect(String((error as Error).cause)).not.toContain(CONFIG.apiSecret);
+    await unavailable(storage.list({ prefix: 'img/', limit: 10 }));
+    await unavailable(storage.deleteMany(['img/abc']));
+  });
+
+  it('đứt giữa lúc tải thân ảnh: StorageUnavailableError', async () => {
+    const broken = new ReadableStream<Uint8Array>({
+      pull: (controller) => controller.error(new DOMException('timeout', 'TimeoutError')),
+    });
+    const { request } = fakeFetch([new Response(broken, { status: 206 })]);
+    const storage = createCloudinaryStorage(CONFIG, request);
+    await unavailable(storage.read('img/abc', 10));
   });
 });

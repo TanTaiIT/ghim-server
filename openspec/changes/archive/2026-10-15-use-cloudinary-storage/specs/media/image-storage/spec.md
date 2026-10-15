@@ -47,3 +47,17 @@ lại (Cloudinary) vẫn MUST giữ nguyên nội dung cũ (chốt 14/10/2026).
 
 - **WHEN** người dùng thay ảnh đại diện bằng một ảnh khác
 - **THEN** ảnh thay vào là một ảnh mới tải vào kho, và nội dung ảnh cũ trong kho không đổi
+
+## ADDED Requirements
+
+### Requirement: Kho ảnh tạm không trả lời
+
+Khi kho ảnh không trả lời kịp hay đang chặn vì quá trần lượt gọi, thao tác cần tới kho SHALL trả HTTP 503
+`STORAGE_UNAVAILABLE` kèm câu báo thử lại sau, không phải 500 `INTERNAL_ERROR`, và MUST NOT lưu gì nửa chừng — người
+dùng làm lại y nguyên là được. Kho trả lỗi khác (khoá hay chữ ký sai) vẫn là lỗi hệ thống (chốt 15/10/2026).
+
+#### Scenario: Đặt ảnh đại diện lúc kho không trả lời
+
+- **WHEN** người dùng đặt ảnh đại diện bằng ảnh vừa tải, đúng lúc kho ảnh không trả lời
+- **THEN** response có HTTP 503 `STORAGE_UNAVAILABLE`, ảnh đại diện giữ nguyên như trước và ảnh vừa tải vẫn mang
+  nhãn "chưa xác nhận"

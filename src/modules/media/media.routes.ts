@@ -16,7 +16,7 @@ export const mediaRoutes: FastifyPluginAsyncZod<MediaRoutesOptions> = async (app
     schema: {
       tags: ['Media'],
       summary:
-        'Xin quyền tải đúng một ảnh thẳng vào kho cho một chủ của mình — PUT tệp lên `upload.url` với đúng `upload.headers`',
+        'Xin quyền tải đúng một ảnh thẳng vào kho cho một chủ của mình — tải theo `upload.method`: `PUT` thân tệp kèm đúng `upload.headers`, hay `POST` biểu mẫu gồm nguyên văn `upload.fields` rồi tệp ở trường `file`',
       security: [{ bearerAuth: [] }],
       body: uploadBodySchema,
       response: {

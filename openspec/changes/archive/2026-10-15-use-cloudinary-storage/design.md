@@ -37,7 +37,7 @@ Dạng `cloudinary://` là dạng `CLOUDINARY_URL` của chính Cloudinary, thê
 | đường xem      | `res.cloudinary.com/<cloud>/image/authenticated/s--<chữ ký 8 ký tự>--/<public_id>` — không hết hạn                                                                                                                     |
 | `read`         | tải đường xem kèm `Range: bytes=0-<trần>`; quá trần thì ném; 404 → `null`                                                                                                                                              |
 | `copy`         | tải lên có ký với `file` = đường xem của ảnh nguồn                                                                                                                                                                     |
-| `deleteMany`   | Admin API xoá theo lô 100 `public_id`, kèm `invalidate=true` để CDN thôi trả ảnh đã xoá                                                                                                                                |
+| `deleteMany`   | Admin API xoá theo lô 50 `public_id` (mục 7), kèm `invalidate=true` để CDN thôi trả ảnh đã xoá                                                                                                                         |
 | `list`         | Admin API liệt kê theo prefix (xếp theo `public_id`), sang trang bằng `next_cursor`                                                                                                                                    |
 | `ensureBucket` | Admin API `ping` — Cloudinary không có bucket; khoá sai thì khởi động hỏng ngay                                                                                                                                        |
 
@@ -74,6 +74,19 @@ Cloudinary: `POST` multipart, `fields` là các trường đã ký (gửi nguyê
 ### 6. Không thêm thư viện
 
 `fetch` + `node:crypto`, như `docs/market` (`upload.cleanup.service.ts`). Không cần SDK `cloudinary`.
+
+### 7. Kho không trả lời, lô xoá (review 15/10/2026, người dùng duyệt)
+
+- **503 thay vì 500.** Mọi lượt gọi Cloudinary có hạn 15 giây (lệnh nặng nhất là đọc hay chép một ảnh 5 MB). Mất
+  mạng, quá giờ (kể cả đứt giữa lúc tải thân), 420 (quá trần lượt gọi của Cloudinary), 429, 5xx → bộ nối ném
+  `StorageUnavailableError` (cạnh cổng `Storage`, để bộ nối R2 dùng lại); `errorHandler` dịch thành 503
+  `STORAGE_UNAVAILABLE` và ghi log mức warn — như lỗi Prisma, map tập trung chứ không ở service. Lỗi khác của kho (khoá,
+  chữ ký sai) vẫn là 500: đó là lỗi cấu hình, cần người sửa. Bước xác nhận ảnh chạy trước transaction lưu chủ và hỏi
+  kho trước khi ghi nhãn, nên 503 không để lại gì nửa chừng. Việc nền (máy duyệt đọc ảnh, dọn ảnh) vẫn ném ra để hàng
+  việc thử lại như trước.
+- **Lô xoá 50.** Admin API nhận tới 100 `public_id` mỗi lệnh nhưng chúng nằm trong query string: lô 100 dài 7,5–7,9 KB
+  (đo với `ghim-server` / `ghim-server-dev`), sát trần 8 KB dòng request của nhiều máy chủ, và lần thử kho thật chỉ xoá
+  vài ảnh. Lô 50 còn khoảng một nửa.
 
 ## Risks / Trade-offs
 

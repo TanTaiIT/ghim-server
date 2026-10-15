@@ -21,6 +21,8 @@ Hạ tầng, không thuộc đợt nào của TK 29.
   theo `method` trong quyền tải.
 - Kho Cloudinary không ràng cỡ vào chữ ký: bước xác nhận ảnh (vốn đã so cỡ và loại trong kho) là chỗ chặn. Hạn quyền
   tải với Cloudinary là hạn chữ ký của nó — 1 giờ thay vì 15 phút.
+- Kho tạm không trả lời (quá giờ, quá trần lượt gọi của gói Cloudinary) → HTTP 503 `STORAGE_UNAVAILABLE` "thử lại sau"
+  thay vì 500 "Lỗi hệ thống" (thêm sau review 15/10/2026).
 
 **Cố ý chưa làm**: đường xem ảnh có hạn 60 phút (TK 25, TK 28 `media.viewUrlMinutes`) khi kho là Cloudinary — gói
 hiện có không ký được đường xem hết hạn qua CDN. Đường xem vẫn có chữ ký, không đoán được, và chỉ cấp cho người được

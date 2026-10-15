@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import type { CloudinaryStorageConfig } from '../config/storage-url.js';
-import type { Storage, StoredObject } from './storage.js';
+import { type Storage, type StoredObject, StorageUnavailableError } from './storage.js';
 
 /*
  * Kho ảnh trên Cloudinary, dùng tạm tới khi chuyển R2 (change use-cloudinary-storage). Gọi Upload API và Admin API bằng
@@ -16,9 +16,17 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
   png: 'image/png',
   webp: 'image/webp',
 };
-/** Trần của Admin API: xoá tối đa 100 `public_id` mỗi lệnh, liệt kê tối đa 500 mỗi trang. */
-const DELETE_BATCH = 100;
+/**
+ * Admin API nhận tới 100 `public_id` mỗi lệnh xoá, nhưng chúng nằm trong query string: lô 100 dài 7,5–7,9 KB (đo
+ * 15/10/2026 với `ghim-server` / `ghim-server-dev`), sát trần 8 KB dòng request của nhiều máy chủ — lô 50 còn một nửa.
+ */
+const DELETE_BATCH = 50;
+/** Trần của Admin API: liệt kê tối đa 500 mỗi trang. */
 const LIST_MAX = 500;
+/** Lệnh nặng nhất là đọc hay chép một ảnh 5 MB; quá hạn này coi như kho không trả lời. */
+const REQUEST_TIMEOUT_MS = 15_000;
+/** 420 là mã quá trần lượt gọi của Cloudinary; 429 và 5xx cũng là lỗi thoáng qua, làm lại sau là được. */
+const RATE_LIMITED = new Set([420, 429]);
 /** Đủ cho mọi trang của một lượt đối chiếu kho; quá thì quên con trỏ cũ nhất. */
 const CURSOR_MEMORY = 1000;
 
@@ -52,6 +60,10 @@ const failure = async (action: string, res: Response): Promise<Error> => {
   return new Error(`Cloudinary ${action}: ${res.status} ${body?.error?.message ?? ''}`.trimEnd());
 };
 
+/** Thân response chạy cùng hạn giờ của lượt gọi: đứt giữa chừng cũng là kho không trả lời. */
+const bodyOf = <T>(action: string, body: Promise<T>): Promise<T> =>
+  body.catch((error: unknown) => Promise.reject(new StorageUnavailableError(action, error)));
+
 export function createCloudinaryStorage(
   config: CloudinaryStorageConfig,
   request: typeof fetch = fetch,
@@ -80,8 +92,24 @@ export function createCloudinaryStorage(
     return { ...params, api_key: apiKey, signature: signUploadParams(params, apiSecret) };
   };
 
-  const admin = (path: string, method = 'GET') =>
-    request(`${api}${path}`, { method, headers: { Authorization: auth } });
+  /**
+   * Mọi lượt gọi Cloudinary: có hạn giờ; mất mạng, quá giờ, quá trần lượt gọi hay 5xx thành `StorageUnavailableError`.
+   * Lỗi còn lại (khoá sai, chữ ký sai) giữ nguyên — đó là lỗi cấu hình, phải là 500 và phải có người sửa.
+   */
+  const send = async (action: string, url: string, init: RequestInit = {}): Promise<Response> => {
+    let res: Response;
+    try {
+      res = await request(url, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+    } catch (error) {
+      throw new StorageUnavailableError(action, error);
+    }
+    if (RATE_LIMITED.has(res.status) || res.status >= 500) {
+      throw new StorageUnavailableError(action, await failure(action, res));
+    }
+    return res;
+  };
+  const admin = (action: string, path: string, method = 'GET') =>
+    send(action, `${api}${path}`, { method, headers: { Authorization: auth } });
 
   const resourcePath = (key: string): string =>
     `/resources/image/authenticated/${publicIdOf(key).split('/').map(encodeURIComponent).join('/')}`;
@@ -91,7 +119,7 @@ export function createCloudinaryStorage(
     // Thiếu `invalidate` thì CDN còn trả ảnh đã xoá (thử ngày 14/10/2026).
     const query = new URLSearchParams({ invalidate: 'true' });
     for (const key of keys.slice(0, DELETE_BATCH)) query.append('public_ids[]', publicIdOf(key));
-    const res = await admin(`/resources/image/authenticated?${query}`, 'DELETE');
+    const res = await admin('xoá ảnh', `/resources/image/authenticated?${query}`, 'DELETE');
     if (!res.ok) throw await failure('xoá ảnh', res);
     await deleteBatch(keys.slice(DELETE_BATCH));
   };
@@ -102,9 +130,9 @@ export function createCloudinaryStorage(
       max_results: String(max),
       ...(cursor ? { next_cursor: cursor } : {}),
     });
-    const res = await admin(`/resources/image/authenticated?${query}`);
+    const res = await admin('liệt kê', `/resources/image/authenticated?${query}`);
     if (!res.ok) throw await failure('liệt kê', res);
-    const body = (await res.json()) as {
+    const body = (await bodyOf('liệt kê', res.json())) as {
       resources: { public_id: string; created_at: string }[];
       next_cursor?: string;
     };
@@ -147,18 +175,23 @@ export function createCloudinaryStorage(
     viewUrl: (key) => Promise.resolve(viewUrlOf(key)),
 
     async head(key) {
-      const res = await admin(resourcePath(key));
+      const res = await admin('đọc thông tin ảnh', resourcePath(key));
       if (res.status === 404) return null;
       if (!res.ok) throw await failure('đọc thông tin ảnh', res);
-      const body = (await res.json()) as { bytes: number; format: string };
+      const body = (await bodyOf('đọc thông tin ảnh', res.json())) as {
+        bytes: number;
+        format: string;
+      };
       return { byteSize: body.bytes, contentType: CONTENT_TYPES[body.format] ?? null };
     },
 
     async read(key, maxBytes) {
-      const res = await request(viewUrlOf(key), { headers: { Range: `bytes=0-${maxBytes}` } });
+      const res = await send('tải ảnh', viewUrlOf(key), {
+        headers: { Range: `bytes=0-${maxBytes}` },
+      });
       if (res.status === 404) return null;
       if (!res.ok) throw await failure('tải ảnh', res);
-      const bytes = new Uint8Array(await res.arrayBuffer());
+      const bytes = new Uint8Array(await bodyOf('tải ảnh', res.arrayBuffer()));
       if (bytes.length > maxBytes) throw new Error(`Tệp ${key} lớn hơn ${maxBytes} byte`);
       return bytes;
     },
@@ -169,7 +202,7 @@ export function createCloudinaryStorage(
         form.append(name, value);
       }
       form.append('file', viewUrlOf(fromKey));
-      const res = await request(`${api}/image/upload`, { method: 'POST', body: form });
+      const res = await send('chép ảnh', `${api}/image/upload`, { method: 'POST', body: form });
       if (!res.ok) throw await failure('chép ảnh', res);
     },
 
@@ -193,7 +226,7 @@ export function createCloudinaryStorage(
     },
 
     async ensureBucket() {
-      const res = await admin('/ping');
+      const res = await admin('kiểm khoá', '/ping');
       if (!res.ok) throw await failure('kiểm khoá', res);
       return { created: false };
     },

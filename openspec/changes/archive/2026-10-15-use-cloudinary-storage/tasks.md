@@ -30,3 +30,13 @@
 ## 4. Kiểm tra tích hợp
 
 - [x] 4.1 `pnpm run check`, `pnpm run build`, `pnpm db:drift` xanh
+
+## 5. Sửa sau review (người dùng duyệt 15/10/2026: "giải quyết các việc nhỏ trước")
+
+- [x] 5.1 Kho không trả lời → 503 `STORAGE_UNAVAILABLE` (design mục 7): hạn 15 giây cho mọi lượt gọi Cloudinary,
+      `StorageUnavailableError` cạnh cổng `Storage`, `errorHandler` map tập trung; xác minh unit test bộ nối (quá giờ,
+      mất mạng, 420 / 429 / 5xx, đứt giữa thân; 401 vẫn là lỗi thường), unit test `errorHandler`, test HTTP ảnh đại
+      diện với kho hỏng (scenario "Đặt ảnh đại diện lúc kho không trả lời", chạy trên CI)
+- [x] 5.2 Lô xoá 50 `public_id` (design mục 7); xác minh unit test lô và độ dài URL với mã UUID thật
+- [x] 5.3 Mô tả Swagger của `POST /media/uploads` nói cả hai cách tải theo `upload.method`
+- [x] 5.4 `docs/media.md`: app bỏ EXIF khi nén; mã 503 `STORAGE_UNAVAILABLE` trong bảng mã lỗi
