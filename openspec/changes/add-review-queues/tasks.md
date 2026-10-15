@@ -9,7 +9,7 @@ Theo `design.md`. Test HTTP, DB chạy trên CI (PR nháp nhánh `add-listings`)
       `review_sample_candidates`; partial unique một việc mở mỗi tin; CHECK viết tay; cột `listings.fault_reason`;
       xác minh test DB: hai việc mở cùng tin bị chặn, việc mở thiếu lý do bị chặn, nhận việc thiếu cột bị chặn;
       `db:drift` sạch
-- [ ] 1.2 `review/calc`: định tuyến theo chuỗi TK 16 có loại người (design mục 4), số hàng và hạn khi gộp, bỏ lý do,
+- [x] 1.2 `review/calc`: định tuyến theo chuỗi TK 16 có loại người (design mục 4), số hàng và hạn khi gộp, bỏ lý do,
       lấy mẫu theo rủi ro, tỉ lệ bị lật, tỉ lệ máy quá tay, tỉ lệ hậu kiểm tuần; xác minh `*.calc.test.ts`
 
 ## 2. Cổng của module khác
