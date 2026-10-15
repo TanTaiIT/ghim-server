@@ -4,7 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createStaticRuntimeConfig } from '../src/common/config/runtime-config.js';
-import { imageKey } from '../src/lib/storage.js';
+import { imageKey } from '../src/lib/storage/storage.js';
 import { MEDIA_JOBS } from '../src/modules/media/media.jobs.js';
 import { createMediaService } from '../src/modules/media/media.service.js';
 import { outboxEvents, prisma } from './db-helpers.js';

@@ -18,6 +18,8 @@ declare module 'fastify' {
     requireMaster: preHandlerAsyncHookHandler;
     /** Master luôn qua; người khác phải có việc `scope` đang hiệu lực; cả hai phải có lớp thứ hai. */
     requireOps: (scope: OpsScope) => preHandlerAsyncHookHandler;
+    /** Master hay bất kỳ staff nào đang hiệu lực, không cần việc hay danh mục cụ thể (danh sách trắng ảnh mẫu). */
+    requireStaff: preHandlerAsyncHookHandler;
     /** Như `requireOps` nhưng theo danh mục lấy từ request (thường là `params.id`). */
     requireCategoryOps: (
       categoryIdOf: (request: FastifyRequest) => string,
@@ -134,6 +136,10 @@ export async function registerAuth(app: FastifyInstance, deps: AuthDeps): Promis
   app.decorate('requireOps', (scope: OpsScope) => async (request: FastifyRequest) => {
     const actor = actorOf(request);
     await assertOps(actor, (grant) => grant.scopes.includes(scope));
+  });
+
+  app.decorate('requireStaff', async (request) => {
+    await assertOps(actorOf(request), () => true);
   });
 
   app.decorate(

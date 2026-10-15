@@ -2,8 +2,28 @@ import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 
 import type { GroupJoinPath, GroupKind, GroupMode } from '@prisma/client';
 
+import { prisma } from './db-helpers.js';
 import { seedAccount, tokenFor } from './ops-helpers.js';
 import { repositories, TEST_NOW } from './test-app.js';
+
+/**
+ * Ghi thẳng mức tin cậy như dữ liệu nền: nhận vai chủ nhóm / điều hành viên cần T1 (spec group-roles), mà lên T1 thật
+ * cần 7 ngày tuổi và một tin hiện đủ 7 ngày. Ca kiểm luật đó tự dựng mức qua luồng thật (`trust-tiers.http.test.ts`).
+ */
+export async function seedTier(accountId: string, tier: 'T0' | 'T1' | 'T2' | 'T3' = 'T1') {
+  const row = {
+    tier,
+    countedClean: 0,
+    factsHash: 'du-lieu-nen',
+    configVersion: 0,
+    computedAt: TEST_NOW,
+  };
+  await prisma.trustTierResult.upsert({
+    where: { accountId },
+    create: { accountId, ...row },
+    update: row,
+  });
+}
 
 /** Người dùng có sẵn token — mọi test nhóm cần một bộ như vậy cho chủ, điều hành viên, thành viên, người ngoài. */
 export interface TestUser {
@@ -75,6 +95,7 @@ export async function createActiveGroup(
   const master = input.master ?? (await newMaster(app));
   const groupId = await createPendingGroup(app, master, input);
   const owner = await newUser(app);
+  await seedTier(owner.id);
   const offer = await api(app, 'POST', `/ops/groups/${groupId}/owner-offers`, master.token, {
     accountId: owner.id,
   });
@@ -119,6 +140,7 @@ export async function appointModerator(
   user: TestUser,
   unitId: string | null = null,
 ): Promise<void> {
+  await seedTier(user.id);
   const res = await api(
     app,
     'PUT',

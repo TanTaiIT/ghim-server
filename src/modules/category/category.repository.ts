@@ -11,8 +11,10 @@ import type {
 } from '@prisma/client';
 
 import { appendAudit, type AuditEntry } from '../../common/audit/audit.js';
+import { appendEvents } from '../../common/outbox/outbox.js';
+import { CATEGORY_EVENTS } from './category.outbox.js';
 import { fold } from '../../common/text/fold.js';
-import { fieldsToJson, type TemplateField } from './template.calc.js';
+import { fieldsToJson, type TemplateField } from './calc/template.calc.js';
 
 export type {
   Category,
@@ -54,7 +56,13 @@ export interface CategoryRepository {
     input: { name: string; settings: CategorySettingsInput; createdBy: string } & Audited,
   ): Promise<CategoryRow>;
   rename(input: { id: string; name: string } & Audited): Promise<CategoryRow>;
+  /** Đổi trạng thái và phát `category.status.changed` trong cùng transaction — tin đăng nghe để tạm ẩn / hiện lại. */
   setStatus(input: { id: string; status: CategoryStatus } & Audited): Promise<CategoryRow>;
+  findStatuses(
+    ids: string[],
+  ): Promise<{ id: string; status: CategoryStatus; templateVersion: number | null }[]>;
+  findWard(code: number): Promise<{ provinceCode: number } | null>;
+  provinceExists(code: number): Promise<boolean>;
   /** Phiên bản kế + tăng `settings_version` cùng transaction; phiên bản cũ không đụng. */
   addSettingsVersion(
     input: { id: string; settings: CategorySettingsInput; changedBy: string } & Audited,
@@ -202,9 +210,27 @@ export function createCategoryRepository(prisma: PrismaClient): CategoryReposito
     setStatus: ({ id, status, at, audit }) =>
       prisma.$transaction(async (tx) => {
         await tx.category.update({ where: { id }, data: { status, updatedAt: at } });
+        await appendEvents(tx, [
+          {
+            type: CATEGORY_EVENTS.statusChanged,
+            payload: { categoryId: id, enabled: status === 'active' },
+          },
+        ]);
         await appendAudit(tx, audit);
         return currentRow(tx, id);
       }),
+
+    findStatuses: (ids) =>
+      prisma.category.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, status: true, templateVersion: true },
+      }),
+
+    findWard: (code) => prisma.ward.findUnique({ where: { code }, select: { provinceCode: true } }),
+
+    async provinceExists(code) {
+      return (await prisma.province.count({ where: { code } })) > 0;
+    },
 
     addSettingsVersion: ({ id, settings, changedBy, at, audit }) =>
       prisma.$transaction(async (tx) => {

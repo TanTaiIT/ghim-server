@@ -226,7 +226,7 @@ export interface IdentityRepository {
   findAccountByEmail(emailNormalized: string): Promise<Account | null>;
   findAccountSummaries(
     ids: string[],
-  ): Promise<Pick<Account, 'id' | 'role' | 'status' | 'displayName'>[]>;
+  ): Promise<Pick<Account, 'id' | 'role' | 'status' | 'displayName' | 'createdAt'>[]>;
   /** Chỉ tài khoản chưa xoá. */
   findAccountIdsByEmailHashes(hashes: string[]): Promise<Pick<Account, 'id' | 'emailHash'>[]>;
   findAccountByGoogleSub(googleSub: string): Promise<Account | null>;
@@ -292,6 +292,9 @@ export interface IdentityRepository {
   findDevicePosts(deviceHash: string): Promise<DevicePost[]>;
   upsertDevicePost(input: { deviceHash: string; accountId: string; at: Date }): Promise<DevicePost>;
   findLockedAccountsOnDevice(deviceHash: string): Promise<LockedOnDevice[]>;
+  /** Tài khoản khác đã đăng tin từ một máy mà `accountId` cũng đăng tin từ đó, cả hai lượt kể từ `since`. */
+  accountsSharingDevice(accountId: string, since: Date): Promise<string[]>;
+  activeMasterIds(): Promise<string[]>;
   findDeviceClearances(deviceHash: string): Promise<DeviceClearance[]>;
   createDeviceClearance(data: NewClearance): Promise<DeviceClearance>;
   findOpenFlags(accountId: string): Promise<AccountFlag[]>;
@@ -359,7 +362,7 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
         ? Promise.resolve([])
         : prisma.account.findMany({
             where: { id: { in: ids } },
-            select: { id: true, role: true, status: true, displayName: true },
+            select: { id: true, role: true, status: true, displayName: true, createdAt: true },
           }),
     findAccountIdsByEmailHashes: (hashes) =>
       hashes.length === 0
@@ -517,6 +520,25 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
         create: { deviceHash, accountId, firstPostedAt: at, lastPostedAt: at },
         update: { lastPostedAt: at },
       }),
+    async accountsSharingDevice(accountId, since) {
+      const rows = await prisma.$queryRaw<{ account_id: string }[]>`
+        SELECT DISTINCT other.account_id::text AS account_id
+          FROM device_posts mine
+          JOIN device_posts other ON other.device_hash = mine.device_hash AND other.account_id <> mine.account_id
+         WHERE mine.account_id = ${accountId}::uuid
+           AND mine.last_posted_at >= ${since}
+           AND other.last_posted_at >= ${since}`;
+      return rows.map((row) => row.account_id);
+    },
+
+    async activeMasterIds() {
+      const rows = await prisma.account.findMany({
+        where: { role: 'master', status: 'active' },
+        select: { id: true },
+      });
+      return rows.map((row) => row.id);
+    },
+
     async findLockedAccountsOnDevice(deviceHash) {
       const rows = await prisma.devicePost.findMany({
         where: { deviceHash, account: { status: 'locked' } },

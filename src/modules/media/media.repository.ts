@@ -39,6 +39,17 @@ export interface MediaRepository {
   /** Ảnh đã từng thấy trong kho và chưa bị bỏ, mã trong `(after, upto]` — `upto` null là tới hết. */
   trackedBetween(after: string | null, upto: string | null): Promise<Image[]>;
   recordMissing(images: Image[]): Promise<void>;
+  /** Mã cho ảnh sắp chép: phải có trước khi chép tệp, vì khoá trong kho là mã ảnh. */
+  newImageIds(count: number): Promise<string[]>;
+  /** Dòng của bản sao, đã thấy trong kho và đã xác nhận — tệp đã chép trước transaction. */
+  insertCopies(
+    tx: Tx,
+    copies: { id: string; source: Image; owner: ImageOwner; uploaderId: string }[],
+    at: Date,
+  ): Promise<void>;
+  /** Mã chủ khác nhau của một loại chủ, theo thứ tự, sau `after` — lượt đối chiếu hỏi chủ còn không theo trang. */
+  ownerIdsAfter(kind: ImageOwnerKind, after: string | null, limit: number): Promise<string[]>;
+  deleteByOwners(kind: ImageOwnerKind, ownerIds: string[]): Promise<string[]>;
 }
 
 export function createMediaRepository(prisma: PrismaClient): MediaRepository {
@@ -136,6 +147,49 @@ export function createMediaRepository(prisma: PrismaClient): MediaRepository {
         },
         orderBy: { id: 'asc' },
       }),
+
+    async newImageIds(count) {
+      if (count === 0) return [];
+      const rows = await prisma.$queryRaw<{ id: string }[]>`
+        SELECT uuidv7()::text AS id FROM generate_series(1, ${count})`;
+      return rows.map((row) => row.id);
+    },
+
+    async insertCopies(tx, copies, at) {
+      if (copies.length === 0) return;
+      await tx.image.createMany({
+        data: copies.map(({ id, source, owner, uploaderId }) => ({
+          id,
+          ownerKind: owner.kind,
+          ownerId: owner.id,
+          uploaderId,
+          contentType: source.contentType,
+          byteSize: source.byteSize,
+          uploadedAt: at,
+          confirmedAt: at,
+          createdAt: at,
+        })),
+      });
+    },
+
+    async ownerIdsAfter(kind, after, limit) {
+      const rows = await prisma.image.findMany({
+        where: { ownerKind: kind, ...(after ? { ownerId: { gt: after } } : {}) },
+        distinct: ['ownerId'],
+        orderBy: { ownerId: 'asc' },
+        take: limit,
+        select: { ownerId: true },
+      });
+      return rows.map((row) => row.ownerId);
+    },
+
+    async deleteByOwners(kind, ownerIds) {
+      if (ownerIds.length === 0) return [];
+      const rows = await prisma.$queryRaw<{ id: string }[]>`
+        DELETE FROM images WHERE owner_kind = ${kind}::image_owner_kind AND owner_id = ANY(${ownerIds}::uuid[])
+        RETURNING id::text`;
+      return rows.map((row) => row.id);
+    },
 
     async recordMissing(images) {
       if (images.length === 0) return;

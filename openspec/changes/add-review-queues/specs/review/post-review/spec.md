@@ -38,8 +38,9 @@ từ 45 tới 59; 20% tin của tài khoản T0 và T1; 5% tin còn lại. Tin �
 ### Requirement: Hậu kiểm quyết định của người duyệt
 
 Mỗi tin được một người duyệt cho "đạt" SHALL có 5% (giá trị khởi đầu) khả năng vào hàng 5 để người khác xem
-lại. Hệ thống SHALL tính cho từng người duyệt tỉ lệ bị lật — phần quyết định "đạt" đã hậu kiểm mà người hậu
-kiểm gỡ tin — và master xem được tỉ lệ đó.
+lại. Quyết định "đạt" của master MUST NOT vào mẫu này (nguyên tắc 3); tin master cho lên vẫn được xét lấy mẫu theo
+rủi ro. Hệ thống SHALL tính cho từng người duyệt tỉ lệ bị lật — phần quyết định "đạt" đã hậu kiểm mà người hậu
+kiểm gỡ tin hay gỡ khỏi nhóm — và master xem được tỉ lệ đó (chốt 15/10/2026).
 
 #### Scenario: Lấy mẫu quyết định đạt
 
@@ -50,6 +51,16 @@ kiểm gỡ tin — và master xem được tỉ lệ đó.
 
 - **WHEN** 20 quyết định "đạt" của staff A đã được hậu kiểm và người hậu kiểm gỡ 2 tin trong số đó
 - **THEN** master thấy tỉ lệ bị lật của A là 10%
+
+#### Scenario: Gỡ khỏi nhóm cũng là lật
+
+- **WHEN** 10 quyết định "đạt" của điều hành viên D đã được hậu kiểm và người hậu kiểm gỡ khỏi nhóm 1 tin trong số đó
+- **THEN** master thấy tỉ lệ bị lật của D là 10%
+
+#### Scenario: Master cho đạt
+
+- **WHEN** master cho đạt một tin máy giữ
+- **THEN** tin không vào mẫu hậu kiểm người duyệt, nhưng vẫn được xét lấy mẫu theo rủi ro
 
 ### Requirement: Mẫu hậu kiểm quá hạn thì tự huỷ
 
@@ -68,8 +79,9 @@ giữ nguyên như đang hiện. Đây là hàng duy nhất có việc tự hu�
 
 ### Requirement: Báo master khi hậu kiểm làm không xuể
 
-Mỗi tuần, nếu số việc hàng 5 được xử xong dưới 80% (giá trị khởi đầu) số việc hàng 5 của tuần đó, master
-SHALL nhận một cảnh báo.
+Mỗi tuần, nếu số việc hàng 5 được xử xong dưới 80% (giá trị khởi đầu) số việc hàng 5 khép lại trong tuần đó —
+xử xong cộng tự huỷ vì quá hạn — master SHALL nhận một cảnh báo. Việc huỷ vì lý do khác (tin bị xoá, bị sửa, nhóm
+đóng) và việc hàng 3 MUST NOT được tính (chốt 15/10/2026).
 
 #### Scenario: Làm xong dưới 80%
 
@@ -80,3 +92,9 @@ SHALL nhận một cảnh báo.
 
 - **WHEN** trong một tuần có 100 việc hàng 5 và 85 việc được xử xong
 - **THEN** master không nhận cảnh báo hậu kiểm
+
+#### Scenario: Việc huỷ vì tin bị xoá không tính
+
+- **WHEN** trong một tuần có 10 việc hàng 5 khép lại: 8 xử xong, 2 tự huỷ vì quá hạn, và thêm 5 việc bị huỷ vì người
+  đăng xoá tin
+- **THEN** tỉ lệ làm xong của tuần là 80% và master không nhận cảnh báo

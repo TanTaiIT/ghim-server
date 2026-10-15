@@ -22,7 +22,7 @@ Trong Claude Code, mở thư mục này làm workspace rồi:
 Cần CLI `openspec` trên PATH, cùng phiên bản trong `package.json`:
 `npm i -g @fission-ai/openspec@1.14.1`.
 
-Hiện trạng (đợt 1): hạ tầng (HTTP, lỗi, response, Swagger, health, việc nền pg-boss, gửi thư, outbox, realtime
+Hiện trạng (đợt 1, một phần đợt 2): hạ tầng (HTTP, lỗi, response, Swagger, health, việc nền pg-boss, gửi thư, outbox, realtime
 socket.io ở `/realtime`) và các module:
 
 - **`identity`**: đăng ký + xác nhận email, đăng nhập / phiên / refresh, Google, hai lớp TOTP cho master và staff,
@@ -34,9 +34,21 @@ socket.io ở `/realtime`) và các module:
   danh sách lớp), đơn vị con, vai, huy hiệu, thông báo của nhóm.
 - **`notification`**: hộp thư, bật tắt từng nhóm thông báo, tắt tiếng từng nhóm, gộp chuyện lặp lại, đẩy realtime
   — hướng dẫn cho app ở [`docs/realtime.md`](docs/realtime.md). Push lên điện thoại chưa làm.
-- **`media`** (đợt 2): kho ảnh chuẩn S3 (R2 ở production, RustFS khi dev / test), app tải thẳng bằng quyền tải
+- **`media`** (đợt 2): kho ảnh Cloudinary dùng tạm (về sau R2 chuẩn S3; test chạy RustFS), app tải thẳng bằng quyền tải
   một lần, nhãn "chưa xác nhận", dọn ảnh 6 giờ và đối chiếu hằng tháng; ảnh đại diện (ảnh trong kho hay ảnh Google)
   — hướng dẫn cho app ở [`docs/media.md`](docs/media.md).
+- **`listing`** (đợt 2): nháp, gửi, vòng đời tám trạng thái, sửa (qua máy lại hay áp ngay), ngày hiển thị và gia
+  hạn, tạm ẩn theo tài khoản / nhóm / danh mục, hai mức hiển thị, ai thấy tin, bảng tin / tìm kiếm / hồ sơ phân trang
+  con trỏ, huy hiệu nhóm, chuyển tin đã rời nhóm lên sàn chung, thông báo N31–N35, N37.
+- **`trust`** (đợt 2): mức tin cậy T0–T3 tính lại từ tuổi tài khoản và tin sạch (tối đa 3 tin sạch mỗi 7 ngày, tin
+  vượt được dời), hạn mức tin sống và nhịp gửi theo mức, trần riêng của người ngoài, bảng uy tín `GET /me/trust`,
+  tính lại 00:30 mỗi ngày; nhận vai chủ nhóm / điều hành viên cần T1.
+- **`screening`** (đợt 3): máy duyệt — chấm chữ ngay trong lượt gửi (12 dấu hiệu có trọng số, ba dải, ma trận dải ×
+  mức tin cậy), cổng cứng (cụm từ cấm mức chắc, ảnh trùng theo dHash, giá vượt trần), danh mục luôn duyệt tay, đánh
+  dấu theo thiết bị, dò cổng cứng → thời gian chờ 24 giờ; kiểm ảnh qua hàng việc (`sharp`), lưới an toàn mỗi 5 phút,
+  thống kê giá 02:00, quét lại tin đang hiện khi bật cụm; câu báo cho người đăng và mã tra cứu cho hỗ trợ; bàn vận
+  hành luật, cụm từ, danh sách trắng ảnh mẫu, từ khoá danh mục dưới `/api/v1/ops/screening` — hướng dẫn cho app ở
+  [`docs/screening.md`](docs/screening.md). Chưa kiểm ảnh nhạy cảm (`add-image-moderation`).
 
 ## Cần có
 
@@ -69,6 +81,9 @@ Mailpit).
 - `GET /docs` — Swagger, sinh từ chính schema Zod (tắt ở production); mọi route nghiệp vụ dưới `/api/v1`
 - Biến môi trường của `identity` (`JWT_SECRET`, `IDENTITY_HASH_KEY`, `SECRETS_ENCRYPTION_KEY`, `SMTP_URL`,
   `MAIL_FROM`, `GOOGLE_CLIENT_IDS`, `DISPOSABLE_DOMAINS_URL`): ý nghĩa và ràng buộc ở `src/config/env.ts`
+- Thử trọn vòng tin đăng ở dev: máy duyệt chấm chữ ngay lúc gửi, tin đứng ở "đang kiểm" tới khi việc nền kiểm xong
+  mọi ảnh (cần `STORAGE_URL` trỏ kho thật — `pnpm storage:up`). Tài khoản mới ở T0: tin công khai mang lý do "tài khoản mới" (chưa lên bảng tin) và gửi
+  tối đa 3 lượt mỗi giờ — lên T1 sau 7 ngày tuổi và một tin hiện đủ 7 ngày. App gửi `x-device-id` ở mọi lượt gửi tin.
 
 ## Lệnh
 
@@ -105,6 +120,9 @@ Production chỉ chạy `pnpm db:deploy` (hoặc `pnpm db:deploy:prod` từ máy
 
 ## Trước khi chạy thật
 
+- **Kho ảnh**: hiện dùng tạm Cloudinary (`STORAGE_URL=cloudinary://…?folder=ghim-server`, mẫu ở
+  `.env.production.example`). Đường xem ảnh trên Cloudinary không hết hạn (lệch TK 25) — chuyển sang R2 trước khi có
+  người dùng thật.
 - **Kho ảnh R2**: bucket riêng cho production; khoá API chỉ có quyền đọc / ghi tệp của đúng bucket đó (server không
   tạo bucket ở production). Test cổng của kho (`tests/storage.test.ts`) mới chạy trên RustFS — chạy lại một lần trên
   R2 staging, bằng khoá có quyền tạo bucket:

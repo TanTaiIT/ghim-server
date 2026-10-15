@@ -65,6 +65,8 @@ export const CONFIG_KEYS = {
   'trust.t3MinCleanListings': int(20, TRUST),
   'trust.maxCleanPer7Days': int(3, TRUST),
   'trust.soldCountsCleanAfterDays': int(2, TRUST),
+  // Tin sạch theo lối hiển thị: cộng dồn thời gian được thấy (design add-trust-tiers câu 3, 10).
+  'trust.cleanShownDays': int(7, TRUST),
   // Hạn mức T0 / T1 / T2 / T3
   'quota.liveListingsT0': int(10, QUOTA),
   'quota.liveListingsT1': int(20, QUOTA),
@@ -90,6 +92,16 @@ export const CONFIG_KEYS = {
   'screening.hardGateProbesPer24h': int(3, SCREENING),
   'screening.hardGateCooldownHours': int(24, SCREENING),
   'screening.bannedPhraseTrialDays': int(7, SCREENING),
+  // Design add-screening mục 13: trần chấm chữ trong lượt gửi, các ngưỡng dấu hiệu, độ lệch dHash coi là trùng.
+  'screening.textScoreTimeoutMs': int(2000, SCREENING),
+  'screening.newAccountDays': int(3, SCREENING),
+  'screening.abnormalPricePercentile': int(10, SCREENING),
+  'screening.abnormalPriceFactor': int(2, SCREENING),
+  'screening.priceWindowDays': int(90, SCREENING),
+  'screening.ownDuplicateDays': int(30, SCREENING),
+  'screening.heldManyCount': int(3, SCREENING),
+  'screening.heldManyDays': int(7, SCREENING),
+  'screening.imageDuplicateMaxDistance': int(4, SCREENING),
   // Hàng chờ
   'review.machineHoldHours': int(24, REVIEW),
   'review.reportHours': int(72, REVIEW),
@@ -129,6 +141,7 @@ export const CONFIG_KEYS = {
   'listing.renewWindowDays': int(7, LISTING),
   'listing.renewExtendDays': int(30, LISTING),
   'listing.maxImages': int(6, LISTING),
+  'listing.moveToMarketplaceDays': int(30, LISTING),
   // Nhóm
   'group.applicationExpiresDays': int(21, GROUP),
   'group.reapplyWaitDays': int(7, GROUP),
@@ -141,6 +154,8 @@ export const CONFIG_KEYS = {
   'group.announcementMaxLength': int(1000, GROUP),
   // Thông báo
   'notification.collapseAlertMinutes': int(30, NOTIFICATION),
+  // N31: tin mới trong nhóm nhắc tối đa một lần mỗi 2 giờ mỗi nhóm (design add-listings mục 11).
+  'notification.groupListingsAlertMinutes': int(120, NOTIFICATION),
   // Ảnh
   'media.maxImageBytes': int(5_242_880, MEDIA),
   'media.uploadGrantMinutes': int(15, MEDIA),

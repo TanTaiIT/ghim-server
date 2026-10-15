@@ -14,10 +14,10 @@ import type {
   IdVerification,
 } from './identity.repository.js';
 import type { GoogleTokenVerifier } from './google.verifier.js';
-import type { AvatarInput } from './identity.schema.js';
-import { createIdentityAccountService } from './identity.account.service.js';
-import { createIdentityAuthService } from './identity.auth.service.js';
-import { createIdentityOpsService } from './identity.ops.service.js';
+import type { AccountFlagKind, AvatarInput } from './identity.schema.js';
+import { createIdentityAccountService } from './account/account.service.js';
+import { createIdentityAuthService } from './auth/auth.service.js';
+import { createIdentityOpsService } from './ops/ops.service.js';
 import { createIdentityShared } from './identity.shared.js';
 
 export interface IdentityServiceDeps {
@@ -39,6 +39,8 @@ export interface IdentityServiceDeps {
   sessionsRevoked?: SessionRevocationListener;
   /** `media` cho ảnh đại diện. CLI không có — CLI không đọc hay đặt hồ sơ. */
   images?: ProfileImages;
+  /** `screening` nối muộn; CLI không có — CLI không hiện tên cho ai. */
+  names?: NameScreen;
 }
 
 export interface ProfileImageOwner {
@@ -73,12 +75,33 @@ export interface GroupOwnership {
   ownsAnyGroup(accountId: string): Promise<boolean>;
 }
 
+/**
+ * Bộ lọc tên hiển thị (spec identity/profile): `screening` trả các tên trúng cụm mức chắc đang bật. Lọc lúc đọc, nên
+ * bật / tắt cụm có hiệu lực ngay mà không quét lại tên (design add-screening mục 9).
+ */
+export interface NameScreen {
+  hidden(names: string[]): Promise<Set<string>>;
+}
+
+/** Người khác thấy tên này thay tên không qua bộ lọc (spec identity/profile). */
+export const SCREENED_DISPLAY_NAME = 'Người dùng Ghim';
+
+/** Đánh dấu theo thiết bị của một lượt gửi, tính cả chính lượt đó (design add-screening câu 20). */
+export interface DeviceFlags {
+  /** Đánh dấu luôn giữ — tài khoản thứ tư trên máy, dùng máy của tài khoản bị khoá, kể cả đánh dấu đang mở ở máy khác. */
+  kinds: AccountFlagKind[];
+  /** Đã đăng trên máy này trước lúc một tài khoản cùng máy bị khoá — dấu hiệu chấm điểm, không luôn giữ. */
+  sharedWithLocked: boolean;
+}
+
 /** Thứ module khác cần về một tài khoản — không email, không dấu băm. */
 export interface AccountSummary {
   id: string;
   role: Account['role'];
   status: Account['status'];
   displayName: string;
+  /** Tuổi tài khoản của `trust` tính từ lúc tạo, không từ lúc xác nhận email (design add-trust-tiers câu 6). */
+  createdAt: Date;
 }
 
 export interface GoogleLoginInput {
@@ -101,6 +124,7 @@ export interface MeDto extends PublicProfileDto {
   emailVerified: boolean;
   role: Account['role'];
   twoFactorEnabled: boolean;
+  nameHidden: boolean;
 }
 
 export interface FlagDto {
@@ -214,9 +238,25 @@ export interface IdentityService extends ActorResolver {
   deleteMyAccount(actor: Actor): Promise<void>;
   requestDeletion(input: { email: string; password: string }): Promise<void>;
 
-  /** `add-listings` gọi khi gửi tin; change này chưa có route nào gọi. */
-  recordListingSubmission(accountId: string, deviceId: string): Promise<void>;
+  /**
+   * Dấu băm của mã máy app gửi (`x-device-id`) — HMAC thuần, không chạm DB. `listing` ghi dấu này vào sự kiện gửi tin
+   * để mã thô không bao giờ nằm trong outbox (design add-listings mục 11).
+   */
+  deviceToken(deviceId: string): string;
+  /** Bên nghe `listing.listing.submitted` gọi: ghi một lượt đăng từ máy này lúc `at`, mở / đóng đánh dấu (spec device-registry). */
+  recordListingSubmission(accountId: string, deviceHash: string, at: Date): Promise<void>;
+  /** `screening` hỏi lúc chấm chữ, trước khi bên nghe kịp ghi lượt đăng: tính như đã ghi, không ghi gì. */
+  deviceFlagsFor(accountId: string, deviceHash: string, at: Date): Promise<DeviceFlags>;
+  /**
+   * Tài khoản từng đăng tin từ cùng một máy với `accountId` kể từ `since` — `review` loại họ khỏi việc của nhau (TK 8,
+   * 16). Chỉ trả mã tài khoản, không bao giờ trả dấu máy.
+   */
+  sharedDeviceAccounts(accountId: string, since: Date): Promise<string[]>;
+  /** Master đang hoạt động — người nhận nhắc hạn và cảnh báo của hàng chờ (design add-review-queues mục 10). */
+  masterIds(): Promise<string[]>;
   getFlag(lookupCode: string): Promise<FlagDto>;
+  /** Đánh dấu đang mở của một tài khoản — hỗ trợ tra mã của máy duyệt thấy mã đánh dấu để gỡ (spec explanations). */
+  openFlagsOf(accountId: string): Promise<FlagDto[]>;
   clearFlag(actor: Actor, lookupCode: string, reason: string): Promise<void>;
 
   submitIdVerification(actor: Actor, input: IdVerificationInput): Promise<IdVerificationDto>;

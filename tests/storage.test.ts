@@ -29,13 +29,31 @@ describe('STORAGE_URL', () => {
     expect(
       parseStorageUrl('https://key:s%2Fe%40c@acc.r2.cloudflarestorage.com/ghim-prod?region=auto'),
     ).toEqual({
+      kind: 's3',
       endpoint: 'https://acc.r2.cloudflarestorage.com',
       bucket: 'ghim-prod',
       region: 'auto',
       accessKeyId: 'key',
       secretAccessKey: 's/e@c',
     });
-    expect(parseStorageUrl('http://ghim:x@localhost:9100/ghim-dev').region).toBe('auto');
+    expect(parseStorageUrl('http://ghim:x@localhost:9100/ghim-dev')).toMatchObject({
+      region: 'auto',
+    });
+  });
+
+  it('dạng Cloudinary: khoá, secret, cloud name; thư mục mặc định ghim-server', () => {
+    expect(
+      parseStorageUrl('cloudinary://123456:s%2Fe%40c@ghim-cloud?folder=ghim-server/prod'),
+    ).toEqual({
+      kind: 'cloudinary',
+      cloudName: 'ghim-cloud',
+      apiKey: '123456',
+      apiSecret: 's/e@c',
+      folder: 'ghim-server/prod',
+    });
+    expect(parseStorageUrl('cloudinary://123456:secret@ghim-cloud')).toMatchObject({
+      folder: 'ghim-server',
+    });
   });
 
   it.each([
@@ -43,6 +61,8 @@ describe('STORAGE_URL', () => {
     ['không bucket', 'http://ghim:x@localhost:9100/'],
     ['bucket chữ hoa', 'http://ghim:x@localhost:9100/Ghim'],
     ['giao thức lạ', 's3://ghim:x@localhost:9100/ghim-dev'],
+    ['Cloudinary thiếu secret', 'cloudinary://123456@ghim-cloud'],
+    ['Cloudinary thư mục lạ', 'cloudinary://123456:secret@ghim-cloud?folder=../ra-ngoai'],
   ])('từ chối: %s', (_, value) => {
     expect(storageUrlIssue(value)).not.toBeNull();
   });

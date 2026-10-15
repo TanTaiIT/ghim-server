@@ -8,8 +8,19 @@ import {
   NotFoundError,
   TooManyRequestsError,
 } from '../../common/errors/app-error.js';
-import { IMAGE_KEY_PREFIX, imageKey, type Storage } from '../../lib/storage.js';
+import { IMAGE_KEY_PREFIX, imageKey, type Storage } from '../../lib/storage/storage.js';
 import type { ImageOwner, MediaRepository } from './media.repository.js';
+
+/**
+ * Chủ ảnh không phải hồ sơ do module sở hữu chủ trả lời (`listing` cho tin): `media` không đọc bảng của họ. Nối muộn
+ * trong `buildApp` vì `listing` dựng sau `media`.
+ */
+export interface ImageOwnership {
+  /** Người xin tải là chủ của chủ ảnh này, và chủ đó còn nhận ảnh (tin của mình, chưa xoá). */
+  canUpload(accountId: string, ownerId: string): Promise<boolean>;
+  /** Chủ nào trong danh sách còn tồn tại — kể cả đã xoá mềm, vì xoá mềm giữ ảnh (spec image-cleanup). */
+  existing(ownerIds: string[]): Promise<Set<string>>;
+}
 import type { UploadBody, UploadGrantDto } from './media.schema.js';
 
 export interface MediaServiceDeps {
@@ -22,10 +33,13 @@ export interface MediaServiceDeps {
    * giờ thật. Test đẩy giờ này tới trước để một tệp vừa tải trông như đã cũ.
    */
   storageClock?: () => Date;
+  owners?: { listing?: ImageOwnership | undefined };
 }
 
 export interface ReconcileResult {
   released: number;
+  /** Ảnh của chủ đã xoá hẳn (tin) — xoá theo chủ khi bên xoá chủ chưa dọn. */
+  ownerGone: number;
   orphans: number;
   missing: number;
   scanned: number;
@@ -46,6 +60,21 @@ export interface MediaService {
     input: { owner: ImageOwner; imageIds: string[] },
   ): Promise<void>;
   viewUrl(imageId: string): Promise<string>;
+  /** Chủ của từng ảnh — người duyệt thấy ảnh trùng nằm ở tin nào (design add-review-queues mục 8). */
+  ownersOf(imageIds: string[]): Promise<Map<string, ImageOwner>>;
+  /** Bytes của ảnh cho máy duyệt băm (design add-screening mục 12); `null` khi kho không còn tệp. */
+  readImage(imageId: string): Promise<Uint8Array | null>;
+  /**
+   * Bản sao ảnh cho tin chuyển lên sàn chung (delta media/image-storage): tệp chép TRƯỚC transaction, dòng ảnh mới
+   * (thuộc `to`, đã xác nhận) ghi bằng `commit(tx)` TRONG transaction của chủ. Transaction hỏng thì tệp chép thành mồ
+   * côi cho lượt đối chiếu. Ảnh của `from` giữ nguyên chủ và nội dung.
+   */
+  copyImages(input: {
+    from: ImageOwner;
+    to: ImageOwner;
+    imageIds: string[];
+    uploaderId: string;
+  }): Promise<{ imageIds: string[]; commit(tx: Prisma.TransactionClient): Promise<void> }>;
   purgeUnconfirmed(): Promise<number>;
   /** Mỗi lượt xét ít nhất một trang rồi mới kiểm trần thời gian, nên lượt nào cũng tiến. */
   reconcile(input: {
@@ -80,12 +109,31 @@ export function createMediaService(deps: MediaServiceDeps): MediaService {
     return ids.length === BATCH ? drain(take, total) : total;
   };
 
+  /**
+   * Chủ `profile` có khoá ngoại (`uploader_id`) nên tự đi theo tài khoản; chủ `listing` không có, nên hỏi `listing` theo
+   * trang những tin nào còn, ảnh của tin đã xoá hẳn thì xoá — dòng trước, tệp sau như mọi lượt dọn.
+   */
+  const dropOwnerless = async (after: string | null, done = 0): Promise<number> => {
+    const port = deps.owners?.listing;
+    if (!port) return done;
+    const ownerIds = await repository.ownerIdsAfter('listing', after, BATCH);
+    if (ownerIds.length === 0) return done;
+    const alive = await port.existing(ownerIds);
+    const gone = ownerIds.filter((id) => !alive.has(id));
+    const deleted = await repository.deleteByOwners('listing', gone);
+    await storage.deleteMany(deleted.map(imageKey));
+    const total = done + deleted.length;
+    return ownerIds.length === BATCH ? dropOwnerless(ownerIds.at(-1) ?? null, total) : total;
+  };
+
   return {
     async requestUpload(actor, body) {
-      // Chủ `listing` nối vào ở `add-listings`; tới lúc đó chưa có tin nào là của ai.
-      if (body.ownerKind !== 'profile' || body.ownerId !== actor.accountId) {
-        throw new NotFoundError('Không có chỗ này để tải ảnh');
-      }
+      // Chủ của người khác và chủ không tồn tại trả cùng 404: không lộ tin nào có thật.
+      const owns =
+        body.ownerKind === 'profile'
+          ? body.ownerId === actor.accountId
+          : ((await deps.owners?.listing?.canUpload(actor.accountId, body.ownerId)) ?? false);
+      if (!owns) throw new NotFoundError('Không có chỗ này để tải ảnh');
       const maxBytes = config.get('media.maxImageBytes');
       if (body.byteSize > maxBytes) {
         throw new BadRequestError(
@@ -118,9 +166,10 @@ export function createMediaService(deps: MediaServiceDeps): MediaService {
       return {
         imageId: image.id,
         upload: {
-          method: 'PUT',
+          method: grant.method,
           url: grant.url,
           headers: grant.headers,
+          fields: grant.fields,
           expiresAt: grant.expiresAt.toISOString(),
         },
       };
@@ -157,8 +206,41 @@ export function createMediaService(deps: MediaServiceDeps): MediaService {
       if (!attached) throw imageNotInStorage();
     },
 
+    async ownersOf(imageIds) {
+      const rows = await repository.findImages([...new Set(imageIds)]);
+      return new Map(rows.map((row) => [row.id, { kind: row.ownerKind, id: row.ownerId }]));
+    },
+
     viewUrl: (imageId) =>
       storage.viewUrl(imageKey(imageId), config.get('media.viewUrlMinutes') * MINUTE_S),
+
+    readImage: (imageId) => storage.read(imageKey(imageId), config.get('media.maxImageBytes')),
+
+    async copyImages({ from, to, imageIds, uploaderId }) {
+      const rows = await repository.findImages(imageIds);
+      const byId = new Map(rows.map((row) => [row.id, row]));
+      const sources = imageIds.map((id) => byId.get(id));
+      if (
+        sources.some(
+          (row) =>
+            !row || row.ownerKind !== from.kind || row.ownerId !== from.id || !row.uploadedAt,
+        )
+      ) {
+        throw imageNotInStorage();
+      }
+      const ids = await repository.newImageIds(imageIds.length);
+      const copies = sources.flatMap((source, index) => {
+        const id = ids[index];
+        return source && id ? [{ id, source, owner: to, uploaderId }] : [];
+      });
+      await Promise.all(
+        copies.map(({ id, source }) => storage.copy(imageKey(source.id), imageKey(id))),
+      );
+      return {
+        imageIds: ids,
+        commit: (tx) => repository.insertCopies(tx, copies, clock()),
+      };
+    },
 
     purgeUnconfirmed() {
       const cutoff = new Date(clock().getTime() - config.get('media.unconfirmedHours') * HOUR_MS);
@@ -168,10 +250,18 @@ export function createMediaService(deps: MediaServiceDeps): MediaService {
     async reconcile({ after, budgetMs, pageSize = BATCH }) {
       const startedAt = Date.now();
       const released = after ? 0 : await drain(() => repository.deleteReleased(BATCH));
+      const ownerGone = after ? 0 : await dropOwnerless(null);
       // Tệp không có dòng nhưng mới hơn hạn một quyền tải thì để yên: lượt xét có thể chạy giữa lúc dòng vừa bị xoá.
       const orphanBefore =
         storageClock().getTime() - config.get('media.uploadGrantMinutes') * MINUTE_S * 1000;
-      const result: ReconcileResult = { released, orphans: 0, missing: 0, scanned: 0, next: null };
+      const result: ReconcileResult = {
+        released,
+        ownerGone,
+        orphans: 0,
+        missing: 0,
+        scanned: 0,
+        next: null,
+      };
 
       const page = async (cursor: string | null): Promise<ReconcileResult> => {
         const listed = await storage.list({

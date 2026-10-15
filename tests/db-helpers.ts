@@ -40,15 +40,18 @@ export async function prismaErrorCode(write: Promise<unknown>): Promise<string |
 
 /**
  * SQLSTATE Postgres của một lượt ghi bị từ chối. Lỗi không có mã Prisma riêng (exclusion 23P01,
- * CHECK 23514) đến dưới dạng P2039, mã thật nằm trong `meta` — đúng chỗ `errorHandler` đọc.
+ * CHECK 23514) đến dưới dạng P2039, mã thật nằm trong `meta` — đúng chỗ `errorHandler` đọc. Câu SQL thô
+ * (`$executeRaw`) bị từ chối thì mã nằm thẳng ở `meta.code`.
  */
 export async function sqlStateOf(write: Promise<unknown>): Promise<string | null> {
   try {
     await write;
     return null;
   } catch (error) {
-    const meta = (error as { meta?: { driverAdapterError?: { cause?: { code?: unknown } } } }).meta;
-    const code = meta?.driverAdapterError?.cause?.code;
+    const meta = (
+      error as { meta?: { code?: unknown; driverAdapterError?: { cause?: { code?: unknown } } } }
+    ).meta;
+    const code = meta?.driverAdapterError?.cause?.code ?? meta?.code;
     if (typeof code === 'string') return code;
     throw error;
   }

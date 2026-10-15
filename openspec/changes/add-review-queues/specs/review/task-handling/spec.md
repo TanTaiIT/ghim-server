@@ -59,6 +59,21 @@ Quyết định về một việc SHALL chỉ được chấp nhận từ ngư�
 - **WHEN** staff quyết một việc trong hàng chờ của mình mà chưa bấm nhận
 - **THEN** response có HTTP 409 `TASK_NOT_CLAIMED`
 
+#### Scenario: Master cũng nhận trước khi quyết
+
+- **WHEN** master quyết một việc mà chưa bấm nhận, hoặc nhận một việc staff khác đang giữ
+- **THEN** response lần lượt có HTTP 409 `TASK_NOT_CLAIMED` và HTTP 409 `TASK_CLAIMED` (chốt 15/10/2026)
+
+### Requirement: Mất vai thì việc đang nhận trả về ngay
+
+Điều hành viên bị bãi nhiệm, đổi phạm vi hay tạm mất vai trong lúc đang nhận việc mà vai đó cho xử SHALL mất việc
+ngay: việc trả về hàng chờ, không đợi hết thời gian giữ (chốt 15/10/2026).
+
+#### Scenario: Điều hành viên bị bãi nhiệm khi đang nhận
+
+- **WHEN** điều hành viên lớp 10A đang nhận một việc về tin của lớp thì bị chủ nhóm bãi nhiệm
+- **THEN** việc trở về hàng chờ ngay và điều hành viên khác của lớp 10A nhận được việc đó
+
 ### Requirement: Việc bị chuyển chỗ thì người đang nhận mất quyền quyết
 
 Khi một việc đang có người nhận bị chuyển chỗ — sang hàng master vì quá hạn, hay vì gộp thêm lý do làm đổi

@@ -81,6 +81,8 @@ và báo cáo vẫn được xử), **20** (tạm ẩn vì báo cáo không đ�
   khoản ẩn 90 ngày, báo cáo vẫn xử trên bản lưu; báo cáo đúng thì gậy vẫn ghi, đi theo email. Các điều kiện
   chặn xoá còn lại giữ nguyên.
 - **Câu hỏi mở** — TK không nói hoặc tự mâu thuẫn, cần người dùng chốt trước khi viết design:
+  - Sơ đồ TK 18 không có mũi tên "gỡ" từ Đã bán, Hết hạn — hai trạng thái người lạ vẫn xem được. Báo cáo đúng về
+    một tin đã bán hay hết hạn thì xử thế nào? (Chuyển từ `add-listings` ngày 12/10/2026.)
   - Báo cáo gửi tới **sau** khi tài khoản đã xoá (vd từ hội thoại mà người kia vẫn đọc được) có nhận không, và
     có xử trên bản lưu như báo cáo đã mở từ trước không. Spec chỉ viết báo cáo đang mở lúc xoá.
   - **TK tự mâu thuẫn**: TK 10 nói đóng nhóm thì "việc đang chờ của nhóm: huỷ" (trừ báo cáo lừa đảo, hàng cấm),

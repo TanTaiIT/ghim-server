@@ -58,7 +58,8 @@ services:
       timeout: 5s
       retries: 15
 
-  # Kho ảnh DEV, chuẩn S3 (`pnpm storage:up`). Production là Cloudflare R2; code chỉ thấy `STORAGE_URL` nên không đổi.
+  # Kho ảnh chuẩn S3 cho dev (`pnpm storage:up`) khi `STORAGE_URL` trỏ về đây. Production dùng tạm Cloudinary, về sau
+  # Cloudflare R2; code chỉ thấy `STORAGE_URL` nên không đổi.
   # RustFS chứ không MinIO: MinIO đã gỡ image khỏi Docker Hub (kiểm 11/10/2026). Cổng 9100 / 9110 tránh 9000 hay bị
   # dự án khác giữ. Bucket do bước khởi động của `media` tạo khi còn thiếu.
   storage:

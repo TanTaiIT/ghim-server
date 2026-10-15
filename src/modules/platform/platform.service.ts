@@ -94,6 +94,8 @@ export interface PlatformService {
   /** Bên nghe `identity.account.deleted`: thu hẳn, kể cả quyền đang treo; idempotent. */
   revokeStaffForDeletion(accountId: string): Promise<void>;
   listStaff(categoryId?: string): Promise<StaffPermissionDto[]>;
+  /** Cổng cho `review`: staff đang hoạt động của từng danh mục — người xử việc của danh mục đó (TK 16). */
+  activeStaffByCategory(categoryIds: string[]): Promise<Map<string, string[]>>;
 
   /**
    * Chạy lúc khởi động: bảng rỗng → phiên bản 1 từ sổ đăng ký; phiên bản hiện hành thiếu khoá nào
@@ -233,6 +235,8 @@ export function createPlatformService(deps: PlatformServiceDeps): PlatformServic
       await repository.removeStaff(accountId);
     },
 
+    activeStaffByCategory: (categoryIds) => repository.activeStaffByCategory(categoryIds),
+
     async listStaff(categoryId) {
       const rows = await repository.listStaff(categoryId === undefined ? {} : { categoryId });
       return rows.map(toStaffDto);
@@ -359,6 +363,7 @@ export function createVersionedRuntimeConfig(
   now: () => number = Date.now,
 ): VersionedRuntimeConfig {
   let values: Record<string, number> | null = null;
+  let loadedVersion = 0;
   let loadedAt = 0;
   let refreshing: Promise<void> | null = null;
 
@@ -368,6 +373,7 @@ export function createVersionedRuntimeConfig(
       ...RUNTIME_CONFIG_DEFAULTS,
       ...(current?.values as Record<string, number> | undefined),
     };
+    loadedVersion = current?.version ?? 0;
     loadedAt = now();
   };
 
@@ -387,6 +393,10 @@ export function createVersionedRuntimeConfig(
       const value = values[key];
       if (value === undefined) throw new Error(`Khoá cấu hình không tồn tại: ${key}`);
       return value;
+    },
+    version() {
+      if (!values) throw new Error('RuntimeConfig chưa load() — server.ts phải nạp trước khi dùng');
+      return loadedVersion;
     },
   };
 }

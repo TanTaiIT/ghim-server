@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { toOk } from '../src/common/schemas/response.js';
-import { hashPassword } from '../src/modules/identity/password.calc.js';
+import { hashPassword } from '../src/modules/identity/calc/password.calc.js';
 import { auditOf, lastOutboxEvent } from './db-helpers.js';
 import { seedAccount, tokenFor } from './ops-helpers.js';
 import { buildTestApp, grantStaff, repositories, TEST_AUDIT } from './test-app.js';

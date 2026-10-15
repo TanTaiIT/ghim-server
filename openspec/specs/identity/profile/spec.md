@@ -68,3 +68,71 @@ Google. Hồ sơ công khai SHALL hiện ảnh đại diện trong kho bằng m�
 
 - **WHEN** một người lần đầu đăng nhập bằng Google và tài khoản Google có ảnh đại diện
 - **THEN** tài khoản mới dùng ảnh đại diện Google đó
+
+### Requirement: Hồ sơ công khai liệt kê tin đang bán
+
+Hồ sơ công khai SHALL liệt kê các tin đang hiển thị của người đó — cả mức đầy đủ lẫn hạn chế — mà người xem được
+phép thấy theo luật "ai thấy một tin" (listing/visibility). Tin nháp, đang kiểm, chờ duyệt, bị từ chối, bị gỡ,
+đã xoá hay đang tạm ẩn MUST NOT có trong danh sách (TK 7).
+
+#### Scenario: Khách xem hồ sơ
+
+- **WHEN** khách mở hồ sơ của người bán có một tin sàn chung đầy đủ và một tin sàn chung hạn chế
+- **THEN** danh sách tin trên hồ sơ có cả hai tin
+
+#### Scenario: Tin "chỉ thành viên"
+
+- **WHEN** người bán có một tin "chỉ thành viên" của nhóm X, và lần lượt khách rồi một thành viên nhóm X mở hồ
+  sơ
+- **THEN** khách không thấy tin đó trên hồ sơ, còn thành viên nhóm X thì thấy
+
+#### Scenario: Tin chưa lên bảng hoặc đang tạm ẩn
+
+- **WHEN** người bán có một nháp, một tin chờ duyệt và một tin đang tạm ẩn vì nhóm bị khoá
+- **THEN** cả ba tin không có trên hồ sơ công khai
+
+#### Scenario: Tin đã bán hoặc hết hạn
+
+- **WHEN** người bán có một tin sàn chung đã bán và một tin sàn chung hết hạn
+- **THEN** cả hai không có trên hồ sơ công khai, nhưng mở bằng đường link vẫn nhận HTTP 200 (chốt 12/10/2026)
+
+### Requirement: Tên hiển thị qua bộ lọc cụm từ cấm
+
+Tên hiển thị SHALL qua cùng bộ lọc cụm từ cấm như tin đăng, với cùng cách so khớp (ranh giới chữ, không phân
+biệt dấu, ghép chữ cái tách rời, ngoại lệ). Tên chứa cụm mức chắc đang bật MUST NOT hiện trên hồ sơ công
+khai (TK 7).
+
+#### Scenario: Đặt tên chứa cụm mức chắc
+
+- **WHEN** "bán súng" là cụm mức chắc đang bật và người dùng đổi tên hiển thị thành "Bán Súng Giá Rẻ"
+- **THEN** hồ sơ công khai không hiện tên mới đó
+
+#### Scenario: Lách bằng chữ cái tách rời
+
+- **WHEN** "bán súng" là cụm mức chắc đang bật và người dùng đổi tên hiển thị thành "b á n s ú n g"
+- **THEN** hồ sơ công khai không hiện tên mới đó
+
+#### Scenario: Cụm đang chạy thử
+
+- **WHEN** "bán súng" là cụm mức chắc đang chạy thử và người dùng đổi tên hiển thị thành "Bán Súng Giá Rẻ"
+- **THEN** hồ sơ công khai hiện tên mới
+
+#### Scenario: Tên bình thường
+
+- **WHEN** người dùng đổi tên hiển thị thành một tên không trúng cụm nào
+- **THEN** hồ sơ công khai hiện tên mới
+
+### Requirement: Tên bị lọc hiện bằng tên chung
+
+Tên hiển thị không qua bộ lọc SHALL hiện với người khác là "Người dùng Ghim" ở mọi chỗ hiện tên; chủ tài khoản SHALL
+vẫn thấy tên mình kèm lời nhắc đổi tên. Cụm mức mơ hồ MUST NOT có tác dụng với tên hiển thị (chốt 12/10/2026).
+
+#### Scenario: Người khác xem hồ sơ
+
+- **WHEN** "bán súng" là cụm mức chắc đang bật và một người dùng có tên hiển thị "Bán Súng Giá Rẻ"
+- **THEN** người khác mở hồ sơ thấy tên "Người dùng Ghim", còn chủ tài khoản thấy tên mình kèm lời nhắc đổi tên
+
+#### Scenario: Tên chứa cụm mơ hồ
+
+- **WHEN** tên hiển thị của một người dùng chứa một cụm mức mơ hồ đang bật
+- **THEN** hồ sơ công khai hiện đúng tên đó

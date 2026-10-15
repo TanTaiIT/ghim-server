@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createFakeMailer, type FakeMailer } from '../src/lib/mailer.js';
 import { toOk } from '../src/common/schemas/response.js';
-import { hashPassword, verifyPassword } from '../src/modules/identity/password.calc.js';
+import { hashPassword, verifyPassword } from '../src/modules/identity/calc/password.calc.js';
 import { createFakeJobs, type FakeJobs } from './fakes/jobs.fake.js';
 import { buildTestApp, repositories } from './test-app.js';
 

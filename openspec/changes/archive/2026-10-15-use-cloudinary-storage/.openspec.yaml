@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-10-14
+goal: 'Hạ tầng — kho ảnh Cloudinary dùng tạm tới khi chuyển Cloudflare R2 (TK 25)'

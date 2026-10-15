@@ -1,6 +1,6 @@
 # CLAUDE.md — Ghim (bản làm lại)
 
-> File này mô tả code **như nó đang là** (đối chiếu `package.json` và `src/` ngày 11/10/2026).
+> File này mô tả code **như nó đang là** (đối chiếu `package.json` và `src/` ngày 13/10/2026).
 > Code và file lệch nhau → sửa file này cho đúng, đừng bẻ code theo một dòng đã cũ.
 > Mục ghi **(chưa có)** là quy tắc cho phần sắp làm: đừng import đường dẫn đó, nó chưa tồn tại.
 
@@ -17,6 +17,8 @@ công ty, cộng đồng). Máy duyệt trước, người duyệt phần máy k
   OpenSpec**. File này chỉ nói luật đặt ở **đâu trong code**. TK, change và code lệch nhau → hỏi, đừng
   tự chọn một bên. Hai luật đụng nhau → thứ tự ưu tiên ở TK phần 4 (pháp lý → không tự xử việc của mình
   → máy không phạt → người dùng biết vì sao → tiện lợi).
+- **Việc đang dở**: `docs/VIEC-DANG-DO.md` — việc chờ quyết, change còn lại, checklist chuyển R2, môi trường dev.
+  Làm xong việc nào thì xoá dòng đó; gác lại việc gì thì thêm vào.
 - **Hệ thống cũ**: `../../Vue/` (Express + MongoDB + agenda). Đọc để biết dữ liệu nào phải chuyển
   sang và tích hợp nào đang chạy; **không** chép pattern của nó sang đây.
 - Hai cửa, một backend:
@@ -36,7 +38,7 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
     `@fastify/swagger` + `@fastify/swagger-ui` (`/docs`, tắt ở production).
   - Đã nối: `pg-boss` (`src/lib/jobs.ts`, start/stop trong `server.ts`), `nodemailer`
     (`src/lib/mailer.ts`, sau interface `Mailer`), `@fastify/jwt` + `@fastify/cookie`
-    (`src/common/auth/auth.plugin.ts`), `argon2` (`password.calc.ts`), `google-auth-library`
+    (`src/common/auth/auth.plugin.ts`), `argon2` (`identity/calc/password.calc.ts`), `google-auth-library`
     (`google.verifier.ts`, sau interface `GoogleTokenVerifier`), `otplib` (hai lớp trong
     `identity.service.ts`). Không còn gói nào cài mà chưa dùng.
 - DB: **PostgreSQL 18 + Prisma 7**, driver adapter `@prisma/adapter-pg`, preview `partialIndexes`.
@@ -60,7 +62,8 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
     trong `public` nên `prisma migrate` và `db:drift` không thấy; pg-boss tự tạo bảng khi `start()`.
     Không thêm Redis. Bản đầu một tiến trình; pg-boss khoá theo job nên ngày chạy nhiều tiến trình
     không phải đổi gì. Đã nối: `src/lib/jobs.ts` (`createJobs` → `start`/`stop`/`schedule`, cron theo
-    `Asia/Ho_Chi_Minh`, `singletonKey` mặc định = tên việc); module khai việc của mình trong
+    `Asia/Ho_Chi_Minh`, `singletonKey` mặc định = tên việc; `work` nhận `retryLimit` và `concurrency` — số việc
+    cùng loại chạy song song mỗi tiến trình); module khai việc của mình trong
     `<module>.jobs.ts` với tên `<module>.<việc>`, nối qua `jobs` của định nghĩa module (`<module>.module.ts`).
   - Gửi email (mã xác nhận, đổi email): **nodemailer** qua `SMTP_URL`, đứng sau interface `Mailer` ở
     `src/lib/mailer.ts` (`createSmtpMailer`, `createFakeMailer` cho test). `SMTP_URL` bắt buộc ngoài
@@ -73,6 +76,9 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
   - Hai lớp cho master, staff: **otplib** (TOTP, ứng dụng tạo mã bất kỳ). Bí mật mã hoá AES-256-GCM
     (`src/common/crypto/secrets.ts`); `requireMaster` và `requireOps` đều đòi `second_factor_at` trên
     phiên — kể cả master, kể cả khi chưa thiết lập.
+  - Băm ảnh so trùng (đồng ý 12/10/2026): **sharp** — thu ảnh về 9×8 xám rồi dHash 64 bit, đứng sau cổng
+    `ImageHasher` (`src/modules/screening/run/image-hash.ts`). Kiểm ảnh nhạy cảm chưa chọn dịch vụ
+    (`add-image-moderation`).
   - Danh sách email dùng một lần (TK 7): hạt giống `src/modules/identity/data/disposable-domains.seed.txt`
     (dự án `disposable-email-domains`, ~96k miền), nạp khi bảng rỗng lúc khởi động
     (`identity.seedDisposableDomainsIfEmpty` trong `server.ts`); việc `identity.refresh-disposable-domains`
@@ -85,10 +91,14 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
   - Realtime (chốt 11/10/2026): **socket.io** gắn vào HTTP server của Fastify, đường dẫn `/realtime`, chỉ
     websocket. Chỉ chiều server → app; phòng theo người và theo phiên, không phòng theo nhóm. Hạ tầng dùng chung
     ở `src/common/realtime/`; nhắn tin (đợt 6) dùng lại. `socket.io-client` chỉ là devDependency để test.
-  - Kho ảnh (chốt 11/10/2026): **chuẩn S3** qua `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner` — Cloudflare
-    R2 ở production, **RustFS** trong docker-compose cho dev (`pnpm storage:up`, cổng 9100) và test (`storage-test`,
-    cổng 9110, tmpfs). Một biến `STORAGE_URL` (`src/config/storage-url.ts`); cửa duy nhất `src/lib/storage.ts`
-    (`Storage`: ký URL tải lên một lần kèm `If-None-Match: *`, ký đường xem có hạn, `head`, `deleteMany`, `list`).
+  - Kho ảnh (chốt 11/10/2026, đổi 14/10/2026): hai bộ nối sau cổng `Storage`, chọn bằng `STORAGE_URL`. **Cloudinary**
+    dùng tạm cho production và dev (`cloudinary://key:secret@cloud?folder=…`, `src/lib/storage/cloudinary.storage.ts`, gọi API
+    bằng `fetch`, không SDK — change `use-cloudinary-storage`: Backblaze B2 không chặn được ghi đè ảnh). **Chuẩn S3**
+    qua `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner`: Cloudflare R2 về sau, **RustFS** trong docker-compose cho
+    test (`storage-test`, cổng 9110, tmpfs) và dev khi cần (`pnpm storage:up`, cổng 9100). Một biến `STORAGE_URL` (`src/config/storage-url.ts`); cửa duy nhất `src/lib/storage/storage.ts`
+    (`Storage`: ký quyền tải một ảnh — S3 `PUT` kèm `If-None-Match: *`, Cloudinary `POST` biểu mẫu với
+    `overwrite=false` —, ký đường xem — S3 có hạn, Cloudinary không hết hạn —, `head`, `read` có trần byte cho máy
+    duyệt băm ảnh, `copy`, `deleteMany`, `list`).
     App tải thẳng, ảnh không qua server; hướng dẫn cho app ở `docs/media.md`. MinIO đã gỡ image khỏi Docker Hub.
 - **(chưa có)** — vẫn phải hỏi trước vì chưa chọn: push lên điện thoại (đề xuất Expo
   Push Service, hoãn tới khi app làm — design của `add-notification-core` mục 3), kiểm ảnh nhạy cảm, theo dõi lỗi
@@ -112,16 +122,21 @@ src/
   server.ts                   ← jobs.start(), `startup` của từng module, bật `app.outbox`, listen; tắt theo thứ tự
                                 HTTP (kèm socket) → bộ phát → jobs → Prisma
   config/{env,database-guard}.ts
-  lib/{prisma,logger,mailer,jobs,storage}.ts
+  lib/{prisma,logger,mailer,jobs}.ts
+  lib/storage/                ← kho ảnh: `storage.ts` (cổng `Storage`, `imageKey`, `StorageUnavailableError`),
+                                `s3.storage.ts`, `cloudinary.storage.ts` (tạm, tới khi R2), `create-storage.ts` (chọn
+                                bộ nối theo `STORAGE_URL`, chỉ `app.ts` gọi) — bộ nối không import nhau
   common/
     audit/audit.ts            ← `appendAudit(tx, entry)`: nhật ký bàn vận hành, cùng transaction với thay đổi
     auth/{auth.plugin,actor,privilege-source}.ts ← guard dùng chung: authenticate, requireVerifiedEmail,
-                                requireMaster, requireOps(scope), requireCategoryOps(categoryIdOf); `Actor`
+                                requireMaster, requireOps(scope), requireStaff (mọi staff đang hiệu lực),
+                                requireCategoryOps(categoryIdOf); `Actor`
                                 trên request, `actorOf(request)` cho handler; `PrivilegeSource.staffGrant` trả
                                 cả gói quyền staff trong một lượt đọc (bản thật: `createPlatformPrivilegeSource`)
     config/config-keys.ts     ← sổ đăng ký mọi con số TK 28: kiểu, giá trị khởi đầu, nhóm
     config/runtime-config.ts  ← `RuntimeConfig.get(key)`; bản tĩnh cho test và CLI
     crypto/secrets.ts         ← AES-256-GCM (`SecretBox`), SHA-256, HMAC tách scope, token ngẫu nhiên
+    crypto/lookup-code.ts     ← mã tra cứu 8 ký tự Crockford: dấu tài khoản (`identity`), lượt máy kết luận (`screening`)
     errors/{app-error,error-handler}.ts
     http/cache.ts             ← mặc định `no-store` (hook `onSend`); route công khai mở bằng `cacheFor` + `CACHE_*`
     outbox/outbox.ts          ← `appendEvents(tx, events)`: sự kiện chéo module, cùng transaction
@@ -132,23 +147,29 @@ src/
                                 `emitToUser` / `disconnectUser` / `disconnectSession`; hướng dẫn cho app ở
                                 `docs/realtime.md`
     plugins/swagger.ts
-    schemas/{response,pagination,money}.ts   ← money.ts chỉ có `priceSchema`
+    schemas/{response,pagination,cursor,money}.ts ← money.ts chỉ có `priceSchema`; cursor.ts = phân trang con trỏ
     text/fold.ts              ← bỏ dấu + hoa + gộp khoảng trắng: tên dành riêng, tìm khu vực
     time/time.ts              ← định dạng ngày / giờ theo Asia/Ho_Chi_Minh cho câu báo người dùng
     utils/{defined,sequential}.ts
   modules/<module>/
     <module>.module.ts        ← `create<Module>Module(deps)` → `{ service, module: AppModule }`
-    <module>.routes.ts        ← chỉ đăng ký plugin con; route thật tách theo mối quan tâm:
-    <module>.<quan-tâm>.routes.ts  ← vd identity.auth / identity.me / identity.ops — route + schema + guard
-    <module>.service.ts       ← business logic, factory `createXService(deps)`; quá 500 dòng thì tách
-                                theo mối quan tâm như route (vd `identity.{auth,account,ops}.service.ts`
-                                + `identity.shared.ts`), `createXService` ghép lại, interface không đổi
+    <module>.routes.ts        ← chỉ đăng ký plugin con; route thật tách theo cụm (xem `<cụm>/`)
+    <module>.service.ts       ← interface của module + factory `createXService(deps)`; quá 500 dòng thì tách
+                                service theo cụm, `createXService` ghép lại, interface không đổi; phần các cụm
+                                dùng chung ở `<module>.shared.ts`
     <module>.events.ts        ← (nếu có) bên nghe outbox của module
     <module>.repository.ts    ← toàn bộ truy vấn Prisma, kể cả transaction + ghi outbox
     <module>.schema.ts        ← Zod schema + hằng/tập giá trị của module
-    <module>.calc.ts / <tên>.calc.ts ← hàm tính toán thuần, không chạm DB (vd email.calc, device.calc)
+    <module>.ports.ts         ← (nếu có) hợp đồng với module khác — kiểu các module kia cài hay import; module khác
+                                import từ đây, không từ `<module>.shared.ts` hay một `<cụm>/` (vd `listing.ports.ts`)
     <module>.jobs.ts          ← (nếu có) việc nền của module: `registerXJobs(jobs, deps)`
     <module>.mail.ts          ← (nếu có) mẫu thư thuần văn bản
+    calc/<tên>.calc.ts        ← hàm tính toán thuần, không chạm DB, dùng từ hai chỗ trở lên trong module (vd
+                                `identity/calc/email.calc.ts`, `listing/calc/listing.calc.ts`); gốc module không chứa calc
+    <cụm>/                    ← (module lớn) một mối quan tâm: `<cụm>.routes.ts` (route + schema + guard),
+                                `<cụm>.service.ts`, calc chỉ cụm đó dùng — vd `identity/{auth,account,ops}/`,
+                                `listing/{posting,read,system}/`, `screening/{run,ops}/`,
+                                `review/{queue,desk,schedule,stats}/`
     data/                     ← (nếu có) file tĩnh đi kèm, đọc bằng `new URL('./data/…', import.meta.url)`;
                                 tsc không chép nên `pnpm run build` có bước `build:data` chép `src/**/data` sang dist
   cli/                        ← script chạy tay, không qua HTTP: `create-master`, `reset-two-factor`
@@ -158,11 +179,26 @@ tests/*.db.test.ts            ← ghi thẳng bằng Prisma để kiểm ràng b
 ```
 
 - **Không có tầng controller**: handler trong `routes.ts` gọi service rồi trả response.
+- **Thư mục cụm** (chốt 12/10/2026): lập `<cụm>/` khi cụm có từ hai file trở lên chỉ cụm đó dùng. File dùng từ hai cụm
+  trở lên không nằm trong cụm nào, nên không cụm nào import vào thư mục của cụm khác. Gốc module chỉ giữ phần khung
+  (module, routes, service, repository, schema, shared, ports, events, jobs, outbox). Module nhỏ để phẳng.
+  `group` không có cụm có chủ ý: route chia theo người dùng (công khai / quản trị nhóm / vận hành) còn service chia
+  theo việc (`membership` / `admin`) — muốn tách cụm thì sắp lại route cho khớp service trước.
+- **Thư mục `calc/`** (chốt 15/10/2026): mọi calc thuần dùng chung trong module nằm ở `calc/`, kể cả module chưa có cụm;
+  `calc/` không import cụm nào, cụm nào cũng import được `calc/`. Calc chỉ một cụm dùng thì ở trong cụm đó
+  (`listing/posting/edit.calc.ts`); dùng từ hai module trở lên thì không thuộc module nào → `src/common/` (vd
+  `common/crypto/lookup-code.ts`). Tên `calc/` chứ không `rules/`: ở `screening`,
+  "luật" là khái niệm nghiệp vụ (`ops/rules.service.ts` — luật của máy duyệt). Calc đọc file dữ liệu thì đường dẫn
+  là `new URL('../data/…', import.meta.url)` — typecheck không bắt sai đường dẫn này, chỉ khởi động server mới bắt.
 - **Không có `<module>.types.ts`**: DTO chính là response schema Zod trong `<module>.schema.ts`.
 - Tên module kebab-case, **số ít**. Đang có: `health`, `identity`, `platform`, `category`, `group`,
-  `notification`, `media`.
-- `buildApp(overrides)` nhận `repositories: { identity, platform, category, group, media }`, `storage` và hạ tầng dùng chung
-  (jobs, mailer, googleVerifier, privilegeSource, config, clock) — bỏ trống là bản thật.
+  `notification`, `media`, `listing`, `trust`, `screening`, `review`.
+- `buildApp(overrides)` nhận `repositories: { identity, platform, category, group, media, listing, trust, screening,
+review }`,
+  `storage`, `trust` (cổng mức tin cậy và hạn mức mà `listing`, `group` hỏi — bỏ trống là module `trust` thật),
+  `screening` (cổng máy duyệt `listing` gọi trong lượt gửi — bỏ trống là module `screening` thật) và hạ tầng dùng chung
+  (jobs, mailer, googleVerifier, privilegeSource, config, clock) — bỏ trống là bản thật. `RuntimeConfig.version()` cho
+  biết phiên bản bảng con số đang đọc (kết quả tính theo con số ghi kèm, cam kết 33).
   `privilegeSource` và `config` mặc định là bản thật của `platform` dựng trên repository của nó. Service
   của module tra qua `app.modules` (`app.modules.platform`…); `app.moduleList` là danh sách định nghĩa theo
   thứ tự dựng. Test HTTP dùng `buildTestApp` (`tests/test-app.ts`), cùng hình dạng overrides.
@@ -189,6 +225,19 @@ tests/*.db.test.ts            ← ghi thẳng bằng Prisma để kiểm ràng b
 | 7    | `ops`          | 25, 26     | Outbox dispatcher, job theo lịch, dọn dữ liệu, tạm giữ bằng chứng                  |
 
 `media` lên đợt 2 (TK 29 xếp ở đợt 3) vì nháp tin đăng đã cần ảnh; chỉ phần **kiểm** ảnh ở đợt 3.
+`notification` nghe `group.*`, các `listing.*` có dòng ma trận (`notification.listing-matrix.ts`) và
+`media.image.missing` (`notification.media-matrix.ts`, N38 ảnh tin, N39 ảnh đại diện — change `notify-missing-images`),
+`review.*` (`notification.review-matrix.ts`, N40–N42 cho mọi master, người nhận hỏi `identity.masterIds`);
+câu cần tiêu đề hay người đăng của tin thì hỏi `listing` qua cổng (`titles`, `noticeTargets`), không đọc bảng của nó.
+
+`review` (change `add-review-queues`, hướng dẫn cho bàn vận hành và app ở `docs/review.md`): `queue/` sinh, gộp, huỷ
+việc theo `listing.state.changed` và sự kiện `group`, `platform`, `identity`; `desk/` hàng chờ, nhận việc, quyết
+định (bàn vận hành `/ops/review`, app `/groups/:groupId/review`); `schedule/` ba job (mỗi phút, mỗi giờ, thứ Hai
+08:00); `stats/` số liệu cho master. Ai xử việc tính lúc đọc (`calc/route.calc.ts`), không lưu. Quyết định đổi tin qua
+cổng của `listing` (`review`, `confirmLive`, `detachByGroup`) với hook `after(tx)` — đóng việc, ghi nhật ký, quay mẫu
+người duyệt trong cùng transaction đổi tin. Ngược lại `review` cài `OpenWork.blocksPlacement` cho `listing`. Mã lỗi
+riêng: `TASK_CLAIMED`, `TASK_NOT_CLAIMED`, `TASK_CLOSED`, `TASK_REASSIGNED`, `TASK_OPEN`, `LISTING_CHANGED`,
+`OUTCOME_NOT_ALLOWED` (409).
 Endpoint của bàn vận hành nằm trong module sở hữu dữ liệu, đăng ký dưới tiền tố `/api/v1/ops/...` —
 không có module `ops-*` gom route của người khác.
 
@@ -197,7 +246,7 @@ change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-cate
 `harden-module-infra` → `tune-hot-paths` → `cache-public-reads-revoke-deleted-staff` →
 `harden-production-runtime` → `add-groups` → `add-notification-core` (kéo từ đợt 6, chốt 11/10/2026) — mười change
 này đã archive 10–11/10/2026 · đợt 2
-`add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` · đợt 3 `add-screening` · đợt 4 `add-review-queues` →
+`add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` (cả hai đã archive 12/10/2026) · đợt 3 `add-screening` (đã archive 13/10/2026) → `add-image-moderation` (khi chọn được dịch vụ kiểm ảnh, tách ra 12/10/2026) · đợt 4 `add-review-queues` (đã code 15/10/2026, chờ CI để archive) →
 `add-reports` · đợt 5 `add-strikes` · đợt 6 `add-messaging` → `add-notifications` · đợt 7
 `add-data-retention`.
 
@@ -222,14 +271,17 @@ jobs với handler thuần. `../booking` không có trong workspace này; chỉ 
 3. Mọi lỗi throw qua `AppError` hoặc subclass trong `src/common/errors/app-error.ts`. Chỉ
    `src/common/errors/error-handler.ts` map lỗi sang HTTP, kể cả lỗi Prisma (`PRISMA_ERRORS`:
    `P2002` → 409, `P2025` → 404, `P2003` → 409) và lỗi Postgres qua driver adapter (`P2039`, map theo
-   SQLSTATE ở `POSTGRES_ERRORS`: `23P01`, `23514` → 409). Cần thêm mã thì thêm vào bảng đó.
+   SQLSTATE ở `POSTGRES_ERRORS`: `23P01`, `23514` → 409). Cần thêm mã thì thêm vào bảng đó. Kho ảnh tạm không trả
+   lời (bộ nối ném `StorageUnavailableError` của `src/lib/storage/storage.ts`) → 503 `STORAGE_UNAVAILABLE`.
    Thông báo lỗi cho người dùng viết tiếng Việt, ngắn, nói cách sửa. Lỗi tự sửa được thì nói cụ thể;
    **dấu hiệu gian lận thì không** — chỉ "đang chờ người duyệt" (TK nguyên tắc 8).
 4. Response (`src/common/schemas/response.ts`, `pagination.ts`):
    - Thành công: `{ success: true, data }` qua `toOk(x)`, schema `ok(itemSchema)`.
    - Lỗi: `{ success: false, error: { code, message } }`.
    - Danh sách: `{ items, page, limit, total, totalPages }` qua `paginated()` / `toPage()`, trần 100.
-     Bảng tin, tìm kiếm, tin nhắn sẽ cần phân trang cursor — **(chưa có)** helper.
+     Bảng tin, tìm kiếm, hồ sơ, tin của tôi (và tin nhắn sau này): phân trang con trỏ `{ items, nextCursor }` qua
+     `cursorQuerySchema` / `cursorPaginated()` / `toCursorPage()` (`cursor.ts`) — trang theo số lặp hoặc sót khi tin
+     mới chen lên đầu, và `total` là một lượt `COUNT` toàn bảng. Con trỏ hỏng → 400 `VALIDATION_ERROR`.
    - Response schema là ranh giới DTO. KHÔNG khai response bằng `z.any()` hay schema lỏng.
    - Giữ lại: mọi response mặc định `Cache-Control: no-store`, lỗi luôn `no-store`. Route công khai
      chỉ mở sau khi service trả kết quả, bằng `cacheFor(reply, CACHE_*, toOk(x))` — thời hạn nằm ở spec
@@ -274,7 +326,7 @@ Mỗi luật dưới đây là một cam kết ở TK phần 27; số trong ngo�
     thì không. `ops` (đợt 7) nhận lại và mở rộng; hợp đồng bên nghe không đổi.
 13. **Trạng thái tin, cờ tạm ẩn, lý do hạn chế là ba thứ riêng** (15, 18, 19). Lý do hạn chế là một
     tập (`machine`, `new_account`, `strike`), mỗi lý do đặt/gỡ độc lập. Đường chuyển trạng thái tin
-    là **bảng thuần** trong `listing.calc.ts` **(chưa có)**, có unit test cho mọi mũi tên của sơ đồ TK
+    là **bảng thuần** trong `listing/calc/listing.calc.ts`, có unit test cho mọi mũi tên của sơ đồ TK
     phần 18 — và cho mọi mũi tên KHÔNG có.
 14. **Máy không phạt** (13, nguyên tắc 7). `screening` chỉ trả `pass_full` / `pass_limited` / `hold`.
     Lỗi dịch vụ, quá giờ, thiếu kết quả ảnh → `hold`, không bao giờ là cho qua.
@@ -282,11 +334,12 @@ Mỗi luật dưới đây là một cam kết ở TK phần 27; số trong ngo�
     thị. Quá hạn chỉ chuyển cấp; riêng việc lấy mẫu hậu kiểm được tự huỷ.
 16. **Một tin, một việc mở** (16): partial unique trên bảng việc `WHERE` việc còn mở — không dựa vào
     service kiểm trước. Quyết định của người là **ghi có điều kiện** theo phiên bản tin lúc mở việc;
-    tin đã đổi → 409, người xử tải lại.
+    tin đã đổi → 409, người xử tải lại. Mọi lượt ghi việc đi qua `withOpenTask` của `review.repository.ts`: khoá dòng
+    tin (cổng `listing.lockForReview`) **trước** rồi mới khoá việc — đúng thứ tự của lượt đổi tin, không thì deadlock.
 17. **Không ai, trừ master, xử việc của chính mình** (nguyên tắc 4) — kể cả tài khoản dùng chung
-    thiết bị. Một hàm duy nhất trong `review` quyết ai được nhận việc; không viết
-    `if (actor.id === listing.ownerId)` rải rác.
-18. **Mức tin cậy là hàm thuần** của dữ kiện (`trust.calc.ts` **(chưa có)**), tính lại từ đầu chứ
+    thiết bị. Một hàm duy nhất trong `review` quyết ai được nhận việc (`canHandle` ở `review/calc/route.calc.ts`, loại
+    người theo `excluded_ids` của việc); không viết `if (actor.id === listing.ownerId)` rải rác.
+18. **Mức tin cậy là hàm thuần** của dữ kiện (`trust/calc/tier.calc.ts`, hạn mức ở `trust/calc/quota.calc.ts`), tính lại từ đầu chứ
     không cộng trừ, lưu kèm dấu băm dữ kiện và phiên bản bảng con số (20). Mỗi luật có unit test.
 19. **Mọi con số ở TK phần 28 đọc từ bảng con số có phiên bản** (`platform`), không hardcode trong
     code. Kết quả máy và mức tin cậy ghi lại phiên bản đã dùng. Code đọc qua
@@ -344,7 +397,14 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   của `notification/` (inbox, preferences, realtime, group-notices, group-announcements) — archive từ `add-groups`
   và `add-notification-core` ngày 11/10/2026 (`add-groups` thêm một requirement vào `identity/account-deletion`);
   2 của `media/` (image-storage, image-cleanup) — archive từ `add-media` cùng ngày (thêm requirement "Ảnh đại diện"
-  vào `identity/profile`).
+  vào `identity/profile`); 9 của `listing/` (drafts, submission, placement, lifecycle, editing, display-period,
+  suspension, visibility, deletion) — archive từ `add-listings` ngày 12/10/2026 (thêm requirement vào `group/badges`,
+  `identity/profile`, `media/image-storage`); 3 của `trust/` (trust-tiers, quotas, seller-dashboard) — archive từ
+  `add-trust-tiers` cùng ngày (thêm requirement vào `group/group-roles`); 7 của `screening/` (machine-decision,
+  risk-scoring, hard-gates, image-checks, banned-phrases, rule-management, explanations) — archive từ `add-screening`
+  ngày 13/10/2026 (thêm requirement vào `identity/profile`, `trust/seller-dashboard`). Hạ tầng `use-cloudinary-storage`
+  (archive 15/10/2026) chỉ sửa `media/image-storage`: chỗ chặn ảnh sai cỡ / loại, tải lại không lỗi, kho không trả lời
+  → 503.
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.
@@ -400,7 +460,8 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
 
 - Vitest, file phẳng `tests/*.test.ts`. Env cho test khai trong `vitest.config.ts`, **không** có `.env.test`.
 - **Mọi test chạy trên Postgres thật và kho ảnh thật** — `pnpm db:test:up` và `pnpm storage:test:up` một lần,
-  rồi `pnpm test`. Không có repository giả:
+  rồi `pnpm test`. Máy không có Docker: `pnpm test:unit` chạy riêng test thuần (`*.calc.test.ts` và danh sách
+  trong `vitest.unit.config.ts`), không cần DB. Không có repository giả:
   giữ bản giả khớp DB tốn hơn chạy DB, và nó từng lệch mà vẫn xanh (giờ ghi nhật ký lấy đồng hồ của app thay
   vì `now()` của DB). `tests/db-global-setup.ts` áp migration lên DB mẫu `ghim_test` rồi nhân bản một DB cho
   mỗi worker, nên các file vẫn chạy song song; `tests/db-worker-setup.ts` xoá sạch dữ liệu **đầu mỗi file**.
@@ -418,6 +479,23 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   ảnh dựng thêm một `media` service với `storageClock` đẩy tới trước để tệp vừa tải trông như đã cũ.
   Ca tranh chấp bọc repository thật (`{ ...repositories.identity, method: … }`, truyền qua
   `buildTestApp({ repositories })`) để giữ hai lượt ở đúng điểm.
+  Tin đăng: `tests/listing-http-helpers.ts` đi luồng thật (nháp → ảnh → gửi → `machinePass`), `signedInAt` ký lại
+  phiên khi ca đẩy đồng hồ quá 30 ngày. Mặc định của test là module `trust` thật (tài khoản mới ở T0, 3 lượt gửi mỗi
+  giờ với đồng hồ đứng yên); test không bàn về mức hay hạn mức đè bằng `buildTestApp({ trust: createInterimTrust(…) })`.
+  Máy duyệt mặc định cũng thật: lượt gửi chờ kết quả ảnh, và máy đọc cài đặt danh mục lúc chấm — `seedCategory`
+  (`tests/listing-helpers.ts`) dựng danh mục kèm phiên bản cài đặt 1 như bàn vận hành. Test không bàn về máy duyệt đè
+  bằng `buildTestApp({ screening: interimScreening })`; test máy duyệt dùng `tests/screening-helpers.ts` (`screened`
+  ghi sẵn ảnh đã kiểm để lượt kết luận ngay, `tierPort` đặt mức từng người, `pngOf` sinh ảnh thật cho `sharp`) và
+  gọi `app.modules.screening.ensureRules()` vì `buildTestApp` không chạy bước khởi động.
+  Ca tranh chấp có khoá nhóm dùng cổng `trust` giả dừng lượt gửi trong transaction (`tests/listing-races.db.test.ts`);
+  dữ liệu nền mức DB ở `tests/listing-helpers.ts`. Mức tin cậy: `seedTier` (`tests/group-helpers.ts`) ghi thẳng mức
+  làm dữ liệu nền — `createActiveGroup` và `appointModerator` dùng nó vì nhận vai cần T1; luật lên mức đi luồng thật ở
+  `tests/trust-tiers.http.test.ts`.
+  Người duyệt: mọi lượt gửi tin của test dùng chung một mã máy (`DEVICE`), nên mọi người đã đăng tin đều "dùng chung
+  thiết bị" với nhau — staff, điều hành viên, master trong `tests/review-*.http.test.ts` không đăng tin, trừ ca cố ý
+  kiểm luật đó (máy riêng: ghi thẳng `device_posts`). Job của `review` gọi thẳng `app.modules.review.everyMinute()`,
+  `everyHour()`, `weeklyPostcheck()` với đồng hồ đẩy tay; tỉ lệ lấy mẫu đè bằng `config` của `buildTestApp`. Lý do
+  mẫu khởi đầu: gọi `app.modules.review.ensureReasonTemplates()` — `truncateAll` xoá cả bảng, như `ensureRules`.
 - `tests/*.db.test.ts`: test repository và ghi thẳng bằng Prisma để kiểm ràng buộc chỉ DB trả lời được
   (partial unique "một việc mở mỗi tin", CHECK, EXCLUDE), kiểm đúng mã lỗi (`prismaErrorCode` / `sqlStateOf`).
 - Mỗi cam kết ở TK phần 27 thuộc đợt đang làm phải có test — kể cả các ca **thiếu, sai, hết chỗ,

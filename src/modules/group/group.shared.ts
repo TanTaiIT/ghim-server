@@ -1,4 +1,4 @@
-import type { Group, GroupMember, GroupState, GroupUnit } from '@prisma/client';
+import type { Group, GroupMember, GroupState, GroupUnit, Prisma } from '@prisma/client';
 
 import type { AuditAction, AuditDetails, AuditEntry } from '../../common/audit/audit.js';
 import type { Actor } from '../../common/auth/actor.js';
@@ -6,8 +6,8 @@ import { requireSecondFactor } from '../../common/auth/auth.plugin.js';
 import type { RuntimeConfig } from '../../common/config/runtime-config.js';
 import { ConflictError, ForbiddenError, NotFoundError } from '../../common/errors/app-error.js';
 import type { AccountSummary } from '../identity/identity.service.js';
-import { badgeEligible } from './badges.calc.js';
-import { type ModeratorCandidate, roleIneligibility } from './membership.calc.js';
+import { badgeEligible } from './calc/badges.calc.js';
+import { type ModeratorCandidate, roleIneligibility } from './calc/membership.calc.js';
 import type { GroupRepository } from './group.repository.js';
 import type { GroupProfileDto, GroupSummaryDto, MemberDto, MembershipDto } from './group.schema.js';
 
@@ -22,9 +22,17 @@ export interface GroupIdentityPort {
   accountEmailHash(accountId: string): Promise<string | null>;
 }
 
-/** Đợt 2: `listing` đếm tin mức "nhóm công khai" để biết nhóm phải qua trạng thái chuyển sang riêng tư không. */
+/**
+ * `listing` đếm tin mức "nhóm công khai" để biết nhóm phải qua trạng thái chuyển sang riêng tư không. Nhận `tx` của
+ * lượt đổi chế độ: đếm phải nằm trong cùng transaction đã khoá dòng nhóm (cam kết 22).
+ */
 export interface PublicListingCounter {
-  countInGroup(groupId: string): Promise<number>;
+  countInGroup(tx: Prisma.TransactionClient, groupId: string): Promise<number>;
+}
+
+/** Mức tin cậy của `trust` — nhận vai chủ nhóm / điều hành viên cần T1 trở lên (TK 5, spec group-roles). */
+export interface GroupTrustPort {
+  tierOf(accountId: string): Promise<'T0' | 'T1' | 'T2' | 'T3'>;
 }
 
 export interface GroupServiceDeps {
@@ -33,6 +41,7 @@ export interface GroupServiceDeps {
   config: RuntimeConfig;
   clock: () => Date;
   publicListings?: PublicListingCounter;
+  trust?: GroupTrustPort;
 }
 
 /** Người gọi trong một nhóm: dòng thành viên (nếu có) và có phải master không — master đứng ngoài mọi luật (nguyên tắc 3). */
@@ -186,6 +195,18 @@ export function createGroupShared(deps: GroupServiceDeps) {
     return summary;
   };
 
+  /**
+   * Mức xét đúng lúc người nhận thật sự nhận vai — bấm đồng ý lời giao chủ, được bổ nhiệm điều hành viên — không lúc
+   * được giao: tụt về T0 giữa hai lúc đó thì lượt nhận bị từ chối (spec group-roles). Tụt mức sau khi đã nhận không bãi
+   * vai (design add-trust-tiers câu 7), nên không chỗ nào khác hỏi mức.
+   */
+  const requireTrustedForRole = async (accountId: string): Promise<void> => {
+    const tier = await deps.trust?.tierOf(accountId);
+    if (tier === 'T0') {
+      throw new ConflictError('Cần mức tin cậy T1 trở lên để nhận vai này', 'TRUST_TIER_TOO_LOW');
+    }
+  };
+
   /** Điều hành viên còn dùng được (tài khoản đang hoạt động), trừ người được loại — để đề cử và để biết nhóm còn ai giữ. */
   const usableModerators = async (
     groupId: string,
@@ -224,6 +245,7 @@ export function createGroupShared(deps: GroupServiceDeps) {
     requireState,
     masterAudit,
     requireEligible,
+    requireTrustedForRole,
     usableModerators,
     daysFrom,
     toSummary,

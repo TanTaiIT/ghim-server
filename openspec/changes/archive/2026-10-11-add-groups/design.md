@@ -152,7 +152,7 @@ Crockford không I/L/O/U (như mã tra cứu của `identity`), 6 ký tự, th�
 `badgeEligible(member, group)` trong `badges.calc.ts`: thành viên, nhóm chưa đóng, `joined_via` ∈ {được duyệt, lời
 mời, danh sách lớp, master giao}, và (nhóm công khai · xét duyệt, hoặc nhóm riêng tư đã bật hiện tên). Tạm khoá
 không đổi quyền — đợt 2 chỉ ẩn huy hiệu lúc hiển thị. Mỗi lần quyền có thể đổi (đổi chế độ, công tắc, rời, gỡ, cấm,
-đóng), `group` phát `group.badge_rights_changed` để `listing` (đợt 2) gỡ huy hiệu khỏi tin.
+đóng), `group` phát `group.badge.rights_changed` để `listing` (đợt 2) gỡ huy hiệu khỏi tin.
 
 ### 8. Thông báo của nhóm (nội dung thuộc `group`, gửi đi thuộc `notification`)
 

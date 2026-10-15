@@ -6,13 +6,23 @@ import {
   type GroupMembershipService,
 } from './group.membership.service.js';
 import { sequentially } from '../../common/utils/sequential.js';
-import { pickNominee } from './membership.calc.js';
+import { createGroupPostingService, type GroupPostingService } from './group.posting.service.js';
+import { ALLOWS_MODERATION } from './calc/group-state.calc.js';
+import { pickNominee } from './calc/membership.calc.js';
 import { createGroupShared, type GroupServiceDeps } from './group.shared.js';
 
 export type { GroupServiceDeps } from './group.shared.js';
 
 const STATES_LOSING_OWNER: ReadonlySet<GroupState> = new Set(['active', 'going_private']);
 const OWNERLESS: ReadonlySet<GroupState> = new Set(['ownerless']);
+
+/** Người xử việc của nhóm — `review` định tuyến theo chuỗi TK 16 từ đây. */
+export interface GroupReviewers {
+  /** Nhóm đang cho điều hành (đang hoạt động, thiếu chủ, đang chuyển riêng tư). */
+  moderationAllowed: boolean;
+  ownerId: string | null;
+  moderators: { accountId: string; unitId: string | null }[];
+}
 
 /** Việc hệ thống tự làm (bên nghe outbox, việc theo lịch) và cổng cho module khác. */
 export interface GroupSystemService {
@@ -38,9 +48,17 @@ export interface GroupSystemService {
   unitName(groupId: string, unitId: string): Promise<string | null>;
   announcementBody(announcementId: string): Promise<string | null>;
   isMember(groupId: string, accountId: string): Promise<boolean>;
+  /**
+   * Người xử việc của nhóm cho `review` (TK 16): nhóm còn cho điều hành không, chủ nhóm, điều hành viên kèm phạm vi
+   * (`unitId` null = cả nhóm). Nhóm không có thì `null`.
+   */
+  reviewersOf(groupId: string): Promise<GroupReviewers | null>;
 }
 
-export type GroupService = GroupAdminService & GroupMembershipService & GroupSystemService;
+export type GroupService = GroupAdminService &
+  GroupMembershipService &
+  GroupSystemService &
+  GroupPostingService;
 
 /**
  * Ghép ba mặt của `group` (quản trị, thành viên, hệ thống) trên một phần dùng chung — như `identity`, để mỗi file
@@ -116,6 +134,19 @@ export function createGroupService(deps: GroupServiceDeps): GroupService {
       repository.lockOwnerlessTimedOut(clock(), deps.config.get('group.ownerlessMaxDays')),
     ownsAnyGroup: (accountId) => repository.ownsAnyGroup(accountId),
     managerIds: (groupId) => repository.managerIds(groupId),
+    async reviewersOf(groupId) {
+      const [group, owner, moderators] = await Promise.all([
+        repository.findGroup(groupId),
+        repository.findOwner(groupId),
+        repository.listModerators(groupId),
+      ]);
+      if (!group) return null;
+      return {
+        moderationAllowed: ALLOWS_MODERATION.has(group.state),
+        ownerId: owner?.accountId ?? null,
+        moderators: moderators.map((m) => ({ accountId: m.accountId, unitId: m.moderatorUnitId })),
+      };
+    },
     async moderatorIds(groupId) {
       return (await repository.listModerators(groupId)).map((row) => row.accountId);
     },
@@ -139,6 +170,7 @@ export function createGroupService(deps: GroupServiceDeps): GroupService {
   return {
     ...createGroupAdminService(shared, reevaluateOwnerless),
     ...createGroupMembershipService(shared, reevaluateOwnerless),
+    ...createGroupPostingService(shared),
     ...system,
   };
 }

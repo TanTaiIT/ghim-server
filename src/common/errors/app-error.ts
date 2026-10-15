@@ -11,6 +11,8 @@ export class AppError extends Error {
     public readonly statusCode: number,
     public readonly code: string,
     message: string,
+    /** Dữ liệu cho app tự xử, không phải câu đọc — vd tin nào đang chiếm chỗ khi hết hạn mức tin sống. */
+    public readonly details?: Record<string, unknown>,
   ) {
     super(message);
     this.name = this.constructor.name;
@@ -57,8 +59,12 @@ export class NotFoundError extends AppError {
 
 /** `code` đổi được: `EMAIL_TAKEN` mở màn đăng nhập, `EMAIL_PENDING_DELETION` hiện ngày được đăng ký lại. */
 export class ConflictError extends AppError {
-  constructor(message = 'Dữ liệu đã tồn tại', code = 'CONFLICT') {
-    super(409, code, message);
+  constructor(
+    message = 'Dữ liệu đã tồn tại',
+    code = 'CONFLICT',
+    details?: Record<string, unknown>,
+  ) {
+    super(409, code, message, details);
   }
 }
 
@@ -67,7 +73,11 @@ export class ConflictError extends AppError {
  * `SUBMIT_COOLDOWN` (dính cổng cứng 3 lần trong 24 giờ) thay vì "tin không hợp lệ".
  */
 export class TooManyRequestsError extends AppError {
-  constructor(message = 'Thao tác quá nhanh, thử lại sau', code = 'TOO_MANY_REQUESTS') {
-    super(429, code, message);
+  constructor(
+    message = 'Thao tác quá nhanh, thử lại sau',
+    code = 'TOO_MANY_REQUESTS',
+    details?: Record<string, unknown>,
+  ) {
+    super(429, code, message, details);
   }
 }

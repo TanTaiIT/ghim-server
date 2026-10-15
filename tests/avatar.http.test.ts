@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { imageKey } from '../src/lib/storage.js';
+import { imageKey, StorageUnavailableError } from '../src/lib/storage/storage.js';
 import { prisma } from './db-helpers.js';
 import { api, newUser, type TestUser } from './group-helpers.js';
 import { firstByteAt, requestUpload, setAvatar, uploadImage } from './media-helpers.js';
@@ -140,5 +140,30 @@ describe('Ảnh đã tải không bị ghi đè', () => {
     expect(await firstByteAt(res.json().data.avatarUrl)).toBe(0x02);
     expect(await firstByteAt(await storage.viewUrl(imageKey(first), 3600))).toBe(0x01);
     expect((await imageRow(first)).releasedAt).not.toBeNull();
+  });
+});
+
+describe('Kho ảnh tạm không trả lời', () => {
+  it('đặt ảnh đại diện lúc kho không trả lời: 503 STORAGE_UNAVAILABLE, ảnh đại diện giữ nguyên, nhãn còn', async () => {
+    const user = await newUser(app);
+    const current = await uploadImage(app, user, 0x10);
+    await setAvatar(app, user, { imageId: current });
+    const next = await uploadImage(app, user, 0x20);
+    const flaky = await buildTestApp({
+      storage: {
+        ...storage,
+        head: () => Promise.reject(new StorageUnavailableError('đọc thông tin ảnh')),
+      },
+    });
+    try {
+      await flaky.ready();
+      const res = await setAvatar(flaky, user, { imageId: next });
+      expect(res.statusCode).toBe(503);
+      expect(res.json().error.code).toBe('STORAGE_UNAVAILABLE');
+    } finally {
+      await flaky.close();
+    }
+    expect(await firstByteAt((await meOf(user)).avatarUrl ?? '')).toBe(0x10);
+    expect((await imageRow(next)).confirmedAt).toBeNull();
   });
 });

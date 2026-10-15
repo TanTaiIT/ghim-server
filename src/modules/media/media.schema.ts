@@ -25,11 +25,15 @@ export const uploadBodySchema = z
 
 export const uploadGrantSchema = z.object({
   imageId: z.uuid(),
+  /**
+   * `PUT` (kho chuẩn S3): gửi thân tệp kèm nguyên văn `headers` và `Content-Length` đúng `byteSize`. `POST` (Cloudinary):
+   * gửi biểu mẫu multipart gồm nguyên văn `fields`, tệp ở trường `file` sau cùng. Hướng dẫn ở `docs/media.md`.
+   */
   upload: z.object({
-    method: z.literal('PUT'),
+    method: z.enum(['PUT', 'POST']),
     url: z.string(),
-    /** Ba header chữ ký phủ lên — app gửi đúng nguyên văn, kèm `Content-Length` bằng đúng `byteSize`. */
     headers: z.record(z.string(), z.string()),
+    fields: z.record(z.string(), z.string()),
     expiresAt: z.iso.datetime(),
   }),
 });

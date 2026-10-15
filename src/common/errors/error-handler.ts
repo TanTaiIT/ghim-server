@@ -5,6 +5,7 @@ import {
   isResponseSerializationError,
 } from 'fastify-type-provider-zod';
 
+import { StorageUnavailableError } from '../../lib/storage/storage.js';
 import { AppError } from './app-error.js';
 
 /**
@@ -80,9 +81,14 @@ export function errorHandler(
   reply: FastifyReply,
 ): FastifyReply {
   if (error instanceof AppError) {
-    return reply
-      .status(error.statusCode)
-      .send({ success: false, error: { code: error.code, message: error.message } });
+    return reply.status(error.statusCode).send({
+      success: false,
+      error: {
+        code: error.code,
+        message: error.message,
+        ...(error.details ? { details: error.details } : {}),
+      },
+    });
   }
 
   // Mã Prisma ngoài bảng `PRISMA_ERRORS` rơi xuống nhánh 500 cuối: chưa lường trước thì chưa map.
@@ -94,6 +100,18 @@ export function errorHandler(
         .status(mapped.status)
         .send({ success: false, error: { code: mapped.code, message: mapped.message } });
     }
+  }
+
+  // Kho ảnh tạm không trả lời: thao tác lại sau là được, nên không phải "Lỗi hệ thống". Log để thấy kho chập chờn.
+  if (error instanceof StorageUnavailableError) {
+    request.log.warn({ err: error }, 'Kho ảnh không trả lời');
+    return reply.status(503).send({
+      success: false,
+      error: {
+        code: 'STORAGE_UNAVAILABLE',
+        message: 'Kho ảnh đang bận — thử lại sau ít phút.',
+      },
+    });
   }
 
   if (hasZodFastifySchemaValidationErrors(error)) {

@@ -1,9 +1,9 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 
 import type { RuntimeConfig } from '../../common/config/runtime-config.js';
-import { identityAuthRoutes } from './identity.auth.routes.js';
-import { identityMeRoutes } from './identity.me.routes.js';
-import { identityOpsRoutes } from './identity.ops.routes.js';
+import { identityAuthRoutes } from './auth/auth.routes.js';
+import { identityMeRoutes } from './account/me.routes.js';
+import { identityOpsRoutes } from './ops/ops.routes.js';
 import type { IdentityService } from './identity.service.js';
 
 export interface IdentityRoutesOptions {

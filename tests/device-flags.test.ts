@@ -33,9 +33,11 @@ const at = (offsetMs: number): Date => new Date(START.getTime() + offsetMs);
 
 const serviceAt = (now: Date) => buildIdentityService({ now }).service;
 
-/** Gửi tin lúc `when` — một service mới cho mỗi mốc. */
-const post = (accountId: string, device: string, when: Date) =>
-  serviceAt(when).recordListingSubmission(accountId, device);
+/** Gửi tin lúc `when` — một service mới cho mỗi mốc; mã thô chỉ đi qua `deviceToken`, như từ `listing`. */
+const post = (accountId: string, device: string, when: Date) => {
+  const service = serviceAt(when);
+  return service.recordListingSubmission(accountId, service.deviceToken(device), when);
+};
 
 async function accounts(names: string[]): Promise<Record<string, string>> {
   const rows = await Promise.all(

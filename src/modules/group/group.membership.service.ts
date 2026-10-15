@@ -10,9 +10,9 @@ import {
 } from '../../common/errors/app-error.js';
 import { fold } from '../../common/text/fold.js';
 import { formatDateVN, formatTimeVN, startOfDayVN } from '../../common/time/time.js';
-import { badgeEligible } from './badges.calc.js';
-import { ACCEPTS_MEMBERS, ALLOWS_MODERATION, isPublicMode } from './group-state.calc.js';
-import { decideJoin, joinRequestBlock, normalizeGroupCode } from './membership.calc.js';
+import { badgeEligible } from './calc/badges.calc.js';
+import { ACCEPTS_MEMBERS, ALLOWS_MODERATION, isPublicMode } from './calc/group-state.calc.js';
+import { decideJoin, joinRequestBlock, normalizeGroupCode } from './calc/membership.calc.js';
 import type { AddMemberFailure, Page } from './group.repository.js';
 import type {
   AnnouncementDto,

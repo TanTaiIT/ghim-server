@@ -31,7 +31,7 @@ giờ; hàng 4 chuyển từ nhóm — 72 giờ; hàng 5 mẫu hậu kiểm — 
 Mỗi lần máy giữ một tin cho người — lúc gửi, lúc gửi lại sau khi sửa, hay khi máy rút một tin đang hiển thị
 về chờ duyệt vì một cụm từ cấm vừa bật thật — hệ thống SHALL sinh một việc hàng 0 về tin đó. Mỗi lần máy cho một tin qua kèm lý do hạn chế "máy",
 hệ thống SHALL sinh một việc hàng 3; tin vẫn hiển thị hạn chế trong lúc chờ. Lưới an toàn chuyển một tin đang
-hiện thiếu kết quả ảnh sang hạn chế thì hệ thống SHALL sinh một việc về tin đó.
+hiện thiếu kết quả ảnh sang hạn chế thì hệ thống SHALL sinh một việc hàng 3 về tin đó (chốt 15/10/2026).
 
 #### Scenario: Máy giữ tin lúc gửi
 
@@ -51,7 +51,7 @@ hiện thiếu kết quả ảnh sang hạn chế thì hệ thống SHALL sinh m
 #### Scenario: Lưới an toàn gặp tin thiếu kết quả ảnh
 
 - **WHEN** lưới an toàn chuyển một tin đang hiện thiếu kết quả ảnh sang hiển thị hạn chế
-- **THEN** tin có một việc đang mở để người xem lại
+- **THEN** tin có một việc hàng 3 đang mở để người xem lại
 
 ### Requirement: Việc vào hàng của ai
 
@@ -78,6 +78,12 @@ master. Master SHALL thấy và xử được mọi việc.
   do nhóm duyệt", bị máy giữ
 - **THEN** việc hiện trong hàng của điều hành viên lớp 10A và không hiện trong hàng của điều hành viên chỉ
   phụ trách lớp 10B
+
+#### Scenario: Điều hành cả nhóm chỉ thấy việc của lớp khi lớp không còn ai xử được
+
+- **WHEN** tin của một thành viên lớp 10A bị máy giữ, lớp 10A có điều hành viên xử được, và nhóm có một điều hành
+  viên cấp cả nhóm
+- **THEN** việc không hiện trong hàng của điều hành viên cấp cả nhóm hay của chủ nhóm (chốt 15/10/2026)
 
 #### Scenario: Không chia theo khu vực
 
@@ -155,10 +161,11 @@ lý do, hạn xử lấy hạn sớm nhất, người xử theo hàng có số n
 - **WHEN** lượt lấy mẫu hậu kiểm và lượt máy giữ bản sửa cùng sinh việc về một tin trong cùng một lúc
 - **THEN** tin chỉ có một việc đang mở
 
-### Requirement: Việc máy giữ tự huỷ khi máy cho bản sửa qua
+### Requirement: Máy cho bản sửa qua thì bỏ lý do của máy
 
-Việc chỉ mang lý do máy giữ SHALL tự huỷ khi người đăng sửa tin và máy cho bản sửa qua. Máy giữ bản sửa thì
-việc vẫn mở và MUST NOT được kéo dài hạn xử.
+Khi người đăng sửa một tin đang có việc mở và máy cho bản sửa qua, lý do "máy giữ" SHALL bị bỏ; máy cho qua ở mức đầy
+đủ thì lý do "hạn chế do máy" cũng SHALL bị bỏ. Máy vẫn giữ hay vẫn hạn chế bản sửa thì lý do tương ứng còn nguyên và
+hạn xử MUST NOT được kéo dài (chốt 15/10/2026).
 
 #### Scenario: Sửa xong máy cho qua
 
@@ -169,6 +176,42 @@ việc vẫn mở và MUST NOT được kéo dài hạn xử.
 
 - **WHEN** tin đang chờ duyệt còn 5 giờ hạn, người đăng sửa và máy giữ bản sửa
 - **THEN** tin vẫn chỉ có một việc mở và hạn xử vẫn là 5 giờ còn lại
+
+#### Scenario: Tin hạn chế do máy được sửa và máy cho qua đầy đủ
+
+- **WHEN** tin của T1 đang hiển thị hạn chế với việc hàng 3, người đăng sửa và máy cho bản sửa qua ở mức đầy đủ
+- **THEN** việc hàng 3 bị huỷ
+
+### Requirement: Bản sửa bỏ lý do mẫu hậu kiểm
+
+Mỗi bản sửa của người đăng SHALL bỏ lý do "mẫu hậu kiểm" của việc về tin đó: nội dung đã khác bản được chọn mẫu, và
+bản mới khi lên bảng được xét lấy mẫu lại (chốt 15/10/2026).
+
+#### Scenario: Tin đang trong mẫu hậu kiểm được sửa
+
+- **WHEN** tin có việc hàng 5 được người đăng sửa và máy cho bản sửa qua
+- **THEN** việc hàng 5 bị huỷ và không được đếm vào số "bỏ sót"
+
+### Requirement: Việc hết lý do thì huỷ, còn lý do thì xếp lại
+
+Việc không còn lý do nào SHALL bị huỷ. Việc còn lý do SHALL xếp lại hàng và người xử theo các lý do còn lại, giữ
+nguyên hạn xử (chốt 15/10/2026).
+
+#### Scenario: Việc gộp còn lý do khác
+
+- **WHEN** việc về một tin của T1 mang cả lý do "hạn chế do máy" lẫn lý do "máy giữ", người đăng sửa và máy cho bản
+  sửa qua ở mức hạn chế
+- **THEN** việc vẫn mở với lý do "hạn chế do máy", nằm ở hàng 3, và hạn xử không đổi
+
+### Requirement: Rút tin chờ duyệt về nháp thì việc bị huỷ
+
+Người đăng rút một tin đang chờ duyệt về nháp thì việc đang mở về tin đó SHALL bị huỷ; gửi lại thì máy chấm lại và
+sinh việc mới nếu còn giữ (chốt 15/10/2026).
+
+#### Scenario: Rút tin bị giữ về nháp
+
+- **WHEN** tin đang chờ duyệt có việc hàng 0 và người đăng rút tin về nháp
+- **THEN** việc bị huỷ và không còn trong hàng chờ của ai
 
 ### Requirement: Quá hạn chỉ chuyển cấp, không bao giờ tự mở tin
 
@@ -191,6 +234,12 @@ do hạn chế thay cho người.
 - **WHEN** việc hàng 5 đã gộp thêm lý do máy giữ và quá hạn xử
 - **THEN** việc được chuyển sang hàng của master, không bị huỷ, và tin vẫn ở trạng thái chờ duyệt
 
+#### Scenario: Người xử ban đầu không còn thấy việc đã chuyển
+
+- **WHEN** việc hàng 0 trong hàng của staff A quá hạn và được chuyển sang hàng của master
+- **THEN** việc không còn trong hàng chờ của A, và A nhận việc đó bằng mã việc thì nhận HTTP 404 `NOT_FOUND` (chốt
+  15/10/2026)
+
 ### Requirement: Hàng của master có nhắc hạn
 
 Việc nằm trong hàng của master quá 72 giờ (giá trị khởi đầu) SHALL hiện là quá hạn trên bảng tồn và master
@@ -209,8 +258,9 @@ Việc nằm trong hàng của master quá 72 giờ (giá trị khởi đầu) S
 
 ### Requirement: Cảnh báo khi nhiều việc sắp chạm hạn
 
-Hệ thống SHALL phát một cảnh báo khi từ một nửa số việc đang mở trở lên sẽ chạm hạn xử trong 24 giờ tới; hệ
-thống kiểm mỗi giờ.
+Hệ thống SHALL phát một cảnh báo tới master khi từ một nửa số việc đang mở trên toàn hệ thống trở lên sẽ chạm hạn
+xử trong 24 giờ tới; hệ thống kiểm mỗi giờ. Cảnh báo lặp lại khi master chưa đọc SHALL cập nhật dòng cũ thay vì
+thêm dòng (chốt 15/10/2026).
 
 #### Scenario: Một nửa số việc sắp chạm hạn
 
@@ -221,3 +271,8 @@ thống kiểm mỗi giờ.
 
 - **WHEN** mọi việc đang mở nằm trong một hàng, có 10 việc và 4 việc sẽ chạm hạn trong 24 giờ tới
 - **THEN** không có cảnh báo nào được phát
+
+#### Scenario: Cảnh báo hai giờ liền
+
+- **WHEN** điều kiện cảnh báo đúng ở hai lượt kiểm liền nhau và master chưa đọc cảnh báo đầu
+- **THEN** hộp thư của master vẫn chỉ có một dòng cảnh báo chưa đọc

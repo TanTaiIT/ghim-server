@@ -28,7 +28,8 @@ import { createJobs, type Jobs } from './lib/jobs.js';
 import { logger } from './lib/logger.js';
 import { createFakeMailer, createSmtpMailer, type Mailer } from './lib/mailer.js';
 import { prisma } from './lib/prisma.js';
-import { createS3Storage, type Storage } from './lib/storage.js';
+import { createStorage } from './lib/storage/create-storage.js';
+import type { Storage } from './lib/storage/storage.js';
 import { createCategoryModule } from './modules/category/category.module.js';
 import {
   createCategoryRepository,
@@ -49,7 +50,34 @@ import {
   type IdentityRepository,
 } from './modules/identity/identity.repository.js';
 import type { IdentityService } from './modules/identity/identity.service.js';
+import { createListingModule } from './modules/listing/listing.module.js';
+import {
+  type ListingScreeningPort,
+  type ListingTrustPort,
+} from './modules/listing/listing.ports.js';
+import {
+  createListingRepository,
+  type ListingRepository,
+} from './modules/listing/listing.repository.js';
+import type { ListingService } from './modules/listing/listing.service.js';
 import { createMediaModule } from './modules/media/media.module.js';
+import { createReviewModule } from './modules/review/review.module.js';
+import {
+  createReviewRepository,
+  type ReviewRepository,
+} from './modules/review/review.repository.js';
+import type { ReviewService } from './modules/review/review.service.js';
+import { sharpHasher } from './modules/screening/run/image-hash.js';
+import { createScreeningModule } from './modules/screening/screening.module.js';
+import {
+  createScreeningRepository,
+  type ScreeningRepository,
+} from './modules/screening/screening.repository.js';
+import type { ScreeningService } from './modules/screening/screening.service.js';
+import { createTrustModule } from './modules/trust/trust.module.js';
+import { createTrustRepository, type TrustRepository } from './modules/trust/trust.repository.js';
+import type { TrustService } from './modules/trust/trust.service.js';
+import { noBuyerInterest } from './modules/trust/trust.shared.js';
 import { createMediaRepository, type MediaRepository } from './modules/media/media.repository.js';
 import type { MediaService } from './modules/media/media.service.js';
 import { createNotificationModule } from './modules/notification/notification.module.js';
@@ -83,6 +111,10 @@ export interface AppServices {
   group: GroupService;
   notification: NotificationService;
   media: MediaService;
+  listing: ListingService;
+  trust: TrustService;
+  screening: ScreeningService;
+  review: ReviewService;
 }
 
 export interface Repositories {
@@ -91,6 +123,10 @@ export interface Repositories {
   category: CategoryRepository;
   group: GroupRepository;
   media: MediaRepository;
+  listing: ListingRepository;
+  trust: TrustRepository;
+  screening: ScreeningRepository;
+  review: ReviewRepository;
 }
 
 declare module 'fastify' {
@@ -128,6 +164,16 @@ export interface AppDeps {
 
 export type AppOverrides = Partial<Omit<AppDeps, 'repositories'>> & {
   repositories?: Partial<Repositories>;
+  /**
+   * Cổng mức tin cậy và hạn mức mà `listing` và `group` hỏi — bỏ trống là `trust` thật. Test không bàn về hạn mức đè
+   * bằng `createInterimTrust`: nhịp gửi thật của T0 (3 lượt / giờ, đồng hồ test đứng yên) chặn luồng của chúng.
+   */
+  trust?: ListingTrustPort;
+  /**
+   * Cổng máy duyệt mà `listing` gọi trong lượt gửi — bỏ trống là `screening` thật. Test không bàn về máy duyệt đè bằng
+   * `interimScreening`: máy thật giữ tin chờ kết quả ảnh, mà test tự quyết lúc nào máy cho qua.
+   */
+  screening?: ListingScreeningPort;
 };
 
 /** `SMTP_URL` chỉ được trống ở test (env.ts), và ở test thì thư vào mảng. */
@@ -150,6 +196,10 @@ async function resolveConfig(
   return { config: versioned, versioned };
 }
 
+const notBuilt = (module: string): never => {
+  throw new Error(`${module} chưa dựng xong`);
+};
+
 /**
  * Dựng app nhưng KHÔNG listen — `server.ts` mới mở cổng.
  *
@@ -163,13 +213,17 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     category: overrides.repositories?.category ?? createCategoryRepository(prisma),
     group: overrides.repositories?.group ?? createGroupRepository(prisma),
     media: overrides.repositories?.media ?? createMediaRepository(prisma),
+    listing: overrides.repositories?.listing ?? createListingRepository(prisma),
+    trust: overrides.repositories?.trust ?? createTrustRepository(prisma),
+    screening: overrides.repositories?.screening ?? createScreeningRepository(prisma),
+    review: overrides.repositories?.review ?? createReviewRepository(prisma),
   };
   const { config, versioned } = await resolveConfig(overrides.config, repositories.platform);
   const deps: AppDeps = {
     repositories,
     jobs: overrides.jobs ?? createJobs(env.DATABASE_URL, { max: env.JOBS_POOL_MAX }),
     mailer: overrides.mailer ?? defaultMailer(),
-    storage: overrides.storage ?? createS3Storage(parseStorageUrl(env.STORAGE_URL)),
+    storage: overrides.storage ?? createStorage(parseStorageUrl(env.STORAGE_URL)),
     googleVerifier: overrides.googleVerifier ?? createGoogleTokenVerifier(env.GOOGLE_CLIENT_IDS),
     privilegeSource:
       overrides.privilegeSource ?? createPlatformPrivilegeSource(repositories.platform),
@@ -181,6 +235,30 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
   // `identity`. Chiều ngược lại — `identity` hỏi "có đang là chủ nhóm" lúc xoá tài khoản — đi qua tham chiếu muộn:
   // chỉ được gọi khi có request, lúc đó `group` đã dựng xong.
   let groupService: GroupService | null = null;
+  // `listing` dựng sau `media` và `group` vì cần cả hai; hai cổng ngược (chủ ảnh là tin, đếm tin "nhóm công khai")
+  // cũng nối muộn — chỉ được gọi khi có request hay việc nền, lúc đó `listing` đã dựng xong.
+  let listingService: ListingService | null = null;
+  // `trust` dựng sau `listing` (hỏi dữ kiện tin qua cổng của nó), mà `listing` và `group` hỏi mức, hạn mức của
+  // `trust`: hai chiều nối muộn, như trên (design add-trust-tiers mục 1).
+  let trustService: TrustService | null = null;
+  const trust: ListingTrustPort = overrides.trust ?? {
+    tierOf: (accountId) => trustService?.tierOf(accountId) ?? notBuilt('trust'),
+    assertCanSubmit: (tx, input) => trustService?.assertCanSubmit(tx, input) ?? notBuilt('trust'),
+  };
+  // `screening` dựng sau `listing` và `trust` (hỏi dữ kiện tin và mức qua cổng của chúng), mà `listing` gọi máy duyệt
+  // trong lượt gửi, `identity` lọc tên, `trust` lấy câu cho tin chờ duyệt: ba chiều nối muộn (design add-screening mục 12).
+  let screeningService: ScreeningService | null = null;
+  const lateScreening: Pick<ScreeningService, 'precheck' | 'scoreText' | 'openRun' | 'notices'> = {
+    precheck: (accountId, kind) =>
+      screeningService?.precheck(accountId, kind) ?? notBuilt('screening'),
+    scoreText: (input) => screeningService?.scoreText(input) ?? notBuilt('screening'),
+    openRun: (tx, input) => screeningService?.openRun(tx, input) ?? notBuilt('screening'),
+    notices: (listingIds) => screeningService?.notices(listingIds) ?? notBuilt('screening'),
+  };
+  // Cổng của `listing` khai `score: unknown` — kết quả chỉ đi từ `scoreText` sang `openRun` của cùng lượt gửi.
+  const screening: ListingScreeningPort = overrides.screening ?? lateScreening;
+  // `review` dựng sau mọi module nó hỏi; `listing` hỏi ngược "tin có việc đang mở không" lúc đổi nơi đăng — nối muộn.
+  let reviewService: ReviewService | null = null;
   // Cổng realtime cần HTTP server của Fastify, mà module dựng trước Fastify: module cầm một tay nối, cổng thật gắn
   // vào ngay sau khi Fastify có server (dưới đây).
   let gateway: Realtime | null = null;
@@ -196,6 +274,13 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     storage: deps.storage,
     config: deps.config,
     clock: deps.clock,
+    owners: {
+      listing: {
+        canUpload: (accountId, listingId) =>
+          listingService?.canUpload(accountId, listingId) ?? notBuilt('listing'),
+        existing: (ids) => listingService?.existingListings(ids) ?? notBuilt('listing'),
+      },
+    },
   });
   const identity = createIdentityModule({
     ...deps,
@@ -206,6 +291,9 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     sessionsRevoked: {
       session: (sessionId) => realtime.disconnectSession(sessionId),
       account: (accountId) => realtime.disconnectUser(accountId),
+    },
+    names: {
+      hidden: (names) => screeningService?.hiddenNames(names) ?? notBuilt('screening'),
     },
     repository: repositories.identity,
     secrets: createSecretBox(env.SECRETS_ENCRYPTION_KEY),
@@ -225,8 +313,74 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     identity: identity.service,
     config: deps.config,
     clock: deps.clock,
+    trust: { tierOf: (accountId) => trust.tierOf(accountId) },
+    publicListings: {
+      countInGroup: (tx, groupId) =>
+        listingService?.countGroupPublic(tx, groupId) ?? notBuilt('listing'),
+    },
   });
   groupService = group.service;
+  const listing = createListingModule({
+    repository: repositories.listing,
+    groups: group.service,
+    categories: category.service,
+    media: media.service,
+    identity: identity.service,
+    trust,
+    screening,
+    openWork: {
+      blocksPlacement: (listingId) =>
+        reviewService?.blocksPlacement(listingId) ?? notBuilt('review'),
+    },
+    config: deps.config,
+    clock: deps.clock,
+  });
+  listingService = listing.service;
+  const trustModule = createTrustModule({
+    repository: repositories.trust,
+    listings: listing.service,
+    identity: identity.service,
+    buyerInterest: noBuyerInterest,
+    holds: {
+      explain: (ids) => screeningService?.explainHolds(ids) ?? notBuilt('screening'),
+      cooldownOf: (accountId) => screeningService?.cooldownOf(accountId) ?? notBuilt('screening'),
+    },
+    config: deps.config,
+    clock: deps.clock,
+  });
+  trustService = trustModule.service;
+  const screeningModule = createScreeningModule({
+    repository: repositories.screening,
+    listings: listing.service,
+    categories: category.service,
+    identity: identity.service,
+    media: media.service,
+    trust: { tierOf: (accountId) => trust.tierOf(accountId) },
+    hasher: sharpHasher,
+    jobs: deps.jobs,
+    config: deps.config,
+    clock: deps.clock,
+  });
+  screeningService = screeningModule.service;
+  const review = createReviewModule({
+    repository: repositories.review,
+    listings: listing.service,
+    screening: screeningModule.service,
+    identity: identity.service,
+    trust: {
+      tierOf: (accountId) => trust.tierOf(accountId),
+      cleanCount: (accountId) => trustModule.service.cleanCount(accountId),
+    },
+    groups: group.service,
+    platform: platform.service,
+    categories: category.service,
+    media: media.service,
+    privileges: deps.privilegeSource,
+    jobs: deps.jobs,
+    config: deps.config,
+    clock: deps.clock,
+  });
+  reviewService = review.service;
   const notification = createNotificationModule({
     repository: createNotificationRepository(prisma),
     groups: {
@@ -241,6 +395,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
       isMember: (groupId, accountId) => group.service.isMember(groupId, accountId),
     },
     identity: identity.service,
+    listings: listing.service,
     realtime,
     config: deps.config,
     clock: deps.clock,
@@ -251,6 +406,10 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     category.module,
     platform.module,
     group.module,
+    listing.module,
+    trustModule.module,
+    screeningModule.module,
+    review.module,
     notification.module,
     createOutboxModule(prisma),
   ];
@@ -335,6 +494,10 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     group: group.service,
     notification: notification.service,
     media: media.service,
+    listing: listing.service,
+    trust: trustModule.service,
+    screening: screeningModule.service,
+    review: review.service,
   });
   app.decorate('moduleList', moduleList);
 

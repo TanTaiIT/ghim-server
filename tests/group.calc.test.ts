@@ -1,13 +1,13 @@
 import type { GroupJoinPath, GroupMode, GroupState } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 
-import { badgeEligible } from '../src/modules/group/badges.calc.js';
+import { badgeEligible } from '../src/modules/group/calc/badges.calc.js';
 import {
   allowsSettings,
   closable,
   type ModeChangePlan,
   planModeChange,
-} from '../src/modules/group/group-state.calc.js';
+} from '../src/modules/group/calc/group-state.calc.js';
 import {
   decideJoin,
   generateGroupCode,
@@ -16,7 +16,7 @@ import {
   normalizeGroupCode,
   pickNominee,
   roleIneligibility,
-} from '../src/modules/group/membership.calc.js';
+} from '../src/modules/group/calc/membership.calc.js';
 
 const NOW = new Date('2026-10-10T09:00:00+07:00');
 const DAY_MS = 86_400_000;

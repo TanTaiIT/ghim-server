@@ -4,9 +4,9 @@ import {
   LOOKUP_CODE_ALPHABET,
   generateLookupCode,
   normalizeLookupCode,
-} from '../src/modules/identity/lookup-code.calc.js';
+} from '../src/common/crypto/lookup-code.js';
 import { fold } from '../src/common/text/fold.js';
-import { isReservedName } from '../src/modules/identity/reserved-names.js';
+import { isReservedName } from '../src/modules/identity/calc/reserved-names.calc.js';
 
 describe('generateLookupCode', () => {
   it('8 ký tự Crockford, không bao giờ có I, L, O, U', () => {

@@ -6,17 +6,24 @@ import {
 } from '@aws-sdk/client-s3';
 
 import { parseStorageUrl } from '../src/config/storage-url.js';
-import { createS3Storage, type Storage } from '../src/lib/storage.js';
+import { createS3Storage } from '../src/lib/storage/s3.storage.js';
+import type { Storage } from '../src/lib/storage/storage.js';
 
 /**
  * Kho test: container `storage-test` (RustFS trên tmpfs), mỗi worker một bucket như mỗi worker một DB. Các hàm ở đây
  * dựng và dọn bucket — việc app không bao giờ làm, nên không nằm trong `Storage`.
  */
-export const storageOf = (storageUrl: string): Storage =>
-  createS3Storage(parseStorageUrl(storageUrl));
+/** Kho của test luôn là RustFS (chuẩn S3); Cloudinary chỉ kiểm tay trên tài khoản thật. */
+const s3ConfigOf = (storageUrl: string) => {
+  const config = parseStorageUrl(storageUrl);
+  if (config.kind !== 's3') throw new Error('Test cần kho chuẩn S3 (RustFS)');
+  return config;
+};
+
+export const storageOf = (storageUrl: string): Storage => createS3Storage(s3ConfigOf(storageUrl));
 
 const clientOf = (storageUrl: string) => {
-  const config = parseStorageUrl(storageUrl);
+  const config = s3ConfigOf(storageUrl);
   return {
     bucket: config.bucket,
     client: new S3Client({

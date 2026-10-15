@@ -287,7 +287,7 @@ describe('chuyện của nhóm', () => {
       where: { type: 'group.join_request.decided' },
       orderBy: { createdAt: 'desc' },
     });
-    await app.modules.notification.handleGroupEvent(event.payload as Record<string, unknown>, {
+    await app.modules.notification.handleEvent(event.payload as Record<string, unknown>, {
       id: event.id,
       type: event.type,
     });

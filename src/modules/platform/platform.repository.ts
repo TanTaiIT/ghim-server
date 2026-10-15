@@ -8,6 +8,8 @@ import type {
 } from '@prisma/client';
 
 import { appendAudit, type AuditEntry } from '../../common/audit/audit.js';
+import { appendEvents } from '../../common/outbox/outbox.js';
+import { staffChangedEvent } from './platform.outbox.js';
 
 export type { AuditLog, ConfigVersion, StaffScope };
 
@@ -80,6 +82,8 @@ export interface PlatformRepository {
    */
   findStaffGrant(accountId: string): Promise<StaffGrantRow | null>;
   listStaff(filter: { categoryId?: string }): Promise<StaffPermissionRow[]>;
+  /** Staff đang hoạt động (không bị treo) của từng danh mục. */
+  activeStaffByCategory(categoryIds: string[]): Promise<Map<string, string[]>>;
   /** Thay cả gói phạm vi; giữ nguyên trạng thái treo nếu đang treo. */
   upsertStaff(input: StaffGrantInput): Promise<StaffPermissionRow>;
   /** `false` khi không có quyền để thu. */
@@ -161,6 +165,18 @@ export function createPlatformRepository(prisma: PrismaClient): PlatformReposito
       return rows.map(toRow);
     },
 
+    async activeStaffByCategory(categoryIds) {
+      const rows = await prisma.staffCategoryGrant.findMany({
+        where: { categoryId: { in: [...new Set(categoryIds)] }, permission: { status: 'active' } },
+        select: { categoryId: true, accountId: true },
+      });
+      const byCategory = new Map<string, string[]>();
+      for (const row of rows) {
+        byCategory.set(row.categoryId, [...(byCategory.get(row.categoryId) ?? []), row.accountId]);
+      }
+      return byCategory;
+    },
+
     upsertStaff: ({ accountId, scopes, categoryIds, grantedBy, at, audit }) =>
       prisma.$transaction(async (tx) => {
         await tx.staffPermission.upsert({
@@ -175,6 +191,7 @@ export function createPlatformRepository(prisma: PrismaClient): PlatformReposito
           });
         }
         await appendAudit(tx, audit);
+        await appendEvents(tx, [staffChangedEvent(accountId)]);
         const row = await tx.staffPermission.findUniqueOrThrow({
           where: { accountId },
           ...withCategories,
@@ -187,6 +204,7 @@ export function createPlatformRepository(prisma: PrismaClient): PlatformReposito
         const { count } = await tx.staffPermission.deleteMany({ where: { accountId } });
         if (count === 0) return false;
         await appendAudit(tx, audit);
+        await appendEvents(tx, [staffChangedEvent(accountId)]);
         return true;
       }),
 
@@ -198,21 +216,26 @@ export function createPlatformRepository(prisma: PrismaClient): PlatformReposito
           ...withCategories,
         });
         await appendAudit(tx, audit);
+        await appendEvents(tx, [staffChangedEvent(accountId)]);
         return toRow(row);
       }),
 
-    async removeStaff(accountId) {
-      const { count } = await prisma.staffPermission.deleteMany({ where: { accountId } });
-      return count > 0;
-    },
+    removeStaff: (accountId) =>
+      prisma.$transaction(async (tx) => {
+        const { count } = await tx.staffPermission.deleteMany({ where: { accountId } });
+        if (count > 0) await appendEvents(tx, [staffChangedEvent(accountId)]);
+        return count > 0;
+      }),
 
-    async suspendStaff({ accountId, reason, at }) {
-      const { count } = await prisma.staffPermission.updateMany({
-        where: { accountId, status: 'active' },
-        data: { status: 'suspended', suspendedAt: at, suspendedReason: reason },
-      });
-      return count > 0;
-    },
+    suspendStaff: ({ accountId, reason, at }) =>
+      prisma.$transaction(async (tx) => {
+        const { count } = await tx.staffPermission.updateMany({
+          where: { accountId, status: 'active' },
+          data: { status: 'suspended', suspendedAt: at, suspendedReason: reason },
+        });
+        if (count > 0) await appendEvents(tx, [staffChangedEvent(accountId)]);
+        return count > 0;
+      }),
 
     findCurrentConfig: () => prisma.configVersion.findFirst({ orderBy: { version: 'desc' } }),
     findConfigVersion: (version) => prisma.configVersion.findUnique({ where: { version } }),
