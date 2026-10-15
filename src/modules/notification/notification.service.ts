@@ -17,6 +17,7 @@ import {
 } from './notification.matrix.js';
 import { LISTING_MATRIX } from './notification.listing-matrix.js';
 import { MEDIA_MATRIX } from './notification.media-matrix.js';
+import { REVIEW_MATRIX } from './notification.review-matrix.js';
 import type { NotificationRepository, NotificationRow } from './notification.repository.js';
 import {
   ALWAYS_ON,
@@ -46,7 +47,10 @@ export interface NotificationGroupPort {
 export interface NotificationServiceDeps {
   repository: NotificationRepository;
   groups: NotificationGroupPort;
-  identity: { accountSummaries(ids: string[]): Promise<Map<string, AccountSummary>> };
+  identity: {
+    accountSummaries(ids: string[]): Promise<Map<string, AccountSummary>>;
+    masterIds(): Promise<string[]>;
+  };
   /** Tiêu đề, người đăng của tin cho câu thông báo — `notification` không đọc bảng `listings` (TK 30). */
   listings: Pick<ListingService, 'titles' | 'noticeTargets'>;
   realtime: Realtime;
@@ -112,6 +116,7 @@ export function createNotificationService(deps: NotificationServiceDeps): Notifi
     pendingCount: (groupId) => groups.countPendingRequests(groupId),
     listingTitles: (ids) => listings.titles(ids),
     listingTargets: (ids) => listings.noticeTargets(ids),
+    masterIds: () => identity.masterIds(),
   };
 
   /** Ai trong danh sách được nhắc — thông báo vẫn vào hộp thư của tất cả. */
@@ -249,7 +254,10 @@ export function createNotificationService(deps: NotificationServiceDeps): Notifi
   return {
     async handleEvent(payload, event) {
       const handler: Handler | undefined =
-        GROUP_MATRIX[event.type] ?? LISTING_MATRIX[event.type] ?? MEDIA_MATRIX[event.type];
+        GROUP_MATRIX[event.type] ??
+        LISTING_MATRIX[event.type] ??
+        MEDIA_MATRIX[event.type] ??
+        REVIEW_MATRIX[event.type];
       if (!handler) return;
       const result = await handler(payload, context);
       await sequentially(result.drafts, ({ recipients, ...draft }) =>

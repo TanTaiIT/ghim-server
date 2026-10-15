@@ -29,6 +29,7 @@ const contextWith = (
     Promise.resolve(
       new Map(ids.flatMap((id) => (targets[id] ? [[id, targets[id]] as const] : []))),
     ),
+  masterIds: unused,
 });
 
 const handle = MEDIA_MATRIX[MEDIA_EVENTS.imageMissing];

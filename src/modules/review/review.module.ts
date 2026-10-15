@@ -1,5 +1,6 @@
 import type { AppModule } from '../../common/module/app-module.js';
 import { registerReviewListeners } from './review.events.js';
+import { registerReviewJobs } from './review.jobs.js';
 import { reviewRoutes } from './review.routes.js';
 import {
   createReviewService,
@@ -20,6 +21,7 @@ export function createReviewModule(deps: ReviewServiceDeps): {
         await app.register(reviewRoutes, { review: service });
       },
       listeners: (dispatcher) => registerReviewListeners(dispatcher, service),
+      jobs: (jobs) => registerReviewJobs(jobs, service),
       startup: () => service.backfill(),
     },
   };

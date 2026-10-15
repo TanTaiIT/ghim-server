@@ -4,8 +4,11 @@ import type {
   ReviewCloseCause,
   ReviewDecision,
   ReviewReasonTemplate,
+  ReviewSampleCandidate,
   ReviewTask,
 } from '@prisma/client';
+
+import { appendEvents, type OutboxEventInput } from '../../common/outbox/outbox.js';
 
 export type Tx = Prisma.TransactionClient;
 export type { ReviewDecision, ReviewReasonTemplate, ReviewTask };
@@ -56,6 +59,22 @@ export interface ReviewRepository {
   /** Trả việc về hàng chờ; chỉ khi đúng người đó còn đang giữ. */
   releaseClaim(id: string, accountId: string): Promise<boolean>;
   addSampleCandidate(listingId: string, listingVersion: number, at: Date): Promise<void>;
+
+  // ── VIỆC THEO LỊCH ──
+  /** Việc mở đã quá hạn xử mà chưa chuyển master. */
+  overdueTasks(now: Date): Promise<ReviewTask[]>;
+  /** Chuyển master: ghi `escalated_at`, trả việc người đang giữ — chỉ khi việc còn mở và chưa chuyển. */
+  escalateTask(id: string, now: Date): Promise<boolean>;
+  /** Dọn cột nhận việc đã hết giờ — đọc đã coi như chưa ai nhận, đây chỉ cho gọn. */
+  sweepClaims(now: Date): Promise<number>;
+  sampleCandidates(limit: number): Promise<ReviewSampleCandidate[]>;
+  removeCandidates(keys: { listingId: string; listingVersion: number }[]): Promise<void>;
+  /** Ghi đã nhắc cho các việc và phát sự kiện nhắc trong cùng transaction. */
+  markReminded(ids: string[], now: Date, event: OutboxEventInput): Promise<void>;
+  emit(event: OutboxEventInput): Promise<void>;
+  /** Việc hàng 5 khép lại trong `[from, to)`: xử xong và tự huỷ vì quá hạn — lý do huỷ khác không tính. */
+  closedSamples(from: Date, to: Date): Promise<{ done: number; expired: number }>;
+
   /** Quyết định không đổi gì trên tin (bác việc nhóm chuyển lên) vẫn ghi việc và nhật ký trong một transaction. */
   inTransaction<T>(write: (tx: Tx) => Promise<T>): Promise<T>;
   insertDecision(tx: Tx, data: Prisma.ReviewDecisionUncheckedCreateInput): Promise<ReviewDecision>;
@@ -208,6 +227,62 @@ export function createReviewRepository(prisma: PrismaClient): ReviewRepository {
         create: { listingId, listingVersion, wentLiveAt: at },
         update: {},
       });
+    },
+
+    overdueTasks: (now) =>
+      prisma.reviewTask.findMany({
+        where: { status: 'open', escalatedAt: null, dueAt: { lte: now } },
+        orderBy: { dueAt: 'asc' },
+      }),
+
+    async escalateTask(id, now) {
+      const { count } = await prisma.reviewTask.updateMany({
+        where: { id, status: 'open', escalatedAt: null },
+        data: {
+          escalatedAt: now,
+          claimedBy: null,
+          claimExpiresAt: null,
+          claimedVersion: null,
+          updatedAt: now,
+        },
+      });
+      return count === 1;
+    },
+
+    async sweepClaims(now) {
+      const { count } = await prisma.reviewTask.updateMany({
+        where: { status: 'open', claimExpiresAt: { lte: now } },
+        data: { claimedBy: null, claimExpiresAt: null, claimedVersion: null },
+      });
+      return count;
+    },
+
+    sampleCandidates: (limit) =>
+      prisma.reviewSampleCandidate.findMany({ orderBy: { wentLiveAt: 'asc' }, take: limit }),
+
+    async removeCandidates(keys) {
+      if (keys.length === 0) return;
+      await prisma.reviewSampleCandidate.deleteMany({ where: { OR: keys } });
+    },
+
+    markReminded: (ids, now, event) =>
+      prisma.$transaction(async (tx) => {
+        await tx.reviewTask.updateMany({
+          where: { id: { in: ids }, status: 'open' },
+          data: { remindedAt: now },
+        });
+        await appendEvents(tx, [event]);
+      }),
+
+    emit: (event) => prisma.$transaction((tx) => appendEvents(tx, [event])),
+
+    async closedSamples(from, to) {
+      const countOf = (closeCause: ReviewCloseCause) =>
+        prisma.reviewTask.count({
+          where: { queue: 5, closedAt: { gte: from, lt: to }, closeCause },
+        });
+      const [done, expired] = await Promise.all([countOf('decided'), countOf('expired')]);
+      return { done, expired };
     },
   };
 }

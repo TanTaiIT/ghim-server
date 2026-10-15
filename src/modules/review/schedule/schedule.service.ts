@@ -1,0 +1,160 @@
+import type { ReviewTask } from '@prisma/client';
+
+import { startOfDayVN } from '../../../common/time/time.js';
+import { sequentially } from '../../../common/utils/sequential.js';
+import { riskSamplePercent, sampled } from '../calc/sampling.calc.js';
+import { completionAlert, weeklyCompletion } from '../calc/stats.calc.js';
+import {
+  DUE_SOON_HOURS,
+  dueSoonWarning,
+  masterReminderDue,
+  overdueAction,
+  SAMPLE_REASONS,
+} from '../calc/task.calc.js';
+import type { ReviewQueueService } from '../queue/queue.service.js';
+import { REVIEW_EVENTS, reviewEvent } from '../review.outbox.js';
+import type { ReviewShared } from '../review.shared.js';
+
+export interface ReviewScheduleService {
+  /** Mỗi phút: chuyển master việc quá hạn, huỷ mẫu hậu kiểm quá hạn, dọn nhận việc hết giờ. */
+  everyMinute(): Promise<{ escalated: number; expired: number; claimsCleared: number }>;
+  /** Mỗi giờ: lấy mẫu theo rủi ro, nhắc master việc nằm ở hàng master lâu, cảnh báo nhiều việc sắp chạm hạn. */
+  everyHour(): Promise<{ considered: number; sampled: number; reminded: number; warned: boolean }>;
+  /** Thứ Hai 08:00: tỉ lệ hậu kiểm làm xong của tuần trước, dưới ngưỡng thì báo master. */
+  weeklyPostcheck(): Promise<{ rate: number | null; alerted: boolean }>;
+}
+
+const HOUR_MS = 3_600_000;
+const WEEK_MS = 7 * 24 * HOUR_MS;
+/** Một lượt lấy mẫu đọc tối đa ngần này ứng viên — còn thì lượt giờ sau làm tiếp. */
+const CANDIDATE_BATCH = 500;
+const SAMPLES = [...SAMPLE_REASONS];
+
+/**
+ * Việc theo lịch của hàng chờ (design add-review-queues mục 9). Quá hạn chỉ chuyển cấp hay huỷ mẫu, không bao giờ đổi
+ * tin; lấy mẫu đi qua `addReason` như mọi lối sinh việc.
+ */
+export function createScheduleService(
+  shared: ReviewShared,
+  queue: ReviewQueueService,
+): ReviewScheduleService {
+  const { repository, listings, screening, trust, config, clock, random, routesFor } = shared;
+
+  const drawSamples = async (): Promise<{ considered: number; sampled: number }> => {
+    const candidates = await repository.sampleCandidates(CANDIDATE_BATCH);
+    const percents = {
+      borderline: config.get('postcheck.borderlineSamplePercent'),
+      newAccount: config.get('postcheck.newAccountSamplePercent'),
+      other: config.get('postcheck.otherSamplePercent'),
+    };
+    const drawn: string[] = [];
+    await sequentially(candidates, async ({ listingId, listingVersion }) => {
+      const subject = await listings.reviewSubject(listingId);
+      // Tin đã sửa, rời bảng hay đang có việc mở thì không lấy mẫu phiên bản này (spec review/post-review).
+      if (subject?.state !== 'live' || subject.version !== listingVersion) return;
+      if (await repository.hasOpenTask(listingId)) return;
+      const run = await screening.runOf(listingId);
+      const tier = run?.tier ?? (await trust.tierOf(subject.ownerId));
+      const percent = riskSamplePercent({ score: run?.score ?? null, tier }, percents);
+      if (!sampled(percent, random())) return;
+      await queue.addReason(listingId, { reason: 'sample_risk' });
+      drawn.push(listingId);
+    });
+    await repository.removeCandidates(
+      candidates.map(({ listingId, listingVersion }) => ({ listingId, listingVersion })),
+    );
+    return { considered: candidates.length, sampled: drawn.length };
+  };
+
+  /** Việc ở bậc master quá `review.remindMasterHours`, nhắc lại mỗi ngày — một sự kiện cho cả lượt. */
+  const remindMasters = async (open: readonly ReviewTask[], now: Date): Promise<number> => {
+    const routeOf = await routesFor(open);
+    const afterHours = config.get('review.remindMasterHours');
+    const due = open.filter(
+      (task) =>
+        routeOf(task).level === 'master' &&
+        masterReminderDue({
+          atMasterSince: task.escalatedAt ?? task.createdAt,
+          remindedAt: task.remindedAt,
+          now,
+          afterHours,
+        }),
+    );
+    if (due.length === 0) return 0;
+    await repository.markReminded(
+      due.map((task) => task.id),
+      now,
+      reviewEvent(REVIEW_EVENTS.masterReminder, { count: due.length, hours: afterHours }),
+    );
+    return due.length;
+  };
+
+  /** Một nửa số việc chưa chuyển master sẽ chạm hạn trong 24 giờ tới (TK 16). */
+  const warnDueSoon = async (open: readonly ReviewTask[], now: Date): Promise<boolean> => {
+    const waiting = open.filter((task) => !task.escalatedAt);
+    const soon = waiting.filter(
+      (task) => task.dueAt.getTime() <= now.getTime() + DUE_SOON_HOURS * HOUR_MS,
+    );
+    if (!dueSoonWarning(waiting.length, soon.length)) return false;
+    await repository.emit(
+      reviewEvent(REVIEW_EVENTS.deadlineWarning, {
+        open: waiting.length,
+        dueSoon: soon.length,
+        hours: DUE_SOON_HOURS,
+      }),
+    );
+    return true;
+  };
+
+  return {
+    async everyMinute() {
+      const now = clock();
+      const escalated: string[] = [];
+      const expired: string[] = [];
+      await sequentially(await repository.overdueTasks(now), async (task) => {
+        const action = overdueAction(task, now);
+        if (action === 'escalate' && (await repository.escalateTask(task.id, now))) {
+          escalated.push(task.id);
+        }
+        if (action === 'expire') {
+          // Mẫu không ai xử kịp: huỷ, đếm "bỏ sót"; tin không đổi (spec review/post-review).
+          await queue.dropReasons(task.listingId, SAMPLES, 'expired');
+          expired.push(task.id);
+        }
+      });
+      const claimsCleared = await repository.sweepClaims(now);
+      return { escalated: escalated.length, expired: expired.length, claimsCleared };
+    },
+
+    async everyHour() {
+      const drawn = await drawSamples();
+      const now = clock();
+      const open = await repository.openTasks({});
+      const reminded = await remindMasters(open, now);
+      const warned = await warnDueSoon(open, now);
+      return { ...drawn, reminded, warned };
+    },
+
+    async weeklyPostcheck() {
+      const to = startOfDayVN(clock());
+      const from = new Date(to.getTime() - WEEK_MS);
+      const { done, expired } = await repository.closedSamples(from, to);
+      const rate = weeklyCompletion(done, expired);
+      const threshold = config.get('postcheck.alertBelowCompletionPercent');
+      const alerted = completionAlert(rate, threshold);
+      if (alerted) {
+        await repository.emit(
+          reviewEvent(REVIEW_EVENTS.postcheckLow, {
+            rate,
+            done,
+            expired,
+            threshold,
+            from: from.toISOString(),
+            to: to.toISOString(),
+          }),
+        );
+      }
+      return { rate, alerted };
+    },
+  };
+}

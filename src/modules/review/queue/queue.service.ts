@@ -88,7 +88,8 @@ export function createQueueService(shared: ReviewShared): ReviewQueueService {
     const subject = await listings.reviewSubject(listingId);
     if (!subject) return;
     const excluded = await withSharedDevices([subject.ownerId, ...(input.alsoExclude ?? [])]);
-    const due = deadlineOf(input.reason, clock(), deadlines());
+    const now = clock();
+    const due = deadlineOf(input.reason, now, deadlines());
     const extra = {
       ...(input.escalation
         ? { escalatedBy: input.escalation.by, escalationNote: input.escalation.note }
@@ -102,6 +103,7 @@ export function createQueueService(shared: ReviewShared): ReviewQueueService {
           await repository.insertTask(tx, {
             listingId,
             reasons: [input.reason],
+            createdAt: now,
             queue: QUEUE_OF[input.reason],
             dueAt: due,
             excludedIds: excluded,

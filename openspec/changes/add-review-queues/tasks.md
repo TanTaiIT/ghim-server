@@ -54,9 +54,9 @@ Theo `design.md`. Test HTTP, DB chạy trên CI (PR nháp nhánh `add-listings`)
 
 ## 7. Job và thông báo master
 
-- [ ] 7.1 Job mỗi phút, mỗi giờ, mỗi tuần (design mục 9); xác minh test với job giả và đồng hồ đẩy tay: quá hạn chuyển
+- [x] 7.1 Job mỗi phút, mỗi giờ, mỗi tuần (design mục 9); xác minh test với job giả và đồng hồ đẩy tay: quá hạn chuyển
       master, mẫu quá hạn tự huỷ, lấy mẫu, nhắc master, cảnh báo sắp chạm hạn, cảnh báo hậu kiểm tuần
-- [ ] 7.2 `notification` N40–N42 cho master (design mục 10); xác minh unit test ma trận và test DB hộp thư master
+- [x] 7.2 `notification` N40–N42 cho master (design mục 10); xác minh unit test ma trận và test DB hộp thư master
 
 ## 8. Số liệu cho master
 

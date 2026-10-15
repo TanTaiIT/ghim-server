@@ -60,6 +60,8 @@ export interface MatrixContext {
   listingTitles(ids: string[]): Promise<Map<string, string>>;
   /** Người đăng và tiêu đề của tin chưa xoá — `listing` trả lời; tin đã xoá hay không có thì vắng. */
   listingTargets(ids: string[]): Promise<Map<string, { ownerId: string; title: string | null }>>;
+  /** Mọi master đang hoạt động — `identity` trả lời; người nhận của N40–N42. */
+  masterIds(): Promise<string[]>;
 }
 
 export type Payload = Record<string, unknown>;
@@ -68,6 +70,10 @@ export type Handler = (payload: Payload, ctx: MatrixContext) => Promise<MatrixRe
 export const str = (payload: Payload, key: string): string | null => {
   const value = payload[key];
   return typeof value === 'string' ? value : null;
+};
+export const num = (payload: Payload, key: string): number | null => {
+  const value = payload[key];
+  return typeof value === 'number' ? value : null;
 };
 export const ids = (payload: Payload, key: string): string[] => {
   const value = payload[key];
