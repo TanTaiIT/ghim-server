@@ -173,10 +173,8 @@ export const BATCH_SIZE = 500;
 const liveWhere = (ownerId: string): Prisma.ListingWhereInput => ({
   ownerId,
   deletedAt: null,
-  OR: [
-    { state: { in: ['checking', 'pending'] } },
-    { state: 'live', hideReasons: { isEmpty: true } },
-  ],
+  state: { in: ['checking', 'pending', 'live'] },
+  hideReasons: { isEmpty: true },
 });
 
 const orderBy = (order: ListingOrder): Prisma.ListingOrderByWithRelationInput[] =>

@@ -31,6 +31,7 @@ import {
   contentData,
   createSubmission,
   fieldsOf,
+  keepSystemColumns,
   type ListingFields,
   tooManyImages,
 } from './submission.service.js';
@@ -202,6 +203,7 @@ export function createListingPostingService(shared: ListingShared): ListingPosti
       version: body.version,
       data: (locked) => ({
         ...contentData(after),
+        ...keepSystemColumns(listing, after, locked),
         hideReasons: reasonsAfterRewrite(locked.hideReasons, rewrite),
         version: locked.version + 1,
       }),
@@ -238,6 +240,7 @@ export function createListingPostingService(shared: ListingShared): ListingPosti
         });
         return {
           ...contentData(after),
+          ...keepSystemColumns(listing, after, locked),
           unitId,
           version: locked.version + 1,
           hideReasons,

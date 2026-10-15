@@ -20,7 +20,7 @@ import type {
   MachineNotice,
   OpenWork,
 } from './listing.ports.js';
-import type { ListingRepository } from './listing.repository.js';
+import type { ListingRepository, Tx } from './listing.repository.js';
 import type { ListingDto, OwnListingDto } from './listing.schema.js';
 import type { PlacementBlock } from './calc/placement.calc.js';
 import { canView, type Viewer } from './calc/visibility.calc.js';
@@ -40,6 +40,8 @@ export interface ListingServiceDeps {
     deviceToken(deviceId: string): string;
     /** Trạng thái hiện tại của tài khoản — bên nghe khoá / mở khoá đối chiếu (fix-audit-listeners). */
     accountState(accountId: string): Promise<{ status: string } | null>;
+    /** Trong transaction của lượt gửi: `FOR SHARE` dòng tài khoản, trả trạng thái (fix-audit-listing, T15). */
+    lockAccountStatus(tx: Tx, accountId: string): Promise<string | null>;
   };
   trust: ListingTrustPort;
   screening: ListingScreeningPort;

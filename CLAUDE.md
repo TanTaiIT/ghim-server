@@ -435,7 +435,10 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   không bị lấy mẫu" vào `review/post-review`, "Tin còn việc chờ người duyệt không chuyển lên sàn chung được" vào
   `listing/suspension`. `fix-audit-identity` (đợt 3 phần A1, archive 15/10/2026) sửa "Làm mới phiên" của
   `identity/sessions` (30 giây ân hạn), thêm "Xin đổi email phải nhập lại mật khẩu" và "Đổi email xong báo email cũ và
-  đăng xuất thiết bị khác" vào `identity/email-change`.
+  đăng xuất thiết bị khác" vào `identity/email-change`. `fix-audit-listing` (đợt 3 phần A2, archive 15/10/2026) thêm
+  "Lượt ghi của người đăng không đè thay đổi của hệ thống" vào `listing/editing`, "Gửi tin đúng lúc tắt danh mục hay
+  khoá tài khoản" vào `listing/suspension`, scenario tin chờ duyệt đã rời nhóm vào "Tin sống gồm những gì" của
+  `trust/quotas`.
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.

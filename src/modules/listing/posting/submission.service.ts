@@ -25,6 +25,7 @@ import {
   validationError,
 } from '../listing.shared.js';
 import { type ScreeningSubmission } from '../listing.ports.js';
+import type { Tx } from '../listing.repository.js';
 import { decideGroupPlacement, missingForSubmit, needsRegion } from '../calc/placement.calc.js';
 
 /** Các trường người đăng soạn — trạng thái gộp của tin sau khi áp phần sửa. */
@@ -80,6 +81,28 @@ export const contentData = (fields: ListingFields) => ({
   badgeGroupId: fields.badgeGroupId,
   searchFolded: fold([fields.title, fields.description].filter(Boolean).join(' ')),
 });
+
+/**
+ * Nơi đăng, nhóm, huy hiệu mà hệ thống hạ / gỡ không tăng phiên bản (riêng tư hoá, mất quyền huy hiệu): ô nào người
+ * đăng không đổi so với lúc đọc thì lấy theo dòng đã khoá, không đè bằng giá trị đọc trước khoá (fix-audit-listing, T14).
+ */
+export const keepSystemColumns = (read: Listing, after: ListingFields, locked: Listing) => {
+  const placement = after.placement === read.placement ? locked.placement : after.placement;
+  return {
+    placement,
+    groupId:
+      placement === 'marketplace'
+        ? null
+        : after.groupId === read.groupId
+          ? locked.groupId
+          : after.groupId,
+    badgeGroupId:
+      after.badgeGroupId === read.badgeGroupId ? locked.badgeGroupId : after.badgeGroupId,
+  };
+};
+
+const categoryDisabled = (): ConflictError =>
+  new ConflictError('Danh mục này đang tạm tắt, chưa nhận tin', 'CATEGORY_DISABLED');
 
 const MISSING_LABELS: Record<string, string> = {
   placement: 'nơi đăng',
@@ -175,9 +198,7 @@ export function createSubmission(shared: ListingShared) {
     const category = (await categories.statusOf([categoryId])).get(categoryId);
     if (!category) throw validationError('Không có danh mục này');
     const keepsCategory = options.editInPlace === true && listing.categoryId === after.categoryId;
-    if (!category.enabled && !keepsCategory) {
-      throw new ConflictError('Danh mục này đang tạm tắt, chưa nhận tin', 'CATEGORY_DISABLED');
-    }
+    if (!category.enabled && !keepsCategory) throw categoryDisabled();
     // Ghim mẫu ở lần gửi đầu; đổi sang danh mục khác thì mang mẫu hiện hành của danh mục mới (TK 11).
     const templateVersion =
       listing.templateVersion !== null && listing.categoryId === after.categoryId
@@ -218,6 +239,25 @@ export function createSubmission(shared: ListingShared) {
     return { unitId: outcome.unitId, outsider: outcome.outsider };
   };
 
+  /**
+   * Trong transaction của lượt gửi: giữ `FOR SHARE` dòng tài khoản và dòng danh mục tới khi commit. Lượt khoá tài khoản
+   * hay tắt danh mục chen giữa thì hoặc lượt gửi đọc thấy và từ chối, hoặc lượt đó chờ lượt gửi commit rồi bên nghe của
+   * nó thấy tin đã ra khỏi nháp — tin không lên mà thiếu lý do tạm ẩn (fix-audit-listing, T15).
+   */
+  const assertStillPostable = async (
+    tx: Tx,
+    accountId: string,
+    categoryId: string | null,
+    keepsCategory: boolean,
+  ): Promise<void> => {
+    const status = await identity.lockAccountStatus(tx, accountId);
+    if (status === 'locked') throw new ForbiddenError('Tài khoản đang bị khoá', 'ACCOUNT_LOCKED');
+    if (status !== 'active') throw new ForbiddenError();
+    const category = await categories.lockStatus(tx, categoryId ?? '');
+    if (!category) throw validationError('Không có danh mục này');
+    if (!category.enabled && !keepsCategory) throw categoryDisabled();
+  };
+
   /** Sửa nội dung không khoá nhóm (nơi đăng không đổi): tư cách người ngoài đọc ngoài transaction là đủ cho trần riêng. */
   const outsiderOf = async (accountId: string, after: ListingFields): Promise<boolean> =>
     after.placement !== 'marketplace' &&
@@ -252,6 +292,12 @@ export function createSubmission(shared: ListingShared) {
               outsider: outsiderWithoutLock,
             };
         unitId = placed.unitId;
+        await assertStillPostable(
+          tx,
+          actor.accountId,
+          after.categoryId,
+          input.kind === 'resubmit' && listing.categoryId === after.categoryId,
+        );
         await trust.assertCanSubmit(tx, {
           accountId: actor.accountId,
           listingId: locked.id,
@@ -270,6 +316,7 @@ export function createSubmission(shared: ListingShared) {
         );
         return {
           ...contentData(after),
+          ...keepSystemColumns(listing, after, locked),
           unitId,
           templateVersion,
           state: 'checking',
@@ -317,7 +364,7 @@ export function createSubmission(shared: ListingShared) {
     return result?.after ?? null;
   };
 
-  return { assertCanPost, assertSubmittable, lockPlacement, submit };
+  return { assertCanPost, assertSubmittable, assertStillPostable, lockPlacement, submit };
 }
 
 export type Submission = ReturnType<typeof createSubmission>;

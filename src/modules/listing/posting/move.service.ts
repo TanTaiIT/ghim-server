@@ -91,14 +91,16 @@ export function createMoveToMarketplace(shared: ListingShared, submission: Submi
           state: 'checking',
           movedFromListingId: old.id,
         },
-        before: (tx) =>
-          trust.assertCanSubmit(tx, {
+        before: async (tx) => {
+          await submission.assertStillPostable(tx, actor.accountId, after.categoryId, false);
+          await trust.assertCanSubmit(tx, {
             accountId: actor.accountId,
             listingId: newId,
             kind: 'move',
             fromState: old.state,
             outsiderGroupId: null,
-          }),
+          });
+        },
         after: async (tx, row) => {
           await copy.commit(tx);
           await screening.openRun(tx, { listingId: row.id, version: row.version, score });

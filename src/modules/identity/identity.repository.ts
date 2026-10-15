@@ -1,6 +1,7 @@
 import type {
   Account,
   AccountFlag,
+  AccountStatus,
   CodePurpose,
   DeviceClearance,
   DevicePost,
@@ -288,6 +289,7 @@ export interface IdentityRepository {
    * `hot-paths.db.test.ts` đếm số câu SQL.
    */
   findActorSession(sessionId: string): Promise<ActorSession | null>;
+  lockAccountStatus(tx: Prisma.TransactionClient, accountId: string): Promise<AccountStatus | null>;
   findSessionByRefreshHash(refreshTokenHash: string): Promise<Session | null>;
   findSessionByPreviousRefreshHash(prevRefreshTokenHash: string): Promise<Session | null>;
   updateSession(id: string, patch: SessionPatch): Promise<Session>;
@@ -368,6 +370,11 @@ async function revokeSessionsIn(
 export function createIdentityRepository(prisma: PrismaClient): IdentityRepository {
   return {
     findAccountById: (id) => prisma.account.findUnique({ where: { id } }),
+    async lockAccountStatus(tx, accountId) {
+      const [row] = await tx.$queryRaw<{ status: AccountStatus }[]>`
+        SELECT status FROM accounts WHERE id = ${accountId}::uuid FOR SHARE`;
+      return row?.status ?? null;
+    },
     findAccountByEmail: (emailNormalized) =>
       prisma.account.findUnique({ where: { emailNormalized } }),
     findAccountSummaries: (ids) =>

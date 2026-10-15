@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import type { AccountStatus, Prisma } from '@prisma/client';
 
 import type { Actor, ActorResolver } from '../../common/auth/actor.js';
 import type { PrivilegeSource } from '../../common/auth/privilege-source.js';
@@ -283,6 +283,11 @@ export interface IdentityService extends ActorResolver {
 
   /** `platform` hỏi trước khi gắn quyền staff: tài khoản có thật không, vai gì, trạng thái gì. */
   accountState(accountId: string): Promise<AccountState | null>;
+  /**
+   * Cửa cho `listing`, trong transaction của lượt gửi: giữ `FOR SHARE` dòng tài khoản tới khi commit — khoá tài khoản
+   * chờ lượt gửi, bên nghe khoá thấy tin đã gửi (fix-audit-listing, T15). `null` = không có tài khoản.
+   */
+  lockAccountStatus(tx: Prisma.TransactionClient, accountId: string): Promise<AccountStatus | null>;
   /** Theo lô, bỏ qua mã không có; `group` đếm điều hành viên dùng được, `notification` lấy tên hiển thị. */
   accountSummaries(ids: string[]): Promise<Map<string, AccountSummary>>;
   /** Tài khoản chưa xoá mang email này (so sau chuẩn hoá) — lời mời vào nhóm theo email. */

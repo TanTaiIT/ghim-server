@@ -48,6 +48,7 @@ export type IdentityOpsService = Pick<
   | 'removeDisposableDomain'
   | 'seedDisposableDomainsIfEmpty'
   | 'accountState'
+  | 'lockAccountStatus'
   | 'accountSummaries'
   | 'accountIdByEmail'
   | 'emailHashOf'
@@ -348,6 +349,8 @@ export function createIdentityOpsService(
       const account = await repository.findAccountById(accountId);
       return account ? { role: account.role, status: account.status } : null;
     },
+
+    lockAccountStatus: (tx, accountId) => repository.lockAccountStatus(tx, accountId),
 
     async accountSummaries(ids) {
       const rows = await repository.findAccountSummaries([...new Set(ids)]);

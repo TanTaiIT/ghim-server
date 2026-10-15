@@ -99,7 +99,7 @@ export type ListingGroupPort = Pick<
 >;
 export type ListingCategoryPort = Pick<
   CategoryService,
-  'statusOf' | 'validateRegion' | 'validateAttributes'
+  'statusOf' | 'lockStatus' | 'validateRegion' | 'validateAttributes'
 >;
 export type ListingMediaPort = Pick<MediaService, 'resolve' | 'attach' | 'viewUrl' | 'copyImages'>;
 
