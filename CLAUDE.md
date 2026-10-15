@@ -247,7 +247,7 @@ change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-cate
 `harden-module-infra` → `tune-hot-paths` → `cache-public-reads-revoke-deleted-staff` →
 `harden-production-runtime` → `add-groups` → `add-notification-core` (kéo từ đợt 6, chốt 11/10/2026) — mười change
 này đã archive 10–11/10/2026 · đợt 2
-`add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` (cả hai đã archive 12/10/2026) · đợt 3 `add-screening` (đã archive 13/10/2026) → `add-image-moderation` (khi chọn được dịch vụ kiểm ảnh, tách ra 12/10/2026) · đợt 4 `add-review-queues` (đã archive 15/10/2026) →
+`add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` (cả hai đã archive 12/10/2026) · đợt 3 `add-screening` (đã archive 13/10/2026) → `add-image-moderation` (khi chọn được dịch vụ kiểm ảnh, tách ra 12/10/2026) · đợt 4 `add-review-queues` (đã archive 15/10/2026) → **sửa lỗi rà soát 15/10/2026 trước mọi tính năng** (`docs/RA-SOAT-15-10-2026.md`) →
 `add-reports` · đợt 5 `add-strikes` · đợt 6 `add-messaging` → `add-notifications` · đợt 7
 `add-data-retention`.
 

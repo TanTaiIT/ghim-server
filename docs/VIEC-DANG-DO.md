@@ -5,6 +5,22 @@
 > thì thêm vào đúng mục. Mỗi dòng ghi **nguồn** để mở ra đọc chi tiết — file này chỉ tóm tắt, không thay TK, change hay
 > spec.
 
+## 0. Ưu tiên: sửa lỗi rà soát 15/10/2026 — trước mọi tính năng mới
+
+Rà soát đọc code mọi module đã làm tìm ra 48 mục: 11 mức cao, 24 trung bình, 13 thấp. Chi tiết, chỗ trong code, kịch bản
+và hướng sửa ở **`docs/RA-SOAT-15-10-2026.md`** (đánh dấu từng mục khi sửa xong). Chốt 15/10/2026: sửa hết trước khi làm
+`add-reports` hay tính năng nào khác.
+
+| Đợt | Mục                          | Nội dung                                                                                                                      |
+| --- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| 1   | C3, C4, C5, C6, T10          | Bảo mật: chiếm tài khoản qua Google, master tự xoá / khoá, đăng ký lại lớp thứ hai, master qua app nhóm, trần / sàn cấu hình  |
+| 2   | C1, C2, C7, C8, C9, C10, C11 | Dữ liệu kẹt hay mất: bên nghe đối chiếu trạng thái hiện tại, kiểm ảnh bị bỏ, lý do ẩn bám theo, việc mất, xoá cứng dây chuyền |
+| 3   | T1–T24                       | Mức trung bình — vài mục cần chốt chính sách trước (T11 ân hạn làm mới token, T12 đổi email)                                  |
+| 4   | L1–L13                       | Mức thấp                                                                                                                      |
+
+Mục nào đổi hành vi so với spec đang chạy thì đi qua một change OpenSpec (proposal có câu hỏi mở → bạn duyệt → code);
+mục code lệch spec thì sửa kèm test.
+
 ## 1. Đang chờ quyết hoặc chờ duyệt
 
 | Việc                                       | Tình trạng                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Bước tiếp                                                                                                                                   |
@@ -27,7 +43,7 @@ mở** trong proposal trước khi `/opsx:apply`. Cột ghi chú kể cả phầ
 | Đợt | Change                 | Điều kiện / ghi chú                                                                                                                                                                     |
 | --- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 3   | `add-image-moderation` | Chờ chọn dịch vụ kiểm ảnh (mục 1) và rà soát pháp lý nếu gửi ảnh ra ngoài (TK 29 còn mở số 3)                                                                                           |
-| 4   | `add-reports`          | **Kế tiếp.** Thêm hàng 1 (lý do `report`) vào hàng chờ; điểm báo cáo và báo cáo liên quan trong màn xử việc                                                                             |
+| 4   | `add-reports`          | Sau khi sửa xong lỗi rà soát (mục 0). Thêm hàng 1 (lý do `report`) vào hàng chờ; điểm báo cáo và báo cáo liên quan trong màn xử việc                                                    |
 | 5   | `add-strikes`          | Kết quả "vi phạm" (gậy) cho người duyệt; xác nhận việc hàng 4 kèm gậy; hàng 2 khiếu nại (lý do `appeal`, hạn 7 ngày); lịch sử gậy của người bán trong màn xử việc và nhật ký            |
 | 6   | `add-messaging`        | Rồi `add-notifications`: báo người đăng quyết định của người duyệt (từ chối, gỡ, khôi phục, gỡ khỏi nhóm) — `review` hiện chỉ báo master (N40–N42); đẩy lên điện thoại khi app sẵn sàng |
 | 7   | `add-data-retention`   | Xoá hẳn tin và ảnh theo hạn lưu (TK 25). Tới lúc đó tin xoá mềm vẫn giữ ảnh trong kho                                                                                                   |
