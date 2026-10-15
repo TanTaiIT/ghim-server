@@ -142,6 +142,8 @@ export const ownListingSchema = listingSchema.extend({
   remainingMs: z.number().int().nullable(),
   renewal: z.enum(['early', 'expired']).nullable(),
   fault: z.enum(['mistake', 'violation']).nullable(),
+  /** Lý do mẫu người duyệt chọn khi từ chối / gỡ (spec review/decisions) — người đăng sửa theo đó rồi gửi lại. */
+  faultReason: z.string().nullable(),
   /** Hạn chuyển lên sàn chung của tin đã rời nhóm hẳn. */
   moveUntil: iso.nullable(),
   /**

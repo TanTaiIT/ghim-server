@@ -4,6 +4,8 @@ import type { Actor } from '../../../common/auth/actor.js';
 import { NotFoundError } from '../../../common/errors/app-error.js';
 import { type CursorKey, toCursorPage } from '../../../common/schemas/cursor.js';
 import { fold } from '../../../common/text/fold.js';
+import { isDetached } from '../calc/hide.calc.js';
+import type { ReviewSubject } from '../listing.ports.js';
 import type { FeedQuery, ListingDto, OwnListingDto } from '../listing.schema.js';
 import { type ListingShared, listingNotFound } from '../listing.shared.js';
 import { canView, type ListSurface, visibleWhere } from '../calc/visibility.calc.js';
@@ -37,6 +39,12 @@ export interface ListingReadService {
   ): Promise<CursorPage<OwnListingDto>>;
   /** Cổng cho `notification`: tiêu đề tin theo mã, để câu thông báo nêu đúng món đồ. */
   titles(ids: string[]): Promise<Map<string, string>>;
+  /** Cổng cho `review`: dữ kiện để định tuyến việc và kiểm quyết định; tin đã xoá thì `null`. */
+  reviewSubject(id: string): Promise<ReviewSubject | null>;
+  /** Cổng cho `review`: tin như người đăng thấy — người xử cần thấy đủ nội dung, kể cả tin chưa hiện (TK 17). */
+  forReviewer(id: string): Promise<OwnListingDto | null>;
+  /** Cổng cho `review`: tin chờ duyệt của một người trong một nhóm — vào lại nhóm thì sinh lại việc (chốt 15/10/2026). */
+  pendingInGroup(accountId: string, groupId: string): Promise<string[]>;
   /**
    * Cổng cho `notification`: người đăng và tiêu đề của tin chưa xoá. Tin đã xoá thì vắng — người đăng không còn việc gì
    * để làm với nó, nên không ai được báo (change notify-missing-images).
@@ -46,6 +54,8 @@ export interface ListingReadService {
 
 /** Gợi ý ngắn, không phân trang: vài tin cùng danh mục để người xem đi tiếp. */
 const SUGGESTION_LIMIT = 10;
+/** Tin chờ duyệt của một người trong một nhóm: trần hạn mức tin sống còn nhỏ hơn nhiều. */
+const PENDING_IN_GROUP_LIMIT = 100;
 
 const liveKey = (row: Listing): CursorKey => ({ at: row.firstLiveAt ?? row.createdAt, id: row.id });
 const updatedKey = (row: Listing): CursorKey => ({ at: row.updatedAt, id: row.id });
@@ -54,7 +64,7 @@ const keywordWhere = (q: string | undefined): Prisma.ListingWhereInput =>
   q ? { searchFolded: { contains: fold(q) } } : {};
 
 export function createListingReadService(shared: ListingShared): ListingReadService {
-  const { repository, groups, clock, viewerFor, toDtos, toOwnDtos } = shared;
+  const { repository, groups, clock, viewerFor, toDtos, toOwnDtos, toOwnDto } = shared;
 
   const page = async <T>(
     where: Prisma.ListingWhereInput,
@@ -157,6 +167,37 @@ export function createListingReadService(shared: ListingShared): ListingReadServ
     async titles(ids) {
       const rows = await repository.findByIds(ids);
       return new Map(rows.flatMap((row) => (row.title ? [[row.id, row.title] as const] : [])));
+    },
+
+    async reviewSubject(id) {
+      const row = await repository.findById(id);
+      if (!row || row.deletedAt !== null) return null;
+      return {
+        id: row.id,
+        ownerId: row.ownerId,
+        state: row.state,
+        version: row.version,
+        placement: row.placement,
+        groupId: row.groupId,
+        unitId: row.unitId,
+        categoryId: row.categoryId,
+        restrictions: row.restrictions,
+        detached: isDetached(row.hideReasons),
+      };
+    },
+
+    async forReviewer(id) {
+      const row = await repository.findById(id);
+      return row && row.deletedAt === null ? toOwnDto(row, clock()) : null;
+    },
+
+    async pendingInGroup(accountId, groupId) {
+      const rows = await repository.list({
+        where: { ownerId: accountId, groupId, state: 'pending', deletedAt: null },
+        order: 'updated',
+        limit: PENDING_IN_GROUP_LIMIT,
+      });
+      return rows.map((row) => row.id);
     },
 
     async noticeTargets(ids) {

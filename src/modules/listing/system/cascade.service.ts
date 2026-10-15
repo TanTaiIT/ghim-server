@@ -4,8 +4,13 @@ import type { OutboxEventInput } from '../../../common/outbox/outbox.js';
 import { DAY_MS, nextClock } from '../calc/display-period.calc.js';
 import { applyHideEvent, DETACHED_REASONS, type HideEvent, isDetached } from '../calc/hide.calc.js';
 import { LISTING_EVENTS, listingEvent } from '../listing.outbox.js';
-import type { BatchRow } from '../listing.repository.js';
-import { clockSettings, type ListingShared, withRestriction } from '../listing.shared.js';
+import type { BatchRow, Tx } from '../listing.repository.js';
+import {
+  clockSettings,
+  invalidTransition,
+  type ListingShared,
+  withRestriction,
+} from '../listing.shared.js';
 
 /** Tin đổi theo sự kiện của module khác (design mục 9, 10, 14, 7) — đều theo lô, đều chịu được nhận trùng. */
 export interface ListingCascadeService {
@@ -14,6 +19,16 @@ export interface ListingCascadeService {
     event: HideEvent,
     groupId?: string | null,
   ): Promise<number>;
+  /**
+   * Người xử của nhóm gỡ một tin khỏi nhóm (TK 17, design add-review-queues mục 6): như `onHideEvent` với
+   * `detached_by_group` nhưng cho đúng một tin, có điều kiện phiên bản, cùng transaction với nhật ký quyết định.
+   */
+  detachByGroup(input: {
+    listingId: string;
+    version: number;
+    groupId: string;
+    after?: ((tx: Tx, updated: Listing) => Promise<void>) | undefined;
+  }): Promise<Listing>;
   onPrivatizationStarted(groupId: string): Promise<void>;
   onUnitChanged(groupId: string, accountId: string, unitId: string | null): Promise<number>;
   onBadgeRightsChanged(groupId: string, accountId: string | null): Promise<number>;
@@ -68,7 +83,7 @@ const ownersOf = (rows: Changed): string[] => [
 ];
 
 export function createListingCascadeService(shared: ListingShared): ListingCascadeService {
-  const { repository, groups, config, clock } = shared;
+  const { repository, groups, config, clock, explainMiss } = shared;
 
   /** Một sự kiện gộp cho cả lô (N32 / N33 gộp theo người đăng ở `notification`), không một sự kiện mỗi tin. */
   const hideEvents = (event: HideEvent, changed: Changed, groupId: string | null) => {
@@ -130,6 +145,34 @@ export function createListingCascadeService(shared: ListingShared): ListingCasca
         compute: (rows) => rows.flatMap((row) => hidden(row, event, now) ?? []),
         events: (changed) => hideEvents(event, changed, groupId),
       });
+    },
+
+    async detachByGroup({ listingId, version, groupId, after }) {
+      const now = clock();
+      const event: HideEvent = { kind: 'detached_by_group' };
+      const changed = await repository.change({
+        id: listingId,
+        states: ['checking', 'pending', 'live', 'rejected', 'removed', 'sold', 'expired'],
+        version,
+        data: (locked) => {
+          const change = locked.groupId === groupId ? applyHideEvent(locked, event) : null;
+          if (!change?.detachedNow) throw invalidTransition('Tin không còn trong nhóm này');
+          return {
+            hideReasons: change.hideReasons,
+            leftGroupAt: now,
+            ...nextClock(
+              locked,
+              { state: locked.state, hideReasons: change.hideReasons },
+              now,
+              clockSettings(config),
+            ),
+          };
+        },
+        after,
+        events: (updated, locked) =>
+          hideEvents(event, [{ before: locked, after: updated }], groupId),
+      });
+      return changed?.after ?? explainMiss(listingId, version);
     },
 
     async onPrivatizationStarted(groupId) {

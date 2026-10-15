@@ -104,6 +104,21 @@ export type ListingCategoryPort = Pick<
 >;
 export type ListingMediaPort = Pick<MediaService, 'resolve' | 'attach' | 'viewUrl' | 'copyImages'>;
 
+/** Dữ kiện của một tin để `review` định tuyến việc và kiểm quyết định (design add-review-queues mục 8). */
+export interface ReviewSubject {
+  id: string;
+  ownerId: string;
+  state: ListingState;
+  version: number;
+  placement: ListingPlacement | null;
+  groupId: string | null;
+  unitId: string | null;
+  categoryId: string | null;
+  restrictions: ListingRestriction[];
+  /** Tin đã rời nhóm hẳn (nhóm đóng, gỡ khỏi nhóm…) — không còn gì để điều hành nhóm xử. */
+  detached: boolean;
+}
+
 export interface QuotaFacts {
   live: number;
   submittedAt: Date[];

@@ -34,8 +34,8 @@ export interface ListingChange {
   /** Trong transaction, sau khoá dòng tin, trước khi ghi: khoá nhóm, hạn mức… ném là quay lui cả lượt. */
   before?: (tx: Tx, locked: Listing) => Promise<void>;
   data: (locked: Listing) => Prisma.ListingUncheckedUpdateInput;
-  /** Sau khi ghi, cùng transaction: gỡ nhãn ảnh, ghi lượt chấm của máy. */
-  after?: (tx: Tx, updated: Listing) => Promise<void>;
+  /** Sau khi ghi, cùng transaction: gỡ nhãn ảnh, ghi lượt chấm của máy, ghi quyết định của người duyệt. */
+  after?: ((tx: Tx, updated: Listing) => Promise<void>) | undefined;
   submission?: SubmissionRow;
   events?: (updated: Listing, locked: Listing) => OutboxEventInput[];
   audit?: AuditEntry | undefined;

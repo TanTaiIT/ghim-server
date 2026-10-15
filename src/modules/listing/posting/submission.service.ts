@@ -275,6 +275,7 @@ export function createSubmission(shared: ListingShared) {
           state: 'checking',
           version: locked.version + 1,
           fault: null,
+          faultReason: null,
           hideReasons,
           restrictions: input.restrictions(locked.restrictions),
           ...clockColumns,

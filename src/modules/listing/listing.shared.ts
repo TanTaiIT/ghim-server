@@ -205,6 +205,7 @@ export function createListingShared(deps: ListingServiceDeps) {
         remainingMs: row.expiresAt ? null : remainingMs(row, now),
         renewal: row.renewal,
         fault: row.fault,
+        faultReason: row.faultReason,
         moveUntil: moveUntil(row),
         machineNotice: notice && showsNotice(row, notice) ? notice : null,
       };

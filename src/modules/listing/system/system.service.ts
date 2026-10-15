@@ -36,10 +36,16 @@ export interface MachineResult {
   rankAsListingId?: string | null | undefined;
 }
 
-/** Từ chối / gỡ luôn kèm lỗi: sai sót thì sửa gửi lại được, vi phạm thì không (TK 17). */
-export type ReviewInput = { listingId: string; version: number } & (
+/** Sau khi ghi tin, cùng transaction: `review` ghi nhật ký quyết định, đóng việc (design add-review-queues mục 6). */
+type AfterWrite = ((tx: Tx, updated: Listing) => Promise<void>) | undefined;
+
+/**
+ * Từ chối / gỡ luôn kèm lỗi: sai sót thì sửa gửi lại được, vi phạm thì không (TK 17). `faultReason` là lý do mẫu người
+ * đăng thấy.
+ */
+export type ReviewInput = { listingId: string; version: number; after?: AfterWrite } & (
   | { arrow: 'approve' | 'restore' | 'appealWin' }
-  | { arrow: 'reject' | 'remove'; fault: ListingFault }
+  | { arrow: 'reject' | 'remove'; fault: ListingFault; faultReason?: string | null | undefined }
 );
 
 export interface ListingSystemService {
@@ -49,8 +55,13 @@ export interface ListingSystemService {
   recallByMachine(listingId: string, listingVersion: number): Promise<boolean>;
   /** Lưới an toàn thiếu kết quả ảnh: thêm lý do "máy" (design mục 8). */
   restrictByMachine(listingId: string): Promise<boolean>;
-  /** Mũi tên của người duyệt / người xét khiếu nại — `add-review-queues`, `add-strikes` gọi; chưa có route. */
+  /** Mũi tên của người duyệt / người xét khiếu nại — `review`, `add-strikes` gọi. */
   review(input: ReviewInput): Promise<Listing>;
+  /**
+   * Người duyệt cho đạt việc hàng 3, 5: tin đang hiện giữ nguyên trạng thái và phiên bản, chỉ gỡ lý do "máy" (spec
+   * review/decisions).
+   */
+  confirmLive(input: { listingId: string; version: number; after?: AfterWrite }): Promise<Listing>;
   expireDue(): Promise<number>;
   remindExpiring(): Promise<number>;
   removeBadgeByGroup(actor: Actor, groupId: string, listingId: string): Promise<void>;
@@ -90,6 +101,7 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
       arrow: ListingArrow;
       side: ListingSide;
       states?: readonly ListingState[];
+      after?: AfterWrite;
     },
     columns: (locked: Listing, tier: TrustTier) => Prisma.ListingUncheckedUpdateInput,
     rankAt: Date | null = null,
@@ -118,6 +130,7 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
           ...columns(locked, tier),
         };
       },
+      after: input.after,
       events: (updated, locked) => [stateChangedEvent(updated, locked, input.arrow)],
     });
   };
@@ -166,12 +179,31 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
 
     async review(input) {
       const side = input.arrow === 'appealWin' ? 'appeal' : 'reviewer';
+      // Người duyệt đạt hay khôi phục là người đã xem thay máy: gỡ lý do "máy" (chốt 15/10/2026); khiếu nại thắng giữ nguyên.
+      const machine = input.arrow === 'appealWin' ? null : false;
       const decided = await decide({ ...input, side }, (locked, tier) =>
         'fault' in input
-          ? { fault: input.fault }
-          : { fault: null, restrictions: restrictionsGoingLive(locked, tier, null) },
+          ? { fault: input.fault, faultReason: input.faultReason ?? null }
+          : {
+              fault: null,
+              faultReason: null,
+              restrictions: restrictionsGoingLive(locked, tier, machine),
+            },
       );
       return decided?.after ?? explainMiss(input.listingId, input.version);
+    },
+
+    async confirmLive({ listingId, version, after }) {
+      const confirmed = await repository.change({
+        id: listingId,
+        states: ['live'],
+        version,
+        data: (locked) => ({
+          restrictions: withRestriction(locked.restrictions, 'machine', false),
+        }),
+        after,
+      });
+      return confirmed?.after ?? explainMiss(listingId, version);
     },
 
     expireDue() {
