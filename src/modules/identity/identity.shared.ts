@@ -10,7 +10,7 @@ import {
   UnauthorizedError,
 } from '../../common/errors/app-error.js';
 import { formatDateVN, formatTimeVN } from '../../common/time/time.js';
-import { domainSuffixes } from './email.calc.js';
+import { domainSuffixes } from './calc/email.calc.js';
 import { IDENTITY_JOBS, type SendMailJob } from './identity.jobs.js';
 import type {
   Account,
@@ -21,9 +21,9 @@ import type {
   VerificationCode,
 } from './identity.repository.js';
 import type { CodePurpose } from './identity.schema.js';
-import { checkPassword, type PasswordIssue } from './password.calc.js';
-import { isReservedName } from './reserved-names.js';
-import type { RequiredFlag } from './device.calc.js';
+import { checkPassword, type PasswordIssue } from './calc/password.calc.js';
+import { isReservedName } from './calc/reserved-names.calc.js';
+import type { RequiredFlag } from './calc/device.calc.js';
 import type {
   IdentityServiceDeps,
   PublicProfileDto,

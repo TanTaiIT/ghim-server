@@ -15,7 +15,7 @@ export interface PasswordLimits {
  * kèm phần mềm, không cập nhật lúc chạy (TK 7) — `pnpm run build` chép thư mục `data/` sang dist.
  */
 const COMMON_PASSWORDS: ReadonlySet<string> = new Set(
-  readFileSync(new URL('./data/common-passwords.txt', import.meta.url), 'utf8')
+  readFileSync(new URL('../data/common-passwords.txt', import.meta.url), 'utf8')
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean),

@@ -1,6 +1,6 @@
 import { randomToken, sha256Hex } from '../../../common/crypto/secrets.js';
-import { hashEmail, normalizeEmail } from '../email.calc.js';
-import { hashPassword, verifyPassword } from '../password.calc.js';
+import { hashEmail, normalizeEmail } from '../calc/email.calc.js';
+import { hashPassword, verifyPassword } from '../calc/password.calc.js';
 import type { IdentityService, IdentityServiceDeps } from '../identity.service.js';
 import {
   displayNameFromGoogle,

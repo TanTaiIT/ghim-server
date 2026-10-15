@@ -2,8 +2,8 @@ import { Prisma, type ListingState } from '@prisma/client';
 
 import type { Actor } from '../../../common/auth/actor.js';
 import { ConflictError } from '../../../common/errors/app-error.js';
-import { DAY_MS } from '../display-period.calc.js';
-import { isDetached } from '../hide.calc.js';
+import { DAY_MS } from '../calc/display-period.calc.js';
+import { isDetached } from '../calc/hide.calc.js';
 import { LISTING_EVENTS, listingEvent } from '../listing.outbox.js';
 import type { OwnListingDto } from '../listing.schema.js';
 import { invalidTransition, type ListingShared } from '../listing.shared.js';
@@ -13,7 +13,7 @@ import {
   type ListingFields,
   screeningInput,
   type Submission,
-} from './submission.js';
+} from './submission.service.js';
 
 const NOT_MOVABLE: ReadonlySet<ListingState> = new Set(['draft', 'sold', 'rejected', 'removed']);
 const alreadyMoved = (): ConflictError =>

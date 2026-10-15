@@ -10,7 +10,7 @@ import type {
 import { appendAudit, type AuditEntry } from '../../common/audit/audit.js';
 import { appendEvents, type OutboxEventInput } from '../../common/outbox/outbox.js';
 import type { CursorKey } from '../../common/schemas/cursor.js';
-import { DETACHED_REASONS } from './hide.calc.js';
+import { DETACHED_REASONS } from './calc/hide.calc.js';
 
 export type Tx = Prisma.TransactionClient;
 

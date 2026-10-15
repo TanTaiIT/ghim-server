@@ -4,7 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { imageKey } from '../src/lib/storage.js';
-import { createInterimTrust, interimScreening } from '../src/modules/listing/listing.ports.js';
+import { createInterimTrust, interimScreening } from './fakes/listing-ports.fake.js';
 import { prisma } from './db-helpers.js';
 import { newMaster, newUser } from './group-helpers.js';
 import {

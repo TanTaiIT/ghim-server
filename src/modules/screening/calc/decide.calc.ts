@@ -15,7 +15,7 @@ import {
   type RuleBook,
   scoreOf,
 } from './score.calc.js';
-import { isGate } from './screening.rules.js';
+import { isGate } from '../screening.rules.js';
 
 export interface Decision {
   outcome: ScreeningOutcome;

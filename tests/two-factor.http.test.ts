@@ -3,7 +3,7 @@ import { generate } from 'otplib';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { toOk } from '../src/common/schemas/response.js';
-import { hashPassword } from '../src/modules/identity/password.calc.js';
+import { hashPassword } from '../src/modules/identity/calc/password.calc.js';
 import { buildTestApp, grantStaff, repositories } from './test-app.js';
 
 /*

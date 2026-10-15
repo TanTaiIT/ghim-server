@@ -1,14 +1,14 @@
 import type { Listing, ListingHideReason, Prisma } from '@prisma/client';
 
-import type { OutboxEventInput } from '../../common/outbox/outbox.js';
-import { DAY_MS, nextClock } from './display-period.calc.js';
-import { applyHideEvent, DETACHED_REASONS, type HideEvent, isDetached } from './hide.calc.js';
-import { LISTING_EVENTS, listingEvent } from './listing.outbox.js';
-import type { BatchRow } from './listing.repository.js';
-import { clockSettings, type ListingShared, withRestriction } from './listing.shared.js';
+import type { OutboxEventInput } from '../../../common/outbox/outbox.js';
+import { DAY_MS, nextClock } from '../calc/display-period.calc.js';
+import { applyHideEvent, DETACHED_REASONS, type HideEvent, isDetached } from '../calc/hide.calc.js';
+import { LISTING_EVENTS, listingEvent } from '../listing.outbox.js';
+import type { BatchRow } from '../listing.repository.js';
+import { clockSettings, type ListingShared, withRestriction } from '../listing.shared.js';
 
 /** Tin đổi theo sự kiện của module khác (design mục 9, 10, 14, 7) — đều theo lô, đều chịu được nhận trùng. */
-export interface ListingReactionService {
+export interface ListingCascadeService {
   onHideEvent(
     where: Prisma.ListingWhereInput,
     event: HideEvent,
@@ -67,7 +67,7 @@ const ownersOf = (rows: Changed): string[] => [
   ...new Set(rows.map(({ before }) => before.ownerId)),
 ];
 
-export function createListingReactionService(shared: ListingShared): ListingReactionService {
+export function createListingCascadeService(shared: ListingShared): ListingCascadeService {
   const { repository, groups, config, clock } = shared;
 
   /** Một sự kiện gộp cho cả lô (N32 / N33 gộp theo người đăng ở `notification`), không một sự kiện mỗi tin. */

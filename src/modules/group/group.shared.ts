@@ -6,8 +6,8 @@ import { requireSecondFactor } from '../../common/auth/auth.plugin.js';
 import type { RuntimeConfig } from '../../common/config/runtime-config.js';
 import { ConflictError, ForbiddenError, NotFoundError } from '../../common/errors/app-error.js';
 import type { AccountSummary } from '../identity/identity.service.js';
-import { badgeEligible } from './badges.calc.js';
-import { type ModeratorCandidate, roleIneligibility } from './membership.calc.js';
+import { badgeEligible } from './calc/badges.calc.js';
+import { type ModeratorCandidate, roleIneligibility } from './calc/membership.calc.js';
 import type { GroupRepository } from './group.repository.js';
 import type { GroupProfileDto, GroupSummaryDto, MemberDto, MembershipDto } from './group.schema.js';
 

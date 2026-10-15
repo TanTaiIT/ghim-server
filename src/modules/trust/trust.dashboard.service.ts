@@ -1,6 +1,6 @@
 import type { Actor } from '../../common/auth/actor.js';
-import { quotaDecision } from './quota.calc.js';
-import { ageDays, nextStep } from './tier.calc.js';
+import { quotaDecision } from './calc/quota.calc.js';
+import { ageDays, nextStep } from './calc/tier.calc.js';
 import type { TrustDashboardDto } from './trust.schema.js';
 import { HOUR_MS, quotaSettings, tierSettings, type TrustServiceDeps } from './trust.shared.js';
 

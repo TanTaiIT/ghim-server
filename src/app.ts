@@ -50,13 +50,16 @@ import {
 } from './modules/identity/identity.repository.js';
 import type { IdentityService } from './modules/identity/identity.service.js';
 import { createListingModule } from './modules/listing/listing.module.js';
-import { noOpenWork } from './modules/listing/listing.ports.js';
+import {
+  type ListingScreeningPort,
+  type ListingTrustPort,
+  noOpenWork,
+} from './modules/listing/listing.ports.js';
 import {
   createListingRepository,
   type ListingRepository,
 } from './modules/listing/listing.repository.js';
 import type { ListingService } from './modules/listing/listing.service.js';
-import type { ListingScreeningPort, ListingTrustPort } from './modules/listing/listing.shared.js';
 import { createMediaModule } from './modules/media/media.module.js';
 import { sharpHasher } from './modules/screening/run/image-hash.js';
 import { createScreeningModule } from './modules/screening/screening.module.js';

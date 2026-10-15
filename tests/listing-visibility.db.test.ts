@@ -6,7 +6,7 @@ import {
   type ListSurface,
   type Viewer,
   visibleWhere,
-} from '../src/modules/listing/visibility.calc.js';
+} from '../src/modules/listing/calc/visibility.calc.js';
 import { LISTING_STATES } from '../src/modules/listing/listing.schema.js';
 import { prisma } from './db-helpers.js';
 import { liveListing, seedCategory, seedGroup } from './listing-helpers.js';

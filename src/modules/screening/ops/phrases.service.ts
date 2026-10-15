@@ -3,7 +3,7 @@ import type { BannedPhrase } from '@prisma/client';
 import { type AuditEntry, auditActor } from '../../../common/audit/audit.js';
 import type { Actor } from '../../../common/auth/actor.js';
 import { BadRequestError, ConflictError, NotFoundError } from '../../../common/errors/app-error.js';
-import { phraseWords } from '../phrase.calc.js';
+import { phraseWords } from '../calc/phrase.calc.js';
 import type { Tx } from '../screening.repository.js';
 import { SCREENING_JOBS } from '../screening.jobs.js';
 import type { CreatePhraseBody, PatchPhraseBody, PhraseDto } from '../screening.schema.js';

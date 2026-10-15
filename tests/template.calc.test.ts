@@ -7,7 +7,7 @@ import {
   fieldsToJson,
   lockedFieldIssue,
   type TemplateField,
-} from '../src/modules/category/template.calc.js';
+} from '../src/modules/category/calc/template.calc.js';
 
 const hang: TemplateField = {
   name: 'hang',

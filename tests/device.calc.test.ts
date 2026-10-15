@@ -5,7 +5,7 @@ import {
   type DevicePostRow,
   hashDeviceId,
   requiredDeviceFlags,
-} from '../src/modules/identity/device.calc.js';
+} from '../src/modules/identity/calc/device.calc.js';
 
 const NOW = new Date('2026-10-10T09:00:00+07:00');
 const DAY_MS = 86_400_000;

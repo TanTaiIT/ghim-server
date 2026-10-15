@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { applyHideEvent } from '../src/modules/listing/hide.calc.js';
+import { applyHideEvent } from '../src/modules/listing/calc/hide.calc.js';
 import { BATCH_SIZE, createListingRepository } from '../src/modules/listing/listing.repository.js';
 import { outboxEvents, prisma, truncateAll } from './db-helpers.js';
 import { liveListing, seedCategory, seedGroup, seedListing } from './listing-helpers.js';

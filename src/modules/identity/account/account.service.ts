@@ -8,8 +8,8 @@ import {
 } from '../../../common/errors/app-error.js';
 import { formatDateVN } from '../../../common/time/time.js';
 import { imageNotInStorage } from '../../media/media.service.js';
-import { hashEmail, normalizeEmail } from '../email.calc.js';
-import { hashPassword, verifyPassword } from '../password.calc.js';
+import { hashEmail, normalizeEmail } from '../calc/email.calc.js';
+import { hashPassword, verifyPassword } from '../calc/password.calc.js';
 import type { Account } from '../identity.repository.js';
 import {
   type IdentityService,

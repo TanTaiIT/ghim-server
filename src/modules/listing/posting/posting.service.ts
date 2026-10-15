@@ -4,9 +4,9 @@ import type { Actor } from '../../../common/auth/actor.js';
 import { ConflictError, ForbiddenError, NotFoundError } from '../../../common/errors/app-error.js';
 import { formatDateVN } from '../../../common/time/time.js';
 import { imageNotInStorage } from '../../media/media.service.js';
-import { nextClock, renewEarlyCheck } from '../display-period.calc.js';
-import { dropGroupReasons, isDetached } from '../hide.calc.js';
-import { transition } from '../listing.calc.js';
+import { nextClock, renewEarlyCheck } from '../calc/display-period.calc.js';
+import { dropGroupReasons, isDetached } from '../calc/hide.calc.js';
+import { transition } from '../calc/listing.calc.js';
 import { LISTING_EVENTS, listingEvent, stateChangedEvent } from '../listing.outbox.js';
 import {
   type CreateListingBody,
@@ -24,14 +24,14 @@ import {
   versionConflict,
 } from '../listing.shared.js';
 import { classifyEdit } from './edit.calc.js';
-import { createMoveToMarketplace } from './move.js';
+import { createMoveToMarketplace } from './move.service.js';
 import {
   contentData,
   createSubmission,
   fieldsOf,
   type ListingFields,
   tooManyImages,
-} from './submission.js';
+} from './submission.service.js';
 
 export interface ListingPostingService {
   createDraft(actor: Actor, body: CreateListingBody): Promise<OwnListingDto>;

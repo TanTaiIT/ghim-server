@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { startOfDayVN } from '../../common/time/time.js';
+import { startOfDayVN } from '../../../common/time/time.js';
 
 export type TrustTier = 'T0' | 'T1' | 'T2' | 'T3';
 

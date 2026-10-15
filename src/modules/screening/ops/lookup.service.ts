@@ -1,7 +1,7 @@
 import { NotFoundError } from '../../../common/errors/app-error.js';
-import { normalizeLookupCode } from '../../identity/ops/lookup-code.calc.js';
+import { normalizeLookupCode } from '../../../common/crypto/lookup-code.js';
 import { ACCOUNT_FLAG_KINDS, type AccountFlagKind } from '../../identity/identity.schema.js';
-import type { AppliedHit } from '../score.calc.js';
+import type { AppliedHit } from '../calc/score.calc.js';
 import type { LookupDto } from '../screening.schema.js';
 import { RULE_LABELS } from '../screening.rules.js';
 import { type ScreeningShared, textResultOf } from '../screening.shared.js';

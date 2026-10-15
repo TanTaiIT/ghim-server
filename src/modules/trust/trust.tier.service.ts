@@ -1,7 +1,7 @@
 import type { ListingFault, ListingState } from '@prisma/client';
 
 import { sequentially } from '../../common/utils/sequential.js';
-import { computeTier, factsHash, type TrustTier } from './tier.calc.js';
+import { computeTier, factsHash, type TrustTier } from './calc/tier.calc.js';
 import { DAY_MS, HOUR_MS, tierSettings, type TrustServiceDeps } from './trust.shared.js';
 
 export interface ListingStateChange {

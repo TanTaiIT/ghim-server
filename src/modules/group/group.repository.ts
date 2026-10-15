@@ -18,7 +18,7 @@ import type {
 
 import { appendAudit, type AuditEntry } from '../../common/audit/audit.js';
 import { appendEvents, type OutboxEventInput } from '../../common/outbox/outbox.js';
-import { ACCEPTS_MEMBERS, ALLOWS_MODERATION, SYSTEM_LOCK_CAUSES } from './group-state.calc.js';
+import { ACCEPTS_MEMBERS, ALLOWS_MODERATION, SYSTEM_LOCK_CAUSES } from './calc/group-state.calc.js';
 import { GROUP_EVENTS, groupEvent } from './group.outbox.js';
 
 type Tx = Prisma.TransactionClient;

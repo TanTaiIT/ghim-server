@@ -8,7 +8,7 @@ import {
   nextClock,
   remainingMs,
   renewEarlyCheck,
-} from '../src/modules/listing/display-period.calc.js';
+} from '../src/modules/listing/calc/display-period.calc.js';
 
 /*
  * Mỗi scenario của spec listing/display-period thành một chuỗi bước "ngày n, tin sang trạng thái / lý do tạm ẩn

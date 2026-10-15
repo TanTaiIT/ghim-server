@@ -1,5 +1,5 @@
 import { logger } from '../../../lib/logger.js';
-import { bandsOf, toStored } from '../dhash.calc.js';
+import { bandsOf, toStored } from '../calc/dhash.calc.js';
 import { IMAGE_CHECK_RETRIES, SCREENING_JOBS } from '../screening.jobs.js';
 import type { ScreeningShared } from '../screening.shared.js';
 import type { Conclusion } from './conclusion.js';

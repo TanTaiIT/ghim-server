@@ -5,7 +5,7 @@ import {
   type Surface,
   type Viewer,
   type VisibleListing,
-} from '../src/modules/listing/visibility.calc.js';
+} from '../src/modules/listing/calc/visibility.calc.js';
 
 /* Scenario của spec listing/visibility và delta identity/profile. */
 const OWNER = 'chu-tin';

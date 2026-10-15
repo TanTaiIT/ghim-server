@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { createInterimTrust, interimScreening } from '../src/modules/listing/listing.ports.js';
+import { createInterimTrust, interimScreening } from './fakes/listing-ports.fake.js';
 import { prisma } from './db-helpers.js';
 import {
   addMember,

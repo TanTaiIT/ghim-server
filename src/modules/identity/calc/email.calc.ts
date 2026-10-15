@@ -1,4 +1,4 @@
-import { hmacHex } from '../../common/crypto/secrets.js';
+import { hmacHex } from '../../../common/crypto/secrets.js';
 
 const GMAIL_DOMAINS = new Set(['gmail.com', 'googlemail.com']);
 

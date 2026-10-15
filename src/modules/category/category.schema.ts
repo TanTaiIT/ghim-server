@@ -6,7 +6,7 @@ import {
   isChoiceType,
   TEMPLATE_FIELD_TYPES,
   type TemplateField,
-} from './template.calc.js';
+} from './calc/template.calc.js';
 
 /** Tuple của các enum trong schema.prisma (CLAUDE.md luật 5). */
 export const CATEGORY_STATUSES = ['active', 'disabled'] as const;

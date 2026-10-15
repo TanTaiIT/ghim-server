@@ -36,7 +36,7 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
     `@fastify/swagger` + `@fastify/swagger-ui` (`/docs`, tắt ở production).
   - Đã nối: `pg-boss` (`src/lib/jobs.ts`, start/stop trong `server.ts`), `nodemailer`
     (`src/lib/mailer.ts`, sau interface `Mailer`), `@fastify/jwt` + `@fastify/cookie`
-    (`src/common/auth/auth.plugin.ts`), `argon2` (`password.calc.ts`), `google-auth-library`
+    (`src/common/auth/auth.plugin.ts`), `argon2` (`identity/calc/password.calc.ts`), `google-auth-library`
     (`google.verifier.ts`, sau interface `GoogleTokenVerifier`), `otplib` (hai lớp trong
     `identity.service.ts`). Không còn gói nào cài mà chưa dùng.
 - DB: **PostgreSQL 18 + Prisma 7**, driver adapter `@prisma/adapter-pg`, preview `partialIndexes`.
@@ -131,6 +131,7 @@ src/
     config/config-keys.ts     ← sổ đăng ký mọi con số TK 28: kiểu, giá trị khởi đầu, nhóm
     config/runtime-config.ts  ← `RuntimeConfig.get(key)`; bản tĩnh cho test và CLI
     crypto/secrets.ts         ← AES-256-GCM (`SecretBox`), SHA-256, HMAC tách scope, token ngẫu nhiên
+    crypto/lookup-code.ts     ← mã tra cứu 8 ký tự Crockford: dấu tài khoản (`identity`), lượt máy kết luận (`screening`)
     errors/{app-error,error-handler}.ts
     http/cache.ts             ← mặc định `no-store` (hook `onSend`); route công khai mở bằng `cacheFor` + `CACHE_*`
     outbox/outbox.ts          ← `appendEvents(tx, events)`: sự kiện chéo module, cùng transaction
@@ -154,12 +155,15 @@ src/
     <module>.events.ts        ← (nếu có) bên nghe outbox của module
     <module>.repository.ts    ← toàn bộ truy vấn Prisma, kể cả transaction + ghi outbox
     <module>.schema.ts        ← Zod schema + hằng/tập giá trị của module
-    <module>.calc.ts / <tên>.calc.ts ← hàm tính toán thuần, không chạm DB (vd email.calc, device.calc)
+    <module>.ports.ts         ← (nếu có) hợp đồng với module khác — kiểu các module kia cài hay import; module khác
+                                import từ đây, không từ `<module>.shared.ts` hay một `<cụm>/` (vd `listing.ports.ts`)
     <module>.jobs.ts          ← (nếu có) việc nền của module: `registerXJobs(jobs, deps)`
     <module>.mail.ts          ← (nếu có) mẫu thư thuần văn bản
+    calc/<tên>.calc.ts        ← hàm tính toán thuần, không chạm DB, dùng từ hai chỗ trở lên trong module (vd
+                                `identity/calc/email.calc.ts`, `listing/calc/listing.calc.ts`); gốc module không chứa calc
     <cụm>/                    ← (module lớn) một mối quan tâm: `<cụm>.routes.ts` (route + schema + guard),
                                 `<cụm>.service.ts`, calc chỉ cụm đó dùng — vd `identity/{auth,account,ops}/`,
-                                `listing/posting/`
+                                `listing/{posting,read,system}/`, `screening/{run,ops}/`
     data/                     ← (nếu có) file tĩnh đi kèm, đọc bằng `new URL('./data/…', import.meta.url)`;
                                 tsc không chép nên `pnpm run build` có bước `build:data` chép `src/**/data` sang dist
   cli/                        ← script chạy tay, không qua HTTP: `create-master`, `reset-two-factor`
@@ -170,10 +174,16 @@ tests/*.db.test.ts            ← ghi thẳng bằng Prisma để kiểm ràng b
 
 - **Không có tầng controller**: handler trong `routes.ts` gọi service rồi trả response.
 - **Thư mục cụm** (chốt 12/10/2026): lập `<cụm>/` khi cụm có từ hai file trở lên chỉ cụm đó dùng. File dùng từ hai cụm
-  trở lên ở lại gốc module, nên không cụm nào import vào thư mục của cụm khác; gốc chỉ giữ phần khung (module,
-  routes, service, repository, schema, shared, events, jobs, outbox) và calc dùng chung. Module nhỏ để phẳng.
-  `group` để phẳng có chủ ý: route chia theo người dùng (công khai / quản trị nhóm / vận hành) còn service chia theo
-  việc (`membership` / `admin`) và cả ba calc dùng chung — muốn tách cụm thì sắp lại route cho khớp service trước.
+  trở lên không nằm trong cụm nào, nên không cụm nào import vào thư mục của cụm khác. Gốc module chỉ giữ phần khung
+  (module, routes, service, repository, schema, shared, ports, events, jobs, outbox). Module nhỏ để phẳng.
+  `group` không có cụm có chủ ý: route chia theo người dùng (công khai / quản trị nhóm / vận hành) còn service chia
+  theo việc (`membership` / `admin`) — muốn tách cụm thì sắp lại route cho khớp service trước.
+- **Thư mục `calc/`** (chốt 15/10/2026): mọi calc thuần dùng chung trong module nằm ở `calc/`, kể cả module chưa có cụm;
+  `calc/` không import cụm nào, cụm nào cũng import được `calc/`. Calc chỉ một cụm dùng thì ở trong cụm đó
+  (`listing/posting/edit.calc.ts`); dùng từ hai module trở lên thì không thuộc module nào → `src/common/` (vd
+  `common/crypto/lookup-code.ts`). Tên `calc/` chứ không `rules/`: ở `screening`,
+  "luật" là khái niệm nghiệp vụ (`ops/rules.service.ts` — luật của máy duyệt). Calc đọc file dữ liệu thì đường dẫn
+  là `new URL('../data/…', import.meta.url)` — typecheck không bắt sai đường dẫn này, chỉ khởi động server mới bắt.
 - **Không có `<module>.types.ts`**: DTO chính là response schema Zod trong `<module>.schema.ts`.
 - Tên module kebab-case, **số ít**. Đang có: `health`, `identity`, `platform`, `category`, `group`,
   `notification`, `media`, `listing`, `trust`, `screening`.
@@ -295,7 +305,7 @@ Mỗi luật dưới đây là một cam kết ở TK phần 27; số trong ngo�
     thì không. `ops` (đợt 7) nhận lại và mở rộng; hợp đồng bên nghe không đổi.
 13. **Trạng thái tin, cờ tạm ẩn, lý do hạn chế là ba thứ riêng** (15, 18, 19). Lý do hạn chế là một
     tập (`machine`, `new_account`, `strike`), mỗi lý do đặt/gỡ độc lập. Đường chuyển trạng thái tin
-    là **bảng thuần** trong `listing.calc.ts`, có unit test cho mọi mũi tên của sơ đồ TK
+    là **bảng thuần** trong `listing/calc/listing.calc.ts`, có unit test cho mọi mũi tên của sơ đồ TK
     phần 18 — và cho mọi mũi tên KHÔNG có.
 14. **Máy không phạt** (13, nguyên tắc 7). `screening` chỉ trả `pass_full` / `pass_limited` / `hold`.
     Lỗi dịch vụ, quá giờ, thiếu kết quả ảnh → `hold`, không bao giờ là cho qua.
@@ -307,7 +317,7 @@ Mỗi luật dưới đây là một cam kết ở TK phần 27; số trong ngo�
 17. **Không ai, trừ master, xử việc của chính mình** (nguyên tắc 4) — kể cả tài khoản dùng chung
     thiết bị. Một hàm duy nhất trong `review` quyết ai được nhận việc; không viết
     `if (actor.id === listing.ownerId)` rải rác.
-18. **Mức tin cậy là hàm thuần** của dữ kiện (`trust/tier.calc.ts`, hạn mức ở `trust/quota.calc.ts`), tính lại từ đầu chứ
+18. **Mức tin cậy là hàm thuần** của dữ kiện (`trust/calc/tier.calc.ts`, hạn mức ở `trust/calc/quota.calc.ts`), tính lại từ đầu chứ
     không cộng trừ, lưu kèm dấu băm dữ kiện và phiên bản bảng con số (20). Mỗi luật có unit test.
 19. **Mọi con số ở TK phần 28 đọc từ bảng con số có phiên bản** (`platform`), không hardcode trong
     code. Kết quả máy và mức tin cậy ghi lại phiên bản đã dùng. Code đọc qua

@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createOutboxDispatcher } from '../src/common/outbox/dispatcher.js';
-import { hashPassword } from '../src/modules/identity/password.calc.js';
+import { hashPassword } from '../src/modules/identity/calc/password.calc.js';
 import { registerPlatformListeners } from '../src/modules/platform/platform.events.js';
 import { prisma } from './db-helpers.js';
 import { seedAccount, tokenFor } from './ops-helpers.js';

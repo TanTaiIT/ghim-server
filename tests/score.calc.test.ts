@@ -6,7 +6,7 @@ import {
   type RawHit,
   type RuleBook,
   scoreOf,
-} from '../src/modules/screening/score.calc.js';
+} from '../src/modules/screening/calc/score.calc.js';
 import type { RuleCode } from '../src/modules/screening/screening.rules.js';
 import { initialBook } from './screening-book.js';
 

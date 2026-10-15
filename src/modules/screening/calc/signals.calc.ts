@@ -2,11 +2,11 @@ import { readFileSync } from 'node:fs';
 
 import type { RiskLevel, TrustTier } from '@prisma/client';
 
-import { fold } from '../../common/text/fold.js';
+import { fold } from '../../../common/text/fold.js';
 import { type PhraseHit, phraseWords, tokenize } from './phrase.calc.js';
 import type { PriceRange } from './price-stats.calc.js';
 import type { RawHit } from './score.calc.js';
-import type { RuleCode } from './screening.rules.js';
+import type { RuleCode } from '../screening.rules.js';
 
 /*
  * Dấu hiệu chấm điểm (design add-screening mục 6) — mỗi dấu hiệu một hàm thuần trên dữ kiện đã đọc sẵn. Ngưỡng truyền
@@ -22,7 +22,7 @@ const DAY_MS = 86_400_000;
  * một lần lúc import như danh sách mật khẩu phổ biến; `pnpm run build` chép `data/` sang dist.
  */
 const LATIN_WORDS: ReadonlySet<string> = new Set(
-  readFileSync(new URL('./data/latin-words.txt', import.meta.url), 'utf8')
+  readFileSync(new URL('../data/latin-words.txt', import.meta.url), 'utf8')
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean),

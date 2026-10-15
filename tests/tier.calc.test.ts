@@ -6,7 +6,7 @@ import {
   countingTimes,
   factsHash,
   type TierSettings,
-} from '../src/modules/trust/tier.calc.js';
+} from '../src/modules/trust/calc/tier.calc.js';
 
 /*
  * Spec trust/trust-tiers, phần thuần. "Ngày n" = n ngày lịch giờ Việt Nam kể từ ngày tạo tài khoản (ngày 1), lúc

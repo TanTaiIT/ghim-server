@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { ruleBookOf } from '../src/modules/screening/score.calc.js';
+import { ruleBookOf } from '../src/modules/screening/calc/score.calc.js';
 import { createScreeningRepository } from '../src/modules/screening/screening.repository.js';
 import { INITIAL_RULES } from '../src/modules/screening/screening.rules.js';
 import { prisma, truncateAll } from './db-helpers.js';

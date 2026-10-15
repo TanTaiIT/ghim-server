@@ -16,8 +16,8 @@ import {
   isPublicMode,
   LOCKABLE,
   planModeChange,
-} from './group-state.calc.js';
-import { generateGroupCode } from './membership.calc.js';
+} from './calc/group-state.calc.js';
+import { generateGroupCode } from './calc/membership.calc.js';
 import type { Page } from './group.repository.js';
 import type { OutboxEventInput } from '../../common/outbox/outbox.js';
 import { GROUP_EVENTS, groupEvent } from './group.outbox.js';

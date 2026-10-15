@@ -1,4 +1,4 @@
-import { fold } from '../../common/text/fold.js';
+import { fold } from '../../../common/text/fold.js';
 
 export const TEMPLATE_FIELD_TYPES = ['text', 'number', 'single_choice', 'multi_choice'] as const;
 export type TemplateFieldType = (typeof TEMPLATE_FIELD_TYPES)[number];

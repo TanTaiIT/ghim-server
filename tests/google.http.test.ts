@@ -6,7 +6,7 @@ import type {
   GoogleIdentity,
   GoogleTokenVerifier,
 } from '../src/modules/identity/google.verifier.js';
-import { hashPassword } from '../src/modules/identity/password.calc.js';
+import { hashPassword } from '../src/modules/identity/calc/password.calc.js';
 import { lastOutboxEvent, prisma } from './db-helpers.js';
 import { buildTestApp, repositories, TEST_AUDIT } from './test-app.js';
 

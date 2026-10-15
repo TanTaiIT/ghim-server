@@ -1,4 +1,4 @@
-import type { RuleBook, RuleSetting } from '../src/modules/screening/score.calc.js';
+import type { RuleBook, RuleSetting } from '../src/modules/screening/calc/score.calc.js';
 import {
   INITIAL_WEIGHTS,
   RULE_CODES,

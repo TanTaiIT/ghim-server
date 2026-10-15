@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { createInterimTrust, interimScreening } from '../src/modules/listing/listing.ports.js';
+import { createInterimTrust, interimScreening } from './fakes/listing-ports.fake.js';
 import { LISTING_JOBS } from '../src/modules/listing/listing.jobs.js';
 import { outboxEvents, prisma } from './db-helpers.js';
 import type { FakeJobs } from './fakes/jobs.fake.js';

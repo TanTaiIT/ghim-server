@@ -7,7 +7,7 @@ import {
 } from './group.membership.service.js';
 import { sequentially } from '../../common/utils/sequential.js';
 import { createGroupPostingService, type GroupPostingService } from './group.posting.service.js';
-import { pickNominee } from './membership.calc.js';
+import { pickNominee } from './calc/membership.calc.js';
 import { createGroupShared, type GroupServiceDeps } from './group.shared.js';
 
 export type { GroupServiceDeps } from './group.shared.js';

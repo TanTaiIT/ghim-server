@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { domainSuffixes, hashEmail, normalizeEmail } from '../src/modules/identity/email.calc.js';
+import {
+  domainSuffixes,
+  hashEmail,
+  normalizeEmail,
+} from '../src/modules/identity/calc/email.calc.js';
 
 describe('normalizeEmail — bốn scenario của spec registration', () => {
   it.each([

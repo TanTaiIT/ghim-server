@@ -1,7 +1,7 @@
 import type { BannedPhraseLevel, ScreeningBand, ScreeningRuleKind } from '@prisma/client';
 
 import type { RuleMode } from './phrase.calc.js';
-import { isGate, isRuleCode, type RuleCode } from './screening.rules.js';
+import { isGate, isRuleCode, type RuleCode } from '../screening.rules.js';
 
 export interface RuleSetting {
   weight: number;

@@ -1,11 +1,11 @@
 import type { ImageCheck, ScreeningRun } from '@prisma/client';
 
-import { generateLookupCode } from '../../identity/ops/lookup-code.calc.js';
-import type { LiveListingFacts } from '../../listing/listing.facts.service.js';
-import { bandsOf, hamming } from '../dhash.calc.js';
-import { conclude as concludeCalc, type Failure } from '../decide.calc.js';
-import { explain } from '../explanation.calc.js';
-import { type AppliedHit, type RawHit, ruleBookOf } from '../score.calc.js';
+import { generateLookupCode } from '../../../common/crypto/lookup-code.js';
+import type { LiveListingFacts } from '../../listing/listing.ports.js';
+import { bandsOf, hamming } from '../calc/dhash.calc.js';
+import { conclude as concludeCalc, type Failure } from '../calc/decide.calc.js';
+import { explain } from '../calc/explanation.calc.js';
+import { type AppliedHit, type RawHit, ruleBookOf } from '../calc/score.calc.js';
 import type { Tx } from '../screening.repository.js';
 import { SCREENING_EVENTS, screeningEvent } from '../screening.outbox.js';
 import {

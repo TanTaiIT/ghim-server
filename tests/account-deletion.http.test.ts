@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { hashPassword } from '../src/modules/identity/password.calc.js';
+import { hashPassword } from '../src/modules/identity/calc/password.calc.js';
 import { lastOutboxEvent } from './db-helpers.js';
 import { seedAccount, tokenFor } from './ops-helpers.js';
 import { buildTestApp, repositories } from './test-app.js';

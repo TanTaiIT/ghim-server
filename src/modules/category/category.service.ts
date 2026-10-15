@@ -16,7 +16,7 @@ import type {
   WardWithProvince,
 } from './category.repository.js';
 import { REGION_SEARCH_LIMIT } from './category.schema.js';
-import { attributeIssues, lockedFieldIssue, type TemplateField } from './template.calc.js';
+import { attributeIssues, lockedFieldIssue, type TemplateField } from './calc/template.calc.js';
 
 export interface CategoryServiceDeps {
   repository: CategoryRepository;

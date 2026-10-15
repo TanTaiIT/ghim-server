@@ -14,7 +14,7 @@ import { appendAudit, type AuditEntry } from '../../common/audit/audit.js';
 import { appendEvents } from '../../common/outbox/outbox.js';
 import { CATEGORY_EVENTS } from './category.outbox.js';
 import { fold } from '../../common/text/fold.js';
-import { fieldsToJson, type TemplateField } from './template.calc.js';
+import { fieldsToJson, type TemplateField } from './calc/template.calc.js';
 
 export type {
   Category,

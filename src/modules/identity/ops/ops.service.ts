@@ -2,18 +2,18 @@ import { readFileSync } from 'node:fs';
 import { auditActor } from '../../../common/audit/audit.js';
 import { ConflictError, NotFoundError } from '../../../common/errors/app-error.js';
 import { toPage, toSkipTake } from '../../../common/schemas/pagination.js';
-import { hashEmail, normalizeEmail } from '../email.calc.js';
+import { hashEmail, normalizeEmail } from '../calc/email.calc.js';
 import { parseDomainList } from '../identity.jobs.js';
 import type { OutboxEventInput } from '../identity.repository.js';
 import { FLAG_CLEARED_REASONS } from '../identity.schema.js';
-import { hashPassword } from '../password.calc.js';
+import { hashPassword } from '../calc/password.calc.js';
 import {
   hashDeviceId,
   requiredDeviceFlags,
   sharesDeviceWithLocked,
   withSubmission,
-} from '../device.calc.js';
-import { generateLookupCode, normalizeLookupCode } from './lookup-code.calc.js';
+} from '../calc/device.calc.js';
+import { generateLookupCode, normalizeLookupCode } from '../../../common/crypto/lookup-code.js';
 import {
   type IdentityService,
   type IdentityServiceDeps,

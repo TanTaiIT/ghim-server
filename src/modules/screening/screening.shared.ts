@@ -6,14 +6,13 @@ import { formatTimeVN } from '../../common/time/time.js';
 import type { Jobs } from '../../lib/jobs.js';
 import type { CategoryService } from '../category/category.service.js';
 import type { IdentityService } from '../identity/identity.service.js';
-import type { ListingFactsService } from '../listing/listing.facts.service.js';
-import type { ScreeningSubmission } from '../listing/listing.shared.js';
+import type { ListingFactsService, ScreeningSubmission } from '../listing/listing.ports.js';
 import type { MediaService } from '../media/media.service.js';
-import { buildPhraseMatcher, type PhraseMatcher } from './phrase.calc.js';
-import type { BandThresholds, RawHit, RuleSnapshot } from './score.calc.js';
+import { buildPhraseMatcher, type PhraseMatcher } from './calc/phrase.calc.js';
+import type { BandThresholds, RawHit, RuleSnapshot } from './calc/score.calc.js';
 import { INITIAL_RULES } from './screening.rules.js';
 import type { ScreeningRepository } from './screening.repository.js';
-import type { SignalLimits } from './signals.calc.js';
+import type { SignalLimits } from './calc/signals.calc.js';
 
 // ── CỔNG ─────────────────────────────────────────────────────────────────────────────────────────
 

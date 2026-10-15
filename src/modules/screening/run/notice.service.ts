@@ -1,8 +1,8 @@
 import type { ScreeningRun } from '@prisma/client';
 
-import type { MachineNotice } from '../../listing/listing.shared.js';
+import type { MachineNotice } from '../../listing/listing.ports.js';
 import type { HoldNotice } from '../../trust/trust.shared.js';
-import { type Explanation, renderExplanation } from '../explanation.calc.js';
+import { type Explanation, renderExplanation } from '../calc/explanation.calc.js';
 import type { ScreeningShared } from '../screening.shared.js';
 
 export interface ScreeningNoticeService {

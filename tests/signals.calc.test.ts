@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { priceRange } from '../src/modules/screening/price-stats.calc.js';
+import { priceRange } from '../src/modules/screening/calc/price-stats.calc.js';
 import {
   type CategoryFacts,
   collectHits,
@@ -15,7 +15,7 @@ import {
   type SignalLimits,
   similarity,
   type TextFacts,
-} from '../src/modules/screening/signals.calc.js';
+} from '../src/modules/screening/calc/signals.calc.js';
 
 /* Spec screening/risk-scoring, phần dấu hiệu thuần (design add-screening mục 6). */
 const MILLION = 1_000_000n;

@@ -7,7 +7,7 @@ import {
   HASH_WIDTH,
   hamming,
   toStored,
-} from '../src/modules/screening/dhash.calc.js';
+} from '../src/modules/screening/calc/dhash.calc.js';
 
 /* Spec screening/image-checks, phần thuần (design add-screening mục 3). */
 const ALL_ONES = (1n << 64n) - 1n;

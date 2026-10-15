@@ -1,6 +1,6 @@
-import type { LiveListingFacts } from '../../listing/listing.facts.service.js';
-import { buildPhraseMatcher } from '../phrase.calc.js';
-import { priceRange } from '../price-stats.calc.js';
+import type { LiveListingFacts } from '../../listing/listing.ports.js';
+import { buildPhraseMatcher } from '../calc/phrase.calc.js';
+import { priceRange } from '../calc/price-stats.calc.js';
 import { SCREENING_EVENTS, screeningEvent } from '../screening.outbox.js';
 import { DAY_MS, MINUTE_MS, type ScreeningShared } from '../screening.shared.js';
 import type { Conclusion } from './conclusion.js';

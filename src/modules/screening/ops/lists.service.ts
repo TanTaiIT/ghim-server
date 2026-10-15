@@ -5,8 +5,8 @@ import { auditActor } from '../../../common/audit/audit.js';
 import type { Actor } from '../../../common/auth/actor.js';
 import { BadRequestError, NotFoundError } from '../../../common/errors/app-error.js';
 import { imageNotInStorage } from '../../media/media.service.js';
-import { bandsOf, toStored } from '../dhash.calc.js';
-import { phraseWords } from '../phrase.calc.js';
+import { bandsOf, toStored } from '../calc/dhash.calc.js';
+import { phraseWords } from '../calc/phrase.calc.js';
 import type { KeywordsDto, WhitelistEntryDto } from '../screening.schema.js';
 import type { ScreeningShared } from '../screening.shared.js';
 

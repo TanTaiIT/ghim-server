@@ -1,12 +1,12 @@
 import type { Listing, ListingState, Prisma } from '@prisma/client';
 
-import type { Actor } from '../../common/auth/actor.js';
-import { NotFoundError } from '../../common/errors/app-error.js';
-import { type CursorKey, toCursorPage } from '../../common/schemas/cursor.js';
-import { fold } from '../../common/text/fold.js';
-import type { FeedQuery, ListingDto, OwnListingDto } from './listing.schema.js';
-import { type ListingShared, listingNotFound } from './listing.shared.js';
-import { canView, type ListSurface, visibleWhere } from './visibility.calc.js';
+import type { Actor } from '../../../common/auth/actor.js';
+import { NotFoundError } from '../../../common/errors/app-error.js';
+import { type CursorKey, toCursorPage } from '../../../common/schemas/cursor.js';
+import { fold } from '../../../common/text/fold.js';
+import type { FeedQuery, ListingDto, OwnListingDto } from '../listing.schema.js';
+import { type ListingShared, listingNotFound } from '../listing.shared.js';
+import { canView, type ListSurface, visibleWhere } from '../calc/visibility.calc.js';
 
 export interface CursorPage<T> {
   items: T[];

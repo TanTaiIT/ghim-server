@@ -1,8 +1,8 @@
 import type { ListingPlacement, TrustTier } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 
-import { conclude, decide, HELD_MANY_CAUSES } from '../src/modules/screening/decide.calc.js';
-import type { RawHit, RuleBook } from '../src/modules/screening/score.calc.js';
+import { conclude, decide, HELD_MANY_CAUSES } from '../src/modules/screening/calc/decide.calc.js';
+import type { RawHit, RuleBook } from '../src/modules/screening/calc/score.calc.js';
 import type { RuleCode } from '../src/modules/screening/screening.rules.js';
 import { initialBook } from './screening-book.js';
 

@@ -5,7 +5,7 @@ import {
   type QuotaFacts,
   quotaDecision,
   type QuotaSettings,
-} from '../src/modules/trust/quota.calc.js';
+} from '../src/modules/trust/calc/quota.calc.js';
 
 /* Spec trust/quotas, phần thuần: trần tin sống theo lượt, nhịp gửi cửa sổ trượt, trần người ngoài. */
 const NOW = new Date('2026-10-12T05:00:00.000Z');

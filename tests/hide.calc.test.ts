@@ -7,7 +7,7 @@ import {
   type HideEvent,
   type HideTarget,
   isDetached,
-} from '../src/modules/listing/hide.calc.js';
+} from '../src/modules/listing/calc/hide.calc.js';
 
 /* Scenario của spec listing/suspension phần không cần DB: lý do nào được đặt, gỡ, và không phụ thuộc thứ tự. */
 const MEMBERS_ONLY: HideTarget = { state: 'live', placement: 'members_only', hideReasons: [] };

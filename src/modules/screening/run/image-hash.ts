@@ -1,6 +1,6 @@
 import sharp from 'sharp';
 
-import { dhashFromGray, HASH_HEIGHT, HASH_WIDTH } from '../dhash.calc.js';
+import { dhashFromGray, HASH_HEIGHT, HASH_WIDTH } from '../calc/dhash.calc.js';
 import type { ImageHasher } from '../screening.shared.js';
 
 /**

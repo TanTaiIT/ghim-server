@@ -15,17 +15,17 @@ import {
   NotFoundError,
 } from '../../../common/errors/app-error.js';
 import { fold } from '../../../common/text/fold.js';
-import { nextClock } from '../display-period.calc.js';
-import type { ListingArrow } from '../listing.calc.js';
+import { nextClock } from '../calc/display-period.calc.js';
+import type { ListingArrow } from '../calc/listing.calc.js';
 import { LISTING_EVENTS, listingEvent, stateChangedEvent } from '../listing.outbox.js';
 import {
   clockSettings,
   type ListingShared,
   placementError,
-  type ScreeningSubmission,
   validationError,
 } from '../listing.shared.js';
-import { decideGroupPlacement, missingForSubmit, needsRegion } from './placement.calc.js';
+import { type ScreeningSubmission } from '../listing.ports.js';
+import { decideGroupPlacement, missingForSubmit, needsRegion } from '../calc/placement.calc.js';
 
 /** Các trường người đăng soạn — trạng thái gộp của tin sau khi áp phần sửa. */
 export interface ListingFields {

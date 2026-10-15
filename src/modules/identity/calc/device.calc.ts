@@ -1,5 +1,5 @@
-import { hmacHex } from '../../common/crypto/secrets.js';
-import type { AccountFlagKind } from './identity.schema.js';
+import { hmacHex } from '../../../common/crypto/secrets.js';
+import type { AccountFlagKind } from '../identity.schema.js';
 
 export interface DevicePostRow {
   accountId: string;

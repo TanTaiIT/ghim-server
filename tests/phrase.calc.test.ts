@@ -5,7 +5,7 @@ import {
   type PhraseEntry,
   phraseWords,
   tokenize,
-} from '../src/modules/screening/phrase.calc.js';
+} from '../src/modules/screening/calc/phrase.calc.js';
 
 /* Spec screening/banned-phrases và delta identity/profile, phần so khớp thuần (design add-screening mục 7). */
 const phrase = (overrides: Partial<PhraseEntry> = {}): PhraseEntry => ({

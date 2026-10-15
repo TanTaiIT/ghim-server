@@ -1,4 +1,4 @@
-import { fold } from '../../common/text/fold.js';
+import { fold } from '../../../common/text/fold.js';
 
 export type PhraseLevel = 'certain' | 'ambiguous';
 export type RuleMode = 'on' | 'trial' | 'off';

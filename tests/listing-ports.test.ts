@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  createInterimTrust,
-  interimScreening,
-  noOpenWork,
-} from '../src/modules/listing/listing.ports.js';
+import { noOpenWork } from '../src/modules/listing/listing.ports.js';
+import { createInterimTrust, interimScreening } from './fakes/listing-ports.fake.js';
 
 /* Chỗ cắm tạm của design add-listings mục 7, 8: test không bàn về mức tin cậy hay máy duyệt đè cổng bằng các bản này. */
 describe('Cổng tạm', () => {

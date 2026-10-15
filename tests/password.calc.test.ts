@@ -4,7 +4,7 @@ import {
   checkPassword,
   hashPassword,
   verifyPassword,
-} from '../src/modules/identity/password.calc.js';
+} from '../src/modules/identity/calc/password.calc.js';
 
 const LIMITS = { min: 8, max: 128 };
 

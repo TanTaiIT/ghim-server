@@ -1,8 +1,8 @@
 import type { ListingSubmissionKind } from '@prisma/client';
 
 import { logger } from '../../../lib/logger.js';
-import type { ScreeningSubmission } from '../../listing/listing.shared.js';
-import { HELD_MANY_CAUSES } from '../decide.calc.js';
+import type { ScreeningSubmission } from '../../listing/listing.ports.js';
+import { HELD_MANY_CAUSES } from '../calc/decide.calc.js';
 import type { Tx } from '../screening.repository.js';
 import {
   bandThresholds,
@@ -14,7 +14,7 @@ import {
   type TextScore,
   submissionCooldown,
 } from '../screening.shared.js';
-import { type CategoryFacts, collectHits, guessCategory } from '../signals.calc.js';
+import { type CategoryFacts, collectHits, guessCategory } from '../calc/signals.calc.js';
 import type { Conclusion } from './conclusion.js';
 
 /** Thời gian chờ chỉ chặn tin mới — gửi nháp lần đầu và chuyển tin lên sàn (câu 2); sửa, gia hạn vẫn làm được. */

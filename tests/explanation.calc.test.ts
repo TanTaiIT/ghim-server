@@ -5,8 +5,8 @@ import {
   explain,
   type Explanation,
   renderExplanation,
-} from '../src/modules/screening/explanation.calc.js';
-import type { AppliedHit } from '../src/modules/screening/score.calc.js';
+} from '../src/modules/screening/calc/explanation.calc.js';
+import type { AppliedHit } from '../src/modules/screening/calc/score.calc.js';
 import { INITIAL_WEIGHTS, type RuleCode } from '../src/modules/screening/screening.rules.js';
 
 /* Spec screening/explanations, phần thuần (design add-screening mục 8). */

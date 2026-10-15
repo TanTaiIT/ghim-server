@@ -1,22 +1,23 @@
-import { createListingFactsService, type ListingFactsService } from './listing.facts.service.js';
-import {
-  createListingReactionService,
-  type ListingReactionService,
-} from './listing.reaction.service.js';
-import { createListingReadService, type ListingReadService } from './listing.read.service.js';
+import type { ListingFactsService } from './listing.ports.js';
 import { createListingShared, type ListingServiceDeps } from './listing.shared.js';
-import { createListingSystemService, type ListingSystemService } from './listing.system.service.js';
 import {
   createListingPostingService,
   type ListingPostingService,
 } from './posting/posting.service.js';
+import { createListingFactsService } from './read/facts.service.js';
+import { createListingReadService, type ListingReadService } from './read/read.service.js';
+import {
+  createListingCascadeService,
+  type ListingCascadeService,
+} from './system/cascade.service.js';
+import { createListingSystemService, type ListingSystemService } from './system/system.service.js';
 
 export type { ListingServiceDeps } from './listing.shared.js';
 
 export type ListingService = ListingPostingService &
   ListingReadService &
   ListingSystemService &
-  ListingReactionService &
+  ListingCascadeService &
   ListingFactsService;
 
 /**
@@ -29,7 +30,7 @@ export function createListingService(deps: ListingServiceDeps): ListingService {
     ...createListingPostingService(shared),
     ...createListingReadService(shared),
     ...createListingSystemService(shared),
-    ...createListingReactionService(shared),
+    ...createListingCascadeService(shared),
     ...createListingFactsService(shared),
   };
 }

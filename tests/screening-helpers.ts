@@ -4,8 +4,8 @@ import type { ScreeningRun, ScreeningTrigger, TrustTier } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import sharp from 'sharp';
 
-import type { ListingTrustPort } from '../src/modules/listing/listing.shared.js';
-import { bandsOf, toStored } from '../src/modules/screening/dhash.calc.js';
+import type { ListingTrustPort } from '../src/modules/listing/listing.ports.js';
+import { bandsOf, toStored } from '../src/modules/screening/calc/dhash.calc.js';
 import { prisma } from './db-helpers.js';
 import { api, deliverAll, type TestUser } from './group-helpers.js';
 import { getOwn, listingApi, type OwnListing, readyDraft, submit } from './listing-http-helpers.js';

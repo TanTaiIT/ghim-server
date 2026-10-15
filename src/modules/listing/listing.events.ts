@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import type { OutboxDispatcher } from '../../common/outbox/dispatcher.js';
 import type { OutboxEventType } from '../../common/outbox/outbox.js';
-import type { HideEvent } from './hide.calc.js';
+import type { HideEvent } from './calc/hide.calc.js';
 import type { ListingService } from './listing.service.js';
 
 const account = z.object({ accountId: z.string() });

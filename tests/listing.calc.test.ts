@@ -6,7 +6,7 @@ import {
   type ListingArrow,
   type ListingSide,
   transition,
-} from '../src/modules/listing/listing.calc.js';
+} from '../src/modules/listing/calc/listing.calc.js';
 
 /*
  * Sơ đồ TK 18 chép lại tay, không đọc từ code: mỗi dòng là một mũi tên CÓ. Test chạy đủ 8 trạng thái × 15 mũi

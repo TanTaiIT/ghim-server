@@ -1,4 +1,4 @@
-import { fold } from '../../common/text/fold.js';
+import { fold } from '../../../common/text/fold.js';
 
 /** Tên dành cho bộ phận quản lý (TK 7): người dùng không được mạo danh, so sau khi bỏ dấu và hoa. */
 const RESERVED_NAMES = [

@@ -4,7 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { TooManyRequestsError } from '../src/common/errors/app-error.js';
-import { createInterimTrust } from '../src/modules/listing/listing.ports.js';
+import { createInterimTrust } from './fakes/listing-ports.fake.js';
 import { prisma } from './db-helpers.js';
 import {
   addMember,

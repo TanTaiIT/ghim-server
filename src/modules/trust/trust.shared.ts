@@ -1,7 +1,7 @@
 import type { RuntimeConfig } from '../../common/config/runtime-config.js';
-import type { ListingFactsService } from '../listing/listing.facts.service.js';
-import type { QuotaSettings } from './quota.calc.js';
-import type { TierSettings, TrustTier } from './tier.calc.js';
+import type { ListingFactsService } from '../listing/listing.ports.js';
+import type { QuotaSettings } from './calc/quota.calc.js';
+import type { TierSettings, TrustTier } from './calc/tier.calc.js';
 import type { TrustRepository } from './trust.repository.js';
 
 /** Dữ kiện tin đăng `trust` cần — `listing` trả lời, `trust` không đọc bảng `listings` (design mục 1, luật 12). */

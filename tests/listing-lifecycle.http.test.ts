@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createStaticRuntimeConfig } from '../src/common/config/runtime-config.js';
-import { createInterimTrust, interimScreening } from '../src/modules/listing/listing.ports.js';
+import { createInterimTrust, interimScreening } from './fakes/listing-ports.fake.js';
 import { createListingService } from '../src/modules/listing/listing.service.js';
 import { prisma } from './db-helpers.js';
 import {

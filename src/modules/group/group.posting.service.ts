@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client';
 
 import type { Actor } from '../../common/auth/actor.js';
-import { badgeEligible } from './badges.calc.js';
+import { badgeEligible } from './calc/badges.calc.js';
 import type { GroupPostingSnapshot } from './group.repository.js';
 import { isOwner, isWholeModerator, type GroupShared } from './group.shared.js';
 

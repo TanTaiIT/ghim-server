@@ -4,7 +4,7 @@ import type { TrustTier } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { hamming } from '../src/modules/screening/dhash.calc.js';
+import { hamming } from '../src/modules/screening/calc/dhash.calc.js';
 import { sharpHasher } from '../src/modules/screening/run/image-hash.js';
 import { createFakeJobs, type FakeJobs } from './fakes/jobs.fake.js';
 import { api, deliverAll, newUser, type TestUser } from './group-helpers.js';

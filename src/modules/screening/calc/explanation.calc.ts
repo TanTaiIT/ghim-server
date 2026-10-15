@@ -1,7 +1,7 @@
 import type { ScreeningCause, ScreeningOutcome } from '@prisma/client';
 
 import type { AppliedHit } from './score.calc.js';
-import { FIXABLE_CODES, FRAUD_CODES, type RuleCode } from './screening.rules.js';
+import { FIXABLE_CODES, FRAUD_CODES, type RuleCode } from '../screening.rules.js';
 
 /**
  * Câu báo của một lượt, lưu trong `screening_runs.explanation` (design mục 8). `fraud` = câu chung ba phần kèm mã tra
