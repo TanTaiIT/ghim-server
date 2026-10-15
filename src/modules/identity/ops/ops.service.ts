@@ -75,6 +75,8 @@ export function createIdentityOpsService(
       const target = await repository.findAccountById(accountId);
       if (!target || target.status === 'deleted') throw new NotFoundError('Không có tài khoản này');
       if (target.status === 'locked') throw new ConflictError('Tài khoản đang bị khoá rồi');
+      // Chỉ master khoá được, nên đây là master tự khoá mình — hệ thống mất master, không ai mở lại được (TK 5).
+      if (target.role === 'master') throw new ConflictError('Không khoá được tài khoản master');
       await repository.lockAccount({
         accountId,
         reason,

@@ -214,6 +214,45 @@ describe('Staff xem việc nhóm chuyển lên', () => {
   });
 });
 
+describe('Quyền master chỉ ở bàn vận hành (fix-audit-security, C6)', () => {
+  it('master xem, nhận việc của nhóm qua route nhóm → 404; hàng chờ nhóm → 403; ở bàn vận hành thì xử được', async () => {
+    const category = await seedCategory();
+    const { group, poster } = await school();
+    const held = await heldBy(poster, inGroup(group, category));
+    const taskId = await taskIdOf(held.id);
+
+    const queue = await api(app, 'GET', `/groups/${group.groupId}/review/tasks`, master.token);
+    expect(queue.statusCode).toBe(403);
+    expect(codeOf(queue)).toBe('FORBIDDEN');
+    const view = await api(
+      app,
+      'GET',
+      `/groups/${group.groupId}/review/tasks/${taskId}`,
+      master.token,
+    );
+    expect(view.statusCode).toBe(404);
+    expect(codeOf(view)).toBe('NOT_FOUND');
+    const claim = await groupClaim(master, group.groupId, taskId);
+    expect(claim.statusCode).toBe(404);
+    expect(codeOf(claim)).toBe('NOT_FOUND');
+    expect(await prisma.reviewTask.findUniqueOrThrow({ where: { id: taskId } })).toMatchObject({
+      status: 'open',
+      claimedBy: null,
+    });
+
+    expect((await opsClaim(master, taskId)).statusCode).toBe(200);
+    const res = await api(app, 'POST', `/ops/review/tasks/${taskId}/decision`, master.token, {
+      outcome: 'pass',
+      machineJudgment: 'machine_right',
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(await prisma.reviewDecision.findFirstOrThrow({ where: { taskId } })).toMatchObject({
+      actorId: master.id,
+      actorRole: 'master',
+    });
+  });
+});
+
 describe('Quyết định của điều hành nhóm chỉ có tác dụng trong nhóm', () => {
   it('gỡ khỏi nhóm và chuyển lên tin của T2: việc hàng 4 còn mở, vẫn T2, tin sàn vẫn hiện như cũ', async () => {
     const category = await seedCategory();

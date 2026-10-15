@@ -193,13 +193,11 @@ export function createIdentityAccountService(
       const now = clock();
       const account = await accountOf(actor);
       if (account.emailChangedAt) {
-        const nextAt = new Date(
-          account.emailChangedAt.getTime() +
-            config.get('identity.emailChangeIntervalDays') * DAY_MS,
-        );
+        const intervalDays = config.get('identity.emailChangeIntervalDays');
+        const nextAt = new Date(account.emailChangedAt.getTime() + intervalDays * DAY_MS);
         if (nextAt > now) {
           throw new TooManyRequestsError(
-            `Mỗi tài khoản đổi email tối đa một lần mỗi 30 ngày — đổi lại được từ ${formatDateVN(nextAt)}`,
+            `Mỗi tài khoản đổi email tối đa một lần mỗi ${intervalDays} ngày — đổi lại được từ ${formatDateVN(nextAt)}`,
             'EMAIL_CHANGE_TOO_SOON',
           );
         }
@@ -268,7 +266,15 @@ export function createIdentityAccountService(
       if (!(await isPrivileged(account))) {
         throw new ForbiddenError('Lớp thứ hai chỉ dành cho master và staff');
       }
-      // Thiết lập lại = bí mật mới, chưa bật: tới khi xác nhận bằng mã đầu tiên thì bàn vận hành đóng.
+      // Thiết lập lại gỡ lớp đang bật trước khi có lớp mới: phiên chỉ qua mật khẩu (token bị lộ) tự đặt được ứng dụng
+      // tạo mã của mình. Đổi ứng dụng là việc của `cli:reset-2fa` (TK 5, spec sessions).
+      if (account.totpEnabledAt) {
+        throw new ConflictError(
+          'Lớp thứ hai đã bật — muốn đổi ứng dụng tạo mã thì liên hệ đội kỹ thuật',
+          'TWO_FACTOR_ENABLED',
+        );
+      }
+      // Thiết lập lần đầu = bí mật mới, chưa bật: tới khi xác nhận bằng mã đầu tiên thì bàn vận hành đóng.
       const secret = generateSecret();
       await repository.updateAccount(account.id, {
         totpSecretEnc: secrets.seal(secret),

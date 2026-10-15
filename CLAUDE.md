@@ -134,7 +134,8 @@ src/
                                 requireCategoryOps(categoryIdOf); `Actor`
                                 trên request, `actorOf(request)` cho handler; `PrivilegeSource.staffGrant` trả
                                 cả gói quyền staff trong một lượt đọc (bản thật: `createPlatformPrivilegeSource`)
-    config/config-keys.ts     ← sổ đăng ký mọi con số TK 28: kiểu, giá trị khởi đầu, nhóm
+    config/config-keys.ts     ← sổ đăng ký mọi con số TK 28: kiểu, giá trị khởi đầu, nhóm, khoảng hợp lệ;
+                                ràng buộc giữa khoá (`configRelationIssues`)
     config/runtime-config.ts  ← `RuntimeConfig.get(key)`; bản tĩnh cho test và CLI
     crypto/secrets.ts         ← AES-256-GCM (`SecretBox`), SHA-256, HMAC tách scope, token ngẫu nhiên
     crypto/lookup-code.ts     ← mã tra cứu 8 ký tự Crockford: dấu tài khoản (`identity`), lượt máy kết luận (`screening`)
@@ -247,7 +248,7 @@ change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-cate
 `harden-module-infra` → `tune-hot-paths` → `cache-public-reads-revoke-deleted-staff` →
 `harden-production-runtime` → `add-groups` → `add-notification-core` (kéo từ đợt 6, chốt 11/10/2026) — mười change
 này đã archive 10–11/10/2026 · đợt 2
-`add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` (cả hai đã archive 12/10/2026) · đợt 3 `add-screening` (đã archive 13/10/2026) → `add-image-moderation` (khi chọn được dịch vụ kiểm ảnh, tách ra 12/10/2026) · đợt 4 `add-review-queues` (đã archive 15/10/2026) → **sửa lỗi rà soát 15/10/2026 trước mọi tính năng** (`docs/RA-SOAT-15-10-2026.md`) →
+`add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` (cả hai đã archive 12/10/2026) · đợt 3 `add-screening` (đã archive 13/10/2026) → `add-image-moderation` (khi chọn được dịch vụ kiểm ảnh, tách ra 12/10/2026) · đợt 4 `add-review-queues` (đã archive 15/10/2026) → **sửa lỗi rà soát 15/10/2026 trước mọi tính năng** (`docs/RA-SOAT-15-10-2026.md`; đợt 1 bảo mật = `fix-audit-security`) →
 `add-reports` · đợt 5 `add-strikes` · đợt 6 `add-messaging` → `add-notifications` · đợt 7
 `add-data-retention`.
 
@@ -347,9 +348,12 @@ Mỗi luật dưới đây là một cam kết ở TK phần 27; số trong ngo�
     `RuntimeConfig.get('<module>.<khoá>')`; bản thật `createVersionedRuntimeConfig` (`platform`) giữ
     phiên bản hiện hành của `config_versions` trong bộ nhớ, làm mới sau 5 giây hoặc ngay khi chính
     tiến trình ghi. Thêm con số = thêm khoá vào `src/common/config/config-keys.ts` (kiểu, giá trị khởi
-    đầu, nhóm TK 28); lần khởi động kế tiếp tự tạo phiên bản mới (người tạo: hệ thống) thêm đúng khoá
-    đó, nên mọi phiên bản luôn mang trọn bộ con số. Con số đọc lúc đăng ký route hay plugin là bị
-    đóng băng tới lần khởi động sau — luôn đọc `config.get` ở lượt dùng (vd `app.signAccessToken`).
+    đầu, nhóm TK 28, khoảng hợp lệ); lần khởi động kế tiếp tự tạo phiên bản mới (người tạo: hệ thống)
+    thêm đúng khoá đó, nên mọi phiên bản luôn mang trọn bộ con số. Khoảng hợp lệ (design
+    `fix-audit-security` mục 5): thời lượng dùng helper theo đơn vị (`days`, `hours`, `minutes`…, trần 100
+    năm); sàn mặc định 1, khoá chỉ nhận `0` khi `0` có nghĩa "tắt / không chờ" và code chạy đúng với nó;
+    code giả định thứ tự giữa hai khoá thì thêm một dòng vào `RELATIONS`. Con số đọc lúc đăng ký route
+    hay plugin là bị đóng băng tới lần khởi động sau — luôn đọc `config.get` ở lượt dùng (vd `app.signAccessToken`).
     Test đè từng khoá bằng `createStaticRuntimeConfig({ … })`.
 20. **Email**: chuẩn hoá (chữ thường, bỏ `+tag`, Gmail bỏ dấu chấm, `googlemail.com` → `gmail.com`)
     bằng **một** hàm trước khi so trùng và trước khi băm. Dấu băm là HMAC, khoá nằm ngoài DB (biến
@@ -408,7 +412,11 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   → 503. 6 của `review/` (queues, task-handling, conflict-of-interest, decisions, group-escalation, post-review) —
   archive từ `add-review-queues` ngày 15/10/2026 (thêm requirement vào `group/group-lifecycle`, `group/membership`,
   `platform/staff-permissions`, `screening/rule-management`); `notify-missing-images` cùng ngày thêm vào
-  `media/image-cleanup` requirement "Báo ảnh đang dùng mà mất khỏi kho" (N38, N39).
+  `media/image-cleanup` requirement "Báo ảnh đang dùng mà mất khỏi kho" (N38, N39). `fix-audit-security` (đợt 1 sửa lỗi
+  rà soát, archive 15/10/2026) sửa `identity/registration` (Google gặp đăng ký chưa xác nhận), `identity/sessions`
+  (lớp thứ hai đã bật không thiết lập lại qua app), `platform/config-versions` (khoảng hợp lệ, thêm "Các con số giữ
+  ràng buộc giữa nhau"), thêm "Master không bị xoá hay khoá" vào `platform/master-accounts` và "Quyền master với việc
+  chỉ dùng ở bàn vận hành" vào `review/queues`.
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.

@@ -398,6 +398,10 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
 
   /** Xoá là xoá mềm: giữ dòng 90 ngày (email chưa dùng lại được, báo cáo còn xử được), xoá hẳn là việc của `add-data-retention`. */
   const softDelete = async (account: Account): Promise<void> => {
+    // Không có luồng bỏ master trong app (TK 5): xoá master là hệ thống mất master vĩnh viễn.
+    if (account.role === 'master') {
+      throw new ConflictError('Tài khoản master không xoá được', 'ACCOUNT_DELETE_BLOCKED');
+    }
     if (account.status === 'locked') {
       throw new ConflictError(
         `Tài khoản đang bị khoá (${account.lockedReason ?? 'liên hệ hỗ trợ'}) nên chưa xoá được`,

@@ -220,6 +220,7 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 - **Chỉ xác thực bằng email.** Hệ thống không gửi SMS.
 - **Email dùng một lần bị chặn.** Danh sách miền lấy hạt giống từ một danh sách công khai do cộng đồng duy trì và tự cập nhật hằng tuần; master thêm miền mới hoặc bỏ miền bị liệt kê oan, và lượt cập nhật tự động không đụng tới phần master đã sửa. Chặn theo đuôi miền nên miền con cũng bị chặn. Bị chặn thì app nói thẳng lý do: đây là lỗi tự sửa được, không phải dấu hiệu gian lận.
 - **Mỗi email chỉ một tài khoản.** Email được **chuẩn hoá** trước khi so và trước khi băm: chữ thường; bỏ phần sau dấu "+"; với Gmail bỏ dấu chấm và coi googlemail.com là gmail.com. Không chuẩn hoá thì thêm "+1" vào email là có ngay tài khoản mới.
+- **Đăng ký chưa xác nhận không giữ được email.** Người đăng nhập Google bằng một email chỉ có đăng ký chưa xác nhận thì đăng ký dở bị xoá hẳn (cả mật khẩu và phiên) và Google tạo tài khoản mới. Không thế thì kẻ xấu đăng ký trước bằng email người khác, chờ chủ email vào bằng Google, rồi dùng chung tài khoản bằng mật khẩu của mình (chốt 15/10/2026).
 - **Số điện thoại không bắt buộc.** Ai muốn người mua gọi được thì thêm vào hồ sơ; số không được xác thực và hiện kèm nhãn **"chưa xác minh"**.
 - Chưa xác nhận email thì chưa đăng tin, chưa nhắn tin được.
 

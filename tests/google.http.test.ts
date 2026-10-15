@@ -69,7 +69,7 @@ describe('POST /auth/google', () => {
       emailHash: 'h',
       passwordHash: await hashPassword('ghim-rao-vat-2026!'),
       googleSub: null,
-      status: 'pending_verification',
+      status: 'active',
       displayName: 'Lan',
       at: NOW,
     });
@@ -90,6 +90,57 @@ describe('POST /auth/google', () => {
 
     // Lần sau nhận ra bằng sub, không cần email nữa.
     expect((await google('tok-cu')).statusCode).toBe(200);
+  });
+
+  it('email chỉ có đăng ký chưa xác nhận → đăng ký dở bị xoá hẳn, Google tạo tài khoản mới; phiên và mật khẩu cũ hết dùng', async () => {
+    const password = 'ke-xau-dang-ky-truoc-2026';
+    const squatter = await repository.createAccount({
+      email: 'nan-nhan@ghim.vn',
+      emailNormalized: 'nan-nhan@ghim.vn',
+      emailHash: 'h-nan-nhan',
+      passwordHash: await hashPassword(password),
+      googleSub: null,
+      status: 'pending_verification',
+      displayName: 'Kẻ xấu',
+      at: NOW,
+    });
+    const login = () =>
+      app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        payload: { email: 'nan-nhan@ghim.vn', password, deviceName: 'Máy kẻ xấu' },
+      });
+    const squatterToken = (await login()).json().data.accessToken as string;
+    identities.set('tok-nan-nhan', {
+      sub: 'g-nan-nhan',
+      email: 'nan-nhan@ghim.vn',
+      emailVerified: true,
+      name: 'Nạn nhân',
+      picture: null,
+    });
+
+    const res = await google('tok-nan-nhan');
+    expect(res.statusCode).toBe(200);
+    expect(await prisma.account.findUnique({ where: { id: squatter.id } })).toBeNull();
+    const account = await repository.findAccountByEmail('nan-nhan@ghim.vn');
+    expect(account).toMatchObject({
+      status: 'active',
+      googleSub: 'g-nan-nhan',
+      passwordHash: null,
+      displayName: 'Nạn nhân',
+    });
+    expect(await lastOutboxEvent()).toMatchObject({ type: 'identity.account.verified' });
+
+    const stale = await app.inject({
+      method: 'GET',
+      url: '/__test/me',
+      headers: { authorization: `Bearer ${squatterToken}` },
+    });
+    expect(stale.statusCode).toBe(401);
+    expect(stale.json().error.code).toBe('SESSION_REVOKED');
+    const again = await login();
+    expect(again.statusCode).toBe(401);
+    expect(again.json().error.code).toBe('INVALID_CREDENTIALS');
   });
 
   it('token sai hoặc Google chưa xác thực email → 401 INVALID_CREDENTIALS', async () => {

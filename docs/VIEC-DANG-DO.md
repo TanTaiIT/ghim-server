@@ -13,7 +13,7 @@ và hướng sửa ở **`docs/RA-SOAT-15-10-2026.md`** (đánh dấu từng m�
 
 | Đợt | Mục                          | Nội dung                                                                                                                      |
 | --- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| 1   | C3, C4, C5, C6, T10          | Bảo mật: chiếm tài khoản qua Google, master tự xoá / khoá, đăng ký lại lớp thứ hai, master qua app nhóm, trần / sàn cấu hình  |
+| 1 ✔ | C3, C4, C5, C6, T10          | Bảo mật: chiếm tài khoản qua Google, master tự xoá / khoá, đăng ký lại lớp thứ hai, master qua app nhóm, trần / sàn cấu hình  |
 | 2   | C1, C2, C7, C8, C9, C10, C11 | Dữ liệu kẹt hay mất: bên nghe đối chiếu trạng thái hiện tại, kiểm ảnh bị bỏ, lý do ẩn bám theo, việc mất, xoá cứng dây chuyền |
 | 3   | T1–T24                       | Mức trung bình — vài mục cần chốt chính sách trước (T11 ân hạn làm mới token, T12 đổi email)                                  |
 | 4   | L1–L13                       | Mức thấp                                                                                                                      |
@@ -21,11 +21,10 @@ và hướng sửa ở **`docs/RA-SOAT-15-10-2026.md`** (đánh dấu từng m�
 Mục nào đổi hành vi so với spec đang chạy thì đi qua một change OpenSpec (proposal có câu hỏi mở → bạn duyệt → code);
 mục code lệch spec thì sửa kèm test.
 
-**Đang dừng ở (15/10/2026):** đợt 1 đã có proposal nháp `openspec/changes/fix-audit-security/proposal.md` với 5 câu
-hỏi mở (C3 Google gặp đăng ký chưa xác nhận, C4 master và xoá / khoá, C5 đặt lại lớp thứ hai, C6 master trên app nhóm,
-T10 khoảng hợp lệ ghi ở đâu), mỗi câu có phương án A đề xuất. Bạn tạm dừng, sẽ chốt và sửa sau. Proposal **chưa commit**
-(chỉ ở máy này): change chưa có delta spec nên `spec:validate` (và CI) sẽ đỏ nếu commit lúc này. Bước tiếp: chốt 5 câu →
-viết delta spec, design, tasks → duyệt → code.
+**Đang dừng ở (15/10/2026):** đợt 1 xong — change `fix-audit-security` (C3, C4, C5, C6, T10), người dùng giao tech
+lead chọn phương án; `pnpm run check` xanh. Bản proposal nháp trên máy pc13 bỏ đi, dùng bản đã archive (`openspec/changes/archive/2026-10-15-fix-audit-security`). Bước tiếp:
+đợt 2 — cần chốt **C9** trước (dùng lại email của tài khoản đã xoá quá 90 ngày: ẩn danh hoá dòng cũ hay xoá cứng như
+hiện tại); C1, C2, C7, C8, C10, C11 là code lệch spec, sửa kèm test.
 
 ## 1. Đang chờ quyết hoặc chờ duyệt
 

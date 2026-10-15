@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { toOk } from '../src/common/schemas/response.js';
 import { hashPassword } from '../src/modules/identity/calc/password.calc.js';
+import { buildIdentityService } from './identity-service.helpers.js';
 import { buildTestApp, grantStaff, repositories } from './test-app.js';
 
 /*
@@ -141,5 +142,26 @@ describe('đăng nhập hai lớp', () => {
       (await api('POST', '/me/two-factor/confirm', staffToken, { code: '000000' })).json().error
         .code,
     ).toBe('CODE_INVALID');
+  });
+
+  it('đã bật → thiết lập lại 409 TWO_FACTOR_ENABLED, mã cũ vẫn là lớp thứ hai; đội kỹ thuật đặt lại thì đổi được', async () => {
+    const { email } = await account('staff');
+    const token = (await login(email)).json().data.accessToken as string;
+    const oldSecret = await enableTwoFactor(token);
+
+    const again = await api('POST', '/me/two-factor/setup', token);
+    expect(again.statusCode).toBe(409);
+    expect(again.json().error.code).toBe('TWO_FACTOR_ENABLED');
+    expect((await login(email)).json().error.code).toBe('INVALID_CREDENTIALS');
+    expect(
+      (await login(email, { totpCode: await generate({ secret: oldSecret }) })).statusCode,
+    ).toBe(200);
+
+    await buildIdentityService({ now: NOW }).service.resetTwoFactor({ email });
+    const fresh = (await login(email)).json().data.accessToken as string;
+    const newSecret = await enableTwoFactor(fresh);
+    expect(
+      (await login(email, { totpCode: await generate({ secret: newSecret }) })).statusCode,
+    ).toBe(200);
   });
 });

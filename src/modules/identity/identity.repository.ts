@@ -246,6 +246,8 @@ export interface IdentityRepository {
   applyAccountChange(input: AccountChangeInput): Promise<boolean>;
   /** Xoá HẲN — chỉ cho đăng ký dở dang quá hạn; cascade kéo theo mã, phiên, dấu thiết bị. */
   deleteUnverifiedAccountsBefore(createdBefore: Date): Promise<number>;
+  /** Xoá HẲN một đăng ký dở khi chủ email vào bằng Google; `false` = dòng vừa được xác nhận nên không xoá. */
+  deleteUnverifiedAccount(id: string): Promise<boolean>;
   /** Xoá HẲN một tài khoản đã qua 90 ngày chờ — giải phóng email cho lượt đăng ký mới. */
   purgeAccount(id: string): Promise<void>;
   lockAccount(input: LockAccountInput): Promise<void>;
@@ -398,6 +400,12 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
         where: { status: 'pending_verification', createdAt: { lt: createdBefore } },
       });
       return count;
+    },
+    async deleteUnverifiedAccount(id) {
+      const { count } = await prisma.account.deleteMany({
+        where: { id, status: 'pending_verification' },
+      });
+      return count === 1;
     },
     async purgeAccount(id) {
       await prisma.account.delete({ where: { id } });

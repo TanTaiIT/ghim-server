@@ -271,6 +271,18 @@ describe('khoá → treo, mở khoá → vẫn treo, master trả lại', () => 
   });
 });
 
+const configVersionNow = async () =>
+  (
+    await app.inject({ method: 'GET', url: '/api/v1/ops/config', headers: auth(masterToken) })
+  ).json().data.version as number;
+const changeConfig = async (changes: object) =>
+  app.inject({
+    method: 'POST',
+    url: '/api/v1/ops/config',
+    headers: auth(masterToken),
+    payload: { baseVersion: await configVersionNow(), changes },
+  });
+
 describe('/ops/config', () => {
   it('hệ thống vừa dựng: phiên bản 1 với giá trị khởi đầu TK 28', async () => {
     const res = await app.inject({
@@ -377,6 +389,31 @@ describe('/ops/config', () => {
       payload: { baseVersion: 1, changes: { 'quota.liveListingsT0': 1 } },
     });
     expect(res.statusCode).toBe(403);
+  });
+
+  it('ngoài khoảng hợp lệ hay lệch con số khác → 400, phiên bản không đổi; số 0 có nghĩa thì nhận', async () => {
+    const start = await configVersionNow();
+    const rejected = [
+      { 'identity.sessionIdleDays': 0 },
+      { 'screening.imageDuplicateMaxDistance': 5 },
+      { 'listing.visibleDays': 40_000 },
+      { 'listing.remindBeforeDays': 30 },
+      { 'screening.mediumBandFrom': 70, 'screening.highBandFrom': 60 },
+    ];
+    const responses = await Promise.all(rejected.map((changes) => changeConfig(changes)));
+    for (const res of responses) {
+      expect(res.statusCode, res.body).toBe(400);
+      expect(res.json().error.code).toBe('VALIDATION_ERROR');
+    }
+    expect(
+      (await changeConfig({ 'screening.imageDuplicateMaxDistance': 5 })).json().error.message,
+    ).toContain('screening.imageDuplicateMaxDistance: phải từ 0 tới 4');
+    expect(await configVersionNow()).toBe(start);
+
+    const zero = await changeConfig({ 'group.reapplyWaitDays': 0 });
+    expect(zero.statusCode).toBe(201);
+    expect(zero.json().data.values['group.reapplyWaitDays']).toBe(0);
+    expect((await changeConfig({ 'group.reapplyWaitDays': 7 })).statusCode).toBe(201);
   });
 });
 

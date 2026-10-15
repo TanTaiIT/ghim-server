@@ -187,7 +187,15 @@ export function createIdentityAuthService(
       let account = await repository.findAccountByGoogleSub(google.sub);
       if (!account) {
         const emailNormalized = normalizeEmail(google.email);
-        const existing = await claimEmail(emailNormalized, now);
+        let existing = await claimEmail(emailNormalized, now);
+        // Đăng ký dở chưa chứng minh được email là của ai. Nối Google vào đó thì mật khẩu và phiên của người đăng ký
+        // trước dùng chung được tài khoản của chủ email, nên xoá hẳn nó (spec registration, chốt 15/10/2026).
+        if (existing?.status === 'pending_verification' && google.emailVerified) {
+          const removed = await repository.deleteUnverifiedAccount(existing.id);
+          if (removed) deps.sessionsRevoked?.account(existing.id);
+          // Không xoá được = dòng vừa được xác nhận bằng mã: đọc lại, nó là tài khoản đã có như mọi email khác.
+          existing = removed ? null : await claimEmail(emailNormalized, now);
+        }
         if (existing) {
           // Google xác thực email đó là của người này → vào đúng tài khoản cũ, không sinh tài khoản thứ hai.
           if (!google.emailVerified)
@@ -195,7 +203,6 @@ export function createIdentityAuthService(
           account = await repository.updateAccount(existing.id, {
             googleSub: google.sub,
             googlePictureUrl: google.picture,
-            ...(existing.status === 'pending_verification' ? { status: 'active' as const } : {}),
           });
         } else {
           if (!google.emailVerified)
