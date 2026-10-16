@@ -31,7 +31,7 @@ import {
 
 /** `group` trả lời ai là thành viên, ai quản trị — `notification` không đọc bảng của `group` (TK 30). */
 export interface NotificationGroupPort {
-  findGroup(groupId: string): Promise<{ id: string; name: string } | null>;
+  findGroup(groupId: string): Promise<{ id: string; name: string; state: string } | null>;
   managerIds(groupId: string): Promise<string[]>;
   moderatorIds(groupId: string): Promise<string[]>;
   memberIds(
@@ -43,6 +43,7 @@ export interface NotificationGroupPort {
   announcementBody(announcementId: string): Promise<string | null>;
   countPendingRequests(groupId: string): Promise<number>;
   isMember(groupId: string, accountId: string): Promise<boolean>;
+  isBanned(groupId: string, accountId: string): Promise<boolean>;
 }
 
 export interface NotificationServiceDeps {
@@ -104,6 +105,8 @@ export function createNotificationService(deps: NotificationServiceDeps): Notifi
 
   const context: MatrixContext = {
     group: (groupId) => groups.findGroup(groupId),
+    isMember: (groupId, accountId) => groups.isMember(groupId, accountId),
+    isBanned: (groupId, accountId) => groups.isBanned(groupId, accountId),
     managers: (groupId) => groups.managerIds(groupId),
     moderators: (groupId) => groups.moderatorIds(groupId),
     owner: (groupId) => groups.ownerId(groupId),

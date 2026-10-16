@@ -459,7 +459,8 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   sửa "Ảnh trùng với tin của tài khoản khác là cổng cứng" của `screening/image-checks`: chỉ so với ảnh đã kiểm xong
   trước — người đăng trước thắng. `notify-listing-decisions` (archive 16/10/2026) tạo `notification/listing-notices`:
   báo người đăng khi máy giữ / rút tin về và khi người duyệt đạt, từ chối, gỡ, khôi phục; ai ký; câu nhắc không lộ lý
-  do; những chuyện không báo.
+  do; những chuyện không báo. `fix-stale-group-notices` (archive 16/10/2026) thêm "Thông báo theo trạng thái hiện tại
+  của nhóm" vào `notification/group-notices`: dòng ma trận N3, N6, N10–N14, N26–N28 chỉ viết khi câu còn đúng.
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.

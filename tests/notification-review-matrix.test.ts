@@ -17,8 +17,10 @@ const contextWith = (
 ): MatrixContext => ({
   group: (groupId) => {
     const name = known.groups?.[groupId];
-    return Promise.resolve(name ? { id: groupId, name } : null);
+    return Promise.resolve(name ? { id: groupId, name, state: 'active' } : null);
   },
+  isMember: unused,
+  isBanned: unused,
   managers: unused,
   moderators: unused,
   owner: unused,

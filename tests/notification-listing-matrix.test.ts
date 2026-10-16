@@ -15,6 +15,8 @@ const OWNER = '0199a000-0000-7000-8000-0000000000a2';
 const unused = () => Promise.reject(new Error('dòng máy giữ không được hỏi điều này'));
 const contextWith = (notice: MachineNotice | null): MatrixContext => ({
   group: unused,
+  isMember: unused,
+  isBanned: unused,
   managers: unused,
   moderators: unused,
   owner: unused,

@@ -394,6 +394,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
       announcementBody: (id) => group.service.announcementBody(id),
       countPendingRequests: (groupId) => group.service.countPendingRequests(groupId),
       isMember: (groupId, accountId) => group.service.isMember(groupId, accountId),
+      isBanned: (groupId, accountId) => group.service.isBanned(groupId, accountId),
     },
     identity: identity.service,
     listings: listing.service,

@@ -42,9 +42,11 @@ mục code lệch spec thì sửa kèm test.
 - đợt 4 phần 3 — `fix-audit-trust-media-low` (L7 đọc mức trong transaction, L9 T3 còn tin sạch chưa tính thì tính lại, L10
   sự kiện mới `media.images.deleted` → `screening` dọn dấu ảnh; L13 chuyển vào proposal `add-data-retention`).
 
-**Làm tiếp:** mở PR `add-listings` → `main` để CI chạy test HTTP / DB của `fix-audit-group` và cả đợt 4 (chưa chạy trên
-CI; ba migration mới `group_invitations_blind`, `account_status_before_lock`, `group_announcement_unit_fk` đã chạy trên Neon
-dev, production cần `pnpm db:deploy`). Rồi các câu thông báo cũ N10–N14, N26–N28, rồi `add-reports`.
+CI đã chạy hết qua PR #3, #5, #6 (16/10/2026, xanh). Production còn cần `pnpm db:deploy:prod` cho ba migration
+`group_invitations_blind`, `account_status_before_lock`, `group_announcement_unit_fk` trước khi bật bản mới.
+
+Phần hoãn cuối của rà soát — thông báo nhóm theo trạng thái hiện tại (N3, N6, N10–N14, N26–N28) — xong ở
+`fix-stale-group-notices` (16/10/2026). **Làm tiếp:** `add-reports`.
 
 ## 1. Đang chờ quyết hoặc chờ duyệt
 
@@ -152,8 +154,9 @@ Không phải việc dở — ghi để lần sau khỏi dò lại.
   `khoi.*@example.com`, 2 tin, 2 ảnh trên Neon / Cloudinary dev. Lượt 16/10/2026: ~52 s — tải ảnh lên Cloudinary ~1,7 s,
   máy quyết 7–13 s sau khi gửi, việc vào hàng chờ ~10 s sau đó (bộ phát outbox quét mỗi 10 s).
 - Kiểm tra chạy được ở đây: `typecheck`, `lint`, `format:check`, `test:unit`, `spec:validate`, `build`, `db:drift`
-  (chỉ đọc, so Neon dev với schema). Test cần Postgres + RustFS chỉ chạy trên CI, và CI chỉ chạy khi có pull request
-  (hoặc push lên `main`, `develop`).
+  (chỉ đọc, so Neon dev với schema). Test cần Postgres + RustFS: máy có Docker Desktop nhưng không tự bật — bật app
+  rồi `docker compose up -d --wait postgres-test storage-test`, sau đó `pnpm run check` chạy đủ (16/10/2026). CI chỉ
+  chạy khi có pull request (hoặc push lên `main`, `develop`).
 - Đọc kết quả CI khi máy không có `gh`: repo công khai nên API đọc không cần đăng nhập —
   `api.github.com/repos/TanTaiIT/ghim-server/actions/runs?branch=<nhánh>` (lượt chạy), `/actions/runs/<id>/jobs` (job),
   `/check-runs/<id job>/annotations` (test hỏng). Mỗi bước hiện tối đa 10 lỗi; trần 60 lượt gọi mỗi giờ. Log đầy đủ
