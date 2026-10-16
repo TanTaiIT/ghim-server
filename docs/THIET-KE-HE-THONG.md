@@ -901,6 +901,7 @@ Người xử không bao giờ là người đăng tin bị báo cáo, người 
 - Câu nhắc không chứa lý do khoá, lý do cấm hay nội dung báo cáo — màn hình khoá ai cũng đọc được. Quyết định của nhóm (từ chối đơn, gỡ, cấm) ký "Quản trị nhóm", không nêu tên điều hành viên. Nhóm thiếu chủ chỉ báo "tạm thời chưa có chủ", không nói chủ bị khoá.
 - Chủ nhóm, điều hành viên cả nhóm gửi được thông báo cho cả nhóm; điều hành viên đơn vị con gửi cho đơn vị mình. Tối đa **5 thông báo mỗi nhóm mỗi ngày**, mỗi thông báo tối đa 1000 ký tự (chốt 11/10/2026).
 - Mọi thành viên được báo khi nhóm tạm khoá, mở khoá, đóng, hay chuyển sang công khai.
+- **Người đăng được báo kết quả duyệt tin của mình**, có nhắc: máy giữ tin chờ người duyệt hay rút tin đang hiện về chờ duyệt — câu cùng mức với câu giải thích của máy (dấu hiệu gian lận chỉ nói chung, kèm thời gian chờ ước tính), một lần mỗi lượt giữ; người duyệt cho đạt tin chờ duyệt, từ chối, gỡ, khôi phục. Câu nhắc chỉ nói kết quả — lý do mẫu và cách sửa chỉ nằm trong nội dung xem trong app. Quyết định trong nhóm ký "Quản trị nhóm «tên nhóm»", của staff, master ký "Ghim"; không nêu tên người duyệt. Không báo: máy cho qua ngay, hậu kiểm đạt một tin đang hiện, việc người đăng tự làm (chốt 16/10/2026).
 
 ---
 

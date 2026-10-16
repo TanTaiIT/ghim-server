@@ -1,10 +1,18 @@
-## ADDED Requirements
+# notification/listing-notices Specification
+
+## Purpose
+
+Báo người đăng chuyện người khác hay máy làm với tin của mình — máy giữ, máy rút về, người duyệt đạt, từ chối, gỡ,
+khôi phục — để người dùng luôn biết tin đang ở đâu và vì sao, mà câu nhắc không lộ lý do hay tên người duyệt (TK 4
+nguyên tắc 8, TK 17, TK 24).
+
+## Requirements
 
 ### Requirement: Báo người đăng kết quả duyệt tin
 
 Người đăng SHALL được báo, có nhắc, khi người duyệt cho đạt một tin đang chờ duyệt, từ chối, gỡ hay khôi phục tin của
-mình (TK 17). Thông báo thuộc nhóm "tin đăng của bạn" và mở được tin đó. Từ chối · gỡ SHALL nêu lý do và cho biết
-người đăng sửa rồi gửi lại được (sai sót) hay không (vi phạm).
+mình (TK 17). Thông báo thuộc nhóm "tin đăng của bạn" và mở được tin đó. Từ chối · gỡ vì sai sót SHALL nêu lý do mẫu
+và cho biết người đăng sửa rồi gửi lại được.
 
 #### Scenario: Tin chờ duyệt được duyệt
 
@@ -17,10 +25,11 @@ người đăng sửa rồi gửi lại được (sai sót) hay không (vi phạ
 - **THEN** người đăng nhận thông báo có nhắc; nội dung trong app nêu "Ảnh chưa rõ sản phẩm" và cho biết sửa tin rồi
   gửi lại được
 
-#### Scenario: Bị gỡ vì vi phạm
+#### Scenario: Bị gỡ vì sai sót
 
-- **WHEN** staff gỡ một tin đang hiển thị vì vi phạm
-- **THEN** người đăng nhận thông báo có nhắc rằng tin đã bị gỡ vì vi phạm quy định sàn và không sửa để gửi lại được
+- **WHEN** staff gỡ một tin đang hiển thị vì sai sót với lý do mẫu "Giá ghi sai"
+- **THEN** người đăng nhận thông báo có nhắc; nội dung trong app nêu "Giá ghi sai" và cho biết sửa tin
+  rồi gửi lại để tin hiện lại
 
 #### Scenario: Được khôi phục
 
@@ -70,10 +79,10 @@ MUST ký "Ghim". Không thông báo nào về quyết định với tin MUST nê
 Câu nhắc hiện lên màn hình — banner trong app, đẩy lên điện thoại — MUST NOT chứa lý do từ chối hay gỡ, với cả sai sót
 lẫn vi phạm. Lý do chỉ nằm trong nội dung thông báo xem trong app.
 
-#### Scenario: Gỡ vì vi phạm có lý do
+#### Scenario: Từ chối có lý do
 
-- **WHEN** staff gỡ tin "Pháo hoa Tết" vì vi phạm với lý do "Hàng cấm buôn bán"
-- **THEN** câu nhắc gửi người đăng không chứa "Hàng cấm buôn bán"; lý do chỉ nằm trong nội dung thông báo trong app
+- **WHEN** staff từ chối tin "Xe đạp cũ" vì sai sót với lý do mẫu "Ảnh chưa rõ sản phẩm"
+- **THEN** câu nhắc gửi người đăng không chứa "Ảnh chưa rõ sản phẩm"; lý do chỉ nằm trong nội dung thông báo trong app
 
 ### Requirement: Những chuyện về tin không báo
 

@@ -93,6 +93,8 @@ export interface ReviewRepository {
   /** Ghi đã nhắc cho các việc và phát sự kiện nhắc trong cùng transaction. */
   markReminded(ids: string[], now: Date, event: OutboxEventInput): Promise<void>;
   emit(event: OutboxEventInput): Promise<void>;
+  /** Phát sự kiện trong `tx` của bên gọi — quyết định cuộn lại thì sự kiện cũng mất. */
+  emitIn(tx: Tx, events: OutboxEventInput[]): Promise<void>;
   /** Việc hàng 5 khép lại trong `[from, to)`: xử xong và tự huỷ vì quá hạn — lý do huỷ khác không tính. */
   closedSamples(from: Date, to: Date): Promise<{ done: number; expired: number }>;
 
@@ -343,6 +345,7 @@ export function createReviewRepository(prisma: PrismaClient): ReviewRepository {
       }),
 
     emit: (event) => prisma.$transaction((tx) => appendEvents(tx, [event])),
+    emitIn: (tx, events) => appendEvents(tx, events),
 
     async closedSamples(from, to) {
       const countOf = (closeCause: ReviewCloseCause) =>

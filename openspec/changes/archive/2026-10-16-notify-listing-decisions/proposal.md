@@ -28,10 +28,11 @@ Không thuộc một đợt riêng của TK 29: bù phần còn thiếu của đ
 
 ## What Changes
 
-> Viết theo đề xuất ở mục **Câu hỏi mở** — chốt khác thì sửa trước khi viết design.
+> Chốt theo đề xuất của cả năm câu hỏi mở (16/10/2026) — xem mục **Đã chốt** cuối file.
 
 - Người đăng được báo, có nhắc, khi người duyệt (staff, master hay quản trị nhóm) cho đạt tin chờ duyệt, từ chối, gỡ
-  hay khôi phục tin của mình. Từ chối · gỡ nêu lý do và nói rõ sửa rồi gửi lại được (sai sót) hay không (vi phạm).
+  hay khôi phục tin của mình. Từ chối · gỡ nêu lý do mẫu và nói rõ sửa rồi gửi lại được — người duyệt hiện chỉ có kết
+  quả "sai sót".
 - Người đăng được báo, có nhắc, khi máy giữ tin chờ người duyệt hay rút tin đang hiện về chờ duyệt — cùng mức với câu
   giải thích của máy: dấu hiệu gian lận chỉ nói ở mức chung, kèm thời gian chờ ước tính.
 - Quyết định trong nhóm ký "Quản trị nhóm «tên nhóm»"; không thông báo nào nêu tên người duyệt.
@@ -41,8 +42,8 @@ Không thuộc một đợt riêng của TK 29: bù phần còn thiếu của đ
 
 **Cố ý chưa làm trong change này:**
 
-- Gậy (trích điều quy định, ngày hết) và khiếu nại thắng → `add-strikes`. Từ chối · gỡ vì vi phạm ở đây chỉ báo "vi
-  phạm quy định sàn, không sửa để gửi lại được" — chưa có gậy để nêu.
+- Từ chối · gỡ vì vi phạm (kèm gậy, trích điều quy định, ngày hết, "không sửa để gửi lại được") và khiếu nại thắng →
+  `add-strikes`: kết quả "vi phạm" chưa có ở bàn duyệt, nên change này chưa có câu cho nó.
 - Báo kết quả báo cáo cho người báo → `add-reports`.
 - Đẩy lên điện thoại → `add-notifications` (thông báo ở đây có cờ nhắc như mọi thông báo khác, banner realtime đã có).
 - Báo người đăng khi tin hết hạn: đã có (nhắc trước 7 ngày, `listing/display-period`).
@@ -68,18 +69,14 @@ Không có.
 - API: không đổi; thông báo đi qua hộp thư, số chưa đọc và realtime đã có.
 - Migration: dự kiến không.
 
-## Câu hỏi mở
+## Đã chốt (16/10/2026)
 
-1. **Báo những lúc nào.** Đề xuất: đạt (tin chờ duyệt lên bảng), từ chối, gỡ, khôi phục, máy giữ, máy rút về. Không
-   báo: máy cho qua ngay khi gửi (người đăng thấy liền), hậu kiểm đạt một tin đang hiện (không có gì đổi với họ —
-   kể cả khi lý do hạn chế "máy" được gỡ?).
-2. **Lý do có lên câu nhắc không.** TK 24 chỉ cấm lý do khoá, lý do cấm, nội dung báo cáo trên câu nhắc. Đề xuất: câu
-   nhắc chỉ nói kết quả ("Tin «Xe đạp cũ» chưa được duyệt"), lý do mẫu chỉ trong nội dung xem trong app — lý do vi phạm
-   ("hàng cấm") không nên hiện trên màn hình khoá, và giữ một luật cho cả sai sót lẫn vi phạm.
-3. **Máy giữ có cần thông báo không.** Tin chờ duyệt đã hiện câu giải thích trong app. Đề xuất: có, một thông báo khi
-   bị giữ — đúng nguyên tắc 8 "bị giữ thì biết đang chờ" — nhưng không nhắc lại khi tin vẫn chờ.
-4. **Ai ký.** Đề xuất: quyết định trong nhóm ký "Quản trị nhóm «tên nhóm»" (như `notification/group-notices`); quyết
-   định của staff, master ký "Ghim" — không nêu tên ai. Hay staff ký "Người duyệt của Ghim"?
-5. **Thứ tự.** Đề xuất làm **trước** `add-reports`: đây là lỗ ở luồng đang có (mọi tin bị giữ đều rơi vào), còn
-   `add-reports` thêm luồng mới. Theo kế hoạch hiện tại, việc kế là các câu thông báo cũ của nhóm (N10–N14, N26–N28)
-   rồi `add-reports`.
+Người dùng chọn đề xuất của cả năm câu ("5 câu ở trên thì làm theo đề xuất của bạn đi"):
+
+1. **Báo những lúc nào**: đạt (tin chờ duyệt lên bảng), từ chối, gỡ, khôi phục, máy giữ, máy rút về. Không báo: máy
+   cho qua ngay khi gửi, hậu kiểm đạt một tin đang hiện — kể cả khi lý do hạn chế "máy" được gỡ.
+2. **Lý do không lên câu nhắc**: câu nhắc chỉ nói kết quả; lý do mẫu chỉ nằm trong nội dung xem trong app — một luật
+   cho cả sai sót lẫn vi phạm.
+3. **Máy giữ có thông báo**: một thông báo mỗi lần bị giữ, không nhắc lại khi tin vẫn chờ.
+4. **Ai ký**: quyết định trong nhóm ký "Quản trị nhóm «tên nhóm»"; của staff, master ký "Ghim".
+5. **Thứ tự**: làm ngay, trước `add-reports`.

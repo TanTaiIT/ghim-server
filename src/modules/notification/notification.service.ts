@@ -7,6 +7,7 @@ import type { OutboxEventRef } from '../../common/outbox/dispatcher.js';
 import type { Realtime } from '../../common/realtime/realtime.js';
 import { sequentially } from '../../common/utils/sequential.js';
 import type { AccountSummary } from '../identity/identity.service.js';
+import type { MachineNotice } from '../listing/listing.ports.js';
 import type { ListingService } from '../listing/listing.service.js';
 import {
   GROUP_MATRIX,
@@ -53,6 +54,8 @@ export interface NotificationServiceDeps {
   };
   /** Tiêu đề, người đăng của tin cho câu thông báo — `notification` không đọc bảng `listings` (TK 30). */
   listings: Pick<ListingService, 'titles' | 'noticeTargets'>;
+  /** Câu máy giải thích cho người đăng (N43, N44) — `notification` không đọc bảng của `screening` (TK 30). */
+  screening: { notices(listingIds: string[]): Promise<Map<string, MachineNotice>> };
   realtime: Realtime;
   config: RuntimeConfig;
   clock: () => Date;
@@ -97,7 +100,7 @@ export const toNotificationDto = (row: Notification): NotificationDto => ({
  * đọc cờ đó (design mục 3).
  */
 export function createNotificationService(deps: NotificationServiceDeps): NotificationService {
-  const { repository, groups, identity, listings, realtime, config, clock } = deps;
+  const { repository, groups, identity, listings, screening, realtime, config, clock } = deps;
 
   const context: MatrixContext = {
     group: (groupId) => groups.findGroup(groupId),
@@ -117,6 +120,9 @@ export function createNotificationService(deps: NotificationServiceDeps): Notifi
     listingTitles: (ids) => listings.titles(ids),
     listingTargets: (ids) => listings.noticeTargets(ids),
     masterIds: () => identity.masterIds(),
+    async machineNotice(listingId) {
+      return (await screening.notices([listingId])).get(listingId) ?? null;
+    },
   };
 
   /** Ai trong danh sách được nhắc — thông báo vẫn vào hộp thư của tất cả. */

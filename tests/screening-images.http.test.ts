@@ -159,9 +159,18 @@ describe('Ảnh trùng: người đăng trước thắng (duplicate-image-first-
     await checkAll();
     expect((await getOwn(app, owner, original.id)).state).toBe('live');
 
-    const copied = await submittedWith(await userAt('T2'), [photo]);
+    const copier = await userAt('T2');
+    const copied = await submittedWith(copier, [photo]);
     await checkAll();
     expect(await runOf(copied.id)).toMatchObject({ outcome: 'hold', cause: 'gate' });
+    // Máy giữ vì dấu hiệu gian lận (notify-listing-decisions): câu chung ba phần, không nói tới ảnh trùng.
+    const [held] = await prisma.notification.findMany({
+      where: { recipientId: copier.id, type: 'listing.machine.hold' },
+    });
+    expect(held).toMatchObject({ alert: true, category: 'your_listings' });
+    expect(held?.detail).toContain('Tin cần kiểm tra an toàn thêm');
+    expect(held?.detail).toContain('Thường trong');
+    expect(`${held?.body ?? ''} ${held?.detail ?? ''}`).not.toMatch(/trùng/i);
 
     const live = await getOwn(app, owner, original.id);
     const edited = await patch(app, owner, live, { price: 450_000 }, deviceOf(owner));

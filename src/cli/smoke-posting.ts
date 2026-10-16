@@ -384,6 +384,26 @@ async function checkHeld(held: OwnListing): Promise<void> {
       ? `sau ${Date.now() - waitStart} ms, hạn ${task.dueAt.toISOString()}`
       : 'không thấy sau 45 s',
   );
+  // N43 (notify-listing-decisions): người đăng được báo tin đang chờ — câu chung, không nói tín hiệu cụ thể.
+  const notice = await poll(
+    () =>
+      db.notification.findFirst({
+        where: { recipientId: held.ownerId, type: 'listing.machine.hold' },
+        select: { body: true, detail: true, alert: true },
+      }),
+    (row) => row !== null,
+    2000,
+    45_000,
+  );
+  const text = `${notice?.body ?? ''} ${notice?.detail ?? ''}`;
+  check(
+    notice !== null &&
+      notice.alert &&
+      text.includes('Tin cần kiểm tra an toàn thêm') &&
+      !/trùng/i.test(text),
+    'B nhận thông báo "tin đang chờ người duyệt" (câu chung, không nói ảnh trùng)',
+    notice ? notice.body : 'không thấy sau 45 s',
+  );
 }
 
 /**
