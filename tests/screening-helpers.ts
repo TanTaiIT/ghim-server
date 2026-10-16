@@ -49,7 +49,13 @@ const bandColumns = (hash: bigint) => {
   return { band0, band1, band2, band3, band4 };
 };
 
-/** Ảnh đã kiểm xong với mã cho trước — lượt gửi kết luận ngay, không cần kho hay việc nền. */
+let checkedSeq = 0;
+
+/**
+ * Ảnh đã kiểm xong với mã cho trước — lượt gửi kết luận ngay, không cần kho hay việc nền. Mỗi ảnh kiểm xong muộn hơn
+ * ảnh đánh dấu trước nó 1 ms: "ảnh trùng" chỉ so với ảnh kiểm xong trước (duplicate-image-first-wins), nên thứ tự
+ * gọi là thứ tự đăng.
+ */
 export async function markChecked(
   imageIds: string[],
   ownerAccountId: string,
@@ -64,7 +70,7 @@ export async function markChecked(
         status: 'done' as const,
         dhash: toStored(hash),
         ...bandColumns(hash),
-        checkedAt: TEST_NOW,
+        checkedAt: new Date(TEST_NOW.getTime() + (checkedSeq += 1)),
       };
     }),
   });

@@ -28,18 +28,26 @@ export const newLookupCode = (): string => `${LOOKUP_PREFIX}${generateLookupCode
 export function createConclusion(shared: ScreeningShared) {
   const { repository, config, clock } = shared;
 
-  /** Ảnh trùng ảnh đã kiểm của tài khoản khác, trừ ảnh khớp danh sách trắng (spec image-checks). */
+  /**
+   * Ảnh trùng ảnh của tài khoản khác đã kiểm xong trước nó, trừ ảnh khớp danh sách trắng (spec image-checks — người
+   * đăng trước thắng).
+   */
   const duplicateOf = async (
     tx: Tx,
     check: ImageCheck,
     run: ScreeningRun,
     maxDistance: number,
   ): Promise<boolean> => {
-    if (check.dhash === null) return false;
+    if (check.dhash === null || check.checkedAt === null) return false;
     const hash = check.dhash;
     const bands = bandsOf(hash);
     const candidates = await repository.duplicateCandidates(
-      { bands, excludeOwner: run.accountId, excludeImageIds: run.imageIds },
+      {
+        bands,
+        excludeOwner: run.accountId,
+        excludeImageIds: run.imageIds,
+        before: { checkedAt: check.checkedAt, imageId: check.imageId },
+      },
       tx,
     );
     const near = (other: bigint | null) => other !== null && hamming(other, hash) <= maxDistance;

@@ -151,6 +151,39 @@ describe('Ảnh trùng với tin của tài khoản khác là cổng cứng', ()
   });
 });
 
+describe('Ảnh trùng: người đăng trước thắng (duplicate-image-first-wins)', () => {
+  it('Chủ ảnh sửa tin sau khi bị chép: bản chép dính "ảnh trùng", tin của chủ ảnh vẫn qua', async () => {
+    const owner = await userAt('T2');
+    const photo = await png(90);
+    const original = await submittedWith(owner, [photo]);
+    await checkAll();
+    expect((await getOwn(app, owner, original.id)).state).toBe('live');
+
+    const copier = await userAt('T2');
+    const copied = await submittedWith(copier, [photo]);
+    await checkAll();
+    expect(await runOf(copied.id)).toMatchObject({ outcome: 'hold', cause: 'gate' });
+    // Máy giữ vì dấu hiệu gian lận (notify-listing-decisions): câu chung ba phần, không nói tới ảnh trùng.
+    const [held] = await prisma.notification.findMany({
+      where: { recipientId: copier.id, type: 'listing.machine.hold' },
+    });
+    expect(held).toMatchObject({ alert: true, category: 'your_listings' });
+    expect(held?.detail).toContain('Tin cần kiểm tra an toàn thêm');
+    expect(held?.detail).toContain('Thường trong');
+    expect(`${held?.body ?? ''} ${held?.detail ?? ''}`).not.toMatch(/trùng/i);
+
+    const live = await getOwn(app, owner, original.id);
+    const edited = await patch(app, owner, live, { price: 450_000 }, deviceOf(owner));
+    expect(edited.statusCode, edited.body).toBe(200);
+    await deliverAll(app);
+    await checkAll();
+    expect((await getOwn(app, owner, original.id)).state).toBe('live');
+    const rerun = await runOf(original.id);
+    expect(rerun.listingVersion).toBeGreaterThan(live.version - 1);
+    expect(codesOf(rerun)).not.toContain('duplicate_image');
+  });
+});
+
 describe('Danh sách trắng ảnh mẫu của hãng', () => {
   it('ảnh mẫu trong danh sách trắng: hai tài khoản cùng dùng không dính; staff gỡ thì tin gửi sau dính', async () => {
     const brand = await png(60);

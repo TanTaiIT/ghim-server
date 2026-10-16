@@ -1,4 +1,5 @@
 import type { OutboxEventType } from '../../common/outbox/outbox.js';
+import type { MachineNotice } from '../listing/listing.ports.js';
 import { LISTING_EVENTS } from '../listing/listing.outbox.js';
 import {
   date,
@@ -67,52 +68,111 @@ async function titleOf(ctx: MatrixContext, listingId: string | null): Promise<st
   return (await ctx.listingTitles([listingId])).get(listingId) ?? null;
 }
 
-/**
- * Ma trận N31–N35, N37 (design add-listings mục 11). Payload chỉ mang mã và trạng thái; tên nhóm, tiêu đề tin hỏi qua
- * cổng. Khoá / xoá tài khoản không có dòng nào: người đó không vào được app.
- */
-export const LISTING_MATRIX: Record<string, Handler> = {
-  // N31 — chỉ tin MỚI hiện đầy đủ trên bảng tin nhóm: không báo lượt qua máy sau sửa, khôi phục, tin hạn chế hay tạm ẩn.
-  async [LISTING_EVENTS.stateChanged](payload: Payload, ctx: MatrixContext) {
-    const groupId = str(payload, 'groupId');
-    const ownerId = str(payload, 'ownerId');
-    const shown =
-      str(payload, 'to') === 'live' &&
-      payload.firstLive === true &&
-      payload.full === true &&
-      payload.hidden !== true;
-    if (!shown || !groupId || !ownerId || str(payload, 'placement') === 'marketplace') {
-      return empty();
-    }
-    const group = await ctx.group(groupId);
-    if (!group) return empty();
-    const listingId = str(payload, 'listingId');
-    const title = await titleOf(ctx, listingId);
-    return {
-      ...empty(),
-      fanOuts: [
-        {
+// N31 — chỉ tin MỚI hiện đầy đủ trên bảng tin nhóm: không báo lượt qua máy sau sửa, khôi phục, tin hạn chế hay tạm ẩn.
+async function groupNewListing(payload: Payload, ctx: MatrixContext): Promise<MatrixResult> {
+  const groupId = str(payload, 'groupId');
+  const ownerId = str(payload, 'ownerId');
+  const shown =
+    str(payload, 'to') === 'live' &&
+    payload.firstLive === true &&
+    payload.full === true &&
+    payload.hidden !== true;
+  if (!shown || !groupId || !ownerId || str(payload, 'placement') === 'marketplace') {
+    return empty();
+  }
+  const group = await ctx.group(groupId);
+  if (!group) return empty();
+  const listingId = str(payload, 'listingId');
+  const title = await titleOf(ctx, listingId);
+  return {
+    ...empty(),
+    fanOuts: [
+      {
+        groupId,
+        unitId: null,
+        exclude: [ownerId],
+        draft: {
+          category: 'group_new_listings',
+          type: 'listing.group.new',
+          title: group.name,
+          body: title ? `«${title}» vừa đăng trong nhóm.` : 'Có tin mới trong nhóm.',
+          data: { groupId, listingId },
           groupId,
-          unitId: null,
-          exclude: [ownerId],
-          draft: {
-            category: 'group_new_listings',
-            type: 'listing.group.new',
-            title: group.name,
-            body: title ? `«${title}» vừa đăng trong nhóm.` : 'Có tin mới trong nhóm.',
-            data: { groupId, listingId },
-            groupId,
-            alertable: true,
-            personal: false,
-            collapse: {
-              key: `group:${groupId}:new-listings`,
-              render: (count) => `Nhóm có ${count} tin mới.`,
-              alertMinutes: 'notification.groupListingsAlertMinutes',
-            },
+          alertable: true,
+          personal: false,
+          collapse: {
+            key: `group:${groupId}:new-listings`,
+            render: (count) => `Nhóm có ${count} tin mới.`,
+            alertMinutes: 'notification.groupListingsAlertMinutes',
           },
         },
-      ],
-    };
+      },
+    ],
+  };
+}
+
+/**
+ * N43, N44 (change notify-listing-decisions): câu nhắc chỉ nói tin đang chờ — câu của máy (chung ba phần với dấu hiệu
+ * gian lận, các điều tự sửa được, mã tra cứu) chỉ nằm trong `detail` xem trong app, như người đăng thấy trên tin.
+ */
+const MACHINE_TEXT: Record<string, (title: string) => string> = {
+  hold: (title) => `Tin «${title}» đang chờ người duyệt xem.`,
+  recall: (title) => `Tin «${title}» tạm ngừng hiển thị để chờ người duyệt xem lại.`,
+};
+
+function machineDetail(notice: MachineNotice | null): string | null {
+  if (!notice) return null;
+  // Câu "chờ người duyệt" thường đã có sẵn thời gian chờ; câu chung của dấu hiệu gian lận thì chưa.
+  const head =
+    notice.kind === 'fraud' && notice.estimatedWait
+      ? `${notice.message}. ${notice.estimatedWait}.`
+      : `${notice.message}.`;
+  return [
+    head,
+    ...notice.fixes.map((fix) => fix.message),
+    ...(notice.lookupCode ? [`Mã tra cứu khi liên hệ hỗ trợ: ${notice.lookupCode}.`] : []),
+  ].join('\n');
+}
+
+// N43 — máy giữ tin chờ người, N44 — máy rút tin đang hiện về chờ duyệt: người đăng được báo một lần, có nhắc.
+async function machineHeld(payload: Payload, ctx: MatrixContext): Promise<MatrixResult> {
+  const text = MACHINE_TEXT[str(payload, 'arrow') ?? ''];
+  const ownerId = str(payload, 'ownerId');
+  const listingId = str(payload, 'listingId');
+  if (!text || !ownerId || !listingId || str(payload, 'to') !== 'pending') return empty();
+  const [title, notice] = await Promise.all([
+    titleOf(ctx, listingId),
+    ctx.machineNotice(listingId),
+  ]);
+  return toOwners([ownerId], {
+    type: `listing.machine.${str(payload, 'arrow')}`,
+    title: title ?? 'Tin đăng của bạn',
+    body: text(title ?? 'của bạn'),
+    detail: machineDetail(notice),
+    data: { listingId },
+    groupId: str(payload, 'groupId'),
+    alertable: true,
+  });
+}
+
+const merged = (...results: MatrixResult[]): MatrixResult => ({
+  drafts: results.flatMap((result) => result.drafts),
+  fanOuts: results.flatMap((result) => result.fanOuts),
+  hints: results.flatMap((result) => result.hints),
+});
+
+/**
+ * Ma trận N31–N35, N37, N43, N44 (design add-listings mục 11, change notify-listing-decisions). Payload chỉ mang mã và
+ * trạng thái; tên nhóm, tiêu đề tin, câu của máy hỏi qua cổng. Khoá / xoá tài khoản không có dòng nào: người đó không vào
+ * được app.
+ */
+export const LISTING_MATRIX: Record<string, Handler> = {
+  async [LISTING_EVENTS.stateChanged](payload: Payload, ctx: MatrixContext) {
+    const [newInGroup, held] = await Promise.all([
+      groupNewListing(payload, ctx),
+      machineHeld(payload, ctx),
+    ]);
+    return merged(newInGroup, held);
   },
 
   // N32

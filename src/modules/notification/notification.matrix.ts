@@ -1,5 +1,6 @@
 import type { RuntimeConfigKey } from '../../common/config/runtime-config.js';
 import { formatDateVN } from '../../common/time/time.js';
+import type { MachineNotice } from '../listing/listing.ports.js';
 import type { NotificationCategory } from './notification.schema.js';
 
 /** Một loại thông báo cho một nhóm người nhận — văn bản đã sinh, cờ nhắc chưa tính (còn bật tắt, tắt tiếng, gộp). */
@@ -62,6 +63,11 @@ export interface MatrixContext {
   listingTargets(ids: string[]): Promise<Map<string, { ownerId: string; title: string | null }>>;
   /** Mọi master đang hoạt động — `identity` trả lời; người nhận của N40–N42. */
   masterIds(): Promise<string[]>;
+  /**
+   * Câu máy giải thích cho người đăng về lượt kết luận gần nhất của tin — `screening` trả lời; lượt không có câu thì
+   * `null`. Nội dung xem trong app của N43, N44 (notify-listing-decisions).
+   */
+  machineNotice(listingId: string): Promise<MachineNotice | null>;
 }
 
 export type Payload = Record<string, unknown>;

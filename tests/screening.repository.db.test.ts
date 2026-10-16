@@ -87,3 +87,35 @@ describe('khởi tạo luật lúc khởi động', () => {
     expect(await repository.currentRuleVersion()).toBeNull();
   });
 });
+
+/** Mã ảnh có thứ tự rõ: `imageId(1) < imageId(9)` — phá hoà khi hai ảnh kiểm xong cùng mili giây. */
+const imageId = (n: number) => `00000000-0000-7000-8000-${String(n).padStart(12, '0')}`;
+
+describe('ứng viên ảnh trùng: người đăng trước thắng (duplicate-image-first-wins)', () => {
+  it('chỉ ảnh của tài khoản khác kiểm xong trước; cùng mili giây thì mã ảnh nhỏ hơn là trước', async () => {
+    const at = new Date('2026-10-12T04:00:00.000Z');
+    const shift = (ms: number) => new Date(at.getTime() + ms);
+    const band = { band0: 1, band1: 2, band2: 3, band3: 4, band4: 5 };
+    const done = (id: string, ownerAccountId: string, checkedAt: Date) =>
+      prisma.imageCheck.create({
+        data: { imageId: id, ownerAccountId, status: 'done', dhash: 42n, ...band, checkedAt },
+      });
+    const [mine, theirs] = [
+      '00000000-0000-7000-8000-0000000000aa',
+      '00000000-0000-7000-8000-0000000000bb',
+    ];
+    await done(imageId(5), mine, at);
+    await done(imageId(1), theirs, shift(-1000));
+    await done(imageId(2), theirs, shift(1000));
+    await done(imageId(3), theirs, at);
+    await done(imageId(9), theirs, at);
+
+    const candidates = await repository.duplicateCandidates({
+      bands: [1, 2, 3, 4, 5],
+      excludeOwner: mine,
+      excludeImageIds: [imageId(5)],
+      before: { checkedAt: at, imageId: imageId(5) },
+    });
+    expect(candidates.map((row) => row.imageId).toSorted()).toEqual([imageId(1), imageId(3)]);
+  });
+});

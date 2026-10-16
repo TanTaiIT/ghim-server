@@ -397,6 +397,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     },
     identity: identity.service,
     listings: listing.service,
+    screening: screeningModule.service,
     realtime,
     config: deps.config,
     clock: deps.clock,

@@ -1,5 +1,6 @@
 import type {
   Listing,
+  ListingState,
   ReviewActorRole,
   ReviewDecision,
   ReviewOutcome,
@@ -8,6 +9,7 @@ import type {
 } from '@prisma/client';
 
 import type { Actor } from '../../../common/auth/actor.js';
+import type { OutboxEventInput } from '../../../common/outbox/outbox.js';
 import {
   AppError,
   BadRequestError,
@@ -17,6 +19,7 @@ import {
 import type { ReviewSubject } from '../../listing/listing.ports.js';
 import { sampled } from '../calc/sampling.calc.js';
 import type { ReviewQueueService } from '../queue/queue.service.js';
+import { type ListingDecidedOutcome, REVIEW_EVENTS, reviewEvent } from '../review.outbox.js';
 import type { Tx } from '../review.repository.js';
 import {
   type CreateTemplateBody,
@@ -74,6 +77,56 @@ export interface ReviewDecisionService {
 }
 
 const MACHINE_REASONS = new Set(['machine_hold', 'machine_restricted']);
+
+/** Vai quản trị nhóm: thông báo cho người đăng ký "Quản trị nhóm" thay vì "Ghim" (notify-listing-decisions). */
+const GROUP_ROLES: ReadonlySet<ReviewActorRole> = new Set(['owner', 'moderator']);
+
+/**
+ * Kết quả người đăng được báo (N45): cho đạt tin chờ duyệt, từ chối, gỡ, khôi phục. Đạt khi hậu kiểm tin đang hiện, gỡ
+ * khỏi nhóm (N33 đã báo), bác việc nhóm chuyển lên — không báo.
+ */
+const noticeOutcome = (
+  outcome: ReviewOutcome,
+  stateBefore: ListingState,
+): ListingDecidedOutcome | null => {
+  switch (outcome) {
+    case 'pass':
+      return stateBefore === 'pending' ? 'approved' : null;
+    case 'reject':
+      return 'rejected';
+    case 'remove':
+      return 'removed';
+    case 'restore':
+      return 'restored';
+    default:
+      return null;
+  }
+};
+
+/** Sự kiện cho người đăng, phát trong transaction của nhật ký quyết định: quyết định cuộn lại thì không ai được báo. */
+const decidedEvents = (input: {
+  decisionId: string;
+  subject: ReviewSubject;
+  outcome: ReviewOutcome;
+  role: ReviewActorRole;
+  groupId: string | null;
+  reason: string | null;
+}): OutboxEventInput[] => {
+  const outcome = noticeOutcome(input.outcome, input.subject.state);
+  if (!outcome) return [];
+  const faulted = outcome === 'rejected' || outcome === 'removed';
+  return [
+    reviewEvent(REVIEW_EVENTS.listingDecided, {
+      decisionId: input.decisionId,
+      listingId: input.subject.id,
+      ownerId: input.subject.ownerId,
+      outcome,
+      fault: faulted ? 'mistake' : null,
+      reason: faulted ? input.reason : null,
+      groupId: GROUP_ROLES.has(input.role) ? input.groupId : null,
+    }),
+  ];
+};
 
 const templateDto = (row: ReviewReasonTemplate): ReasonTemplateDto => ({
   id: row.id,
@@ -275,6 +328,17 @@ export function createDecisionService(
           posterTierAfter: facts.tier,
           decidedAt: clock(),
         });
+        await repository.emitIn(
+          tx,
+          decidedEvents({
+            decisionId: written.decision.id,
+            subject,
+            outcome,
+            role,
+            groupId: subject.groupId,
+            reason: template?.text ?? null,
+          }),
+        );
         if (outcome === 'restore' && row) {
           await repository.addSampleCandidate(
             {
@@ -399,6 +463,17 @@ export function createDecisionService(
             overturnsDecisionId: overturns,
             decidedAt: now,
           });
+          await repository.emitIn(
+            tx,
+            decidedEvents({
+              decisionId: written.decision.id,
+              subject,
+              outcome,
+              role,
+              groupId: task.groupId,
+              reason: template?.text ?? null,
+            }),
+          );
           if (sampleReviewer) {
             await queue.addReason(task.listingId, {
               reason: 'sample_reviewer',

@@ -38,12 +38,6 @@ export function createCliIdentity(): IdentityService {
   });
 }
 
-/** Giá trị đứng sau `--<name>` trong argv; không có thì `undefined`. */
-export function argOf(name: string): string | undefined {
-  const index = process.argv.indexOf(`--${name}`);
-  return index >= 0 ? process.argv[index + 1] : undefined;
-}
-
 /** Chạy một việc CLI: lỗi nghiệp vụ in một dòng và thoát 1, lỗi lạ in đủ stack, luôn đóng Prisma. */
 export async function runCli(job: (identity: IdentityService) => Promise<string>): Promise<void> {
   try {
@@ -61,9 +55,4 @@ export async function runCli(job: (identity: IdentityService) => Promise<string>
   } finally {
     await prisma.$disconnect();
   }
-}
-
-export function usage(line: string): never {
-  process.stderr.write(`Cách dùng: ${line}\n`);
-  process.exit(2);
 }

@@ -11,8 +11,14 @@ import { REVIEW_EVENTS } from '../src/modules/review/review.outbox.js';
 const MASTERS = ['0199a000-0000-7000-8000-0000000000m1', '0199a000-0000-7000-8000-0000000000m2'];
 
 const unused = () => Promise.reject(new Error('ma trận của review không được hỏi điều này'));
-const contextWith = (masters: string[]): MatrixContext => ({
-  group: unused,
+const contextWith = (
+  masters: string[],
+  known: { groups?: Record<string, string>; titles?: Record<string, string> } = {},
+): MatrixContext => ({
+  group: (groupId) => {
+    const name = known.groups?.[groupId];
+    return Promise.resolve(name ? { id: groupId, name } : null);
+  },
   managers: unused,
   moderators: unused,
   owner: unused,
@@ -20,9 +26,13 @@ const contextWith = (masters: string[]): MatrixContext => ({
   unitName: unused,
   announcement: unused,
   pendingCount: unused,
-  listingTitles: unused,
+  listingTitles: (ids) =>
+    Promise.resolve(
+      new Map(ids.flatMap((id) => (known.titles?.[id] ? [[id, known.titles[id]] as const] : []))),
+    ),
   listingTargets: unused,
   masterIds: () => Promise.resolve(masters),
+  machineNotice: unused,
 });
 
 const handle = (type: string, payload: Payload, masters = MASTERS) => {
@@ -104,5 +114,86 @@ describe('N42 — hậu kiểm tuần trước làm không xuể', () => {
       (await handle(REVIEW_EVENTS.postcheckLow, { rate: null, done: 0, expired: 0, threshold: 80 }))
         .drafts,
     ).toEqual([]);
+  });
+});
+
+describe('N45 — người duyệt quyết về tin (notify-listing-decisions)', () => {
+  const LISTING = '0199a000-0000-7000-8000-000000000101';
+  const OWNER = '0199a000-0000-7000-8000-0000000000a1';
+  const GROUP = '0199a000-0000-7000-8000-0000000000b1';
+  const known = { groups: { [GROUP]: 'Hội phụ huynh 12A1' }, titles: { [LISTING]: 'Xe đạp cũ' } };
+  const decided = (payload: Payload) => {
+    const handler = REVIEW_MATRIX[REVIEW_EVENTS.listingDecided];
+    if (!handler) throw new Error('Thiếu dòng N45');
+    return handler(
+      { listingId: LISTING, ownerId: OWNER, groupId: null, fault: null, reason: null, ...payload },
+      contextWith([], known),
+    );
+  };
+
+  it('được duyệt: người đăng nhận, "tin đăng của bạn", có nhắc, ký "Ghim", không gộp', async () => {
+    const { drafts, fanOuts } = await decided({ outcome: 'approved' });
+    expect(fanOuts).toEqual([]);
+    expect(drafts).toEqual([
+      expect.objectContaining({
+        recipients: [OWNER],
+        category: 'your_listings',
+        type: 'listing.review.approved',
+        title: 'Ghim',
+        body: 'Tin «Xe đạp cũ» đã được duyệt và đang hiển thị.',
+        detail: null,
+        alertable: true,
+        personal: true,
+      }),
+    ]);
+    expect(drafts[0]?.collapse).toBeUndefined();
+  });
+
+  it('từ chối vì sai sót: câu nhắc không có lý do; nội dung trong app nêu lý do và cách sửa', async () => {
+    const [draft] = (
+      await decided({ outcome: 'rejected', fault: 'mistake', reason: 'Ảnh chưa rõ sản phẩm' })
+    ).drafts;
+    expect(draft?.body).toBe('Tin «Xe đạp cũ» chưa được duyệt.');
+    expect(draft?.body).not.toContain('Ảnh chưa rõ sản phẩm');
+    expect(draft?.detail).toBe(
+      'Lý do: Ảnh chưa rõ sản phẩm. Sửa tin rồi gửi lại để người duyệt xem lại.',
+    );
+  });
+
+  it('gỡ vì sai sót, khôi phục: đúng câu từng kết quả', async () => {
+    const [removed] = (
+      await decided({ outcome: 'removed', fault: 'mistake', reason: 'Giá ghi sai' })
+    ).drafts;
+    expect(removed).toMatchObject({
+      body: 'Tin «Xe đạp cũ» đã bị gỡ.',
+      detail: 'Lý do: Giá ghi sai. Sửa tin rồi gửi lại để tin hiện lại.',
+    });
+    const [restored] = (await decided({ outcome: 'restored' })).drafts;
+    expect(restored).toMatchObject({ body: 'Tin «Xe đạp cũ» đã hiển thị lại.', detail: null });
+  });
+
+  it('quản trị nhóm quyết: ký "Quản trị nhóm «tên nhóm»", gắn nhóm; không tên người duyệt', async () => {
+    const [draft] = (
+      await decided({
+        outcome: 'rejected',
+        fault: 'mistake',
+        reason: 'Sai danh mục',
+        groupId: GROUP,
+      })
+    ).drafts;
+    expect(draft).toMatchObject({
+      title: 'Quản trị nhóm «Hội phụ huynh 12A1»',
+      groupId: GROUP,
+      data: { listingId: LISTING, groupId: GROUP },
+    });
+  });
+
+  it('tin đã xoá hẳn, kết quả lạ, thiếu người đăng: không báo', async () => {
+    expect(
+      (await decided({ outcome: 'approved', listingId: '0199a000-0000-7000-8000-000000000999' }))
+        .drafts,
+    ).toEqual([]);
+    expect((await decided({ outcome: 'dismissed' })).drafts).toEqual([]);
+    expect((await decided({ outcome: 'approved', ownerId: null })).drafts).toEqual([]);
   });
 });

@@ -1,4 +1,5 @@
-import { argOf, runCli, usage } from './cli-identity.js';
+import { argOf, usage } from './cli-args.js';
+import { runCli } from './cli-identity.js';
 
 /*
  * Đặt lại lớp thứ hai cho một tài khoản (master mất ứng dụng tạo mã — spec master-accounts): gỡ

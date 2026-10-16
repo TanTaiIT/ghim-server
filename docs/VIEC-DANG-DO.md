@@ -65,13 +65,13 @@ Nguồn: CLAUDE.md mục **Thứ tự change**, `openspec/changes/`. Mỗi chang
 mở** trong proposal trước khi `/opsx:apply`. Cột ghi chú kể cả phần `add-review-queues` cố ý để lại cho change sau
 (proposal của nó, mục "Không làm").
 
-| Đợt | Change                 | Điều kiện / ghi chú                                                                                                                                                                     |
-| --- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 3   | `add-image-moderation` | Chờ chọn dịch vụ kiểm ảnh (mục 1) và rà soát pháp lý nếu gửi ảnh ra ngoài (TK 29 còn mở số 3)                                                                                           |
-| 4   | `add-reports`          | Sau khi sửa xong lỗi rà soát (mục 0). Thêm hàng 1 (lý do `report`) vào hàng chờ; điểm báo cáo và báo cáo liên quan trong màn xử việc                                                    |
-| 5   | `add-strikes`          | Kết quả "vi phạm" (gậy) cho người duyệt; xác nhận việc hàng 4 kèm gậy; hàng 2 khiếu nại (lý do `appeal`, hạn 7 ngày); lịch sử gậy của người bán trong màn xử việc và nhật ký            |
-| 6   | `add-messaging`        | Rồi `add-notifications`: báo người đăng quyết định của người duyệt (từ chối, gỡ, khôi phục, gỡ khỏi nhóm) — `review` hiện chỉ báo master (N40–N42); đẩy lên điện thoại khi app sẵn sàng |
-| 7   | `add-data-retention`   | Xoá hẳn tin và ảnh theo hạn lưu (TK 25). Tới lúc đó tin xoá mềm vẫn giữ ảnh trong kho                                                                                                   |
+| Đợt | Change                 | Điều kiện / ghi chú                                                                                                                                                          |
+| --- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3   | `add-image-moderation` | Chờ chọn dịch vụ kiểm ảnh (mục 1) và rà soát pháp lý nếu gửi ảnh ra ngoài (TK 29 còn mở số 3)                                                                                |
+| 4   | `add-reports`          | Sau khi sửa xong lỗi rà soát (mục 0). Thêm hàng 1 (lý do `report`) vào hàng chờ; điểm báo cáo và báo cáo liên quan trong màn xử việc                                         |
+| 5   | `add-strikes`          | Kết quả "vi phạm" (gậy) cho người duyệt; xác nhận việc hàng 4 kèm gậy; hàng 2 khiếu nại (lý do `appeal`, hạn 7 ngày); lịch sử gậy của người bán trong màn xử việc và nhật ký |
+| 6   | `add-messaging`        | Rồi `add-notifications`: đẩy lên điện thoại khi app sẵn sàng. Báo người đăng kết quả duyệt tin đã làm ở `notify-listing-decisions` (archive 16/10/2026)                      |
+| 7   | `add-data-retention`   | Xoá hẳn tin và ảnh theo hạn lưu (TK 25). Tới lúc đó tin xoá mềm vẫn giữ ảnh trong kho                                                                                        |
 
 ## 3. Chuyển kho ảnh Cloudinary → Cloudflare R2
 
@@ -140,8 +140,17 @@ Không phải việc dở — ghi để lần sau khỏi dò lại.
   "Danh mục thử — kiểm luồng đăng tin", một tin đã bán.
 - Kho ảnh: Cloudinary thư mục `ghim-server-dev-pc13` của riêng máy này. Quay lại S3 giả: hướng dẫn ngay trên dòng
   `STORAGE_URL`.
-- Dịch vụ giả: `VueJS/.vscode/ghim-dev-stubs.cjs` — SMTP :1025 in thư (mã xác nhận email đọc ở đây), S3 giả :9100 (không
-  còn dùng khi kho là Cloudinary). Nạp qua `NODE_OPTIONS` trong `.env.development`; F5 dùng `VueJS/.vscode/launch.json`.
+- Dịch vụ giả: `VueJS/.vscode/ghim-dev-stubs.cjs` — SMTP :1025 in thư (mã xác nhận email đọc ở đây) và ghi nối vào
+  `<thư mục tạm>/ghim-dev-mail.log`, S3 giả :9100 (không còn dùng khi kho là Cloudinary). Nạp qua `NODE_OPTIONS` trong
+  `.env.development`; F5 dùng `VueJS/.vscode/launch.json`.
+- Chạy khói luồng đăng tin: bật server (`pnpm dev`) rồi `pnpm smoke:posting` (`src/cli/smoke-posting.ts`). Hai tài khoản mới
+  qua đúng API của app: A đăng một ảnh ngẫu nhiên → lên bảng, hạn chế "tài khoản mới", đúng các chỗ hiển thị của tin hạn
+  chế; A bật "giao tận nơi" (không qua máy), sửa giá (qua máy lại); B đăng đúng ảnh đó → máy giữ vì ảnh trùng, khách
+  nhận 404, hàng chờ có việc, B nhận thông báo "tin đang chờ người duyệt" (N43); A sửa giá lần nữa vẫn qua (người đăng trước thắng — change `duplicate-image-first-wins`); B đánh dấu đã bán tin
+  của A → 403, A đánh dấu đã bán, B rút tin về nháp. Tự kiểm 22 điều
+  (đọc DB chỉ để đối chiếu), thoát 1 khi lệch. Mã email đọc từ mailpit, không có thì từ tệp thư của stub. Mỗi lượt để lại 2 tài khoản
+  `khoi.*@example.com`, 2 tin, 2 ảnh trên Neon / Cloudinary dev. Lượt 16/10/2026: ~52 s — tải ảnh lên Cloudinary ~1,7 s,
+  máy quyết 7–13 s sau khi gửi, việc vào hàng chờ ~10 s sau đó (bộ phát outbox quét mỗi 10 s).
 - Kiểm tra chạy được ở đây: `typecheck`, `lint`, `format:check`, `test:unit`, `spec:validate`, `build`, `db:drift`
   (chỉ đọc, so Neon dev với schema). Test cần Postgres + RustFS chỉ chạy trên CI, và CI chỉ chạy khi có pull request
   (hoặc push lên `main`, `develop`).

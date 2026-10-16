@@ -21,12 +21,14 @@ const PURE_TESTS = [
   'tests/lookup-code.test.ts',
   'tests/mailer.test.ts',
   'tests/money.test.ts',
+  'tests/notification-listing-matrix.test.ts',
   'tests/notification-media-matrix.test.ts',
   'tests/notification-review-matrix.test.ts',
   'tests/outbox-retry.test.ts',
   'tests/pagination.test.ts',
   'tests/runtime-config.test.ts',
   'tests/secrets.test.ts',
+  'tests/smoke-mail.test.ts',
   'tests/trust-proxy.test.ts',
 ];
 

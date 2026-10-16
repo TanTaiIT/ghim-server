@@ -215,9 +215,18 @@ export interface ScreeningRepository {
    * ngay (fix-audit-screening-trust, T21). Trả các ảnh vừa đưa về.
    */
   retryTransient(tx: Tx, imageIds: string[]): Promise<string[]>;
-  /** Ảnh đã kiểm của tài khoản khác chung ít nhất một dải — ứng viên trùng, còn phải so khoảng cách. */
+  /**
+   * Ảnh của tài khoản khác chung ít nhất một dải, đã kiểm xong TRƯỚC ảnh đang xét (`before`: mốc kiểm xong, phá hoà bằng
+   * mã ảnh) — ứng viên trùng, còn phải so khoảng cách. Người đăng trước thắng: bản chép kiểm xong sau không làm ảnh gốc
+   * thành "trùng" (change duplicate-image-first-wins).
+   */
   duplicateCandidates(
-    input: { bands: readonly number[]; excludeOwner: string; excludeImageIds: string[] },
+    input: {
+      bands: readonly number[];
+      excludeOwner: string;
+      excludeImageIds: string[];
+      before: { checkedAt: Date; imageId: string };
+    },
     tx?: Tx,
   ): Promise<Pick<ImageCheck, 'imageId' | 'dhash' | 'ownerAccountId'>[]>;
   whitelistCandidates(
@@ -599,13 +608,21 @@ export function createScreeningRepository(prisma: PrismaClient): ScreeningReposi
       return count;
     },
 
-    duplicateCandidates: ({ bands, excludeOwner, excludeImageIds }, tx) =>
+    duplicateCandidates: ({ bands, excludeOwner, excludeImageIds, before }, tx) =>
       (tx ?? prisma).imageCheck.findMany({
         where: {
           status: 'done',
           ownerAccountId: { not: excludeOwner },
           imageId: { notIn: excludeImageIds },
-          OR: anyBand(bands),
+          AND: [
+            { OR: anyBand(bands) },
+            {
+              OR: [
+                { checkedAt: { lt: before.checkedAt } },
+                { checkedAt: before.checkedAt, imageId: { lt: before.imageId } },
+              ],
+            },
+          ],
         },
         select: { imageId: true, dhash: true, ownerAccountId: true },
       }),

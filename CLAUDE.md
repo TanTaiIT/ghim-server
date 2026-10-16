@@ -229,7 +229,10 @@ review }`,
 `media` lên đợt 2 (TK 29 xếp ở đợt 3) vì nháp tin đăng đã cần ảnh; chỉ phần **kiểm** ảnh ở đợt 3.
 `notification` nghe `group.*`, các `listing.*` có dòng ma trận (`notification.listing-matrix.ts`) và
 `media.image.missing` (`notification.media-matrix.ts`, N38 ảnh tin, N39 ảnh đại diện — change `notify-missing-images`),
-`review.*` (`notification.review-matrix.ts`, N40–N42 cho mọi master, người nhận hỏi `identity.masterIds`);
+`review.*` (`notification.review-matrix.ts`, N40–N42 cho mọi master, người nhận hỏi `identity.masterIds`; N45
+`review.listing.decided` báo người đăng kết quả duyệt — `review` phát trong transaction của nhật ký quyết định), và
+mũi tên `hold`, `recall` của `listing.state.changed` (N43, N44 — câu của máy hỏi `screening.notices`; change
+`notify-listing-decisions`);
 câu cần tiêu đề hay người đăng của tin thì hỏi `listing` qua cổng (`titles`, `noticeTargets`), không đọc bảng của nó.
 `screening` nghe `media.images.deleted` (`{ imageIds }`, phát cùng transaction với ba lượt xoá dòng ảnh của `media`) để
 bỏ dấu ảnh — ảnh đã xoá hẳn không còn là ứng viên trùng (change `fix-audit-trust-media-low`).
@@ -452,7 +455,11 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   đơn vị thì xoá thông báo gửi riêng cho nó" vào `notification/group-announcements`. `fix-audit-trust-media-low` (đợt 4 phần 3,
   archive 16/10/2026) thêm "Lên T1 đúng lúc tin đang lên bảng" vào `listing/visibility`, "Tài khoản T3 vẫn được tính
   lại khi còn tin sạch chưa tính" vào `trust/trust-tiers`, "Ảnh đã xoá hẳn không còn để so trùng" vào
-  `screening/image-checks`.
+  `screening/image-checks`. `duplicate-image-first-wins` (archive 16/10/2026, từ lượt chạy khói trên dev)
+  sửa "Ảnh trùng với tin của tài khoản khác là cổng cứng" của `screening/image-checks`: chỉ so với ảnh đã kiểm xong
+  trước — người đăng trước thắng. `notify-listing-decisions` (archive 16/10/2026) tạo `notification/listing-notices`:
+  báo người đăng khi máy giữ / rút tin về và khi người duyệt đạt, từ chối, gỡ, khôi phục; ai ký; câu nhắc không lộ lý
+  do; những chuyện không báo.
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.
