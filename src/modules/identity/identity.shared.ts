@@ -322,27 +322,8 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
     },
     at: Date,
   ): Promise<SessionOpened> => {
-    const cap = input.privileged
-      ? config.get('identity.sessionCapPrivileged')
-      : config.get('identity.sessionCapUser');
-    const alive = (await repository.listActiveSessions(account.id)).filter(
-      (session) => session.expiresAt > at,
-    );
-    const overflow = alive.length + 1 - cap;
-    if (overflow > 0) {
-      // listActiveSessions xếp mới hoạt động trước, nên cuối danh sách là ít hoạt động nhất.
-      await Promise.all(
-        alive
-          .slice(-overflow)
-          .map((session) =>
-            repository.updateSession(session.id, { revokedAt: at, revokeReason: 'evicted' }),
-          ),
-      );
-      for (const session of alive.slice(-overflow)) deps.sessionsRevoked?.session(session.id);
-    }
-
     const refreshToken = randomToken();
-    const session = await repository.createSession({
+    const { session, evictedIds } = await repository.openSessionCapped({
       accountId: account.id,
       refreshTokenHash: sha256Hex(refreshToken),
       deviceName: input.deviceName,
@@ -351,7 +332,11 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
       secondFactorAt: input.secondFactorAt,
       expiresAt: idleExpiry(at),
       at,
+      cap: input.privileged
+        ? config.get('identity.sessionCapPrivileged')
+        : config.get('identity.sessionCapUser'),
     });
+    for (const id of evictedIds) deps.sessionsRevoked?.session(id);
     return { sessionId: session.id, refreshToken };
   };
 

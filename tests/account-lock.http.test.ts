@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { toOk } from '../src/common/schemas/response.js';
 import { hashPassword } from '../src/modules/identity/calc/password.calc.js';
-import { auditOf, lastOutboxEvent } from './db-helpers.js';
+import { auditOf, lastOutboxEvent, outboxEvents } from './db-helpers.js';
 import { seedAccount, tokenFor } from './ops-helpers.js';
 import { buildTestApp, grantStaff, repositories, TEST_AUDIT } from './test-app.js';
 
@@ -20,6 +20,11 @@ beforeAll(async () => {
   passwordHash = await hashPassword(PASSWORD);
   app = await buildTestApp({ clock: () => NOW });
   app.get('/__test/me', { preHandler: [app.authenticate] }, async (request) => toOk(request.actor));
+  app.get(
+    '/__test/verified',
+    { preHandler: [app.authenticate, app.requireVerifiedEmail] },
+    async (request) => toOk(request.actor),
+  );
   await app.ready();
   const master = await seedAccount({ role: 'master' }, NOW);
   masterToken = await tokenFor(app, master.id);
@@ -130,6 +135,7 @@ describe('tài khoản bị khoá', () => {
     expect((await login(user.email)).statusCode).toBe(200);
     expect(await repository.findAccountById(user.id)).toMatchObject({
       status: 'active',
+      statusBeforeLock: null,
       lockedAt: null,
       lockedReason: null,
     });
@@ -138,6 +144,47 @@ describe('tài khoản bị khoá', () => {
       payload: { accountId: user.id },
     });
     expect((await unlock(user.id, masterToken)).statusCode).toBe(409);
+  });
+
+  it('khoá rồi mở khoá tài khoản chưa xác nhận email → vẫn chưa xác nhận, 403 EMAIL_NOT_VERIFIED (fix-audit-identity-low, L1)', async () => {
+    const user = await seedAccount({ passwordHash, status: 'pending_verification' }, NOW);
+    await lock(user.id, masterToken, { reason: 'Spam' });
+    expect(await repository.findAccountById(user.id)).toMatchObject({
+      status: 'locked',
+      statusBeforeLock: 'pending_verification',
+    });
+    expect((await unlock(user.id, masterToken)).statusCode).toBe(204);
+    expect(await repository.findAccountById(user.id)).toMatchObject({
+      status: 'pending_verification',
+      statusBeforeLock: null,
+    });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/__test/verified',
+      headers: { authorization: `Bearer ${await tokenFor(app, user.id)}` },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error.code).toBe('EMAIL_NOT_VERIFIED');
+    expect(
+      (await outboxEvents()).filter(
+        (event) =>
+          event.type === 'identity.account.verified' &&
+          (event.payload as { accountId?: string }).accountId === user.id,
+      ),
+    ).toEqual([]);
+  });
+
+  it('hai lượt khoá cùng lúc → một 204, một 409; trạng thái trước khi khoá không bị ghi đè', async () => {
+    const user = await seedAccount({ passwordHash }, NOW);
+    const results = await Promise.all([
+      lock(user.id, masterToken, { reason: 'Lượt một' }),
+      lock(user.id, masterToken, { reason: 'Lượt hai' }),
+    ]);
+    expect(results.map((res) => res.statusCode).toSorted()).toEqual([204, 409]);
+    expect(await repository.findAccountById(user.id)).toMatchObject({
+      status: 'locked',
+      statusBeforeLock: 'active',
+    });
   });
 
   it('mở khoá A thì đánh dấu "dùng máy của tài khoản bị khoá" trỏ tới A được đóng', async () => {
@@ -166,5 +213,12 @@ describe('tài khoản bị khoá', () => {
       clearedAt: NOW,
       clearedReason: expect.stringContaining('mở khoá'),
     });
+    // Như đường gỡ qua hỗ trợ: mỗi đánh dấu gỡ một sự kiện (fix-audit-identity-low, L12).
+    expect(await outboxEvents()).toContainEqual(
+      expect.objectContaining({
+        type: 'identity.device.flag_cleared',
+        payload: { accountId: b.id, kind: 'device_of_locked_account' },
+      }),
+    );
   });
 });

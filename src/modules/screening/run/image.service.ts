@@ -15,6 +15,11 @@ export interface ScreeningImageService {
   scheduleChecks(input: { listingId: string; version: number; ownerId: string }): Promise<number>;
   /** Việc `screening.check-image`: băm, ghi kết quả, rồi thử kết luận mọi lượt đang chờ ảnh này. */
   checkImage(imageId: string): Promise<void>;
+  /**
+   * Bên nghe `media.images.deleted`: dấu ảnh đi theo ảnh — ảnh đã xoá không còn là ứng viên trùng (rà soát L10). Lượt
+   * còn chờ ảnh đó chỉ là lượt của phiên bản cũ; lưới an toàn kết luận chúng khi hết chờ. Nhận trùng vô hại.
+   */
+  onImagesDeleted(imageIds: string[]): Promise<void>;
 }
 
 /** Kiểm ảnh bất đồng bộ (design mục 5 bước 3): kết quả ảnh dùng chung cho mọi lượt chứa ảnh đó. */
@@ -68,6 +73,10 @@ export function createImageService(
       );
       // Việc trùng (xếp lại trúng lúc việc cũ chạy chậm) đã ghi trước: lượt kết luận là của nó.
       if (recorded) await concludeWaiting(imageId);
+    },
+
+    async onImagesDeleted(imageIds) {
+      await repository.deleteImageChecks(imageIds);
     },
   };
 }

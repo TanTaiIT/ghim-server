@@ -262,8 +262,17 @@ export interface IdentityRepository {
    * `add-data-retention`. `false` = dòng không còn ở trạng thái đó (đã ẩn danh, hay chưa hết thời gian chờ).
    */
   anonymizeDeletedAccount(input: { id: string; deletedBefore: Date }): Promise<boolean>;
-  lockAccount(input: LockAccountInput): Promise<void>;
-  unlockAccount(input: UnlockAccountInput): Promise<void>;
+  /**
+   * Khoá dòng tài khoản rồi mới đọc trạng thái, ghi trạng thái đó vào `statusBeforeLock` (fix-audit-identity-low,
+   * L1). `false` = không có tài khoản, hoặc nó không còn `active` / `pending_verification` (lượt khoá khác vừa chạy)
+   * — không ghi gì.
+   */
+  lockAccount(input: LockAccountInput): Promise<boolean>;
+  /**
+   * Trả tài khoản về `statusBeforeLock` và gỡ các đánh dấu "dùng máy của tài khoản bị khoá" trỏ tới nó, mỗi đánh dấu
+   * một `identity.device.flag_cleared` (L12). `false` = tài khoản không còn bị khoá.
+   */
+  unlockAccount(input: UnlockAccountInput): Promise<boolean>;
   softDeleteAccount(input: SoftDeleteAccountInput): Promise<void>;
 
   findLiveCode(accountId: string, purpose: CodePurpose): Promise<VerificationCode | null>;
@@ -283,6 +292,14 @@ export interface IdentityRepository {
   deleteCodesExpiredBefore(before: Date): Promise<number>;
 
   createSession(data: NewSession): Promise<Session>;
+  /**
+   * Mở phiên dưới trần: khoá theo tài khoản, đẩy phiên còn sống ít hoạt động nhất ra cho đủ chỗ rồi tạo phiên — một
+   * transaction, nên đăng nhập cùng lúc không vượt trần (fix-audit-identity-low, L3). Phiên đã hết hạn trượt không
+   * chiếm chỗ. `evictedIds` để ngắt realtime sau commit.
+   */
+  openSessionCapped(
+    data: NewSession & { cap: number },
+  ): Promise<{ session: Session; evictedIds: string[] }>;
   findSessionById(id: string): Promise<Session | null>;
   /**
    * Chạy ở mọi request có đăng nhập. JOIN tay vì Prisma 7 chạy `include` thành hai câu (đo 11/10/2026);
@@ -341,11 +358,15 @@ export interface IdentityRepository {
   listIdVerifications(
     query: PageQuery & { status?: IdVerificationStatus },
   ): Promise<Page<IdVerification>>;
-  updateIdVerification(
+  /**
+   * Ghi kết quả duyệt có điều kiện "hồ sơ còn chờ" (fix-audit-identity-low, L2): hai người cùng duyệt thì đúng một
+   * người thắng. `null` = hồ sơ không còn chờ — không ghi nhật ký.
+   */
+  decidePendingIdVerification(
     id: string,
     patch: IdVerificationPatch,
     audit: AuditEntry,
-  ): Promise<IdVerification>;
+  ): Promise<IdVerification | null>;
   /** Tài khoản master — tối đa một (spec master-accounts). */
   findMaster(): Promise<Account | null>;
 }
@@ -455,30 +476,58 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
       }),
     lockAccount: ({ accountId, reason, lockedBy, at, events, audit }) =>
       prisma.$transaction(async (tx) => {
+        const [row] = await tx.$queryRaw<{ status: AccountStatus }[]>`
+          SELECT status FROM accounts WHERE id = ${accountId}::uuid FOR UPDATE`;
+        if (row?.status !== 'active' && row?.status !== 'pending_verification') return false;
         await tx.account.update({
           where: { id: accountId },
-          data: { status: 'locked', lockedAt: at, lockedReason: reason, lockedBy },
+          data: {
+            status: 'locked',
+            statusBeforeLock: row.status,
+            lockedAt: at,
+            lockedReason: reason,
+            lockedBy,
+          },
         });
         await revokeSessionsIn(tx, { accountId, reason: 'account_locked', at });
         await appendEvents(tx, events);
         await appendAudit(tx, audit);
+        return true;
       }),
     unlockAccount: ({ accountId, unlockedBy, at, events, audit }) =>
       prisma.$transaction(async (tx) => {
+        const [row] = await tx.$queryRaw<
+          { status: AccountStatus; status_before_lock: AccountStatus | null }[]
+        >`SELECT status, status_before_lock FROM accounts WHERE id = ${accountId}::uuid FOR UPDATE`;
+        if (row?.status !== 'locked') return false;
         await tx.account.update({
           where: { id: accountId },
-          data: { status: 'active', lockedAt: null, lockedReason: null, lockedBy: null },
+          data: {
+            status: row.status_before_lock ?? 'active',
+            statusBeforeLock: null,
+            lockedAt: null,
+            lockedReason: null,
+            lockedBy: null,
+          },
         });
-        await tx.accountFlag.updateMany({
+        const cleared = await tx.accountFlag.updateManyAndReturn({
           where: { kind: 'device_of_locked_account', relatedAccountId: accountId, clearedAt: null },
           data: {
             clearedAt: at,
             clearedBy: unlockedBy,
             clearedReason: FLAG_CLEARED_REASONS.unlocked,
           },
+          select: { accountId: true, kind: true },
         });
-        await appendEvents(tx, events);
+        await appendEvents(tx, [
+          ...events,
+          ...cleared.map((flag) => ({
+            type: 'identity.device.flag_cleared' as const,
+            payload: { accountId: flag.accountId, kind: flag.kind },
+          })),
+        ]);
         await appendAudit(tx, audit);
+        return true;
       }),
     softDeleteAccount: ({ accountId, at, events }) =>
       prisma.$transaction(async (tx) => {
@@ -523,6 +572,27 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
 
     createSession: ({ at, ...data }) =>
       prisma.session.create({ data: { ...data, createdAt: at, lastActiveAt: at } }),
+    openSessionCapped: ({ cap, at, ...data }) =>
+      prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`sessions:${data.accountId}`}, 0))`;
+        const alive = await tx.session.findMany({
+          where: { accountId: data.accountId, revokedAt: null, expiresAt: { gt: at } },
+          orderBy: { lastActiveAt: 'desc' },
+          select: { id: true },
+        });
+        // Xếp mới hoạt động trước, nên cuối danh sách là ít hoạt động nhất.
+        const evictedIds = alive.slice(Math.max(cap - 1, 0)).map((session) => session.id);
+        if (evictedIds.length > 0) {
+          await tx.session.updateMany({
+            where: { id: { in: evictedIds } },
+            data: { revokedAt: at, revokeReason: 'evicted' },
+          });
+        }
+        const session = await tx.session.create({
+          data: { ...data, createdAt: at, lastActiveAt: at },
+        });
+        return { session, evictedIds };
+      }),
     findSessionById: (id) => prisma.session.findUnique({ where: { id } }),
     async findActorSession(sessionId) {
       const rows = await prisma.$queryRaw<ActorSession[]>`
@@ -680,9 +750,13 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
       ]);
       return { items, total };
     },
-    updateIdVerification: (id, patch, audit) =>
+    decidePendingIdVerification: (id, patch, audit) =>
       prisma.$transaction(async (tx) => {
-        const row = await tx.idVerification.update({ where: { id }, data: patch });
+        const [row] = await tx.idVerification.updateManyAndReturn({
+          where: { id, status: 'pending' },
+          data: patch,
+        });
+        if (!row) return null;
         await appendAudit(tx, audit);
         return row;
       }),

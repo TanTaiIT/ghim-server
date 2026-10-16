@@ -24,6 +24,8 @@ type Tx = Prisma.TransactionClient;
 /** Chỗ cắm mức tin cậy (design mục 7): hai lời gọi đồng bộ của luật 12. */
 export interface ListingTrustPort {
   tierOf(accountId: string): Promise<TrustTier>;
+  /** Mức đọc trong transaction đổi tin, sau khoá chung của `trust` — lượt lên mức chen giữa không bị bỏ sót (L7). */
+  tierIn(tx: Tx, accountId: string): Promise<TrustTier>;
   /** Hạn mức, nhịp gửi — trong transaction gửi; ném lỗi của `trust` thì cả lượt quay lui. */
   assertCanSubmit(
     tx: Tx,

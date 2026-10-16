@@ -2,7 +2,7 @@ import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { formatDateVN, formatTimeVN } from '../src/common/time/time.js';
-import { lastOutboxEvent, prisma } from './db-helpers.js';
+import { lastOutboxEvent, outboxEvents, prisma } from './db-helpers.js';
 import {
   type ActiveGroup,
   type TestUser,
@@ -1192,5 +1192,44 @@ describe('thao tác chen nhau không trả 500 (thứ tự khoá)', () => {
       api(app, 'POST', `/groups/${group.groupId}/close`, group.owner.token),
     ]);
     results.forEach(notServerError);
+  });
+});
+
+/** Sự kiện "đơn / lời mời đã xử" của một người ở một nhóm — bộ đếm đơn chờ của quản trị và thông báo đọc theo nó. */
+const decidedOf = async (type: string, groupId: string, accountId: string) =>
+  (await outboxEvents())
+    .filter((event) => event.type === type)
+    .map((event) => event.payload as Record<string, unknown>)
+    .filter((payload) => payload.groupId === groupId && payload.accountId === accountId);
+
+describe('huỷ kèm theo vẫn phát sự kiện (fix-audit-group-low, L5)', () => {
+  it('có đơn chờ rồi vào bằng lời mời: đơn huỷ kèm sự kiện "đã vào"', async () => {
+    const group = await createActiveGroup(app, { mode: 'public_review' });
+    const user = await newUser(app);
+    const requestId = await requestJoin(user, group.groupId);
+    await invite(group.owner, group.groupId, user.email);
+    expect(
+      (await acceptInvitation(user, await invitationIdOf(user, group.groupId))).statusCode,
+    ).toBe(200);
+
+    expect(await decidedOf('group.join_request.decided', group.groupId, user.id)).toEqual([
+      expect.objectContaining({ requestId, outcome: 'cancelled', reason: 'joined' }),
+    ]);
+  });
+
+  it('cấm người đang có đơn và lời mời: cả hai huỷ kèm sự kiện "bị cấm"', async () => {
+    const group = await createActiveGroup(app, { mode: 'public_review' });
+    const user = await newUser(app);
+    const requestId = await requestJoin(user, group.groupId);
+    await invite(group.owner, group.groupId, user.email);
+    const invitationId = await invitationIdOf(user, group.groupId);
+    expect((await ban(group.owner, group.groupId, user)).statusCode).toBe(204);
+
+    expect(await decidedOf('group.join_request.decided', group.groupId, user.id)).toEqual([
+      expect.objectContaining({ requestId, outcome: 'cancelled', reason: 'banned' }),
+    ]);
+    expect(await decidedOf('group.invitation.decided', group.groupId, user.id)).toEqual([
+      expect.objectContaining({ invitationId, outcome: 'cancelled', reason: 'banned' }),
+    ]);
   });
 });

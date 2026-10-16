@@ -151,6 +151,33 @@ describe('/ops/id-verifications', () => {
     expect(JSON.stringify(profile.json())).not.toContain(DOCUMENT_NUMBER);
   });
 
+  it('staff duyệt hồ sơ của chính mình → 403 FORBIDDEN, hồ sơ vẫn chờ (fix-audit-identity-low, L2)', async () => {
+    const self = await seedAccount({}, NOW);
+    await grantStaff(self.id, ['id_verification']);
+    const selfToken = await tokenFor(app, self.id);
+    const { id } = (await submit(selfToken)).json().data;
+    const res = await decide(id, selfToken, { status: 'verified' });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error.code).toBe('FORBIDDEN');
+    expect(await repository.findPendingIdVerification(self.id)).toMatchObject({ id });
+    expect(await auditOf(id)).toEqual([]);
+  });
+
+  it('hai staff cùng duyệt một hồ sơ → một 200, một 409, hồ sơ mang kết quả lượt thắng (L2)', async () => {
+    const user = await seedAccount({}, NOW);
+    const { id } = (await submit(await tokenFor(app, user.id))).json().data;
+    const second = await seedAccount({}, NOW);
+    await grantStaff(second.id, ['id_verification']);
+    const [verified, rejected] = await Promise.all([
+      decide(id, reviewerToken, { status: 'verified' }),
+      decide(id, await tokenFor(app, second.id), { status: 'rejected', reason: 'Ảnh mờ' }),
+    ]);
+    expect([verified.statusCode, rejected.statusCode].toSorted()).toEqual([200, 409]);
+    const winner = verified.statusCode === 200 ? 'verified' : 'rejected';
+    expect(await repository.findIdVerificationById(id)).toMatchObject({ status: winner });
+    expect(await auditOf(id)).toHaveLength(1);
+  });
+
   it('hồ sơ không có → 404', async () => {
     expect(
       (await decide('00000000-0000-7000-8000-000000000000', reviewerToken, { status: 'verified' }))

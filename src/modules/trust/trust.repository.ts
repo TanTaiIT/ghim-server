@@ -36,6 +36,11 @@ export interface TrustRepository {
    */
   withAccountLock<T>(accountId: string, work: (tx: Tx) => Promise<T>): Promise<T>;
   findTier(accountId: string, tx?: Tx): Promise<TrustTierResult | null>;
+  /**
+   * Khoá CHUNG cùng khoá mà `withAccountLock` giữ RIÊNG, rồi đọc mức bằng `tx` của bên gọi: lượt tính mức đang chạy xong
+   * trước, lượt tính mức sau chờ `tx` này commit — bên gọi không ghi theo một mức đã cũ (rà soát L7).
+   */
+  holdTier(tx: Tx, accountId: string): Promise<TrustTierResult | null>;
   /** Tin sạch đang được tính: có mốc, không bị void. */
   validClean(accountId: string, tx?: Tx): Promise<CleanFact[]>;
   /**
@@ -63,7 +68,8 @@ export interface TrustRepository {
   writeTier(input: TierWrite, tx?: Tx): Promise<'written' | 'stale'>;
   /**
    * Tài khoản lượt hằng ngày tính lại (design mục 7): có tin sạch hay đã có kết quả, trừ tài khoản đã ở T3 theo bảng
-   * con số hiện hành — tuổi chạm mốc, tin dời tới lượt, bảng con số mới đều nằm trong tập này. Theo trang mã tài khoản.
+   * con số hiện hành mà mọi tin sạch đã được tính — tuổi chạm mốc, tin dời tới lượt, bảng con số mới đều nằm trong tập
+   * này. Theo trang mã tài khoản.
    */
   recomputeCandidates(input: {
     configVersion: number;
@@ -107,6 +113,10 @@ export function createTrustRepository(prisma: PrismaClient): TrustRepository {
       }),
     findTier: (accountId, tx) =>
       (tx ?? prisma).trustTierResult.findUnique({ where: { accountId } }),
+    async holdTier(tx, accountId) {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock_shared(hashtextextended(${`trust-tier:${accountId}`}, 0))`;
+      return tx.trustTierResult.findUnique({ where: { accountId } });
+    },
     async validClean(accountId, tx) {
       const rows = await (tx ?? prisma).trustCleanListing.findMany({
         where: { accountId, cleanAt: { not: null }, voidedAt: null },
@@ -190,7 +200,12 @@ export function createTrustRepository(prisma: PrismaClient): TrustRepository {
           SELECT account_id FROM trust_tiers
         ) AS candidates
         LEFT JOIN trust_tiers AS t ON t.account_id = candidates.account_id
-        WHERE (t.account_id IS NULL OR t.tier <> 'T3' OR t.config_version <> ${configVersion})
+        WHERE (t.account_id IS NULL OR t.tier <> 'T3' OR t.config_version <> ${configVersion}
+               -- T3 không lên được nữa, nhưng số tin sạch người duyệt thấy vẫn phải theo kịp: còn tin sạch chưa được
+               -- tính (mới sạch, hay đang dời vì trần 7 ngày) thì tính lại (rà soát L9).
+               OR t.counted_clean < (
+                 SELECT count(*) FROM trust_clean_listings AS c
+                  WHERE c.account_id = t.account_id AND c.clean_at IS NOT NULL AND c.voided_at IS NULL))
           AND candidates.account_id > ${after ?? FIRST_UUID}::uuid
         ORDER BY "accountId"
         LIMIT ${take}`;

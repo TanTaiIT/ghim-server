@@ -64,7 +64,7 @@ describe('lockAccount trên Postgres thật', () => {
     ]);
   });
 
-  it('khoá một tài khoản không tồn tại thì cả transaction rollback: không có dòng outbox nào', async () => {
+  it('khoá một tài khoản không tồn tại → false, không có dòng outbox nào', async () => {
     await expect(
       repository.lockAccount({
         accountId: '00000000-0000-7000-8000-000000000000',
@@ -74,7 +74,34 @@ describe('lockAccount trên Postgres thật', () => {
         events: [{ type: 'identity.account.locked', payload: { accountId: 'x' } }],
         audit: TEST_AUDIT,
       }),
-    ).rejects.toMatchObject({ code: 'P2025' });
+    ).resolves.toBe(false);
     expect(await prisma.outboxEvent.count()).toBe(0);
+  });
+
+  it('khoá tài khoản đang bị khoá, mở khoá tài khoản không bị khoá → false, không ghi gì (fix-audit-identity-low, L1)', async () => {
+    const user = await account('b@ghim.test');
+    const lockInput = {
+      accountId: user.id,
+      reason: 'Thử',
+      lockedBy: user.id,
+      at: NOW,
+      events: [{ type: 'identity.account.locked' as const, payload: { accountId: user.id } }],
+      audit: TEST_AUDIT,
+    };
+    const unlockInput = {
+      accountId: user.id,
+      unlockedBy: user.id,
+      at: NOW,
+      events: [{ type: 'identity.account.unlocked' as const, payload: { accountId: user.id } }],
+      audit: TEST_AUDIT,
+    };
+    await expect(repository.unlockAccount(unlockInput)).resolves.toBe(false);
+    await expect(repository.lockAccount(lockInput)).resolves.toBe(true);
+    await expect(repository.lockAccount(lockInput)).resolves.toBe(false);
+    expect(await prisma.outboxEvent.count()).toBe(1);
+    expect(await prisma.account.findUnique({ where: { id: user.id } })).toMatchObject({
+      status: 'locked',
+      statusBeforeLock: 'active',
+    });
   });
 });

@@ -190,6 +190,46 @@ describe('Tài khoản lượt hằng ngày tính lại', () => {
     });
     expect([...first, ...rest]).toEqual(all);
   });
+
+  it('T3 còn tin sạch chưa được tính thì vẫn được tính lại; đã tính đủ thì không (fix-audit-trust-media-low, L9)', async () => {
+    const [behind, upToDate] = await Promise.all([seedAccount(), seedAccount()]);
+    const clean = (accountId: string) =>
+      trust.addClean({ listingId: randomUUID(), accountId, via: 'shown', at: NOW });
+    await clean(behind.id);
+    await clean(behind.id);
+    await clean(upToDate.id);
+    await trust.writeTier(write(behind.id, { tier: 'T3', configVersion: 2, countedClean: 1 }));
+    await trust.writeTier(write(upToDate.id, { tier: 'T3', configVersion: 2, countedClean: 1 }));
+
+    const all = await trust.recomputeCandidates({ configVersion: 2, after: null, take: 10 });
+    expect(all).toContain(behind.id);
+    expect(all).not.toContain(upToDate.id);
+  });
+});
+
+describe('Đọc mức trong transaction của bên gọi (fix-audit-trust-media-low, L7)', () => {
+  it('lượt tính mức đang giữ khoá: bên đọc chờ lượt đó commit rồi thấy mức mới', async () => {
+    const { id } = await seedAccount();
+    await trust.writeTier(write(id, { tier: 'T0', countedClean: 0 }));
+    const { promise: held, resolve: holding } = Promise.withResolvers<void>();
+    const { promise: gate, resolve: release } = Promise.withResolvers<void>();
+    const writer = trust.withAccountLock(id, async (tx) => {
+      holding();
+      await gate;
+      await trust.writeTier(
+        write(id, { expectHash: 'dau-1', fromTier: 'T0', tier: 'T1', factsHash: 'dau-2' }),
+        tx,
+      );
+    });
+    await held;
+
+    const reader = prisma.$transaction((tx) => trust.holdTier(tx, id));
+    // Đủ lâu để lượt đọc tới khoá trước khi lượt ghi commit; không có khoá thì lượt đọc đã ra T0.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    release();
+    await writer;
+    expect((await reader)?.tier).toBe('T1');
+  });
 });
 
 describe('Cổng dữ kiện của listing cho trust (task 3.1)', () => {

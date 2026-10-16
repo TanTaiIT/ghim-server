@@ -140,3 +140,13 @@ X"; mã thiết bị MUST NOT xuất hiện trong bất kỳ response nào.
 
 - **WHEN** staff xem thông tin một tài khoản dùng chung máy với tài khoản khác
 - **THEN** response nêu tài khoản dùng chung máy và không chứa mã thiết bị
+
+### Requirement: Staff không gỡ đánh dấu của chính mình
+
+Staff được giao việc hỗ trợ MUST NOT gỡ đánh dấu đặt trên chính tài khoản của mình; chỉ master được (TK 4, nguyên tắc
+không tự xử việc của mình).
+
+#### Scenario: Staff gỡ đánh dấu của chính mình
+
+- **WHEN** staff được giao việc hỗ trợ gỡ đánh dấu "nhiều tài khoản trên một máy" đặt trên tài khoản của chính mình
+- **THEN** response có HTTP 403 `FORBIDDEN` và đánh dấu vẫn còn

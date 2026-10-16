@@ -243,6 +243,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
   let trustService: TrustService | null = null;
   const trust: ListingTrustPort = overrides.trust ?? {
     tierOf: (accountId) => trustService?.tierOf(accountId) ?? notBuilt('trust'),
+    tierIn: (tx, accountId) => trustService?.tierIn(tx, accountId) ?? notBuilt('trust'),
     assertCanSubmit: (tx, input) => trustService?.assertCanSubmit(tx, input) ?? notBuilt('trust'),
   };
   // `screening` dựng sau `listing` và `trust` (hỏi dữ kiện tin và mức qua cổng của chúng), mà `listing` gọi máy duyệt

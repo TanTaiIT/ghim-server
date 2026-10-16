@@ -28,8 +28,10 @@ beforeAll(async () => {
 
 afterAll(() => app.close());
 
-async function flaggedAccount(): Promise<{ accountId: string; lookupCode: string }> {
-  const user = await seedAccount({}, NOW);
+async function flaggedAccount(
+  accountId?: string,
+): Promise<{ accountId: string; lookupCode: string }> {
+  const user = accountId === undefined ? await seedAccount({}, NOW) : { id: accountId };
   await repository.applyFlagChanges({
     create: [
       {
@@ -120,5 +122,13 @@ describe('POST /ops/flags/:lookupCode/clear', () => {
     expect((await clear('KHONGCO1', supportToken, { reason: 'x' })).statusCode).toBe(404);
     const { lookupCode } = await flaggedAccount();
     expect((await clear(lookupCode, categoryStaffToken, { reason: 'x' })).statusCode).toBe(403);
+  });
+
+  it('staff gỡ đánh dấu trên chính tài khoản mình → 403 FORBIDDEN, đánh dấu vẫn còn (fix-audit-identity-low, L2)', async () => {
+    const { lookupCode } = await flaggedAccount(supportId);
+    const res = await clear(lookupCode, supportToken, { reason: 'Máy của tôi' });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error.code).toBe('FORBIDDEN');
+    expect(await repository.findOpenFlags(supportId)).toHaveLength(1);
   });
 });

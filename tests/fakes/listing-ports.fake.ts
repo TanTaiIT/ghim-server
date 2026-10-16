@@ -10,6 +10,7 @@ import type {
  */
 export const createInterimTrust = (tier: TrustTier): ListingTrustPort => ({
   tierOf: () => Promise.resolve(tier),
+  tierIn: () => Promise.resolve(tier),
   assertCanSubmit: () => Promise.resolve(),
 });
 

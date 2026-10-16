@@ -5,6 +5,23 @@ import { MEDIA_EVENTS } from './media.schema.js';
 
 type Tx = Prisma.TransactionClient;
 
+/**
+ * Xoá dòng ảnh và phát `media.images.deleted` cùng transaction: module giữ dữ liệu theo mã ảnh (dấu ảnh của
+ * `screening`) dọn theo — không FK chéo module (rà soát L10, change fix-audit-trust-media-low). Trả mã đã xoá.
+ */
+async function deleteAnnounced(
+  prisma: PrismaClient,
+  remove: (tx: Tx) => Promise<{ id: string }[]>,
+): Promise<string[]> {
+  return prisma.$transaction(async (tx) => {
+    const ids = (await remove(tx)).map((row) => row.id);
+    if (ids.length > 0) {
+      await appendEvents(tx, [{ type: MEDIA_EVENTS.imagesDeleted, payload: { imageIds: ids } }]);
+    }
+    return ids;
+  });
+}
+
 export interface ImageOwner {
   kind: ImageOwnerKind;
   id: string;
@@ -111,23 +128,25 @@ export function createMediaRepository(prisma: PrismaClient): MediaRepository {
       return true;
     },
 
-    async deleteUnconfirmedBefore(cutoff, limit) {
-      const rows = await prisma.$queryRaw<{ id: string }[]>`
-        DELETE FROM images WHERE id IN (
-          SELECT id FROM images WHERE confirmed_at IS NULL AND created_at < ${cutoff} LIMIT ${limit}
-        ) AND confirmed_at IS NULL
-        RETURNING id::text`;
-      return rows.map((row) => row.id);
-    },
+    deleteUnconfirmedBefore: (cutoff, limit) =>
+      deleteAnnounced(
+        prisma,
+        (tx) => tx.$queryRaw<{ id: string }[]>`
+          DELETE FROM images WHERE id IN (
+            SELECT id FROM images WHERE confirmed_at IS NULL AND created_at < ${cutoff} LIMIT ${limit}
+          ) AND confirmed_at IS NULL
+          RETURNING id::text`,
+      ),
 
-    async deleteReleased(limit) {
-      const rows = await prisma.$queryRaw<{ id: string }[]>`
-        DELETE FROM images WHERE id IN (
-          SELECT id FROM images WHERE released_at IS NOT NULL LIMIT ${limit}
-        ) AND released_at IS NOT NULL
-        RETURNING id::text`;
-      return rows.map((row) => row.id);
-    },
+    deleteReleased: (limit) =>
+      deleteAnnounced(
+        prisma,
+        (tx) => tx.$queryRaw<{ id: string }[]>`
+          DELETE FROM images WHERE id IN (
+            SELECT id FROM images WHERE released_at IS NOT NULL LIMIT ${limit}
+          ) AND released_at IS NOT NULL
+          RETURNING id::text`,
+      ),
 
     async existingIds(ids) {
       if (ids.length === 0) return new Set();
@@ -185,10 +204,12 @@ export function createMediaRepository(prisma: PrismaClient): MediaRepository {
 
     async deleteByOwners(kind, ownerIds) {
       if (ownerIds.length === 0) return [];
-      const rows = await prisma.$queryRaw<{ id: string }[]>`
-        DELETE FROM images WHERE owner_kind = ${kind}::image_owner_kind AND owner_id = ANY(${ownerIds}::uuid[])
-        RETURNING id::text`;
-      return rows.map((row) => row.id);
+      return deleteAnnounced(
+        prisma,
+        (tx) => tx.$queryRaw<{ id: string }[]>`
+          DELETE FROM images WHERE owner_kind = ${kind}::image_owner_kind AND owner_id = ANY(${ownerIds}::uuid[])
+          RETURNING id::text`,
+      );
     },
 
     async recordMissing(images) {
