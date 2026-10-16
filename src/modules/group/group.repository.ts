@@ -293,6 +293,7 @@ export interface GroupRepository {
     | 'state'
     | 'not_member'
   >;
+  /** Chỉ nhóm đang hoạt động; `null` = nhóm đã thiếu chủ, đã khoá, hay đang chuyển sang riêng tư (chờ chuyển xong, L4). */
   markOwnerless(input: { groupId: string; nomineeId: string; at: Date }): Promise<Group | null>;
   setNominee(groupId: string, nomineeId: string | null): Promise<void>;
   lockBySystem(input: {
@@ -376,6 +377,89 @@ async function groupStateFor(
   return rows[0] ?? null;
 }
 
+/**
+ * Mọi lượt huỷ đơn, lời mời, lời giao chủ phát sự kiện như lượt huỷ do người dùng — bộ đếm đơn chờ của quản trị và
+ * thông báo đọc theo sự kiện (rà soát L5, change fix-audit-group-low). `reason` cho bên nghe biết vì sao huỷ.
+ */
+type CancelReason = 'joined' | 'banned' | 'account_deleted';
+
+const requestsCancelled = (
+  groupId: string,
+  accountId: string,
+  rows: { id: string }[],
+  reason: CancelReason,
+): Events =>
+  rows.map((row) =>
+    groupEvent(GROUP_EVENTS.joinRequestDecided, {
+      groupId,
+      requestId: row.id,
+      accountId,
+      outcome: 'cancelled',
+      reason,
+    }),
+  );
+
+const invitationsCancelled = (
+  groupId: string,
+  accountId: string,
+  rows: { id: string }[],
+  reason: CancelReason,
+): Events =>
+  rows.map((row) =>
+    groupEvent(GROUP_EVENTS.invitationDecided, {
+      groupId,
+      invitationId: row.id,
+      accountId,
+      outcome: 'cancelled',
+      reason,
+    }),
+  );
+
+const OFFER_EVENT_FIELDS = {
+  id: true,
+  groupId: true,
+  kind: true,
+  toAccountId: true,
+  fromAccountId: true,
+} as const;
+
+const offersCancelled = (
+  rows: Pick<GroupOwnerOffer, 'id' | 'groupId' | 'kind' | 'toAccountId' | 'fromAccountId'>[],
+): Events =>
+  rows.map((offer) =>
+    groupEvent(GROUP_EVENTS.ownerOfferDecided, {
+      groupId: offer.groupId,
+      offerId: offer.id,
+      kind: offer.kind,
+      toAccountId: offer.toAccountId,
+      fromAccountId: offer.fromAccountId,
+      outcome: 'cancelled',
+    }),
+  );
+
+/** Lời mời rồi đơn còn chờ của một người trong một nhóm (`LOCK_ORDER`), huỷ kèm sự kiện. */
+async function cancelPendingIn(
+  tx: Tx,
+  input: { groupId: string; accountId: string; at: Date; reason: CancelReason },
+): Promise<Events> {
+  const where = { groupId: input.groupId, accountId: input.accountId, status: 'pending' } as const;
+  const data = { status: 'cancelled', decidedAt: input.at } as const;
+  const invitations = await tx.groupInvitation.updateManyAndReturn({
+    where,
+    data,
+    select: { id: true },
+  });
+  const requests = await tx.groupJoinRequest.updateManyAndReturn({
+    where,
+    data,
+    select: { id: true },
+  });
+  return [
+    ...invitationsCancelled(input.groupId, input.accountId, invitations, input.reason),
+    ...requestsCancelled(input.groupId, input.accountId, requests, input.reason),
+  ];
+}
+
 /** Kiểm lại mọi điều kiện của việc thêm thành viên ngay trong transaction đã khoá — service chỉ kiểm trước cho câu lỗi. */
 async function insertMember(
   tx: Tx,
@@ -402,9 +486,10 @@ async function insertMember(
   if (existing) return 'member';
   // Huỷ đơn còn chờ của chính người đó: đã vào bằng đường khác thì đơn không còn nghĩa. Đơn trước thành viên — thứ tự khoá
   // của module (`LOCK_ORDER`).
-  await tx.groupJoinRequest.updateMany({
+  const cancelled = await tx.groupJoinRequest.updateManyAndReturn({
     where: { groupId: input.groupId, accountId: input.accountId, status: 'pending' },
     data: { status: 'cancelled', decidedAt: input.at },
+    select: { id: true },
   });
   const member = await tx.groupMember.create({
     data: {
@@ -416,6 +501,7 @@ async function insertMember(
     },
   });
   await appendEvents(tx, [
+    ...requestsCancelled(input.groupId, input.accountId, cancelled, 'joined'),
     groupEvent(GROUP_EVENTS.memberJoined, {
       groupId: input.groupId,
       accountId: input.accountId,
@@ -1010,18 +1096,12 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
           where: { groupId_accountId: { groupId, accountId } },
         });
         if (member?.role === 'owner') return 'owner';
-        if (reason === 'banned') {
-          // Bị cấm thì lời mời và đơn đang chờ của người đó không còn nghĩa. Lời mời → đơn → thành viên, lệnh cấm
-          // (`LOCK_ORDER`).
-          await tx.groupInvitation.updateMany({
-            where: { groupId, accountId, status: 'pending' },
-            data: { status: 'cancelled', decidedAt: at },
-          });
-          await tx.groupJoinRequest.updateMany({
-            where: { groupId, accountId, status: 'pending' },
-            data: { status: 'cancelled', decidedAt: at },
-          });
-        }
+        // Bị cấm thì lời mời và đơn đang chờ của người đó không còn nghĩa. Lời mời → đơn → thành viên, lệnh cấm
+        // (`LOCK_ORDER`).
+        const events: Events =
+          reason === 'banned'
+            ? await cancelPendingIn(tx, { groupId, accountId, at, reason: 'banned' })
+            : [];
         if (member) {
           await tx.groupMember.delete({ where: { groupId_accountId: { groupId, accountId } } });
         }
@@ -1032,7 +1112,6 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
             update: {},
           });
         }
-        const events: Events = [];
         if (member) {
           events.push(
             groupEvent(GROUP_EVENTS.memberLeft, {
@@ -1216,18 +1295,30 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
               : group !== null &&
                 ['pending_owner', 'active', 'ownerless', 'locked'].includes(group.state);
           if (!acceptable) return 'state';
+          // Khoá cặp đang giữ nên tư cách không đổi tới hết transaction.
+          const self = await tx.groupMember.findUnique({
+            where: { groupId_accountId: { groupId: offer.groupId, accountId } },
+          });
+          // Vào nhóm bằng vai chủ thì lời mời, đơn còn chờ của người đó mất nghĩa (L5). Lời mời → đơn → lời giao chủ
+          // (`LOCK_ORDER`), nên huỷ trước khi nhận lời; nhận thua thì cuộn lại cả lượt huỷ.
+          const cancelled =
+            self || offer.kind === 'transfer'
+              ? []
+              : await cancelPendingIn(tx, {
+                  groupId: offer.groupId,
+                  accountId,
+                  at,
+                  reason: 'joined',
+                });
           const taken = await tx.groupOwnerOffer.updateMany({
             where: { id: offerId, status: 'pending', expiresAt: { gt: at } },
             data: { status: 'accepted', decidedAt: at },
           });
-          if (taken.count === 0) return 'gone';
+          if (taken.count === 0) throw new MemberRollback('gone');
+          if (!self && offer.kind === 'transfer') throw new MemberRollback('not_member');
           const previous = await tx.groupMember.findFirst({
             where: { groupId: offer.groupId, role: 'owner' },
           });
-          const self = await tx.groupMember.findUnique({
-            where: { groupId_accountId: { groupId: offer.groupId, accountId } },
-          });
-          if (!self && offer.kind === 'transfer') throw new MemberRollback('not_member');
           if (previous && previous.accountId !== accountId) {
             await tx.groupMember.update({
               where: {
@@ -1283,6 +1374,7 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
             },
           });
           const events: Events = [
+            ...cancelled,
             groupEvent(GROUP_EVENTS.ownerOfferDecided, {
               groupId: offer.groupId,
               offerId,
@@ -1331,8 +1423,9 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
     markOwnerless: ({ groupId, nomineeId, at }) =>
       prisma.$transaction(async (tx) => {
         const rows = await tx.group.updateManyAndReturn({
-          where: { id: groupId, state: { in: ['active', 'going_private'] } },
-          data: { state: 'ownerless', ownerlessSince: at, nomineeId, targetMode: null },
+          // Nhóm đang chuyển sang riêng tư chuyển xong rồi mới thiếu chủ (L4) — `completePrivatization` gọi lại.
+          where: { id: groupId, state: 'active' },
+          data: { state: 'ownerless', ownerlessSince: at, nomineeId },
         });
         const group = rows[0];
         if (!group) return null;
@@ -1362,11 +1455,15 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
         });
         const group = rows[0];
         if (!group) return null;
-        await tx.groupOwnerOffer.updateMany({
+        const offers = await tx.groupOwnerOffer.updateManyAndReturn({
           where: { groupId, status: 'pending', kind: 'transfer' },
           data: { status: 'cancelled', decidedAt: at },
+          select: OFFER_EVENT_FIELDS,
         });
-        await appendEvents(tx, [groupEvent(GROUP_EVENTS.locked, { groupId, cause })]);
+        await appendEvents(tx, [
+          groupEvent(GROUP_EVENTS.locked, { groupId, cause }),
+          ...offersCancelled(offers),
+        ]);
         return group;
       }),
 
@@ -1396,19 +1493,11 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
         const cancelled = await tx.groupOwnerOffer.updateManyAndReturn({
           where: { groupId, status: 'pending', kind: 'assignment' },
           data: { status: 'cancelled', decidedAt: at },
+          select: OFFER_EVENT_FIELDS,
         });
         const events: Events = [
           groupEvent(GROUP_EVENTS.ownerlessResolved, { groupId, outcome: 'owner_returned' }),
-          ...cancelled.map((offer) =>
-            groupEvent(GROUP_EVENTS.ownerOfferDecided, {
-              groupId,
-              offerId: offer.id,
-              kind: offer.kind,
-              toAccountId: offer.toAccountId,
-              fromAccountId: offer.fromAccountId,
-              outcome: 'cancelled',
-            }),
-          ),
+          ...offersCancelled(cancelled),
         ];
         if (systemLocked)
           events.push(groupEvent(GROUP_EVENTS.unlocked, { groupId, cause: 'owner_returned' }));
@@ -1444,18 +1533,30 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
     cancelPendingFor: (accountId, at) =>
       prisma.$transaction(async (tx) => {
         // Lời mời → đơn → lời giao chủ (`LOCK_ORDER`).
-        await tx.groupInvitation.updateMany({
+        const invitations = await tx.groupInvitation.updateManyAndReturn({
           where: { accountId, status: 'pending' },
           data: { status: 'cancelled', decidedAt: at },
+          select: { id: true, groupId: true },
         });
-        await tx.groupJoinRequest.updateMany({
+        const requests = await tx.groupJoinRequest.updateManyAndReturn({
           where: { accountId, status: 'pending' },
           data: { status: 'cancelled', decidedAt: at },
+          select: { id: true, groupId: true },
         });
-        await tx.groupOwnerOffer.updateMany({
+        const offers = await tx.groupOwnerOffer.updateManyAndReturn({
           where: { toAccountId: accountId, status: 'pending' },
           data: { status: 'cancelled', decidedAt: at },
+          select: OFFER_EVENT_FIELDS,
         });
+        await appendEvents(tx, [
+          ...invitations.flatMap((row) =>
+            invitationsCancelled(row.groupId, accountId, [row], 'account_deleted'),
+          ),
+          ...requests.flatMap((row) =>
+            requestsCancelled(row.groupId, accountId, [row], 'account_deleted'),
+          ),
+          ...offersCancelled(offers),
+        ]);
       }),
 
     // ── CỬA CHO TIN ĐĂNG ─────────────────────────────────────────────────────────────────────────
@@ -1564,20 +1665,21 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
           data: { state: 'locked', lockCause: 'ownerless_timeout', lockedAt: now },
           select: { id: true },
         });
-        await tx.groupOwnerOffer.updateMany({
+        const offers = await tx.groupOwnerOffer.updateManyAndReturn({
           where: {
             groupId: { in: rows.map((row) => row.id) },
             status: 'pending',
             kind: 'transfer',
           },
           data: { status: 'cancelled', decidedAt: now },
+          select: OFFER_EVENT_FIELDS,
         });
-        await appendEvents(
-          tx,
-          rows.map((row) =>
+        await appendEvents(tx, [
+          ...rows.map((row) =>
             groupEvent(GROUP_EVENTS.locked, { groupId: row.id, cause: 'ownerless_timeout' }),
           ),
-        );
+          ...offersCancelled(offers),
+        ]);
         return rows.map((row) => row.id);
       }),
   };

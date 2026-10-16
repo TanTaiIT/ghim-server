@@ -872,6 +872,104 @@ describe('Chủ nhóm phải chuyển chủ trước khi xoá tài khoản', () 
   });
 });
 
+const ownerActor = (group: ActiveGroup): Actor => ({
+  accountId: group.owner.id,
+  role: 'user',
+  sessionId: group.owner.id,
+  secondFactorAt: null,
+  emailVerified: true,
+});
+
+/** Sự kiện "đã xử" (đơn, lời giao chủ) của một nhóm — bộ đếm và thông báo đọc theo nó. */
+const decided = async (type: string, groupId: string) =>
+  (await outboxEvents())
+    .filter((event) => event.type === type)
+    .map((event) => event.payload as Record<string, unknown>)
+    .filter((payload) => payload.groupId === groupId);
+
+describe('Chủ nhóm mất tài khoản giữa chừng (fix-audit-group-low)', () => {
+  it('L4: chủ bị khoá lúc nhóm đang chuyển sang riêng tư → chuyển xong rồi mới thiếu chủ, đề cử điều hành viên', async () => {
+    const group = await createActiveGroup(app, { mode: 'public_review' });
+    const moderator = await addMember(app, group.groupId);
+    await appointModerator(app, group, moderator);
+    await counting(1).updateSettings(ownerActor(group), group.groupId, { mode: 'private_code' });
+
+    await lockAccount(group.master, group.owner.id);
+    expect(await groupRow(group.groupId)).toMatchObject({
+      state: 'going_private',
+      targetMode: 'private_code',
+    });
+
+    await app.modules.group.completePrivatization(group.groupId);
+    expect(await groupRow(group.groupId)).toMatchObject({
+      state: 'ownerless',
+      mode: 'private_code',
+      targetMode: null,
+      nomineeId: moderator.id,
+    });
+  });
+
+  it('L4: chủ bị khoá lúc đang chuyển, nhóm không có điều hành viên → chuyển xong rồi tạm khoá', async () => {
+    const group = await createActiveGroup(app, { mode: 'public_review' });
+    await counting(1).updateSettings(ownerActor(group), group.groupId, { mode: 'private_invite' });
+    await lockAccount(group.master, group.owner.id);
+
+    await app.modules.group.completePrivatization(group.groupId);
+    expect(await groupRow(group.groupId)).toMatchObject({
+      state: 'locked',
+      lockCause: 'no_moderators',
+      mode: 'private_invite',
+      targetMode: null,
+    });
+  });
+
+  it('L3: tài khoản chủ bị xoá (lượt xoá chen lượt nhận làm chủ) → nhóm thiếu chủ như chủ bị khoá', async () => {
+    const group = await createActiveGroup(app);
+    const moderator = await addMember(app, group.groupId);
+    await appointModerator(app, group, moderator);
+    // Lượt kiểm "còn làm chủ nhóm nào" đã qua trước khi lượt nhận làm chủ commit: ghi xoá thẳng như lượt đó.
+    await repositories.identity.softDeleteAccount({
+      accountId: group.owner.id,
+      at: now,
+      events: [{ type: 'identity.account.deleted', payload: { accountId: group.owner.id } }],
+    });
+    await deliver();
+
+    expect(await groupRow(group.groupId)).toMatchObject({
+      state: 'ownerless',
+      nomineeId: moderator.id,
+    });
+  });
+});
+
+describe('Huỷ kèm theo vẫn phát sự kiện (fix-audit-group-low, L5)', () => {
+  it('người chưa là thành viên nhận lời giao chủ: đơn chờ của họ huỷ kèm sự kiện "đã vào"', async () => {
+    const group = await createActiveGroup(app, { mode: 'public_review' });
+    const lan = await newUser(app);
+    const joined = await api(app, 'POST', `/groups/${group.groupId}/join`, lan.token, {});
+    expect(joined.json().data).toMatchObject({ result: 'request' });
+    const offerId = offerIdOf(await offerOwner(group.master, group.groupId, lan.id));
+
+    expect((await acceptOffer(lan, offerId)).statusCode).toBe(200);
+    expect(await roleOf(group.groupId, lan.id)).toBe('owner');
+    expect(await decided('group.join_request.decided', group.groupId)).toEqual([
+      expect.objectContaining({ accountId: lan.id, outcome: 'cancelled', reason: 'joined' }),
+    ]);
+  });
+
+  it('nhóm tạm khoá vì không còn ai giữ: lời chuyển chủ đang chờ huỷ kèm sự kiện', async () => {
+    const group = await createActiveGroup(app);
+    const minh = await addMember(app, group.groupId);
+    const offerId = offerIdOf(await transfer(group.owner, group.groupId, minh.id));
+
+    await lockAccount(group.master, group.owner.id);
+    expect(await groupRow(group.groupId)).toMatchObject({ state: 'locked' });
+    expect(await decided('group.owner.offer_decided', group.groupId)).toEqual([
+      expect.objectContaining({ offerId, kind: 'transfer', outcome: 'cancelled' }),
+    ]);
+  });
+});
+
 describe('Nhận làm chủ khi đang bị cấm', () => {
   it('Master giao chủ cho người đang bị cấm: lệnh cấm được gỡ như gỡ cấm, tin của người đó hết lý do "bị cấm"', async () => {
     const group = await createActiveGroup(app);

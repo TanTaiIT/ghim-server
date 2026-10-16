@@ -451,6 +451,14 @@ export function createGroupAdminService(
           ? await withFreshCode(config.get('group.codeLength'), (code) => write(code))
           : await write();
       if (!result) throw groupStateConflict();
+      // Chủ bị khoá hay xoá lúc nhóm đang chuyển: chuyển xong rồi mới thiếu chủ, yêu cầu riêng tư không bị bỏ dở (L4).
+      // Đọc sau commit: lượt khoá commit sau lúc này thì bên nghe `onAccountLocked` thấy nhóm đã đang hoạt động.
+      const owner = await repository.findOwner(groupId);
+      if (!owner) return;
+      const summary = (await shared.identity.accountSummaries([owner.accountId])).get(
+        owner.accountId,
+      );
+      if (summary?.status !== 'active') await shared.loseOwner(groupId, owner.accountId, clock());
     },
 
     // ── CHỦ NHÓM: CÀI ĐẶT ───────────────────────────────────────────────────────────────────────
@@ -493,10 +501,9 @@ export function createGroupAdminService(
             'GROUP_MODE_CONFLICT',
           );
         }
-        if (
-          input.showNameOnMarketplace === true &&
-          isPublicMode(plan?.kind === 'going_private' ? plan.targetMode : finalMode)
-        ) {
+        // Đang chuyển sang riêng tư thì nhóm vẫn ở chế độ công khai tới lúc chuyển xong — xét theo chế độ hiện hành, không
+        // theo đích; xét theo đích thì CHECK của bảng chặn và trả 409 chung (rà soát L6).
+        if (input.showNameOnMarketplace === true && isPublicMode(finalMode)) {
           throw new ConflictError(
             'Công tắc hiện tên nhóm trên tin sàn chỉ có ở nhóm riêng tư',
             'GROUP_MODE_CONFLICT',

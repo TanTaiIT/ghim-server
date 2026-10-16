@@ -341,6 +341,36 @@ describe('Công khai sang riêng tư qua trạng thái chuyển', () => {
     ]);
   });
 
+  it('bật "hiện tên nhóm trên tin sàn" cùng lượt chuyển phải qua trạng thái chuyển → 409 GROUP_MODE_CONFLICT (fix-audit-group-low, L6)', async () => {
+    const group = await createActiveGroup(app, { master, mode: 'public_review' });
+    const withListing = createGroupService({
+      repository: repositories.group,
+      identity: app.modules.identity,
+      config: createStaticRuntimeConfig(),
+      clock: () => TEST_NOW,
+      publicListings: { countInGroup: () => Promise.resolve(1) },
+    });
+    const owner: Actor = {
+      accountId: group.owner.id,
+      role: 'user',
+      sessionId: group.owner.id,
+      secondFactorAt: null,
+      emailVerified: true,
+    };
+
+    await expect(
+      withListing.updateSettings(owner, group.groupId, {
+        mode: 'private_code',
+        showNameOnMarketplace: true,
+      }),
+    ).rejects.toMatchObject({ statusCode: 409, code: 'GROUP_MODE_CONFLICT' });
+    expect(await groupRow(group.groupId)).toMatchObject({
+      state: 'active',
+      mode: 'public_review',
+      targetMode: null,
+    });
+  });
+
   it('Đổi tiếp khi đang chuyển', async () => {
     const group = await createActiveGroup(app, { master, mode: 'public_review' });
     // Trạng thái chuyển chỉ vào được khi còn tin "nhóm công khai" — đợt này chưa có tin nên ghi thẳng.

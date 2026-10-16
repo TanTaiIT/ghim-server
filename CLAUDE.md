@@ -444,7 +444,10 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   `fix-audit-identity-low` (đợt 4 phần 1, archive 16/10/2026) thêm "Mở khoá trả tài khoản về trạng thái trước khi khoá"
   vào `identity/account-lock`, "Không ai duyệt giấy tờ của chính mình", "Hai người cùng duyệt một hồ sơ" vào
   `identity/id-verification`, "Staff không gỡ đánh dấu của chính mình" vào `identity/device-registry`, "Trần phiên đúng
-  cả khi đăng nhập cùng lúc" vào `identity/sessions`.
+  cả khi đăng nhập cùng lúc" vào `identity/sessions`. `fix-audit-group-low` (đợt 4 phần 2, archive 16/10/2026) thêm
+  "Chủ nhóm bị xoá tài khoản giữa chừng", "Chủ bị khoá khi nhóm đang chuyển sang riêng tư" vào `group/group-roles`,
+  "Huỷ kèm theo vẫn báo" vào `group/membership`, "Bật hiện tên nhóm khi đổi sang riêng tư" vào `group/group-modes`, "Xoá
+  đơn vị thì xoá thông báo gửi riêng cho nó" vào `notification/group-announcements`.
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.

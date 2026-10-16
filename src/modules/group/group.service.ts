@@ -13,7 +13,6 @@ import { createGroupShared, type GroupServiceDeps } from './group.shared.js';
 
 export type { GroupServiceDeps } from './group.shared.js';
 
-const STATES_LOSING_OWNER: ReadonlySet<GroupState> = new Set(['active', 'going_private']);
 const OWNERLESS: ReadonlySet<GroupState> = new Set(['ownerless']);
 
 /** Người xử việc của nhóm — `review` định tuyến theo chuỗi TK 16 từ đây. */
@@ -30,7 +29,10 @@ export interface GroupSystemService {
   onAccountLocked(accountId: string): Promise<void>;
   /** Chủ cũ được mở khoá trước khi có chủ mới → nhóm trở lại với chủ cũ; khoá do hệ thống thì tự mở. */
   onAccountUnlocked(accountId: string): Promise<void>;
-  /** Tài khoản bị xoá rời mọi nhóm; chủ nhóm không tự xoá được nên không bao giờ rơi vào đây. */
+  /**
+   * Tài khoản bị xoá rời mọi nhóm. Chủ nhóm không tự xoá được, trừ khi lượt xoá chen với lượt nhận làm chủ — nhóm đó
+   * thiếu chủ như khi chủ bị khoá (rà soát L3).
+   */
   onAccountDeleted(accountId: string): Promise<void>;
   expireDue(): Promise<{ requests: number; invitations: number; offers: number }>;
   lockOwnerlessTimedOut(): Promise<string[]>;
@@ -70,7 +72,7 @@ export type GroupService = GroupAdminService &
  */
 export function createGroupService(deps: GroupServiceDeps): GroupService {
   const shared = createGroupShared(deps);
-  const { repository, clock, usableModerators } = shared;
+  const { repository, clock, usableModerators, loseOwner } = shared;
 
   /** Nhóm đang thiếu chủ mất điều hành viên: không còn ai dùng được thì tạm khoá ngay, còn thì đề cử lại. */
   const reevaluateOwnerless = async (groupId: string, exclude?: string): Promise<void> => {
@@ -100,19 +102,7 @@ export function createGroupService(deps: GroupServiceDeps): GroupService {
       if ((await statusOf(accountId)) !== 'locked') return;
       const at = clock();
       const { owned, moderatingOwnerless } = await repository.groupsAffectedByLock(accountId);
-      await sequentially(owned, async (group) => {
-        const nominee = pickNominee(await usableModerators(group.id, accountId));
-        if (nominee) {
-          await repository.markOwnerless({ groupId: group.id, nomineeId: nominee, at });
-          return;
-        }
-        await repository.lockBySystem({
-          groupId: group.id,
-          cause: 'no_moderators',
-          expectStates: STATES_LOSING_OWNER,
-          at,
-        });
-      });
+      await sequentially(owned, (group) => loseOwner(group.id, accountId, at));
       await sequentially(moderatingOwnerless, (group) => reevaluateOwnerless(group.id, accountId));
     },
 
@@ -134,7 +124,9 @@ export function createGroupService(deps: GroupServiceDeps): GroupService {
           by: accountId,
           at,
         });
-        if (result !== 'owner' && membership.role === 'moderator') {
+        // Chủ nhóm chỉ xoá được tài khoản khi lượt xoá chen với lượt nhận làm chủ (L3): nhóm thiếu chủ như chủ bị khoá.
+        if (result === 'owner') await loseOwner(membership.groupId, accountId, at);
+        else if (membership.role === 'moderator') {
           await reevaluateOwnerless(membership.groupId, accountId);
         }
       });

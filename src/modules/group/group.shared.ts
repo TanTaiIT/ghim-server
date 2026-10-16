@@ -7,11 +7,13 @@ import type { RuntimeConfig } from '../../common/config/runtime-config.js';
 import { ConflictError, ForbiddenError, NotFoundError } from '../../common/errors/app-error.js';
 import type { AccountSummary } from '../identity/identity.service.js';
 import { badgeEligible } from './calc/badges.calc.js';
-import { type ModeratorCandidate, roleIneligibility } from './calc/membership.calc.js';
+import { type ModeratorCandidate, pickNominee, roleIneligibility } from './calc/membership.calc.js';
 import type { GroupRepository } from './group.repository.js';
 import type { GroupProfileDto, GroupSummaryDto, MemberDto, MembershipDto } from './group.schema.js';
 
 export const DAY_MS = 86_400_000;
+
+const ACTIVE: ReadonlySet<GroupState> = new Set(['active']);
 
 /** `identity` trả lời "người này là ai" (TK 30) — `group` không đọc bảng `accounts`. */
 export interface GroupIdentityPort {
@@ -227,6 +229,20 @@ export function createGroupShared(deps: GroupServiceDeps) {
       }));
   };
 
+  /**
+   * Chủ nhóm không còn dùng được (bị khoá, đã xoá): còn điều hành viên dùng được thì thiếu chủ kèm đề cử, không thì tạm
+   * khoá. Chỉ nhóm đang hoạt động: nhóm đang chuyển sang riêng tư chuyển xong rồi mới thiếu chủ — `completePrivatization`
+   * gọi lại (rà soát L4, change fix-audit-group-low); nhóm đã thiếu chủ hay đã khoá thì không đổi gì.
+   */
+  const loseOwner = async (groupId: string, ownerId: string, at: Date): Promise<void> => {
+    const nominee = pickNominee(await usableModerators(groupId, ownerId));
+    if (nominee) {
+      await repository.markOwnerless({ groupId, nomineeId: nominee, at });
+      return;
+    }
+    await repository.lockBySystem({ groupId, cause: 'no_moderators', expectStates: ACTIVE, at });
+  };
+
   const displayNames = async (ids: string[]): Promise<Map<string, string>> => {
     const summaries = await identity.accountSummaries(ids);
     return new Map([...summaries].map(([id, summary]) => [id, summary.displayName]));
@@ -248,6 +264,7 @@ export function createGroupShared(deps: GroupServiceDeps) {
     requireEligible,
     requireTrustedForRole,
     usableModerators,
+    loseOwner,
     daysFrom,
     toSummary,
     toMembership,

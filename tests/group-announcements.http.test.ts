@@ -176,3 +176,26 @@ describe('Thành viên xem lại thông báo của nhóm', () => {
     expect(res.json().error.code).toBe('FORBIDDEN');
   });
 });
+
+describe('xoá đơn vị thì thông báo gửi riêng cho nó đi theo (fix-audit-group-low, L6)', () => {
+  it('thông báo của đơn vị đã xoá không còn, không thành thông báo cả nhóm', async () => {
+    const group = await createActiveGroup(app, { kind: 'school' });
+    const a1 = await createUnit(app, group, 'Lớp 10A1');
+    const member = await addMember(app, group.groupId);
+    expect((await post(group, group.owner, { body: 'Riêng 10A1', unitId: a1 })).statusCode).toBe(
+      201,
+    );
+
+    const removed = await api(
+      app,
+      'DELETE',
+      `/groups/${group.groupId}/units/${a1}`,
+      group.owner.token,
+    );
+    expect(removed.statusCode, removed.body).toBe(204);
+
+    expect(await prisma.groupAnnouncement.count({ where: { groupId: group.groupId } })).toBe(0);
+    const res = await api(app, 'GET', `/groups/${group.groupId}/announcements`, member.token);
+    expect(res.json().data.items).toEqual([]);
+  });
+});

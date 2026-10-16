@@ -719,9 +719,10 @@ model GroupUnit {
   name      String
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  group      Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  members    GroupMember[] @relation("member_unit")
-  moderators GroupMember[] @relation("moderator_unit")
+  group         Group               @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  members       GroupMember[]       @relation("member_unit")
+  moderators    GroupMember[]       @relation("moderator_unit")
+  announcements GroupAnnouncement[]
 
   @@unique([groupId, name])
   @@unique([groupId, id])
@@ -863,7 +864,10 @@ model GroupAnnouncement {
   body      String
   createdAt DateTime @map("created_at") @db.Timestamptz(3)
 
-  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  group Group      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  /// Xoá đơn vị thì xoá thông báo gửi riêng cho nó: không ai còn thuộc đơn vị đó, và để trống `unit_id` thì thông báo
+  /// thành gửi cả nhóm (rà soát L6, change fix-audit-group-low).
+  unit  GroupUnit? @relation(fields: [groupId, unitId], references: [groupId, id], onDelete: Cascade)
 
   @@index([groupId, createdAt])
   @@map("group_announcements")

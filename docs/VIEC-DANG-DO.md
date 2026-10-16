@@ -36,9 +36,11 @@ mục code lệch spec thì sửa kèm test.
   lời mời / người bị cấm, lời mời "mù" — migration `group_invitations_blind`). Thêm API: `GET /groups/:groupId/invitations`,
   `GET /groups/:groupId/bans`. Test HTTP / DB chạy trên CI khi mở PR;
 - đợt 4 phần 1 — `fix-audit-identity-low` (L1 mở khoá trả về trạng thái lúc khoá — migration `account_status_before_lock`, L2
-  không tự xử việc của mình + duyệt giấy tờ có điều kiện, L3 trần phiên trong một transaction, L12 mở khoá phát `flag_cleared`).
+  không tự xử việc của mình + duyệt giấy tờ có điều kiện, L3 trần phiên trong một transaction, L12 mở khoá phát `flag_cleared`);
+- đợt 4 phần 2 — `fix-audit-group-low` (L3 chủ bị xoá → thiếu chủ, L4 chuyển xong sang riêng tư rồi mới thiếu chủ, L5 huỷ kèm
+  theo phát sự kiện, L6 `GROUP_MODE_CONFLICT` + khoá ngoại thông báo → đơn vị — migration `group_announcement_unit_fk`).
 
-**Làm tiếp — đợt 4** (còn: L3 phần nhóm, L4–L7, L9, L10, L13; L8, L11 đã sửa ở đợt 2, 3), rồi các câu thông báo cũ N10–N14,
+**Làm tiếp — đợt 4** (còn: L7, L9, L10, L13; L8, L11 đã sửa ở đợt 2, 3), rồi các câu thông báo cũ N10–N14,
 N26–N28, rồi `add-reports`. Trước đó: mở PR `add-listings` → `main` để CI chạy test của `fix-audit-group`.
 
 ## 1. Đang chờ quyết hoặc chờ duyệt
