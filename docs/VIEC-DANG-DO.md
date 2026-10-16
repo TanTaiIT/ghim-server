@@ -15,13 +15,13 @@ và hướng sửa ở **`docs/RA-SOAT-15-10-2026.md`** (đánh dấu từng m�
 | --- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | 1 ✔ | C3, C4, C5, C6, T10          | Bảo mật: chiếm tài khoản qua Google, master tự xoá / khoá, đăng ký lại lớp thứ hai, master qua app nhóm, trần / sàn cấu hình  |
 | 2 ✔ | C1, C2, C7, C8, C9, C10, C11 | Dữ liệu kẹt hay mất: bên nghe đối chiếu trạng thái hiện tại, kiểm ảnh bị bỏ, lý do ẩn bám theo, việc mất, xoá cứng dây chuyền |
-| 3   | T1–T24                       | Mức trung bình — còn T17, T18, T19 (phần A3, `group`)                                                                         |
+| 3 ✔ | T1–T24                       | Mức trung bình — xong (A1, A2, A3, B, C)                                                                                      |
 | 4   | L1–L13                       | Mức thấp                                                                                                                      |
 
 Mục nào đổi hành vi so với spec đang chạy thì đi qua một change OpenSpec (proposal có câu hỏi mở → bạn duyệt → code);
 mục code lệch spec thì sửa kèm test.
 
-**Đang dừng ở (15/10/2026, tối):** người dùng giao tech lead chọn phương án. Đã xong và đã push (nhánh
+**Đang dừng ở (16/10/2026):** người dùng giao tech lead chọn phương án. Đã xong và đã push (nhánh
 `add-listings`), mỗi phần một change đã archive, một commit:
 
 - đợt 1 — `fix-audit-security` (C3, C4, C5, C6, T10);
@@ -31,43 +31,13 @@ mục code lệch spec thì sửa kèm test.
 - đợt 3 phần B — `fix-audit-review` (T1–T9, L11);
 - đợt 3 phần A1 — `fix-audit-identity` (T11 ân hạn 30 giây, T12 đổi email đòi mật khẩu + mã, báo email cũ, thu phiên
   khác). **Phá vỡ API**: body `POST /me/email-change` thêm `currentPassword` (bắt buộc), `totpCode` (tuỳ);
-- đợt 3 phần A2 — `fix-audit-listing` (T14, T15, T16).
+- đợt 3 phần A2 — `fix-audit-listing` (T14, T15, T16);
+- đợt 3 phần A3 — `fix-audit-group` (T17 gỡ cấm khi nhận làm chủ, T18 một thứ tự khoá + P2034 → 409, T19 danh sách
+  lời mời / người bị cấm, lời mời "mù" — migration `group_invitations_blind`). Thêm API: `GET /groups/:groupId/invitations`,
+  `GET /groups/:groupId/bans`. Test HTTP / DB chạy trên CI khi mở PR.
 
-**Làm tiếp ngày mai — đợt 3 phần A3, change `fix-audit-group` (T17, T18, T19).** Chưa viết dòng nào; đọc lại
-`docs/RA-SOAT-15-10-2026.md` mục T17–T19 rồi viết proposal / design / tasks như các change `fix-audit-*` đã archive.
-Phương án đã chọn:
-
-- **T17**: `acceptOwnerOffer` (`group.repository.ts`, nhánh người nhận chưa là thành viên) — `deleteMany` dòng cấm
-  trả `count > 0` thì phát `GROUP_EVENTS.unbanned` (`group.ban.lifted`, payload `{ groupId, accountId }`) trước
-  `memberJoined`. Test: giao chủ cho người đang bị cấm → tin của người đó hết `group_banned`.
-- **T18**: một thứ tự khoá cho mọi transaction của `group.repository.ts`: khoá người xin (R) → khoá cặp (P,
-  `lockPair`) → dòng nhóm (G) → lời mời (I) → đơn xin (J) → lời giao chủ (O) → thành viên / lệnh cấm (M, B). Bảy cặp
-  ngược thứ tự đã rà (số dòng ở bf2faef):
-  1. `acceptOwnerOffer` khoá G (1138) rồi mới P (1150) — mọi hàm khác P trước G. Sửa: đọc lời giao chủ không khoá,
-     `lockPair` rồi `groupStateFor(update)`, rồi mới nhận lời (updateMany có điều kiện).
-  2. `decideJoinRequest` khoá đơn (809) trước G, ngược `closeGroup` / `updateGroup` (G rồi J). Sửa: đọc đơn không
-     khoá, P → G → nhận đơn có điều kiện.
-  3. `acceptInvitation` khoá lời mời (739) trước P và G. Sửa như (2): P → G → nhận lời mời có điều kiện → thêm thành viên.
-     `insertMember` (353) tự lấy P và G — cần tách để bước nhận lời mời / đơn chen được sau G.
-  4. `removeMember` nhánh cấm: B → J → I; `cancelPendingFor` (1363), `expireDue` (1420), `closeGroup` (674): J
-     trước I. Đổi hết thành I → J → O.
-  5. `createInvitation` (860): P → lời mời quá hạn → tạo (khoá KEY SHARE dòng nhóm qua khoá ngoại) — ngược
-     `closeGroup`. Sửa: P → `groupStateFor(share)` → lời mời.
-  6. Lưới an toàn: `src/common/errors/error-handler.ts` map Prisma **P2034** (adapter-pg đổi cả 40001 lẫn 40P01 thành
-     P2034) → 409 `CONFLICT` "thử lại"; `tests/error-handler.test.ts` đang dùng P2034 làm ví dụ mã chưa map → đổi sang
-     mã khác (vd P2011).
-  - Lượt cập nhật hàng loạt theo hạn (`expireDue` với `closeGroup`) vẫn có thể khoá dòng khác thứ tự — hiếm, job tự
-    chạy lại, người dùng nhận 409 nhờ (6). Ghi vào Risks.
-- **T19**: thêm `GET /groups/:groupId/invitations` (lời mời đang chờ) và `GET /groups/:groupId/bans` (danh sách cấm,
-  kèm tên hiển thị, lúc cấm, người cấm), quyền như route mời / cấm. Lời mời hiện chỉ có dòng khi email có tài khoản —
-  liệt kê thẳng thì người quản lý dò được email nào đã đăng ký (trái TK 10). Phương án chọn: **lời mời "mù"** —
-  migration cho `group_invitations.account_id` nullable, thêm `email_hash` (dùng `identity.emailHashOf`) và
-  `email_hint` (che như `maskEmail`), unique lời mời đang chờ theo (`group_id`, `email_hash`); mời email chưa có
-  tài khoản vẫn ghi một dòng (không ai nhận, hết hạn như thường). Danh sách chỉ hiện `email_hint`, đơn vị, lúc mời, hạn
-  — giống nhau dù email có tài khoản hay không. Mời lại với đơn vị khác thì đổi đơn vị của lời mời đang chờ thay vì
-  lặng lẽ bỏ (`group.membership.service.ts` `invite`, ~589–611).
-
-**Sau A3 — đợt 4** (L1–L13 trừ L8, L11 đã sửa), rồi các câu thông báo cũ N10–N14, N26–N28, rồi `add-reports`.
+**Làm tiếp — đợt 4** (mức thấp: L1–L7, L9, L10, L12, L13; L8, L11 đã sửa ở đợt 2, 3), rồi các câu thông báo cũ N10–N14,
+N26–N28, rồi `add-reports`. Trước đó: mở PR `add-listings` → `main` để CI chạy test của `fix-audit-group`.
 
 ## 1. Đang chờ quyết hoặc chờ duyệt
 

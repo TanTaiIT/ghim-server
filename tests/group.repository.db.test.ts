@@ -520,10 +520,20 @@ describe('closeGroup', () => {
     });
     await prisma.groupInvitation.createMany({
       data: [
-        { groupId, accountId: liveInvitee, invitedBy: ownerId, createdAt: NOW, expiresAt: at(14) },
+        {
+          groupId,
+          accountId: liveInvitee,
+          emailHash: `hash-${liveInvitee}`,
+          emailHint: 'a***@ghim.vn',
+          invitedBy: ownerId,
+          createdAt: NOW,
+          expiresAt: at(14),
+        },
         {
           groupId,
           accountId: staleInvitee,
+          emailHash: `hash-${staleInvitee}`,
+          emailHint: 'a***@ghim.vn',
           invitedBy: ownerId,
           createdAt: at(-20),
           expiresAt: at(-6),
@@ -616,6 +626,8 @@ describe('expireDue', () => {
       data: {
         groupId,
         accountId: dueInvitee,
+        emailHash: `hash-${dueInvitee}`,
+        emailHint: 'a***@ghim.vn',
         invitedBy: ownerId,
         createdAt: at(-14),
         expiresAt: NOW,
@@ -625,6 +637,8 @@ describe('expireDue', () => {
       data: {
         groupId,
         accountId: liveInvitee,
+        emailHash: `hash-${liveInvitee}`,
+        emailHint: 'a***@ghim.vn',
         invitedBy: ownerId,
         createdAt: NOW,
         expiresAt: at(1),

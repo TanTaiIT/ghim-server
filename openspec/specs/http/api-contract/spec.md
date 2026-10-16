@@ -44,8 +44,9 @@ Request không khớp schema của endpoint SHALL bị từ chối trước khi 
 
 ### Requirement: Xung đột khi ghi đồng thời
 
-Khi một lượt ghi vi phạm ràng buộc dữ liệu vì một lượt khác vừa ghi chen vào, hệ thống SHALL trả HTTP 409
-`CONFLICT` kèm câu báo tải lại rồi thử lại. Dòng vừa bị xoá trước lúc ghi SHALL trả HTTP 404 `NOT_FOUND`.
+Khi một lượt ghi vi phạm ràng buộc dữ liệu vì một lượt khác vừa ghi chen vào, hay DB huỷ lượt ghi vì hai lượt chờ nhau,
+hệ thống SHALL trả HTTP 409 `CONFLICT` kèm câu báo tải lại rồi thử lại. Dòng vừa bị xoá trước lúc ghi SHALL trả HTTP
+404 `NOT_FOUND`.
 
 #### Scenario: Hai lượt ghi cùng một giá trị duy nhất
 
@@ -61,6 +62,11 @@ Khi một lượt ghi vi phạm ràng buộc dữ liệu vì một lượt khác
 
 - **WHEN** client sửa một dòng vừa bị xoá giữa lúc kiểm và lúc ghi
 - **THEN** response có HTTP 404 `NOT_FOUND`
+
+#### Scenario: Hai lượt ghi chờ nhau
+
+- **WHEN** DB huỷ một lượt ghi vì nó và một lượt khác chờ khoá của nhau
+- **THEN** lượt bị huỷ nhận HTTP 409 `CONFLICT` kèm câu báo thử lại, không phải 500
 
 ### Requirement: Không lộ chi tiết nội bộ
 

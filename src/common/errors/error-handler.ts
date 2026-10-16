@@ -16,6 +16,9 @@ import { AppError } from './app-error.js';
  *   cho một tin (unique "một việc mở mỗi tin") cùng lúc.
  * - P2025 không tìm thấy dòng để sửa/xoá: dòng vừa bị xoá giữa lúc service kiểm và lúc ghi.
  * - P2003 vướng khoá ngoại: dòng đang được nơi khác trỏ tới, hoặc trỏ tới dòng không tồn tại.
+ * - P2034 DB huỷ lượt ghi vì hai lượt chờ khoá của nhau (40P01) hay không xếp được thứ tự (40001) — adapter-pg đổi cả
+ *   hai về mã này. Mỗi module khoá theo một thứ tự (vd `group.repository.ts`) để hiếm khi xảy ra; còn sót thì thử lại là
+ *   qua (spec http/api-contract, change fix-audit-group).
  *
  * Để 500 thì người dùng tưởng hệ thống hỏng, trong khi thao tác lại là chuyện bình thường.
  */
@@ -31,6 +34,11 @@ const PRISMA_ERRORS: Record<string, { status: number; code: string; message: str
     code: 'CONFLICT',
     message:
       'Dữ liệu liên quan không tồn tại hoặc đang được dùng ở nơi khác — tải lại rồi thử lại.',
+  },
+  P2034: {
+    status: 409,
+    code: 'CONFLICT',
+    message: 'Thao tác đang chen với một thao tác khác — thử lại.',
   },
 };
 

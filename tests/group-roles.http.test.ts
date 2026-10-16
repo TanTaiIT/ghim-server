@@ -16,10 +16,12 @@ import {
   createActiveGroup,
   createPendingGroup,
   createUnit,
+  deliverAll,
   newMaster,
   newUser,
   seedTier,
 } from './group-helpers.js';
+import { liveListing, seedCategory, seedListing } from './listing-helpers.js';
 import { tokenFor } from './ops-helpers.js';
 import { buildTestApp, repositories, TEST_NOW } from './test-app.js';
 
@@ -867,5 +869,45 @@ describe('Chủ nhóm phải chuyển chủ trước khi xoá tài khoản', () 
         }),
       ]),
     );
+  });
+});
+
+describe('Nhận làm chủ khi đang bị cấm', () => {
+  it('Master giao chủ cho người đang bị cấm: lệnh cấm được gỡ như gỡ cấm, tin của người đó hết lý do "bị cấm"', async () => {
+    const group = await createActiveGroup(app);
+    const minh = await addMember(app, group.groupId);
+    const listing = await seedListing(
+      liveListing(minh.id, await seedCategory(), {
+        placement: 'members_only',
+        groupId: group.groupId,
+      }),
+    );
+    const hideReasons = async () =>
+      (await prisma.listing.findUniqueOrThrow({ where: { id: listing.id } })).hideReasons;
+    const banned = await api(
+      app,
+      'PUT',
+      `/groups/${group.groupId}/bans/${minh.id}`,
+      group.owner.token,
+    );
+    expect(banned.statusCode, banned.body).toBe(204);
+    // Bộ phát của app: có cả bên nghe của `listing` (bộ phát riêng của file này chỉ nghe `group`).
+    await deliverAll(app);
+    expect(await hideReasons()).toContain('group_banned');
+
+    const offerId = offerIdOf(await offerOwner(group.master, group.groupId, minh.id));
+    expect((await acceptOffer(minh, offerId)).statusCode).toBe(200);
+    await deliverAll(app);
+
+    expect(await roleOf(group.groupId, minh.id)).toBe('owner');
+    expect(await repositories.group.isBanned(group.groupId, minh.id)).toBe(false);
+    expect(
+      (await outboxEvents()).filter(
+        (event) =>
+          event.type === 'group.ban.lifted' &&
+          (event.payload as { accountId?: string }).accountId === minh.id,
+      ),
+    ).toHaveLength(1);
+    expect(await hideReasons()).not.toContain('group_banned');
   });
 });

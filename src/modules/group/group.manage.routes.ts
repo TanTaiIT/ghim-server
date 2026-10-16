@@ -14,6 +14,7 @@ import {
   accountTargetBodySchema,
   announcementBodySchema,
   announcementSchema,
+  bannedMemberSchema,
   decideBodySchema,
   groupIdParamsSchema,
   groupMemberParamsSchema,
@@ -28,6 +29,7 @@ import {
   membersQuerySchema,
   moderatorBodySchema,
   ownerOfferSchema,
+  pendingInvitationSchema,
   rosterBodySchema,
   rosterRemoveBodySchema,
   rosterResultSchema,
@@ -135,6 +137,26 @@ export const groupManageRoutes: FastifyPluginAsyncZod<GroupManageRoutesOptions> 
     },
   });
 
+  app.get('/groups/:groupId/bans', {
+    preHandler: user,
+    schema: {
+      tags: TAGS_MANAGE,
+      summary: 'Người đang bị cấm khỏi nhóm, mới cấm trước — để gỡ cấm',
+      security: bearer,
+      params: groupIdParamsSchema,
+      querystring: paginationQuerySchema,
+      response: { 200: ok(paginated(bannedMemberSchema)), ...errors },
+    },
+    handler: async (request) => {
+      const { items, total } = await group.listBans(
+        actorOf(request),
+        request.params.groupId,
+        toSkipTake(request.query),
+      );
+      return toOk(toPage(items, total, request.query));
+    },
+  });
+
   app.delete('/groups/:groupId/bans/:accountId', {
     preHandler: user,
     schema: {
@@ -206,6 +228,27 @@ export const groupManageRoutes: FastifyPluginAsyncZod<GroupManageRoutesOptions> 
         request.body.unitId,
       );
       return reply.status(204).send(null);
+    },
+  });
+
+  app.get('/groups/:groupId/invitations', {
+    preHandler: user,
+    schema: {
+      tags: TAGS_MANAGE,
+      summary:
+        'Lời mời đang chờ, mới trước — email đã che, như nhau dù email có tài khoản hay không; điều hành viên đơn vị chỉ thấy đơn vị mình',
+      security: bearer,
+      params: groupIdParamsSchema,
+      querystring: paginationQuerySchema,
+      response: { 200: ok(paginated(pendingInvitationSchema)), ...errors },
+    },
+    handler: async (request) => {
+      const { items, total } = await group.listInvitations(
+        actorOf(request),
+        request.params.groupId,
+        toSkipTake(request.query),
+      );
+      return toOk(toPage(items, total, request.query));
     },
   });
 

@@ -317,6 +317,7 @@ describe('group_join_requests', () => {
   });
 });
 
+/** Lời mời của tài khoản `accountId`; dấu băm email giả theo tài khoản — unique lời mời chờ tính theo dấu băm. */
 const invitation = (
   groupId: string,
   accountId: string,
@@ -326,6 +327,8 @@ const invitation = (
     data: {
       groupId,
       accountId,
+      emailHash: `hash-${accountId}`,
+      emailHint: 'a***@ghim.vn',
       invitedBy: accountId,
       createdAt: NOW,
       expiresAt: LATER,
@@ -344,12 +347,20 @@ describe('group_invitations', () => {
     await invitation(group.id, a.id, { status: 'declined', decidedAt: NOW });
   });
 
-  it('một lời mời chờ mỗi cặp (nhóm, người); lời mời đã đóng không giữ chỗ', async () => {
+  it('một lời mời chờ mỗi cặp (nhóm, email); lời mời đã đóng không giữ chỗ', async () => {
     const { group } = await activeGroup();
     const a = await account();
     await invitation(group.id, a.id, { status: 'revoked', decidedAt: NOW });
     await invitation(group.id, a.id);
     await expect(prismaErrorCode(invitation(group.id, a.id))).resolves.toBe(UNIQUE);
+  });
+
+  it('lời mời mù (không người nhận) cũng giữ chỗ theo email: hai dòng chờ cùng dấu băm → trùng', async () => {
+    const { group } = await activeGroup();
+    const inviter = await account();
+    const blind = { accountId: null, invitedBy: inviter.id, emailHash: 'hash-email-la' };
+    await invitation(group.id, inviter.id, blind);
+    await expect(prismaErrorCode(invitation(group.id, inviter.id, blind))).resolves.toBe(UNIQUE);
   });
 });
 

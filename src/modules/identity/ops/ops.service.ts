@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { auditActor } from '../../../common/audit/audit.js';
 import { ConflictError, NotFoundError } from '../../../common/errors/app-error.js';
 import { toPage, toSkipTake } from '../../../common/schemas/pagination.js';
-import { hashEmail, normalizeEmail } from '../calc/email.calc.js';
+import { hashEmail, maskEmail, normalizeEmail } from '../calc/email.calc.js';
 import { parseDomainList } from '../identity.jobs.js';
 import type { OutboxEventInput } from '../identity.repository.js';
 import { FLAG_CLEARED_REASONS } from '../identity.schema.js';
@@ -52,6 +52,7 @@ export type IdentityOpsService = Pick<
   | 'accountSummaries'
   | 'accountIdByEmail'
   | 'emailHashOf'
+  | 'emailHintOf'
   | 'accountIdsByEmailHashes'
   | 'accountEmailHash'
   | 'createMaster'
@@ -372,6 +373,8 @@ export function createIdentityOpsService(
     },
 
     emailHashOf: (email) => hashEmail(normalizeEmail(email), hashKey),
+
+    emailHintOf: (email) => maskEmail(email.trim()),
 
     async accountEmailHash(accountId) {
       const account = await repository.findAccountById(accountId);

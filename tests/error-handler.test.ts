@@ -78,6 +78,8 @@ describe('errorHandler — lỗi Prisma', () => {
     ['P2002', 409, 'CONFLICT'],
     ['P2025', 404, 'NOT_FOUND'],
     ['P2003', 409, 'CONFLICT'],
+    // Deadlock (40P01) hay không xếp được thứ tự (40001) qua adapter-pg — thử lại là qua (fix-audit-group).
+    ['P2034', 409, 'CONFLICT'],
   ])('%s → %i %s, câu báo tiếng Việt', async (code, status, errorCode) => {
     const res = await app.inject({ method: 'GET', url: `/prisma/${code}` });
     expect(res.statusCode).toBe(status);
@@ -87,7 +89,7 @@ describe('errorHandler — lỗi Prisma', () => {
   });
 
   it('mã Prisma chưa lường trước → 500, không lộ chi tiết', async () => {
-    const res = await app.inject({ method: 'GET', url: '/prisma/P2034' });
+    const res = await app.inject({ method: 'GET', url: '/prisma/P2011' });
     expect(res.statusCode).toBe(500);
     expect(res.json()).toMatchObject({
       error: { code: 'INTERNAL_ERROR', message: 'Lỗi hệ thống' },
