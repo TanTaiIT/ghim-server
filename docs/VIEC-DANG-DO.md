@@ -34,9 +34,11 @@ mục code lệch spec thì sửa kèm test.
 - đợt 3 phần A2 — `fix-audit-listing` (T14, T15, T16);
 - đợt 3 phần A3 — `fix-audit-group` (T17 gỡ cấm khi nhận làm chủ, T18 một thứ tự khoá + P2034 → 409, T19 danh sách
   lời mời / người bị cấm, lời mời "mù" — migration `group_invitations_blind`). Thêm API: `GET /groups/:groupId/invitations`,
-  `GET /groups/:groupId/bans`. Test HTTP / DB chạy trên CI khi mở PR.
+  `GET /groups/:groupId/bans`. Test HTTP / DB chạy trên CI khi mở PR;
+- đợt 4 phần 1 — `fix-audit-identity-low` (L1 mở khoá trả về trạng thái lúc khoá — migration `account_status_before_lock`, L2
+  không tự xử việc của mình + duyệt giấy tờ có điều kiện, L3 trần phiên trong một transaction, L12 mở khoá phát `flag_cleared`).
 
-**Làm tiếp — đợt 4** (mức thấp: L1–L7, L9, L10, L12, L13; L8, L11 đã sửa ở đợt 2, 3), rồi các câu thông báo cũ N10–N14,
+**Làm tiếp — đợt 4** (còn: L3 phần nhóm, L4–L7, L9, L10, L13; L8, L11 đã sửa ở đợt 2, 3), rồi các câu thông báo cũ N10–N14,
 N26–N28, rồi `add-reports`. Trước đó: mở PR `add-listings` → `main` để CI chạy test của `fix-audit-group`.
 
 ## 1. Đang chờ quyết hoặc chờ duyệt

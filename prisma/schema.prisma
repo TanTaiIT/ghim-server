@@ -98,34 +98,37 @@ enum IdVerificationStatus {
 ///   accounts_avatar_source_check: NOT (avatar_image_id IS NOT NULL AND avatar_from_google)
 ///   accounts_avatar_google_check: NOT avatar_from_google OR google_picture_url IS NOT NULL
 model Account {
-  id                String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  id                String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
   /// Email như người dùng gõ — chỉ để gửi thư. So trùng luôn dùng `emailNormalized`.
   email             String
-  emailNormalized   String        @unique @map("email_normalized")
+  emailNormalized   String         @unique @map("email_normalized")
   /// HMAC-SHA256 với `IDENTITY_HASH_KEY`: `trust` nối gậy qua lần đăng ký lại mà không giữ email.
-  emailHash         String        @map("email_hash")
-  passwordHash      String?       @map("password_hash")
-  googleSub         String?       @unique @map("google_sub")
-  status            AccountStatus @default(pending_verification)
-  role              AccountRole   @default(user)
-  displayName       String        @map("display_name")
+  emailHash         String         @map("email_hash")
+  passwordHash      String?        @map("password_hash")
+  googleSub         String?        @unique @map("google_sub")
+  status            AccountStatus  @default(pending_verification)
+  role              AccountRole    @default(user)
+  displayName       String         @map("display_name")
   /// Ảnh của tài khoản Google, lấy lại mỗi lần đăng nhập Google — ngoại lệ duy nhất ngoài kho (TK 25).
-  googlePictureUrl  String?       @map("google_picture_url")
+  googlePictureUrl  String?        @map("google_picture_url")
   /// Mã ảnh của `media` (chủ `profile`), không FK chéo module: khoá trong kho suy từ mã nên cấp đường xem không
   /// phải hỏi `media`.
-  avatarImageId     String?       @map("avatar_image_id") @db.Uuid
-  avatarFromGoogle  Boolean       @default(false) @map("avatar_from_google")
+  avatarImageId     String?        @map("avatar_image_id") @db.Uuid
+  avatarFromGoogle  Boolean        @default(false) @map("avatar_from_google")
   phone             String?
-  totpSecretEnc     String?       @map("totp_secret_enc")
-  totpEnabledAt     DateTime?     @map("totp_enabled_at") @db.Timestamptz(3)
-  lockedReason      String?       @map("locked_reason")
-  lockedAt          DateTime?     @map("locked_at") @db.Timestamptz(3)
-  lockedBy          String?       @map("locked_by") @db.Uuid
-  deletedAt         DateTime?     @map("deleted_at") @db.Timestamptz(3)
-  emailChangedAt    DateTime?     @map("email_changed_at") @db.Timestamptz(3)
-  passwordChangedAt DateTime?     @map("password_changed_at") @db.Timestamptz(3)
-  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  totpSecretEnc     String?        @map("totp_secret_enc")
+  totpEnabledAt     DateTime?      @map("totp_enabled_at") @db.Timestamptz(3)
+  lockedReason      String?        @map("locked_reason")
+  lockedAt          DateTime?      @map("locked_at") @db.Timestamptz(3)
+  lockedBy          String?        @map("locked_by") @db.Uuid
+  /// Trạng thái lúc bị khoá: mở khoá trả về đúng nó, email chưa xác nhận vẫn chưa xác nhận. CHECK
+  /// `accounts_status_before_lock_check`: có giá trị khi và chỉ khi đang khoá, là `active` / `pending_verification`.
+  statusBeforeLock  AccountStatus? @map("status_before_lock")
+  deletedAt         DateTime?      @map("deleted_at") @db.Timestamptz(3)
+  emailChangedAt    DateTime?      @map("email_changed_at") @db.Timestamptz(3)
+  passwordChangedAt DateTime?      @map("password_changed_at") @db.Timestamptz(3)
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   verificationCodes  VerificationCode[]
   sessions           Session[]

@@ -197,6 +197,17 @@ describe('trần phiên và hết hạn trượt', () => {
     expect(evicted.json().error.code).toBe('SESSION_REVOKED');
   });
 
+  it('đã kém trần một phiên, đăng nhập cùng lúc ba máy → cả ba vào được, không vượt trần (fix-audit-identity-low, L3)', async () => {
+    const { id, email } = await account();
+    await tokens(email, 'Máy 1');
+    advance(1000);
+    const results = await Promise.all(
+      ['Máy 2', 'Máy 3', 'Máy 4'].map((deviceName) => login(email, { deviceName })),
+    );
+    expect(results.map((res) => res.statusCode)).toEqual([200, 200, 200]);
+    expect(await repository.listActiveSessions(id)).toHaveLength(2);
+  });
+
   it('tài khoản mang quyền staff (trần 1) đăng nhập máy thứ 2 → máy 1 bị đẩy', async () => {
     const { id, email } = await account();
     await grantStaff(id, ['support']);

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { auditActor } from '../../../common/audit/audit.js';
-import { ConflictError, NotFoundError } from '../../../common/errors/app-error.js';
+import { ConflictError, ForbiddenError, NotFoundError } from '../../../common/errors/app-error.js';
 import { toPage, toSkipTake } from '../../../common/schemas/pagination.js';
 import { hashEmail, maskEmail, normalizeEmail } from '../calc/email.calc.js';
 import { parseDomainList } from '../identity.jobs.js';
@@ -79,7 +79,7 @@ export function createIdentityOpsService(
       if (target.status === 'locked') throw new ConflictError('Tài khoản đang bị khoá rồi');
       // Chỉ master khoá được, nên đây là master tự khoá mình — hệ thống mất master, không ai mở lại được (TK 5).
       if (target.role === 'master') throw new ConflictError('Không khoá được tài khoản master');
-      await repository.lockAccount({
+      const locked = await repository.lockAccount({
         accountId,
         reason,
         lockedBy: actor.accountId,
@@ -98,6 +98,7 @@ export function createIdentityOpsService(
           reason,
         },
       });
+      if (!locked) throw new ConflictError('Tài khoản đang bị khoá rồi');
       deps.sessionsRevoked?.account(accountId);
     },
 
@@ -105,7 +106,7 @@ export function createIdentityOpsService(
       const target = await repository.findAccountById(accountId);
       if (!target || target.status === 'deleted') throw new NotFoundError('Không có tài khoản này');
       if (target.status !== 'locked') throw new ConflictError('Tài khoản không bị khoá');
-      await repository.unlockAccount({
+      const unlocked = await repository.unlockAccount({
         accountId,
         unlockedBy: actor.accountId,
         at: clock(),
@@ -122,6 +123,7 @@ export function createIdentityOpsService(
           targetId: accountId,
         },
       });
+      if (!unlocked) throw new ConflictError('Tài khoản không bị khoá');
     },
 
     // ── DẤU THIẾT BỊ ────────────────────────────────────────────────────────────────────────────
@@ -236,6 +238,10 @@ export function createIdentityOpsService(
       const flag = await repository.findFlagByLookupCode(normalizeLookupCode(lookupCode));
       if (!flag) throw new NotFoundError('Không có mã tra cứu này');
       if (flag.clearedAt) throw new ConflictError('Đánh dấu này đã được gỡ');
+      // Không ai, trừ master, tự xử việc của mình (TK 4; fix-audit-identity-low, L2).
+      if (flag.accountId === actor.accountId && actor.role !== 'master') {
+        throw new ForbiddenError('Không gỡ được đánh dấu trên tài khoản của chính mình');
+      }
 
       // Miễn trừ gắn với (máy, tài khoản): lượt gửi tin sau không bị đánh dấu lại vì chủ cũ của máy.
       const clearances = await repository.findDeviceClearances(flag.deviceHash);
@@ -284,20 +290,24 @@ export function createIdentityOpsService(
       const row = await repository.findIdVerificationById(id);
       if (!row) throw new NotFoundError('Không có hồ sơ này');
       if (row.status !== 'pending') throw new ConflictError('Hồ sơ này đã được duyệt');
-      return toIdVerificationDto(
-        await repository.updateIdVerification(
-          id,
-          { status, reviewedBy: actor.accountId, reviewedAt: clock(), reason: reason ?? null },
-          {
-            ...auditActor(actor),
-            action: 'identity.id_verification.decide',
-            targetType: 'id_verification',
-            targetId: id,
-            reason: reason ?? null,
-            details: { status },
-          },
-        ),
+      // Không ai, trừ master, tự xử việc của mình (TK 4; fix-audit-identity-low, L2).
+      if (row.accountId === actor.accountId && actor.role !== 'master') {
+        throw new ForbiddenError('Không duyệt được hồ sơ giấy tờ của chính mình');
+      }
+      const decided = await repository.decidePendingIdVerification(
+        id,
+        { status, reviewedBy: actor.accountId, reviewedAt: clock(), reason: reason ?? null },
+        {
+          ...auditActor(actor),
+          action: 'identity.id_verification.decide',
+          targetType: 'id_verification',
+          targetId: id,
+          reason: reason ?? null,
+          details: { status },
+        },
       );
+      if (!decided) throw new ConflictError('Hồ sơ này đã được duyệt');
+      return toIdVerificationDto(decided);
     },
 
     // ── MIỀN DÙNG MỘT LẦN ───────────────────────────────────────────────────────────────────────

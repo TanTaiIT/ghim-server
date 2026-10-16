@@ -441,6 +441,10 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   `trust/quotas`. `fix-audit-group` (đợt 3 phần A3, archive 16/10/2026) thêm "Mời lại khi lời mời còn chờ", "Danh sách
   lời mời đang chờ", "Danh sách người bị cấm" vào `group/membership`, "Nhận làm chủ khi đang bị cấm" vào
   `group/group-roles`, scenario "Hai lượt ghi chờ nhau" vào "Xung đột khi ghi đồng thời" của `http/api-contract`.
+  `fix-audit-identity-low` (đợt 4 phần 1, archive 16/10/2026) thêm "Mở khoá trả tài khoản về trạng thái trước khi khoá"
+  vào `identity/account-lock`, "Không ai duyệt giấy tờ của chính mình", "Hai người cùng duyệt một hồ sơ" vào
+  `identity/id-verification`, "Staff không gỡ đánh dấu của chính mình" vào `identity/device-registry`, "Trần phiên đúng
+  cả khi đăng nhập cùng lúc" vào `identity/sessions`.
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.

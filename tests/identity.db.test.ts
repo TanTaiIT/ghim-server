@@ -36,6 +36,12 @@ const createAccount = (overrides?: Partial<Prisma.AccountCreateInput>) =>
   prisma.account.create({ data: account(overrides) });
 
 const NOW = new Date('2026-10-10T04:00:00.000Z');
+const LOCKED = {
+  status: 'locked',
+  statusBeforeLock: 'active',
+  lockedAt: NOW,
+  lockedReason: 'Thử',
+} as const;
 const LATER = new Date('2026-10-10T05:00:00.000Z');
 
 const code = (
@@ -121,7 +127,17 @@ describe('accounts', () => {
     await expect(sqlStateOf(createAccount({ status: 'active', lockedAt: NOW }))).resolves.toBe(
       CHECK,
     );
-    await createAccount({ status: 'locked', lockedAt: NOW, lockedReason: 'Thử' });
+    await createAccount(LOCKED);
+  });
+
+  it('CHECK accounts_status_before_lock_check: có trạng thái trước khi khoá khi và chỉ khi đang khoá', async () => {
+    const { statusBeforeLock: _, ...lockedOnly } = LOCKED;
+    await expect(sqlStateOf(createAccount(lockedOnly))).resolves.toBe(CHECK);
+    await expect(
+      sqlStateOf(createAccount({ ...LOCKED, statusBeforeLock: 'deleted' })),
+    ).resolves.toBe(CHECK);
+    await expect(sqlStateOf(createAccount({ statusBeforeLock: 'active' }))).resolves.toBe(CHECK);
+    await createAccount({ ...LOCKED, statusBeforeLock: 'pending_verification' });
   });
 
   it('CHECK accounts_deleted_check: deleted đi đôi với deleted_at', async () => {
@@ -235,7 +251,7 @@ describe('account_flags', () => {
   it('CHECK account_flags_related_check: "dùng máy của tài khoản bị khoá" phải nói tài khoản nào', async () => {
     const { id } = await createAccount();
     await expect(sqlStateOf(flag(id, { kind: 'device_of_locked_account' }))).resolves.toBe(CHECK);
-    const locked = await createAccount({ status: 'locked', lockedAt: NOW, lockedReason: 'Thử' });
+    const locked = await createAccount(LOCKED);
     await flag(id, { kind: 'device_of_locked_account', relatedAccountId: locked.id });
   });
 });
