@@ -140,8 +140,15 @@ Không phải việc dở — ghi để lần sau khỏi dò lại.
   "Danh mục thử — kiểm luồng đăng tin", một tin đã bán.
 - Kho ảnh: Cloudinary thư mục `ghim-server-dev-pc13` của riêng máy này. Quay lại S3 giả: hướng dẫn ngay trên dòng
   `STORAGE_URL`.
-- Dịch vụ giả: `VueJS/.vscode/ghim-dev-stubs.cjs` — SMTP :1025 in thư (mã xác nhận email đọc ở đây), S3 giả :9100 (không
-  còn dùng khi kho là Cloudinary). Nạp qua `NODE_OPTIONS` trong `.env.development`; F5 dùng `VueJS/.vscode/launch.json`.
+- Dịch vụ giả: `VueJS/.vscode/ghim-dev-stubs.cjs` — SMTP :1025 in thư (mã xác nhận email đọc ở đây) và ghi nối vào
+  `<thư mục tạm>/ghim-dev-mail.log`, S3 giả :9100 (không còn dùng khi kho là Cloudinary). Nạp qua `NODE_OPTIONS` trong
+  `.env.development`; F5 dùng `VueJS/.vscode/launch.json`.
+- Chạy khói luồng đăng tin: bật server (`pnpm dev`) rồi `pnpm smoke:posting` (`src/cli/smoke-posting.ts`). Hai tài khoản mới
+  qua đúng API của app: A đăng một ảnh ngẫu nhiên → lên bảng, hạn chế "tài khoản mới", đúng các chỗ hiển thị của tin hạn
+  chế; B đăng đúng ảnh đó → máy giữ vì ảnh trùng, khách nhận 404, hàng chờ có việc. Tự kiểm 13 điều (đọc DB chỉ để đối
+  chiếu), thoát 1 khi lệch. Mã email đọc từ mailpit, không có thì từ tệp thư của stub. Mỗi lượt để lại 2 tài khoản
+  `khoi.*@example.com`, 2 tin, 2 ảnh trên Neon / Cloudinary dev. Lượt 16/10/2026: ~52 s — tải ảnh lên Cloudinary ~1,7 s,
+  máy quyết 7–13 s sau khi gửi, việc vào hàng chờ ~10 s sau đó (bộ phát outbox quét mỗi 10 s).
 - Kiểm tra chạy được ở đây: `typecheck`, `lint`, `format:check`, `test:unit`, `spec:validate`, `build`, `db:drift`
   (chỉ đọc, so Neon dev với schema). Test cần Postgres + RustFS chỉ chạy trên CI, và CI chỉ chạy khi có pull request
   (hoặc push lên `main`, `develop`).

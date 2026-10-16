@@ -39,6 +39,7 @@
     "cli:create-master": "tsx --env-file-if-exists=.env.development src/cli/create-master.ts",
     "cli:reset-2fa": "tsx --env-file-if-exists=.env.development src/cli/reset-two-factor.ts",
     "cli:build-regions": "tsx src/cli/build-regions.ts",
+    "smoke:posting": "tsx --env-file-if-exists=.env.development src/cli/smoke-posting.ts",
     "spec:validate": "openspec validate --all --strict --no-interactive",
     "spec:list": "openspec list && openspec list --specs",
     "check": "pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run spec:validate"

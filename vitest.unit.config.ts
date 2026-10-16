@@ -27,6 +27,7 @@ const PURE_TESTS = [
   'tests/pagination.test.ts',
   'tests/runtime-config.test.ts',
   'tests/secrets.test.ts',
+  'tests/smoke-mail.test.ts',
   'tests/trust-proxy.test.ts',
 ];
 

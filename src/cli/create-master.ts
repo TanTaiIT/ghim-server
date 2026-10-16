@@ -1,4 +1,5 @@
-import { argOf, runCli, usage } from './cli-identity.js';
+import { argOf, usage } from './cli-args.js';
+import { runCli } from './cli-identity.js';
 
 /*
  * Tạo tài khoản master — đường DUY NHẤT (spec master-accounts): không có route HTTP nào làm việc
