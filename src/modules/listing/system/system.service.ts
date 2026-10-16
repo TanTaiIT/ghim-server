@@ -92,6 +92,14 @@ function restrictionsGoingLive(
   return withRestriction(base, 'new_account', tier === 'T0' && isPublicPlacement(locked.placement));
 }
 
+/**
+ * Cột ghi thêm của một mũi tên. Mũi tên lên bảng (`live`) cần mức tin cậy của người đăng cho lý do "tài khoản mới" —
+ * đọc trong transaction sau khoá chung của `trust` (rà soát L7); mũi tên khác không đọc mức, không chờ khoá đó.
+ */
+type Columns =
+  | ((locked: Listing) => Prisma.ListingUncheckedUpdateInput)
+  | { live: (locked: Listing, tier: TrustTier) => Prisma.ListingUncheckedUpdateInput };
+
 export function createListingSystemService(shared: ListingShared): ListingSystemService {
   const { repository, groups, trust, config, clock, explainMiss } = shared;
   const settings = () => clockSettings(config);
@@ -112,7 +120,7 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
       states?: readonly ListingState[];
       after?: AfterWrite;
     },
-    columns: (locked: Listing, tier: TrustTier) => Prisma.ListingUncheckedUpdateInput,
+    columns: Columns,
     rankAt: Date | null = null,
   ) => {
     const now = clock();
@@ -121,9 +129,14 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
       id: input.listingId,
       states: input.states ?? LISTING_STATES,
       version: input.version,
-      before: async (tx, locked) => {
-        tier = await trust.tierIn(tx, locked.ownerId);
-      },
+      // Chỉ mũi tên lên bảng mới cần mức: mũi tên khác (gỡ, từ chối, giữ) không chờ lượt tính mức đang giữ khoá.
+      ...(typeof columns === 'function'
+        ? {}
+        : {
+            before: async (tx: Tx, locked: Listing) => {
+              tier = await trust.tierIn(tx, locked.ownerId);
+            },
+          }),
       data: (locked) => {
         const next = transition(locked.state, input.arrow, input.side);
         if (!next) throw invalidTransition();
@@ -137,7 +150,7 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
             settings(),
             rankAt,
           ),
-          ...columns(locked, tier),
+          ...(typeof columns === 'function' ? columns(locked) : columns.live(locked, tier)),
         };
       },
       after: input.after,
@@ -162,9 +175,11 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
         : null;
       const passed = await decide(
         { ...input, arrow: 'pass' },
-        (locked, tier) => ({
-          restrictions: restrictionsGoingLive(locked, tier, result.restrictMachine),
-        }),
+        {
+          live: (locked, tier) => ({
+            restrictions: restrictionsGoingLive(locked, tier, result.restrictMachine),
+          }),
+        },
         ranked?.firstLiveAt ?? null,
       );
       return passed !== null;
@@ -192,13 +207,18 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
       const side = input.arrow === 'appealWin' ? 'appeal' : 'reviewer';
       // Người duyệt đạt hay khôi phục là người đã xem thay máy: gỡ lý do "máy" (chốt 15/10/2026); khiếu nại thắng giữ nguyên.
       const machine = input.arrow === 'appealWin' ? null : false;
-      const decided = await decide({ ...input, side }, (locked, tier) =>
-        'fault' in input
-          ? { fault: input.fault, faultReason: input.faultReason ?? null }
+      const fault =
+        'fault' in input ? { fault: input.fault, faultReason: input.faultReason ?? null } : null;
+      const decided = await decide(
+        { ...input, side },
+        fault
+          ? () => fault
           : {
-              fault: null,
-              faultReason: null,
-              restrictions: restrictionsGoingLive(locked, tier, machine),
+              live: (locked, tier) => ({
+                fault: null,
+                faultReason: null,
+                restrictions: restrictionsGoingLive(locked, tier, machine),
+              }),
             },
       );
       return decided?.after ?? explainMiss(input.listingId, input.version);

@@ -964,9 +964,11 @@ describe('Huỷ kèm theo vẫn phát sự kiện (fix-audit-group-low, L5)', ()
 
     await lockAccount(group.master, group.owner.id);
     expect(await groupRow(group.groupId)).toMatchObject({ state: 'locked' });
-    expect(await decided('group.owner.offer_decided', group.groupId)).toEqual([
-      expect.objectContaining({ offerId, kind: 'transfer', outcome: 'cancelled' }),
-    ]);
+    // Lời giao chủ lần đầu (master, đã nhận) của nhóm cũng có sự kiện "đã xử" — chỉ xét lượt huỷ.
+    const cancelled = (await decided('group.owner.offer_decided', group.groupId)).filter(
+      (payload) => payload.outcome === 'cancelled',
+    );
+    expect(cancelled).toEqual([expect.objectContaining({ offerId, kind: 'transfer' })]);
   });
 });
 

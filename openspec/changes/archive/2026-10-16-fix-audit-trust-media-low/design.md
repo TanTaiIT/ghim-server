@@ -19,7 +19,9 @@
 - `TrustRepository.holdTier(tx, accountId)`: `pg_advisory_xact_lock_shared` trên cùng khoá `trust-tier:` rồi đọc
   `trust_tiers` bằng `tx`. Khoá chung không chặn nhau giữa các lượt lên bảng; chỉ chờ / bị chờ bởi lượt tính mức.
 - `TrustTierService.tierIn(tx, accountId)`, `ListingTrustPort.tierIn` — `decide` của `listing/system` đọc mức trong
-  `before(tx, locked)` của `repository.change` (sau khoá dòng tin), bỏ lượt đọc tin trước transaction.
+  `before(tx, locked)` của `repository.change` (sau khoá dòng tin), bỏ lượt đọc tin trước transaction. Chỉ mũi tên
+  lên bảng (máy cho qua, người duyệt đạt / khôi phục, khiếu nại thắng) đọc mức; gỡ, từ chối, giữ không chờ khoá đó
+  (sửa 16/10/2026 sau CI: lượt gỡ chờ lượt tính mức đang dừng trong test T23 tới quá hạn transaction).
 - Thứ tự khoá: dòng tin `FOR UPDATE` → khoá chung `trust-tier:`. Lượt tính mức giữ khoá riêng và chỉ đọc dữ kiện tin
   (không khoá dòng tin) — không có vòng chờ.
 - Bỏ: bên nghe đổi mức quét lại cả tin đang kiểm — vẫn còn khe giữa lượt quét và lượt lên bảng.
