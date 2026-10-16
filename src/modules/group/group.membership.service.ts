@@ -17,6 +17,7 @@ import type { AddMemberFailure, Page } from './group.repository.js';
 import type {
   AnnouncementDto,
   BadgeDto,
+  BannedMemberDto,
   GroupSummaryDto,
   GroupViewDto,
   JoinRequestDto,
@@ -25,6 +26,7 @@ import type {
   MyGroupDto,
   MyInvitationsDto,
   OwnerOfferDto,
+  PendingInvitationDto,
 } from './group.schema.js';
 import {
   type GroupContext,
@@ -71,7 +73,15 @@ export interface GroupMembershipService {
   listJoinRequests(actor: Actor, groupId: string, page: PageQuery): Promise<Page<JoinRequestDto>>;
   decideJoinRequest(actor: Actor, requestId: string, approve: boolean): Promise<JoinRequestDto>;
   invite(actor: Actor, groupId: string, email: string, unitId: string | undefined): Promise<void>;
+  /** Lời mời đang chờ — điều hành viên đơn vị chỉ thấy lời mời vào đơn vị mình. */
+  listInvitations(
+    actor: Actor,
+    groupId: string,
+    page: PageQuery,
+  ): Promise<Page<PendingInvitationDto>>;
   revokeInvitation(actor: Actor, groupId: string, invitationId: string): Promise<void>;
+  /** Người đang bị cấm — quyền như gỡ cấm. */
+  listBans(actor: Actor, groupId: string, page: PageQuery): Promise<Page<BannedMemberDto>>;
   addRoster(
     actor: Actor,
     groupId: string,
@@ -168,6 +178,19 @@ export function createGroupMembershipService(
     const [summary] = await summariesOf([group]);
     if (!summary) throw new Error('Không dựng được tóm tắt nhóm');
     return { ...summary, membership: toMembership(member, group) };
+  };
+
+  /** Người nhận được lời mời: tài khoản chưa xoá mang email đó, không phải master, không phải người mời, chưa ở nhóm. */
+  const inviteeOf = async (
+    actor: Actor,
+    groupId: string,
+    email: string,
+  ): Promise<string | null> => {
+    const accountId = await identity.accountIdByEmail(email);
+    if (!accountId || accountId === actor.accountId) return null;
+    const summary = (await identity.accountSummaries([accountId])).get(accountId);
+    if (!summary || summary.role === 'master') return null;
+    return (await repository.findMember(groupId, accountId)) ? null : accountId;
   };
 
   const requireUnitOf = async (groupId: string, unitId: string): Promise<void> => {
@@ -592,22 +615,57 @@ export function createGroupMembershipService(
       requireState(ctx.group, ALLOWS_MODERATION);
       const unit = scopedUnit(ctx, unitId);
       if (unit) await requireUnitOf(groupId, unit);
-      // Trả lời giống hệt dù email có tài khoản, đã ở nhóm hay đã có lời mời: không ai dò được email (TK 10).
-      const accountId = await identity.accountIdByEmail(email);
-      if (!accountId || accountId === actor.accountId) return;
-      const summary = (await identity.accountSummaries([accountId])).get(accountId);
-      if (!summary || summary.role === 'master') return;
-      if (await repository.findMember(groupId, accountId)) return;
+      // Lời mời "mù" (fix-audit-group): mời email nào cũng một dòng như nhau, chỉ dòng có người nhận được mới nhận lời
+      // được — trả lời và danh sách lời mời giống hệt dù email có tài khoản, đã ở nhóm hay không (TK 10).
+      const accountId = await inviteeOf(actor, groupId, email);
       const now = clock();
       await repository.createInvitation({
         groupId,
         accountId,
+        emailHash: identity.emailHashOf(email),
+        emailHint: identity.emailHintOf(email),
         unitId: unit,
         invitedBy: actor.accountId,
         at: now,
         expiresAt: daysFrom(now, config.get('group.inviteExpiresDays')),
-        audit: masterAudit(ctx, 'group.invitation.create', groupId, { accountId }),
+        audit: masterAudit(ctx, 'group.invitation.create', groupId, accountId ? { accountId } : {}),
       });
+    },
+
+    async listInvitations(actor, groupId, { skip, take }) {
+      const ctx = await context(actor, groupId);
+      requireManager(ctx, true);
+      const { items, total } = await repository.listGroupInvitations(groupId, clock(), {
+        unitId: scopedUnit(ctx, undefined),
+        skip,
+        take,
+      });
+      return {
+        items: items.map((row) => ({
+          id: row.id,
+          emailHint: row.emailHint,
+          unitId: row.unitId,
+          createdAt: row.createdAt.toISOString(),
+          expiresAt: row.expiresAt.toISOString(),
+        })),
+        total,
+      };
+    },
+
+    async listBans(actor, groupId, { skip, take }) {
+      const ctx = await context(actor, groupId);
+      requireManager(ctx, false);
+      const { items, total } = await repository.listBans(groupId, { skip, take });
+      const names = await displayNames(items.map((row) => row.accountId));
+      return {
+        items: items.map((row) => ({
+          accountId: row.accountId,
+          displayName: names.get(row.accountId) ?? '',
+          bannedAt: row.bannedAt.toISOString(),
+          bannedBy: row.bannedBy,
+        })),
+        total,
+      };
     },
 
     async revokeInvitation(actor, groupId, invitationId) {

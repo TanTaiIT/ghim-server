@@ -18,6 +18,7 @@ export interface GroupIdentityPort {
   accountSummaries(ids: string[]): Promise<Map<string, AccountSummary>>;
   accountIdByEmail(email: string): Promise<string | null>;
   emailHashOf(email: string): string;
+  emailHintOf(email: string): string;
   accountIdsByEmailHashes(hashes: string[]): Promise<Map<string, string>>;
   accountEmailHash(accountId: string): Promise<string | null>;
 }

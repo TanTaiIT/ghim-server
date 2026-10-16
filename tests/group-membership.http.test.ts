@@ -543,11 +543,10 @@ describe('lời mời', () => {
       body: known.body,
     });
     expect(unknown.statusCode).toBe(204);
-    expect(
-      (await prisma.groupInvitation.findMany({ where: { groupId: group.groupId } })).map(
-        (row) => row.accountId,
-      ),
-    ).toEqual([user.id]);
+    // Lời mời mù (fix-audit-group): email lạ cũng một dòng, nhưng không ai nhận được và không ai được báo.
+    const rows = await prisma.groupInvitation.findMany({ where: { groupId: group.groupId } });
+    expect(rows.map((row) => row.accountId)).toHaveLength(2);
+    expect(rows.map((row) => row.accountId)).toEqual(expect.arrayContaining([user.id, null]));
     expect((await lastOutboxEvent())?.id).toBe(event?.id);
   });
 
@@ -1030,5 +1029,168 @@ describe('gỡ cấm', () => {
     expect(res.statusCode).toBe(403);
     expect(codeOf(res)).toBe('FORBIDDEN');
     expect(await groups.isBanned(group.groupId, user.id)).toBe(true);
+  });
+});
+
+// ── fix-audit-group: lời mời mù, danh sách lời mời, danh sách người bị cấm, thứ tự khoá ──────────────────────────
+
+/** Email che như `identity` (ký tự đầu + `***` + `@miền`) — dòng của danh sách lời mời. */
+const hintOf = (email: string) => `${email.slice(0, 1)}***${email.slice(email.lastIndexOf('@'))}`;
+
+const invitationsOf = async (actor: TestUser, groupId: string) => {
+  const res = await api(app, 'GET', `/groups/${groupId}/invitations`, actor.token);
+  expect(res.statusCode, res.body).toBe(200);
+  return res.json().data.items as {
+    id: string;
+    emailHint: string;
+    unitId: string | null;
+    createdAt: string;
+    expiresAt: string;
+  }[];
+};
+
+const bansOf = async (actor: TestUser, groupId: string) => {
+  const res = await api(app, 'GET', `/groups/${groupId}/bans`, actor.token);
+  expect(res.statusCode, res.body).toBe(200);
+  return res.json().data.items as { accountId: string; displayName: string; bannedAt: string }[];
+};
+
+const notServerError = (res: LightMyRequestResponse) =>
+  expect(res.statusCode, res.body).toBeLessThan(500);
+
+describe('lời mời: mời lại với đơn vị khác', () => {
+  it('mời An vào 12A1 rồi mời lại vào 12A2 khi lời mời còn chờ: một lời mời, An vào 12A2', async () => {
+    const group = await createActiveGroup(app, { mode: 'public_review', kind: 'school' });
+    const [a1, a2] = [await createUnit(app, group, '12A1'), await createUnit(app, group, '12A2')];
+    const an = await newUser(app);
+    expect((await invite(group.owner, group.groupId, an.email, a1)).statusCode).toBe(204);
+    expect((await invite(group.owner, group.groupId, an.email, a2)).statusCode).toBe(204);
+    expect(await invitationsOf(group.owner, group.groupId)).toHaveLength(1);
+    const res = await acceptInvitation(an, await invitationIdOf(an, group.groupId));
+    expect(res.statusCode, res.body).toBe(200);
+    expect(await memberOf(group.groupId, an)).toMatchObject({ joinedVia: 'invited', unitId: a2 });
+  });
+});
+
+describe('danh sách lời mời đang chờ', () => {
+  it('xem rồi thu hồi lời mời gửi nhầm: dòng có email che, đơn vị, hạn; thu hồi xong người đó hết lời mời', async () => {
+    const group = await createActiveGroup(app, { mode: 'public_review' });
+    const binh = await newUser(app);
+    expect((await invite(group.owner, group.groupId, binh.email)).statusCode).toBe(204);
+    const [row] = await invitationsOf(group.owner, group.groupId);
+    expect(row).toMatchObject({ emailHint: hintOf(binh.email), unitId: null });
+    expect(row?.expiresAt).toBe(day(14).toISOString());
+    const revoked = await api(
+      app,
+      'DELETE',
+      `/groups/${group.groupId}/invitations/${row?.id ?? ''}`,
+      group.owner.token,
+    );
+    expect(revoked.statusCode, revoked.body).toBe(204);
+    const mine = await api(app, 'GET', '/me/group-invitations', binh.token);
+    expect(mine.json().data.invitations).toEqual([]);
+  });
+
+  it('email chưa có tài khoản cũng một dòng, cùng các trường như dòng thật', async () => {
+    const group = await createActiveGroup(app, { mode: 'public_review' });
+    const known = await newUser(app);
+    await invite(group.owner, group.groupId, known.email);
+    await invite(group.owner, group.groupId, 'chua-dang-ky@ghim.test');
+    const rows = await invitationsOf(group.owner, group.groupId);
+    expect(rows.map((row) => row.emailHint).toSorted()).toEqual(
+      [hintOf(known.email), hintOf('chua-dang-ky@ghim.test')].toSorted(),
+    );
+    const [first, second] = rows;
+    expect(Object.keys(first ?? {}).toSorted()).toEqual(Object.keys(second ?? {}).toSorted());
+  });
+
+  it('mời một thành viên, master hay chính mình cũng ra một dòng, không ai nhận được', async () => {
+    const group = await createActiveGroup(app, { mode: 'public_review' });
+    const member = await addMember(app, group.groupId);
+    const master = await newMaster(app);
+    const statuses = await Promise.all(
+      [member.email, master.email, group.owner.email].map(
+        async (email) => (await invite(group.owner, group.groupId, email)).statusCode,
+      ),
+    );
+    expect(statuses).toEqual([204, 204, 204]);
+    expect(await invitationsOf(group.owner, group.groupId)).toHaveLength(3);
+    expect(
+      await prisma.groupInvitation.count({
+        where: { groupId: group.groupId, accountId: { not: null } },
+      }),
+    ).toBe(0);
+  });
+
+  it('điều hành viên lớp 12A1 chỉ thấy lời mời vào 12A1', async () => {
+    const group = await createActiveGroup(app, { mode: 'public_review', kind: 'school' });
+    const [a1, a2] = [await createUnit(app, group, '12A1'), await createUnit(app, group, '12A2')];
+    const unitModerator = await moderatorOf(group, a1);
+    await invite(group.owner, group.groupId, (await newUser(app)).email, a1);
+    await invite(group.owner, group.groupId, (await newUser(app)).email, a2);
+    const rows = await invitationsOf(unitModerator, group.groupId);
+    expect(rows.map((row) => row.unitId)).toEqual([a1]);
+  });
+
+  it('thành viên thường xem danh sách lời mời: 403 FORBIDDEN', async () => {
+    const group = await createActiveGroup(app, { mode: 'public_review' });
+    const member = await addMember(app, group.groupId);
+    const res = await api(app, 'GET', `/groups/${group.groupId}/invitations`, member.token);
+    expect(res.statusCode).toBe(403);
+    expect(codeOf(res)).toBe('FORBIDDEN');
+  });
+});
+
+describe('danh sách người bị cấm', () => {
+  it('xem rồi gỡ cấm: người bị cấm có trong danh sách kèm lúc cấm, gỡ xong thì không còn', async () => {
+    const group = await createActiveGroup(app, { mode: 'public_open' });
+    const binh = await addMember(app, group.groupId);
+    expect((await ban(group.owner, group.groupId, binh)).statusCode).toBe(204);
+    expect(await bansOf(group.owner, group.groupId)).toEqual([
+      expect.objectContaining({ accountId: binh.id, bannedAt: TEST_NOW.toISOString() }),
+    ]);
+    const lifted = await api(
+      app,
+      'DELETE',
+      `/groups/${group.groupId}/bans/${binh.id}`,
+      group.owner.token,
+    );
+    expect(lifted.statusCode, lifted.body).toBe(204);
+    expect(await bansOf(group.owner, group.groupId)).toEqual([]);
+  });
+
+  it('điều hành viên đơn vị xem danh sách người bị cấm: 403 FORBIDDEN', async () => {
+    const group = await createActiveGroup(app, { mode: 'public_review', kind: 'school' });
+    const unitModerator = await moderatorOf(group, await createUnit(app, group, '12A1'));
+    const res = await api(app, 'GET', `/groups/${group.groupId}/bans`, unitModerator.token);
+    expect(res.statusCode).toBe(403);
+    expect(codeOf(res)).toBe('FORBIDDEN');
+  });
+});
+
+describe('thao tác chen nhau không trả 500 (thứ tự khoá)', () => {
+  it('duyệt đơn cùng lúc cấm người xin: người đó cuối cùng bị cấm', async () => {
+    const group = await createActiveGroup(app, { mode: 'public_review' });
+    const moderator = await moderatorOf(group);
+    const user = await newUser(app);
+    const requestId = await requestJoin(user, group.groupId);
+    const results = await Promise.all([
+      decide(group.owner, requestId, true),
+      ban(moderator, group.groupId, user),
+    ]);
+    results.forEach(notServerError);
+    expect(await groups.isBanned(group.groupId, user.id)).toBe(true);
+  });
+
+  it('nhận lời mời cùng lúc đóng nhóm', async () => {
+    const group = await createActiveGroup(app, { mode: 'public_review' });
+    const user = await newUser(app);
+    await invite(group.owner, group.groupId, user.email);
+    const invitationId = await invitationIdOf(user, group.groupId);
+    const results = await Promise.all([
+      acceptInvitation(user, invitationId),
+      api(app, 'POST', `/groups/${group.groupId}/close`, group.owner.token),
+    ]);
+    results.forEach(notServerError);
   });
 });

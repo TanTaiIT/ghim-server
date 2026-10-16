@@ -787,10 +787,16 @@ model GroupJoinRequest {
 
 /// `unit_id` không khoá ngoại: xoá đơn vị thì service gỡ đơn vị khỏi lời mời trong cùng transaction.
 /// CHECK viết tay: group_invitations_decided_check.
+/// Lời mời "mù" (change fix-audit-group): mời email nào cũng một dòng. `account_id` trống = không ai nhận được (email
+/// chưa có tài khoản, đã là thành viên, là master, là chính người mời) — dòng vẫn hiện trong danh sách y như dòng thật,
+/// để danh sách không lộ email nào đã có tài khoản (TK 10). `email_hash` cùng khoá với `accounts.email_hash`;
+/// `email_hint` là email đã che (`a***@mien.vn`) cho danh sách của người quản lý.
 model GroupInvitation {
   id        String                @id @default(dbgenerated("uuidv7()")) @db.Uuid
   groupId   String                @map("group_id") @db.Uuid
-  accountId String                @map("account_id") @db.Uuid
+  accountId String?               @map("account_id") @db.Uuid
+  emailHash String                @map("email_hash")
+  emailHint String                @map("email_hint")
   unitId    String?               @map("unit_id") @db.Uuid
   invitedBy String                @map("invited_by") @db.Uuid
   status    GroupInvitationStatus @default(pending)
@@ -798,10 +804,10 @@ model GroupInvitation {
   expiresAt DateTime              @map("expires_at") @db.Timestamptz(3)
   decidedAt DateTime?             @map("decided_at") @db.Timestamptz(3)
 
-  group   Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  group   Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  account Account? @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
-  @@unique([groupId, accountId], where: raw("status = 'pending'"), map: "group_invitations_pending_key")
+  @@unique([groupId, emailHash], where: raw("status = 'pending'"), map: "group_invitations_pending_key")
   @@index([accountId, status])
   @@index([expiresAt], where: raw("status = 'pending'"), map: "group_invitations_due_idx")
   @@map("group_invitations")

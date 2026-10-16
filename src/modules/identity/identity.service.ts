@@ -294,6 +294,8 @@ export interface IdentityService extends ActorResolver {
   accountIdByEmail(email: string): Promise<string | null>;
   /** Dấu băm HMAC của email đã chuẩn hoá, cùng khoá với `accounts.email_hash` — danh sách lớp của nhóm. */
   emailHashOf(email: string): string;
+  /** Email đã che (`a***@mien.vn`), như câu báo của `identity` — danh sách lời mời của nhóm. */
+  emailHintOf(email: string): string;
   /** Dấu băm email của một tài khoản chưa xoá — để biết người đó có tên trong danh sách lớp nào. */
   accountEmailHash(accountId: string): Promise<string | null>;
   /** Dấu băm → tài khoản chưa xoá mang dấu băm đó. */

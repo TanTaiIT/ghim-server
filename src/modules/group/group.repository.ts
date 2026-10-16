@@ -1,6 +1,7 @@
 import type {
   Group,
   GroupAnnouncement,
+  GroupBan,
   GroupInvitation,
   GroupJoinPath,
   GroupJoinRequest,
@@ -113,7 +114,14 @@ export interface GroupRepository {
     accountId: string,
     now: Date,
   ): Promise<GroupInvitation | null>;
-  listGroupInvitations(groupId: string, now: Date, page: SkipTake): Promise<Page<GroupInvitation>>;
+  /** Lời mời đang chờ của nhóm, mới trước; `unitId` có thì chỉ lời mời vào đơn vị đó (điều hành viên đơn vị). */
+  listGroupInvitations(
+    groupId: string,
+    now: Date,
+    query: { unitId: string | null } & SkipTake,
+  ): Promise<Page<GroupInvitation>>;
+  /** Người đang bị cấm khỏi nhóm, mới cấm trước. */
+  listBans(groupId: string, page: SkipTake): Promise<Page<GroupBan>>;
   myInvitations(accountId: string, now: Date): Promise<(GroupInvitation & { group: Group })[]>;
   findRosterUnit(groupId: string, emailHash: string): Promise<{ unitId: string | null } | null>;
   myRosterGroups(emailHash: string): Promise<{ group: Group; unitId: string | null }[]>;
@@ -184,15 +192,21 @@ export interface GroupRepository {
     audit?: AuditEntry | undefined;
   }): Promise<GroupJoinRequest | AddMemberFailure>;
   withdrawJoinRequest(input: { requestId: string; accountId: string; at: Date }): Promise<boolean>;
+  /**
+   * Lời mời "mù" (fix-audit-group): mời email nào cũng một dòng; `accountId` trống = không ai nhận được. Email đang có
+   * lời mời chờ thì lời mời đó lấy đơn vị của lượt mới (giữ hạn cũ), và có người nhận nếu email đã có tài khoản.
+   */
   createInvitation(input: {
     groupId: string;
-    accountId: string;
+    accountId: string | null;
+    emailHash: string;
+    emailHint: string;
     unitId: string | null;
     invitedBy: string;
     at: Date;
     expiresAt: Date;
     audit?: AuditEntry | undefined;
-  }): Promise<GroupInvitation | 'duplicate'>;
+  }): Promise<GroupInvitation>;
   closeInvitation(input: {
     invitationId: string;
     status: 'declined' | 'revoked';
@@ -323,6 +337,19 @@ export interface GroupRepository {
 
 const DAY_MS = 86_400_000;
 
+/*
+ * LOCK_ORDER — mọi transaction của module lấy khoá theo một thứ tự, để hai lượt chen nhau chỉ chờ nhau chứ không khoá
+ * vòng (deadlock → 500, rà soát T18, change fix-audit-group):
+ *
+ *   khoá người xin (`lockRequester`) → khoá cặp (`lockPair`) → dòng nhóm (`groupStateFor`) → lời mời → đơn xin
+ *   → lời giao chủ → thành viên, lệnh cấm
+ *
+ * Duyệt đơn, nhận lời mời, nhận lời giao chủ đọc dòng đó KHÔNG khoá để biết nhóm và người, lấy khoá cặp và dòng nhóm,
+ * rồi mới nhận có điều kiện (`updateMany … status = 'pending'`). Lấy lại khoá đã giữ không phải chờ, nên `insertMember`
+ * gọi lại `lockPair`, `groupStateFor` vẫn đúng thứ tự. Còn sót (lượt quét theo hạn khoá nhiều dòng một lúc) thì
+ * `error-handler` trả 409 "thử lại".
+ */
+
 /** Mọi thay đổi tư cách của một người trong một nhóm đi qua khoá này: vào, gỡ, cấm, nhận lời không đua nhau. */
 const lockPair = (tx: Tx, groupId: string, accountId: string) =>
   tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`group-member:${groupId}:${accountId}`}, 0))`;
@@ -373,6 +400,12 @@ async function insertMember(
     select: { groupId: true },
   });
   if (existing) return 'member';
+  // Huỷ đơn còn chờ của chính người đó: đã vào bằng đường khác thì đơn không còn nghĩa. Đơn trước thành viên — thứ tự khoá
+  // của module (`LOCK_ORDER`).
+  await tx.groupJoinRequest.updateMany({
+    where: { groupId: input.groupId, accountId: input.accountId, status: 'pending' },
+    data: { status: 'cancelled', decidedAt: input.at },
+  });
   const member = await tx.groupMember.create({
     data: {
       groupId: input.groupId,
@@ -381,11 +414,6 @@ async function insertMember(
       joinedAt: input.at,
       unitId: input.unitId,
     },
-  });
-  // Huỷ đơn còn chờ của chính người đó: đã vào bằng đường khác thì đơn không còn nghĩa.
-  await tx.groupJoinRequest.updateMany({
-    where: { groupId: input.groupId, accountId: input.accountId, status: 'pending' },
-    data: { status: 'cancelled', decidedAt: input.at },
   });
   await appendEvents(tx, [
     groupEvent(GROUP_EVENTS.memberJoined, {
@@ -563,17 +591,29 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
       prisma.groupInvitation.findFirst({
         where: { groupId, accountId, status: 'pending', expiresAt: { gt: now } },
       }),
-    listGroupInvitations: (groupId, now, { skip, take }) => {
+    listGroupInvitations: (groupId, now, { unitId, skip, take }) => {
       const where: Prisma.GroupInvitationWhereInput = {
         groupId,
         status: 'pending',
         expiresAt: { gt: now },
+        ...(unitId ? { unitId } : {}),
       };
       return page(
         prisma.groupInvitation.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take }),
         prisma.groupInvitation.count({ where }),
       );
     },
+    listBans: (groupId, { skip, take }) =>
+      page(
+        prisma.groupBan.findMany({
+          where: { groupId },
+          orderBy: [{ bannedAt: 'desc' }, { accountId: 'asc' }],
+          skip,
+          take,
+        }),
+        prisma.groupBan.count({ where: { groupId } }),
+      ),
+
     myInvitations: (accountId, now) =>
       prisma.groupInvitation.findMany({
         where: {
@@ -675,20 +715,21 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
       prisma.$transaction(async (tx) => {
         const current = await groupStateFor(tx, id, 'update');
         if (!current || !expectStates.has(current.state)) return null;
-        const requests = await tx.$queryRaw<{ account_id: string }[]>`
-          UPDATE group_join_requests SET status = 'cancelled', decided_at = ${at}
-          WHERE group_id = ${id}::uuid AND status = 'pending' AND expires_at > ${at}
-          RETURNING account_id::text`;
-        const invitations = await tx.$queryRaw<{ account_id: string }[]>`
+        // Lời mời → đơn xin → lời giao chủ (`LOCK_ORDER`).
+        const invitations = await tx.$queryRaw<{ account_id: string | null }[]>`
           UPDATE group_invitations SET status = 'cancelled', decided_at = ${at}
           WHERE group_id = ${id}::uuid AND status = 'pending' AND expires_at > ${at}
           RETURNING account_id::text`;
         // Đơn, lời mời đã quá hạn mà job chưa quét: huỷ luôn, nhưng không báo — người đó đã được báo hết hạn.
-        await tx.groupJoinRequest.updateMany({
+        await tx.groupInvitation.updateMany({
           where: { groupId: id, status: 'pending' },
           data: { status: 'cancelled', decidedAt: at },
         });
-        await tx.groupInvitation.updateMany({
+        const requests = await tx.$queryRaw<{ account_id: string }[]>`
+          UPDATE group_join_requests SET status = 'cancelled', decided_at = ${at}
+          WHERE group_id = ${id}::uuid AND status = 'pending' AND expires_at > ${at}
+          RETURNING account_id::text`;
+        await tx.groupJoinRequest.updateMany({
           where: { groupId: id, status: 'pending' },
           data: { status: 'cancelled', decidedAt: at },
         });
@@ -718,7 +759,8 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
             groupId: id,
             closedBy,
             cancelledRequestAccountIds: requests.map((row) => row.account_id),
-            cancelledInviteeIds: invitations.map((row) => row.account_id),
+            // Lời mời mù (không người nhận) không báo ai.
+            cancelledInviteeIds: invitations.flatMap((row) => row.account_id ?? []),
             cancelledOfferAccountIds: offers.map((row) => row.toAccountId),
           }),
           groupEvent(GROUP_EVENTS.badgeRightsChanged, { groupId: id, accountId: null }),
@@ -734,8 +776,11 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
     acceptInvitation: ({ invitationId, accountId, at }) =>
       prisma
         .$transaction(async (tx) => {
+          // Đọc không khoá để biết nhóm; khoá cặp và dòng nhóm trước, nhận lời sau (`LOCK_ORDER`).
           const invitation = await tx.groupInvitation.findUnique({ where: { id: invitationId } });
           if (!invitation || invitation.accountId !== accountId) return 'gone';
+          await lockPair(tx, invitation.groupId, accountId);
+          await groupStateFor(tx, invitation.groupId, 'share');
           const taken = await tx.groupInvitation.updateMany({
             where: { id: invitationId, status: 'pending', expiresAt: { gt: at } },
             data: { status: 'accepted', decidedAt: at },
@@ -804,8 +849,11 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
     decideJoinRequest: ({ requestId, approve, decidedBy, at, reapplyAt, audit }) =>
       prisma
         .$transaction(async (tx) => {
+          // Đọc không khoá để biết nhóm và người xin; khoá cặp và dòng nhóm trước, nhận đơn sau (`LOCK_ORDER`).
           const request = await tx.groupJoinRequest.findUnique({ where: { id: requestId } });
           if (!request) return 'gone';
+          await lockPair(tx, request.groupId, request.accountId);
+          const group = await groupStateFor(tx, request.groupId, 'share');
           const taken = await tx.groupJoinRequest.updateMany({
             where: { id: requestId, status: 'pending', expiresAt: { gt: at } },
             data: { status: approve ? 'approved' : 'rejected', decidedAt: at, decidedBy },
@@ -820,9 +868,8 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
               at,
             });
             if (typeof result === 'string') throw new MemberRollback(result);
-          } else {
-            const group = await groupStateFor(tx, request.groupId, 'share');
-            if (!group || !ALLOWS_MODERATION.has(group.state)) throw new MemberRollback('state');
+          } else if (!group || !ALLOWS_MODERATION.has(group.state)) {
+            throw new MemberRollback('state');
           }
           await appendEvents(tx, [
             groupEvent(GROUP_EVENTS.joinRequestDecided, {
@@ -857,32 +904,54 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
         return true;
       }),
 
-    createInvitation: ({ groupId, accountId, unitId, invitedBy, at, expiresAt, audit }) =>
+    createInvitation: (input) =>
       prisma.$transaction(async (tx) => {
-        await lockPair(tx, groupId, accountId);
+        const { groupId, accountId, emailHash, emailHint, unitId, invitedBy, at, expiresAt } =
+          input;
+        // Khoá cặp → dòng nhóm → lời mời (`LOCK_ORDER`). Không có người nhận thì khoá theo dấu băm email: hai lượt mời
+        // cùng email vẫn xếp hàng.
+        await lockPair(tx, groupId, accountId ?? `email:${emailHash}`);
+        await groupStateFor(tx, groupId, 'share');
         // Lời mời cũ đã quá hạn không được giữ chỗ của lời mời mới.
         await tx.groupInvitation.updateMany({
-          where: { groupId, accountId, status: 'pending', expiresAt: { lte: at } },
+          where: { groupId, emailHash, status: 'pending', expiresAt: { lte: at } },
           data: { status: 'expired', decidedAt: at },
         });
         const existing = await tx.groupInvitation.findFirst({
-          where: { groupId, accountId, status: 'pending' },
-          select: { id: true },
+          where: { groupId, emailHash, status: 'pending' },
         });
-        if (existing) return 'duplicate';
-        const invitation = await tx.groupInvitation.create({
-          data: { groupId, accountId, unitId, invitedBy, createdAt: at, expiresAt },
-        });
-        await appendEvents(tx, [
-          groupEvent(GROUP_EVENTS.invited, {
-            groupId,
-            invitationId: invitation.id,
-            accountId,
-            unitId,
-            expiresAt: expiresAt.toISOString(),
-          }),
-        ]);
-        if (audit) await appendAudit(tx, audit);
+        // Mời lại: đổi đơn vị theo lượt mới, giữ hạn cũ; email vừa có tài khoản thì lời mời có người nhận từ giờ.
+        const gainsInvitee = existing !== null && existing.accountId === null && accountId !== null;
+        const invitation = existing
+          ? await tx.groupInvitation.update({
+              where: { id: existing.id },
+              data: { unitId, ...(gainsInvitee ? { accountId } : {}) },
+            })
+          : await tx.groupInvitation.create({
+              data: {
+                groupId,
+                accountId,
+                emailHash,
+                emailHint,
+                unitId,
+                invitedBy,
+                createdAt: at,
+                expiresAt,
+              },
+            });
+        // Chỉ báo khi có người nhận mới: lời mời mù không ai thấy, mời lại người đã được báo thì không báo lần nữa.
+        if (invitation.accountId && (existing === null || gainsInvitee)) {
+          await appendEvents(tx, [
+            groupEvent(GROUP_EVENTS.invited, {
+              groupId,
+              invitationId: invitation.id,
+              accountId: invitation.accountId,
+              unitId: invitation.unitId,
+              expiresAt: invitation.expiresAt.toISOString(),
+            }),
+          ]);
+        }
+        if (input.audit) await appendAudit(tx, input.audit);
         return invitation;
       }),
 
@@ -941,6 +1010,18 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
           where: { groupId_accountId: { groupId, accountId } },
         });
         if (member?.role === 'owner') return 'owner';
+        if (reason === 'banned') {
+          // Bị cấm thì lời mời và đơn đang chờ của người đó không còn nghĩa. Lời mời → đơn → thành viên, lệnh cấm
+          // (`LOCK_ORDER`).
+          await tx.groupInvitation.updateMany({
+            where: { groupId, accountId, status: 'pending' },
+            data: { status: 'cancelled', decidedAt: at },
+          });
+          await tx.groupJoinRequest.updateMany({
+            where: { groupId, accountId, status: 'pending' },
+            data: { status: 'cancelled', decidedAt: at },
+          });
+        }
         if (member) {
           await tx.groupMember.delete({ where: { groupId_accountId: { groupId, accountId } } });
         }
@@ -949,15 +1030,6 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
             where: { groupId_accountId: { groupId, accountId } },
             create: { groupId, accountId, bannedBy: by, bannedAt: at },
             update: {},
-          });
-          // Bị cấm thì đơn và lời mời đang chờ của người đó không còn nghĩa.
-          await tx.groupJoinRequest.updateMany({
-            where: { groupId, accountId, status: 'pending' },
-            data: { status: 'cancelled', decidedAt: at },
-          });
-          await tx.groupInvitation.updateMany({
-            where: { groupId, accountId, status: 'pending' },
-            data: { status: 'cancelled', decidedAt: at },
           });
         }
         const events: Events = [];
@@ -1133,8 +1205,10 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
     acceptOwnerOffer: ({ offerId, accountId, at }) =>
       prisma
         .$transaction(async (tx) => {
+          // Đọc không khoá để biết nhóm; khoá cặp rồi dòng nhóm, nhận lời sau (`LOCK_ORDER`).
           const offer = await tx.groupOwnerOffer.findUnique({ where: { id: offerId } });
           if (!offer || offer.toAccountId !== accountId) return 'gone';
+          await lockPair(tx, offer.groupId, accountId);
           const group = await groupStateFor(tx, offer.groupId, 'update');
           const acceptable =
             offer.kind === 'transfer'
@@ -1147,7 +1221,6 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
             data: { status: 'accepted', decidedAt: at },
           });
           if (taken.count === 0) return 'gone';
-          await lockPair(tx, offer.groupId, accountId);
           const previous = await tx.groupMember.findFirst({
             where: { groupId: offer.groupId, role: 'owner' },
           });
@@ -1168,8 +1241,13 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
               where: { groupId_accountId: { groupId: offer.groupId, accountId } },
               data: { role: 'owner', moderatorUnitId: null, roleSince: at },
             });
-          } else {
-            await tx.groupBan.deleteMany({ where: { groupId: offer.groupId, accountId } });
+          }
+          // Người nhận đang bị cấm: lệnh cấm được gỡ như gỡ cấm, có sự kiện để tin của họ hết lý do "bị cấm" (T17).
+          const unbanned = self
+            ? 0
+            : (await tx.groupBan.deleteMany({ where: { groupId: offer.groupId, accountId } }))
+                .count;
+          if (!self) {
             await tx.groupMember.create({
               data: {
                 groupId: offer.groupId,
@@ -1220,6 +1298,9 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
               cause: before.state === 'ownerless' ? 'ownerless_confirmed' : offer.kind,
             }),
           ];
+          if (unbanned > 0) {
+            events.push(groupEvent(GROUP_EVENTS.unbanned, { groupId: offer.groupId, accountId }));
+          }
           if (!self) {
             events.push(
               groupEvent(GROUP_EVENTS.memberJoined, {
@@ -1362,11 +1443,12 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
 
     cancelPendingFor: (accountId, at) =>
       prisma.$transaction(async (tx) => {
-        await tx.groupJoinRequest.updateMany({
+        // Lời mời → đơn → lời giao chủ (`LOCK_ORDER`).
+        await tx.groupInvitation.updateMany({
           where: { accountId, status: 'pending' },
           data: { status: 'cancelled', decidedAt: at },
         });
-        await tx.groupInvitation.updateMany({
+        await tx.groupJoinRequest.updateMany({
           where: { accountId, status: 'pending' },
           data: { status: 'cancelled', decidedAt: at },
         });
@@ -1419,14 +1501,15 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
 
     expireDue: (now) =>
       prisma.$transaction(async (tx) => {
-        const requests = await tx.$queryRaw<{ id: string; group_id: string; account_id: string }[]>`
-          UPDATE group_join_requests SET status = 'expired', decided_at = ${now}
-          WHERE status = 'pending' AND expires_at <= ${now}
-          RETURNING id::text, group_id::text, account_id::text`;
+        // Lời mời → đơn → lời giao chủ (`LOCK_ORDER`).
         const invitations = await tx.$queryRaw<
-          { id: string; group_id: string; account_id: string }[]
+          { id: string; group_id: string; account_id: string | null }[]
         >`
           UPDATE group_invitations SET status = 'expired', decided_at = ${now}
+          WHERE status = 'pending' AND expires_at <= ${now}
+          RETURNING id::text, group_id::text, account_id::text`;
+        const requests = await tx.$queryRaw<{ id: string; group_id: string; account_id: string }[]>`
+          UPDATE group_join_requests SET status = 'expired', decided_at = ${now}
           WHERE status = 'pending' AND expires_at <= ${now}
           RETURNING id::text, group_id::text, account_id::text`;
         const offers = await tx.groupOwnerOffer.updateManyAndReturn({
@@ -1442,13 +1525,18 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
               outcome: 'expired',
             }),
           ),
-          ...invitations.map((row) =>
-            groupEvent(GROUP_EVENTS.invitationDecided, {
-              groupId: row.group_id,
-              invitationId: row.id,
-              accountId: row.account_id,
-              outcome: 'expired',
-            }),
+          // Lời mời mù không có người nhận để báo.
+          ...invitations.flatMap((row) =>
+            row.account_id
+              ? [
+                  groupEvent(GROUP_EVENTS.invitationDecided, {
+                    groupId: row.group_id,
+                    invitationId: row.id,
+                    accountId: row.account_id,
+                    outcome: 'expired',
+                  }),
+                ]
+              : [],
           ),
           ...offers.map((offer) =>
             groupEvent(GROUP_EVENTS.ownerOfferDecided, {

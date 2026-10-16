@@ -179,6 +179,26 @@ export const joinRequestSchema = z.object({
   expiresAt: z.iso.datetime(),
 });
 
+/**
+ * Lời mời đang chờ cho người quản lý nhóm (fix-audit-group): chỉ email đã che, không có mã tài khoản — dòng của email chưa
+ * có tài khoản giống hệt dòng thật (TK 10). `id` để thu hồi.
+ */
+export const pendingInvitationSchema = z.object({
+  id: z.uuid(),
+  emailHint: z.string(),
+  unitId: z.uuid().nullable(),
+  createdAt: z.iso.datetime(),
+  expiresAt: z.iso.datetime(),
+});
+
+/** Người đang bị cấm khỏi nhóm — để gỡ cấm trên app. */
+export const bannedMemberSchema = z.object({
+  accountId: z.uuid(),
+  displayName: z.string(),
+  bannedAt: z.iso.datetime(),
+  bannedBy: z.uuid(),
+});
+
 export const joinResultSchema = z.discriminatedUnion('result', [
   z.object({ result: z.literal('member'), membership: membershipSchema }),
   z.object({ result: z.literal('request'), request: joinRequestSchema }),
@@ -236,6 +256,8 @@ export type MembershipDto = z.infer<typeof membershipSchema>;
 export type MyGroupDto = z.infer<typeof myGroupSchema>;
 export type MemberDto = z.infer<typeof memberSchema>;
 export type JoinRequestDto = z.infer<typeof joinRequestSchema>;
+export type PendingInvitationDto = z.infer<typeof pendingInvitationSchema>;
+export type BannedMemberDto = z.infer<typeof bannedMemberSchema>;
 export type JoinResultDto = z.infer<typeof joinResultSchema>;
 export type InvitationDto = z.infer<typeof invitationSchema>;
 export type MyInvitationsDto = z.infer<typeof myInvitationsSchema>;
