@@ -42,6 +42,11 @@ function deviceNameOf(request: FastifyRequest, explicit: string | undefined): st
   return userAgent ? userAgent.slice(0, DEVICE_NAME_MAX) : DEFAULT_DEVICE_NAME;
 }
 
+/** Rate limit của mọi route kiểm một bí mật (mật khẩu, mã) — khách hay người đã đăng nhập. */
+export const sensitiveRateLimit = (config: RuntimeConfig) => ({
+  rateLimit: { max: () => config.get('identity.authRateLimitPerMinute'), timeWindow: '1 minute' },
+});
+
 /** Route khách: không guard. Mọi route ở đây là cửa cho kẻ dò, nên có rate limit riêng. */
 export const identityAuthRoutes: FastifyPluginAsyncZod<IdentityAuthRoutesOptions> = async (
   app,
@@ -49,9 +54,7 @@ export const identityAuthRoutes: FastifyPluginAsyncZod<IdentityAuthRoutesOptions
 ) => {
   // Ba con số dưới đây đọc ở mỗi lượt, không lúc đăng ký route: chúng nằm trong bảng con số có
   // phiên bản, master đổi thì có hiệu lực ngay (spec config-versions, rà soát 10/10/2026).
-  const sensitive = {
-    rateLimit: { max: () => config.get('identity.authRateLimitPerMinute'), timeWindow: '1 minute' },
-  };
+  const sensitive = sensitiveRateLimit(config);
 
   /**
    * Access token ký ở đây chứ không trong service: service không biết Fastify. Web nhận refresh

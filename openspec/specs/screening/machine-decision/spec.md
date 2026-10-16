@@ -60,6 +60,11 @@ MUST NOT bao giờ dẫn tới cho qua, và tin vẫn được nhận chứ khô
 - **WHEN** chữ của tin không trúng dấu hiệu nào nhưng việc kiểm một trong các ảnh báo lỗi
 - **THEN** kết quả máy là giữ cho người, không phải hiện đầy đủ hay hiện hạn chế
 
+#### Scenario: Lỗi lúc kết luận
+
+- **WHEN** việc đọc dữ kiện để kết luận lượt máy duyệt báo lỗi lúc một tin được gửi
+- **THEN** tin vẫn được nhận và kết quả máy là giữ cho người
+
 ### Requirement: Đang kiểm quá 5 phút thì giữ cho người
 
 Tin ở trạng thái đang kiểm quá 5 phút (giá trị khởi đầu) mà chưa đủ kết quả cho chữ và mọi ảnh SHALL bị giữ
@@ -84,7 +89,9 @@ cho người. Hệ thống SHALL rà các tin đang kiểm mỗi 5 phút. Kết 
 ### Requirement: Tin đang hiện mà thiếu kết quả ảnh thì chuyển sang hạn chế
 
 Lượt rà mỗi 5 phút SHALL tìm tin đang hiển thị có ảnh chưa có kết quả kiểm và chuyển tin đó sang hiển thị
-hạn chế với lý do "máy" (chốt 12/10/2026) — lưới an toàn cho trường hợp lẽ ra không xảy ra (cam kết 4).
+hạn chế với lý do "máy" (chốt 12/10/2026) — lưới an toàn cho trường hợp lẽ ra không xảy ra (cam kết 4) — và xếp kiểm các ảnh đó. Mỗi phiên bản
+tin MUST chỉ bị chuyển một lần vì lý do này: người duyệt đã cho đạt thì lượt rà sau không hạn chế lại (chốt
+15/10/2026).
 
 #### Scenario: Tin hiện đầy đủ thiếu kết quả ảnh
 
@@ -95,3 +102,8 @@ hạn chế với lý do "máy" (chốt 12/10/2026) — lưới an toàn cho tr�
 
 - **WHEN** lượt rà gặp một tin đang hiện đầy đủ đã có kết quả cho mọi ảnh
 - **THEN** tin giữ nguyên mức hiển thị đầy đủ
+
+#### Scenario: Người duyệt đã cho đạt
+
+- **WHEN** lượt rà đã chuyển một tin sang hạn chế vì thiếu kết quả ảnh, người duyệt cho đạt, và ở lượt rà kế tiếp ảnh vẫn chưa có kết quả
+- **THEN** tin giữ mức hiển thị đầy đủ và không có việc mới nào về tin đó

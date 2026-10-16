@@ -6,7 +6,7 @@ import { DAY_MS } from '../calc/display-period.calc.js';
 import { isDetached } from '../calc/hide.calc.js';
 import { LISTING_EVENTS, listingEvent } from '../listing.outbox.js';
 import type { OwnListingDto } from '../listing.schema.js';
-import { invalidTransition, type ListingShared } from '../listing.shared.js';
+import { invalidTransition, type ListingShared, placementLocked } from '../listing.shared.js';
 import {
   contentData,
   fieldsOf,
@@ -28,7 +28,8 @@ const isUniqueViolation = (error: unknown): boolean =>
  * bước 3–7 của lượt gửi với `kind = move`. Tin cũ không đổi; unique `moved_from_listing_id` chặn lượt thứ hai.
  */
 export function createMoveToMarketplace(shared: ListingShared, submission: Submission) {
-  const { repository, media, trust, screening, config, clock, ownedBy, toOwnDto } = shared;
+  const { repository, media, trust, screening, openWork, config, clock, ownedBy, toOwnDto } =
+    shared;
 
   return async (
     actor: Actor,
@@ -43,6 +44,8 @@ export function createMoveToMarketplace(shared: ListingShared, submission: Submi
     // Đã bán thì không còn gì để bán; bị từ chối / bị gỡ mà chuyển đi là thoát quyết định của người duyệt (D8).
     if (NOT_MOVABLE.has(old.state))
       throw invalidTransition('Tin này không chuyển lên sàn chung được');
+    // Việc nhóm chuyển lên staff còn chờ: chuyển đi là thoát việc (TK 27 cam kết 19, fix-audit-review T1).
+    if (await openWork.blocksPlacement(id)) throw placementLocked();
     const now = clock();
     const days = config.get('listing.moveToMarketplaceDays');
     if (now.getTime() > old.leftGroupAt.getTime() + days * DAY_MS) {
@@ -88,14 +91,16 @@ export function createMoveToMarketplace(shared: ListingShared, submission: Submi
           state: 'checking',
           movedFromListingId: old.id,
         },
-        before: (tx) =>
-          trust.assertCanSubmit(tx, {
+        before: async (tx) => {
+          await submission.assertStillPostable(tx, actor.accountId, after.categoryId, false);
+          await trust.assertCanSubmit(tx, {
             accountId: actor.accountId,
             listingId: newId,
             kind: 'move',
             fromState: old.state,
             outsiderGroupId: null,
-          }),
+          });
+        },
         after: async (tx, row) => {
           await copy.commit(tx);
           await screening.openRun(tx, { listingId: row.id, version: row.version, score });

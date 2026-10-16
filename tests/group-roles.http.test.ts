@@ -1,8 +1,11 @@
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
+import type { Actor } from '../src/common/auth/actor.js';
+import { createStaticRuntimeConfig } from '../src/common/config/runtime-config.js';
 import { createOutboxDispatcher } from '../src/common/outbox/dispatcher.js';
 import { registerGroupListeners } from '../src/modules/group/group.events.js';
+import { createGroupService } from '../src/modules/group/group.service.js';
 import { outboxEvents, prisma } from './db-helpers.js';
 import {
   type ActiveGroup,
@@ -536,6 +539,22 @@ describe('Chủ cũ trở lại khi được mở khoá trước', () => {
     expect(await roleOf(group.groupId, group.moderator.id)).toBe('moderator');
   });
 
+  it('lượt khoá chủ được xử lại sau khi mở khoá: nhóm vẫn có chủ cũ, không đề cử (fix-audit-listeners)', async () => {
+    const group = await ownerlessGroup();
+    await unlockAccount(group.master, group.owner.id);
+    await prisma.outboxEvent.create({
+      data: { type: 'identity.account.locked', payload: { accountId: group.owner.id } },
+    });
+    await deliver();
+
+    expect(await groupRow(group.groupId)).toMatchObject({
+      state: 'active',
+      nomineeId: null,
+      ownerlessSince: null,
+    });
+    expect(await roleOf(group.groupId, group.owner.id)).toBe('owner');
+  });
+
   it('Xác nhận đề cử đã bị huỷ', async () => {
     const group = await ownerlessGroup();
     const offerId = offerIdOf(await offerOwner(group.master, group.groupId, group.moderator.id));
@@ -659,6 +678,57 @@ describe('Việc hằng ngày trong lúc thiếu chủ', () => {
     expect(await groupRow(group.groupId)).toMatchObject({
       mode: 'public_open',
       state: 'ownerless',
+    });
+  });
+});
+
+// Bộ đếm tin "nhóm công khai" giả: đường duy nhất để biết lượt đổi chế độ có đi qua trạng thái chuyển hay không.
+const counting = (count: number) =>
+  createGroupService({
+    repository: repositories.group,
+    identity: app.modules.identity,
+    config: createStaticRuntimeConfig(),
+    clock: () => TEST_NOW,
+    publicListings: { countInGroup: () => Promise.resolve(count) },
+  });
+const masterOf = (group: OwnerlessGroup): Actor => ({
+  accountId: group.master.id,
+  role: 'master',
+  sessionId: group.master.id,
+  secondFactorAt: TEST_NOW,
+  emailVerified: true,
+});
+
+describe('Nhóm thiếu chủ không bắt đầu chuyển sang riêng tư (fix-audit-stuck-data, C10)', () => {
+  it('còn tin "nhóm công khai": 409 GROUP_OWNER_REQUIRED, nhóm vẫn thiếu chủ, không có sự kiện riêng tư hoá', async () => {
+    const group = await ownerlessGroup();
+    const before = await groupRow(group.groupId);
+    await expect(
+      counting(1).updateSettings(masterOf(group), group.groupId, { mode: 'private_code' }),
+    ).rejects.toMatchObject({ code: 'GROUP_OWNER_REQUIRED' });
+    expect(await groupRow(group.groupId)).toMatchObject({
+      state: 'ownerless',
+      mode: before.mode,
+      targetMode: null,
+      ownerlessSince: before.ownerlessSince,
+    });
+    const started = (await outboxEvents()).filter(
+      (event) =>
+        event.type === 'group.privatization.started' &&
+        (event.payload as { groupId: string }).groupId === group.groupId,
+    );
+    expect(started).toEqual([]);
+  });
+
+  it('không còn tin "nhóm công khai": đổi chế độ ngay, nhóm vẫn thiếu chủ', async () => {
+    const group = await ownerlessGroup();
+    const result = await counting(0).updateSettings(masterOf(group), group.groupId, {
+      mode: 'private_code',
+    });
+    expect(result.mode).toBe('private_code');
+    expect(await groupRow(group.groupId)).toMatchObject({
+      state: 'ownerless',
+      mode: 'private_code',
     });
   });
 });

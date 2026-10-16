@@ -450,3 +450,77 @@ describe('Bên nghe chịu được nhận trùng; việc theo lịch', () => {
     expect(await trust().tierOf(user.id)).toBe('T1');
   });
 });
+
+describe('Theo trạng thái hiện tại và tính lần lượt (fix-audit-screening-trust)', () => {
+  it('gỡ vì vi phạm → khiếu nại thắng → lượt gỡ được xử lại: tin vẫn sạch, mức không đổi', async () => {
+    const { user, listing } = await cleanListing();
+    now = day(15);
+    const removed = await remove(listing, 'violation');
+    await deliverAll(app);
+    now = day(18);
+    await app.modules.listing.review({
+      listingId: removed.id,
+      version: removed.version,
+      arrow: 'appealWin',
+    });
+    await deliverAll(app);
+    const events = await prisma.outboxEvent.findMany({
+      where: {
+        type: 'listing.state.changed',
+        payload: { path: ['listingId'], equals: listing.id },
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+    const removal = events.find((event) => (event.payload as { to?: string }).to === 'removed');
+    if (!removal) throw new Error('Không có sự kiện gỡ');
+
+    await prisma.outboxEvent.create({
+      data: { type: removal.type, payload: removal.payload ?? {} },
+    });
+    await deliverAll(app);
+    expect(await cleanRows(listing.id)).toEqual([expect.objectContaining({ voidedAt: null })]);
+    expect((await tierRow(user.id))?.tier).toBe('T1');
+  });
+
+  it('lượt tính dừng giữa chừng trong lúc tin sạch duy nhất bị gỡ vì vi phạm: mức cuối là T0 (T23)', async () => {
+    const { user, listing } = await cleanListing();
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let gated = true;
+    const slow = createTrustService({
+      repository: {
+        ...repositories.trust,
+        async findTier(accountId, tx) {
+          const row = await repositories.trust.findTier(accountId, tx);
+          if (gated) {
+            gated = false;
+            await gate;
+          }
+          return row;
+        },
+      },
+      listings: app.modules.listing,
+      identity: app.modules.identity,
+      buyerInterest: noBuyerInterest,
+      holds: genericHolds,
+      config: createStaticRuntimeConfig({}, 0),
+      clock: () => now,
+    });
+    const stale = slow.recompute(user.id);
+    await remove(listing, 'violation');
+    const removal = deliverAll(app);
+    // Lượt gỡ đã ghi dữ kiện (vô hiệu tin sạch) và đang chờ khoá của lượt tính đang dừng.
+    const voided = async (): Promise<void> => {
+      const [row] = await cleanRows(listing.id);
+      if (row?.voidedAt) return;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      await voided();
+    };
+    await voided();
+    release?.();
+    await Promise.all([stale, removal]);
+    expect((await tierRow(user.id))?.tier).toBe('T0');
+  });
+});

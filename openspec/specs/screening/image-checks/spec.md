@@ -60,3 +60,35 @@ sách trắng MUST NOT tính là ảnh trùng.
 
 - **WHEN** một tài khoản không mang quyền staff thêm ảnh vào danh sách trắng
 - **THEN** response có HTTP 403 `FORBIDDEN`
+
+### Requirement: Mọi ảnh của lượt gửi đều được kiểm
+
+Mọi ảnh của một lượt gửi SHALL được kiểm, kể cả khi lượt đó đã kết luận trước khi ảnh có kết quả (chấm chữ lỗi,
+quá hạn): ảnh đã kiểm là ứng viên so trùng cho mọi tin gửi sau. Ảnh chờ kết quả quá thời gian chờ ảnh (5 phút,
+giá trị khởi đầu) SHALL được xếp kiểm lại, mỗi ảnh tối đa một lần trong mỗi khoảng chờ (chốt 15/10/2026).
+
+#### Scenario: Chấm chữ lỗi vẫn kiểm ảnh
+
+- **WHEN** việc chấm chữ báo lỗi lúc một tin 2 ảnh được gửi
+- **THEN** kết quả máy là giữ cho người, và cả 2 ảnh vẫn được kiểm, có kết quả
+
+#### Scenario: Ảnh kẹt chờ kiểm
+
+- **WHEN** một ảnh chờ kết quả đã hơn 5 phút mà việc kiểm chưa chạy, và lượt rà chạy hai lần liền nhau
+- **THEN** ảnh được xếp kiểm lại đúng một lần
+
+### Requirement: Lỗi tạm thời của kho được kiểm lại ở lượt gửi sau
+
+Ảnh có kết quả lỗi vì kho không trả lời sau mọi lượt thử SHALL được kiểm lại khi một lượt gửi sau dùng nó: lượt đó
+chờ kết quả mới như ảnh chưa kiểm. Ảnh lỗi vì tệp không còn hay không đọc được MUST NOT được kiểm lại — lượt gửi
+sau giữ cho người ngay như cũ (chốt 15/10/2026).
+
+#### Scenario: Kho trở lại sau lượt lỗi
+
+- **WHEN** việc kiểm một ảnh lỗi vì kho không trả lời, tin bị giữ cho người, rồi kho trả lời lại và người đăng sửa tin gửi lại
+- **THEN** ảnh được kiểm lại và kết quả máy của lượt mới tính như ảnh bình thường
+
+#### Scenario: Ảnh không đọc được
+
+- **WHEN** việc kiểm một ảnh lỗi vì tệp không đọc được, rồi người đăng sửa tin gửi lại
+- **THEN** lượt mới giữ cho người ngay, ảnh không được kiểm lại

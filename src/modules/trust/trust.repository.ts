@@ -30,9 +30,14 @@ export interface TierWrite {
 }
 
 export interface TrustRepository {
-  findTier(accountId: string): Promise<TrustTierResult | null>;
+  /**
+   * Transaction mở bằng khoá advisory theo tài khoản: các lượt tính mức của một người chạy lần lượt, lượt sau đọc dữ kiện
+   * mới nhất (fix-audit-screening-trust, T23). Khác khoá `trust-submit:` của hạn mức.
+   */
+  withAccountLock<T>(accountId: string, work: (tx: Tx) => Promise<T>): Promise<T>;
+  findTier(accountId: string, tx?: Tx): Promise<TrustTierResult | null>;
   /** Tin sạch đang được tính: có mốc, không bị void. */
-  validClean(accountId: string): Promise<CleanFact[]>;
+  validClean(accountId: string, tx?: Tx): Promise<CleanFact[]>;
   /**
    * Ghi "tin X thành sạch lúc D" một lần cho mỗi tin (PK): đã có mốc thì không đổi; dòng chỉ mang dấu void thì điền mốc
    * (design mục 13). `true` = lượt này ghi được mốc.
@@ -55,7 +60,7 @@ export interface TrustRepository {
   /** Tin đã có dòng (sạch hay đang bị void) — lượt hằng ngày bỏ qua. */
   knownListings(listingIds: string[]): Promise<Set<string>>;
   /** `'stale'` = dòng đã đổi từ lúc đọc; mức đổi thì ghi lịch sử và phát `trust.tier.changed` cùng transaction. */
-  writeTier(input: TierWrite): Promise<'written' | 'stale'>;
+  writeTier(input: TierWrite, tx?: Tx): Promise<'written' | 'stale'>;
   /**
    * Tài khoản lượt hằng ngày tính lại (design mục 7): có tin sạch hay đã có kết quả, trừ tài khoản đã ở T3 theo bảng
    * con số hiện hành — tuổi chạm mốc, tin dời tới lượt, bảng con số mới đều nằm trong tập này. Theo trang mã tài khoản.
@@ -95,10 +100,15 @@ async function recordChange(tx: Tx, input: TierWrite): Promise<void> {
 
 export function createTrustRepository(prisma: PrismaClient): TrustRepository {
   return {
-    findTier: (accountId) => prisma.trustTierResult.findUnique({ where: { accountId } }),
-
-    async validClean(accountId) {
-      const rows = await prisma.trustCleanListing.findMany({
+    withAccountLock: (accountId, work) =>
+      prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`trust-tier:${accountId}`}, 0))`;
+        return work(tx);
+      }),
+    findTier: (accountId, tx) =>
+      (tx ?? prisma).trustTierResult.findUnique({ where: { accountId } }),
+    async validClean(accountId, tx) {
+      const rows = await (tx ?? prisma).trustCleanListing.findMany({
         where: { accountId, cleanAt: { not: null }, voidedAt: null },
         select: { listingId: true, cleanAt: true },
       });
@@ -143,8 +153,8 @@ export function createTrustRepository(prisma: PrismaClient): TrustRepository {
       return new Set(rows.map((row) => row.listingId));
     },
 
-    writeTier: (input) =>
-      prisma.$transaction(async (tx) => {
+    writeTier: (input, outer) => {
+      const write = async (tx: Tx): Promise<'written' | 'stale'> => {
         const data = {
           tier: input.tier,
           countedClean: input.countedClean,
@@ -167,7 +177,9 @@ export function createTrustRepository(prisma: PrismaClient): TrustRepository {
         }
         await recordChange(tx, input);
         return 'written';
-      }),
+      };
+      return outer ? write(outer) : prisma.$transaction(write);
+    },
 
     async recomputeCandidates({ configVersion, after, take }) {
       const rows = await prisma.$queryRaw<{ accountId: string }[]>`

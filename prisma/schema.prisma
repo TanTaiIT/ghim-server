@@ -60,6 +60,8 @@ enum SessionRevokeReason {
   account_locked
   account_deleted
   refresh_reuse
+  /// Xác nhận email mới thu hồi mọi phiên khác (fix-audit-identity, T12).
+  email_changed
 
   @@map("session_revoke_reason")
 }
@@ -88,8 +90,8 @@ enum IdVerificationStatus {
 
 // ── IDENTITY: BẢNG ───────────────────────────────────────────────────────────────────────────────
 
-/// CHECK tay (migration init_identity):
-///   accounts_credential_check: password_hash IS NOT NULL OR google_sub IS NOT NULL
+/// CHECK tay (migration init_identity, nới ở anonymize_deleted_accounts):
+///   accounts_credential_check: status = 'deleted' OR password_hash IS NOT NULL OR google_sub IS NOT NULL
 ///   accounts_locked_check:     (status = 'locked')  = (locked_at IS NOT NULL)
 ///   accounts_deleted_check:    (status = 'deleted') = (deleted_at IS NOT NULL)
 /// CHECK tay (migration account_avatar):
@@ -1311,6 +1313,15 @@ enum ImageCheckStatus {
   @@map("image_check_status")
 }
 
+/// Loại lỗi của việc kiểm ảnh: `transient` = kho không trả lời sau mọi lượt thử — lượt gửi sau kiểm lại; `permanent` =
+/// tệp mất hay không giải mã được (fix-audit-screening-trust, T21).
+enum ImageCheckErrorKind {
+  transient
+  permanent
+
+  @@map("image_check_error_kind")
+}
+
 /// Dấu hiệu cộng điểm, hay cổng cứng giữ tin (TK 13, 14).
 enum ScreeningRuleKind {
   signal
@@ -1381,9 +1392,11 @@ model ScreeningRun {
 /// ứng viên: hai ảnh lệch ≤ 4 bit chắc chắn trùng nguyên ít nhất một dải (design mục 3). CHECK tay (migration
 /// init_screening):
 ///   image_checks_done_check: (status = 'done') = (dhash IS NOT NULL)
+/// CHECK tay (migration fix_audit_image_retry):
+///   image_checks_error_kind_check: (status = 'error') = (error_kind IS NOT NULL)
 model ImageCheck {
-  imageId        String           @id @map("image_id") @db.Uuid
-  ownerAccountId String           @map("owner_account_id") @db.Uuid
+  imageId        String               @id @map("image_id") @db.Uuid
+  ownerAccountId String               @map("owner_account_id") @db.Uuid
   status         ImageCheckStatus
   dhash          BigInt?
   band0          Int?
@@ -1391,15 +1404,31 @@ model ImageCheck {
   band2          Int?
   band3          Int?
   band4          Int?
-  attempts       Int              @default(0)
-  checkedAt      DateTime?        @map("checked_at") @db.Timestamptz(3)
+  attempts       Int                  @default(0)
+  checkedAt      DateTime?            @map("checked_at") @db.Timestamptz(3)
+  /// Lần xếp việc kiểm gần nhất; trống = chưa xếp được (gửi việc hỏng). Ảnh `pending` trống hay xếp quá thời gian chờ
+  /// ảnh thì được xếp lại — mỗi ảnh một lần mỗi khoảng, không dồn việc trùng (fix-audit-image-checks).
+  queuedAt       DateTime?            @map("queued_at") @db.Timestamptz(3)
+  errorKind      ImageCheckErrorKind? @map("error_kind")
 
+  @@index([queuedAt], where: raw("status = 'pending'"), map: "image_checks_pending_queued_idx")
   @@index([band0], where: raw("status = 'done'"), map: "image_checks_band0_idx")
   @@index([band1], where: raw("status = 'done'"), map: "image_checks_band1_idx")
   @@index([band2], where: raw("status = 'done'"), map: "image_checks_band2_idx")
   @@index([band3], where: raw("status = 'done'"), map: "image_checks_band3_idx")
   @@index([band4], where: raw("status = 'done'"), map: "image_checks_band4_idx")
   @@map("image_checks")
+}
+
+/// Lưới an toàn đã hạn chế "máy" tin này ở phiên bản này vì thiếu kết quả ảnh — mỗi phiên bản một lần, để lượt cho đạt
+/// của người duyệt là cuối cùng (fix-audit-image-checks, C2). Không khoá ngoại sang `listings`: bảng của module khác.
+model ScreeningUncheckedMark {
+  listingId      String   @map("listing_id") @db.Uuid
+  listingVersion Int      @map("listing_version")
+  markedAt       DateTime @map("marked_at") @db.Timestamptz(3)
+
+  @@id([listingId, listingVersion])
+  @@map("screening_unchecked_marks")
 }
 
 /// Ảnh mẫu của hãng nhiều người cùng dùng — trùng với ảnh ở đây thì không tính là ảnh trùng (spec image-checks).
@@ -1712,6 +1741,8 @@ model ReviewSampleCandidate {
   listingId      String   @map("listing_id") @db.Uuid
   listingVersion Int      @map("listing_version")
   wentLiveAt     DateTime @map("went_live_at") @db.Timestamptz(3)
+  /// Người cho đạt / khôi phục phiên bản này — loại khỏi việc mẫu của chính quyết định đó (fix-audit-review, T2).
+  approvedBy     String?  @map("approved_by") @db.Uuid
 
   listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
 

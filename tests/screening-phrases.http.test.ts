@@ -4,12 +4,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createFakeJobs, type FakeJobs } from './fakes/jobs.fake.js';
 import { prisma } from './db-helpers.js';
 import { api, deliverAll, newMaster, newUser, type TestUser } from './group-helpers.js';
-import { getOwn, listingApi } from './listing-http-helpers.js';
+import { getOwn, listingApi, readyDraft, submit } from './listing-http-helpers.js';
 import {
   activePhrase,
   codesOf,
   DAY_MS,
+  deviceOf,
   LATER,
+  markChecked,
   runOf,
   screened,
   tierPort,
@@ -250,5 +252,112 @@ describe('Tên hiển thị qua bộ lọc cụm từ cấm', () => {
     expect(named.map((row) => [row.publicName, row.me.nameHidden])).toEqual(
       names.map((name) => [name, false]),
     );
+  });
+});
+
+describe('Quét lại lần hai sau thời gian chờ ảnh (fix-audit-image-checks, C11)', () => {
+  it('bật cụm mức chắc gửi hai việc quét: ngay, và hẹn sau thời gian chờ ảnh cộng 10 phút', async () => {
+    jobs.sent.length = 0;
+    await activePhrase(app, master, 'bán mìn tự chế');
+    const rescans = jobs.sent.filter((job) => job.name === 'screening.rescan-phrase');
+    expect(rescans.map((job) => job.startAfter)).toEqual([
+      undefined,
+      new Date(LATER.getTime() + 15 * 60_000),
+    ]);
+    await jobs.runAll();
+  });
+
+  it('tin đã kết luận lúc bật mà kết quả chưa tới tin: lượt quét đầu bỏ sót, lượt hai rút về chờ duyệt', async () => {
+    const owner = await newUser(app);
+    const draft = await readyDraft(app, owner, { description: 'Bán ngòi nổ loại cũ' });
+    await markChecked(
+      draft.images.map((image) => image.id),
+      owner.id,
+    );
+    const sent = await submit(app, owner, draft, deviceOf(owner));
+    expect(sent.statusCode, sent.body).toBe(200);
+    await activePhrase(app, master, 'bán ngòi nổ');
+    await jobs.runAll(LATER);
+    await deliverAll(app);
+    expect((await getOwn(app, owner, draft.id)).state).toBe('live');
+
+    await jobs.runAll();
+    await deliverAll(app);
+    expect((await getOwn(app, owner, draft.id)).state).toBe('pending');
+    expect((await runOf(draft.id, 'recall')).outcome).toBe('hold');
+  });
+
+  it('tin bị rút ở lượt đầu rồi người duyệt cho đạt: lượt quét lần hai không rút lại', async () => {
+    const owner = await newUser(app);
+    const live = (await screened(app, owner, { description: 'Bán kíp nổ' })).listing;
+    await activePhrase(app, master, 'bán kíp nổ');
+    await jobs.runAll(LATER);
+    await deliverAll(app);
+    const pending = await getOwn(app, owner, live.id);
+    expect(pending.state).toBe('pending');
+    await app.modules.listing.review({
+      listingId: live.id,
+      version: pending.version,
+      arrow: 'approve',
+    });
+
+    await jobs.runAll();
+    await deliverAll(app);
+    expect((await getOwn(app, owner, live.id)).state).toBe('live');
+    expect(
+      await prisma.screeningRun.count({ where: { listingId: live.id, trigger: 'recall' } }),
+    ).toBe(1);
+  });
+});
+
+const rescanJobs = () => jobs.sent.filter((job) => job.name === 'screening.rescan-phrase');
+
+describe('Đổi cụm mức chắc đang bật cũng quét lại (fix-audit-screening-trust, T22)', () => {
+  it('nâng cụm đang bật từ mơ hồ lên chắc: gửi hai lượt quét, tin đang hiện chứa cụm bị rút', async () => {
+    const owner = await newUser(app);
+    const live = (await screened(app, owner, { description: 'Nhận hàng cấm xuất khẩu' })).listing;
+    const id = await activePhrase(app, master, 'hàng cấm xuất', 'ambiguous');
+    await jobs.runAll();
+    jobs.sent.length = 0;
+
+    const raised = await phrases('PATCH', `/${id}`, { level: 'certain' });
+    expect(raised.statusCode, raised.body).toBe(200);
+    expect(rescanJobs()).toHaveLength(2);
+    await jobs.runAll();
+    await deliverAll(app);
+    expect((await getOwn(app, owner, live.id)).state).toBe('pending');
+  });
+
+  it('nới ngoại lệ không quét; bỏ ngoại lệ thì tin chỉ có ngoại lệ bị rút', async () => {
+    const owner = await newUser(app);
+    const live = (await screened(app, owner, { description: 'Bán dao găm đồ chơi' })).listing;
+    const id = await activePhrase(app, master, 'bán dao găm', 'certain', ['bán dao găm đồ chơi']);
+    await jobs.runAll();
+    await deliverAll(app);
+    expect((await getOwn(app, owner, live.id)).state).toBe('live');
+
+    jobs.sent.length = 0;
+    await phrases('PATCH', `/${id}`, { exceptions: ['bán dao găm đồ chơi', 'bán dao găm giả'] });
+    expect(rescanJobs()).toHaveLength(0);
+    await phrases('PATCH', `/${id}`, { exceptions: [] });
+    expect(rescanJobs()).toHaveLength(2);
+    await jobs.runAll();
+    await deliverAll(app);
+    expect((await getOwn(app, owner, live.id)).state).toBe('pending');
+  });
+
+  it('lượt quét lúc bật bị lỡ, bấm bật lại cụm mức chắc đang bật: quét lại, cụm vẫn bật', async () => {
+    const owner = await newUser(app);
+    const live = (await screened(app, owner, { description: 'Bán mã độc tống tiền' })).listing;
+    const id = await activePhrase(app, master, 'bán mã độc');
+    jobs.sent.length = 0;
+
+    const again = await phrases('POST', `/${id}/activate`, {});
+    expect(again.statusCode, again.body).toBe(200);
+    expect(again.json().data.mode).toBe('on');
+    expect(rescanJobs()).toHaveLength(2);
+    await jobs.runAll();
+    await deliverAll(app);
+    expect((await getOwn(app, owner, live.id)).state).toBe('pending');
   });
 });

@@ -65,6 +65,11 @@ mọi nhóm. Nháp, tin tạm ẩn, tin đã bán, hết hạn, bị từ chối
 - **WHEN** người dùng ở mức T0 có 9 tin đang hiển thị, 5 tin đã bán, 5 tin hết hạn và 3 nháp gửi một tin mới
 - **THEN** tin được gửi
 
+#### Scenario: Tin chờ duyệt đã rời nhóm không chiếm chỗ
+
+- **WHEN** người dùng ở mức T0 có 9 tin đang hiển thị và 1 tin chờ duyệt trong một nhóm đã đóng gửi một tin mới
+- **THEN** tin được gửi
+
 ### Requirement: Nhịp gửi theo mức
 
 Mỗi lượt tin qua máy duyệt do người đăng khởi động — gửi tin mới, gửi lại sau khi sửa, sửa tin phải qua máy

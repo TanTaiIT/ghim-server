@@ -20,7 +20,7 @@ import type {
   MachineNotice,
   OpenWork,
 } from './listing.ports.js';
-import type { ListingRepository } from './listing.repository.js';
+import type { ListingRepository, Tx } from './listing.repository.js';
 import type { ListingDto, OwnListingDto } from './listing.schema.js';
 import type { PlacementBlock } from './calc/placement.calc.js';
 import { canView, type Viewer } from './calc/visibility.calc.js';
@@ -36,7 +36,13 @@ export interface ListingServiceDeps {
   groups: ListingGroupPort;
   categories: ListingCategoryPort;
   media: ListingMediaPort;
-  identity: { deviceToken(deviceId: string): string };
+  identity: {
+    deviceToken(deviceId: string): string;
+    /** Trạng thái hiện tại của tài khoản — bên nghe khoá / mở khoá đối chiếu (fix-audit-listeners). */
+    accountState(accountId: string): Promise<{ status: string } | null>;
+    /** Trong transaction của lượt gửi: `FOR SHARE` dòng tài khoản, trả trạng thái (fix-audit-listing, T15). */
+    lockAccountStatus(tx: Tx, accountId: string): Promise<string | null>;
+  };
   trust: ListingTrustPort;
   screening: ListingScreeningPort;
   openWork: OpenWork;
@@ -52,6 +58,15 @@ export const invalidTransition = (
 ): ConflictError => new ConflictError(message, 'INVALID_TRANSITION');
 export const versionConflict = (): ConflictError =>
   new ConflictError('Tin vừa được sửa ở nơi khác — tải lại rồi thử lại', 'CONFLICT');
+/** Tin đã rời nhóm hẳn chỉ chuyển lên sàn chung hay xoá được (spec editing) — mọi đường ghi khác dùng chung câu này. */
+export const listingDetached = (): ConflictError =>
+  new ConflictError(
+    'Tin đã rời nhóm hẳn — chỉ chuyển lên sàn chung hoặc xoá được',
+    'LISTING_DETACHED',
+  );
+/** Nơi đăng không đổi khi tin đang có việc chờ (spec editing) — sửa và gia hạn dùng chung. */
+export const placementLocked = (): ConflictError =>
+  new ConflictError('Tin đang có việc chờ xử, chưa đổi nơi đăng được', 'PLACEMENT_LOCKED');
 
 const PLACEMENT_MESSAGES: Record<PlacementBlock, { status: 403 | 409; message: string }> = {
   GROUP_LOCKED: { status: 409, message: 'Nhóm đang tạm khoá, chưa nhận tin mới' },

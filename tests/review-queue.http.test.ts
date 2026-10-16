@@ -17,6 +17,7 @@ import {
   machinePass,
   type OwnListing,
   patch,
+  signedInAt,
   submitted,
 } from './listing-http-helpers.js';
 import { buildTestApp, TEST_NOW } from './test-app.js';
@@ -286,6 +287,26 @@ describe('Tin có việc mở thì không đổi nơi đăng (spec listing/editi
     expect(widen.statusCode).toBe(409);
     expect(widen.json().error.code).toBe('PLACEMENT_LOCKED');
   });
+
+  it('gia hạn sớm kèm đổi nơi đăng khi tin đang trong mẫu hậu kiểm: 409 PLACEMENT_LOCKED (fix-audit-stuck-data)', async () => {
+    const group = await createActiveGroup(app);
+    const member = await addMember(app, group.groupId);
+    const live = await liveListingOf(app, member, {
+      placement: 'members_only',
+      groupId: group.groupId,
+    });
+    await app.modules.review.addReason(live.id, { reason: 'sample_risk' });
+    now = at(25 * 24);
+    const renew = await listingApi(
+      app,
+      'POST',
+      `/listings/${live.id}/renew`,
+      await signedInAt(app, member, now),
+      { version: live.version, placement: 'group_public' },
+    );
+    expect(renew.statusCode, renew.body).toBe(409);
+    expect(renew.json().error.code).toBe('PLACEMENT_LOCKED');
+  });
 });
 
 describe('Bù việc lúc khởi động', () => {
@@ -298,5 +319,51 @@ describe('Bù việc lúc khởi động', () => {
     expect(await prisma.reviewTask.count({ where: { listingId: held.id, status: 'open' } })).toBe(
       1,
     );
+  });
+});
+
+/** Xử lại sự kiện cũ nhất khớp `match` — như lượt chạy lại tới trễ của bộ phát (fix-audit-review). */
+async function replayOldest(type: string, match: Record<string, unknown>) {
+  const events = await prisma.outboxEvent.findMany({
+    where: { type, publishedAt: { not: null } },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+  });
+  const event = events.find((candidate) =>
+    Object.entries(match).every(
+      ([key, value]) => (candidate.payload as Record<string, unknown>)[key] === value,
+    ),
+  );
+  if (!event) throw new Error(`Không có sự kiện ${type} để xử lại`);
+  await prisma.outboxEvent.create({ data: { type, payload: event.payload ?? {} } });
+  await deliverAll(app);
+}
+
+describe('Việc theo trạng thái hiện tại của tin (fix-audit-review, T5)', () => {
+  it('lượt "giữ" được xử lại sau khi rút về nháp: tin nháp không có việc mở', async () => {
+    const user = await newUser(app);
+    const held = await heldOf(user);
+    const res = await listingApi(app, 'POST', `/listings/${held.id}/withdraw`, user);
+    expect(res.statusCode, res.body).toBe(200);
+    await deliverAll(app);
+    expect(await openTaskOf(held.id)).toBeNull();
+
+    await replayOldest('listing.state.changed', { listingId: held.id, arrow: 'hold' });
+    expect(await openTaskOf(held.id)).toBeNull();
+  });
+});
+
+describe('Xoá tài khoản thì việc về tin của người đó bị huỷ (fix-audit-review, T4)', () => {
+  it('tin sàn đang chờ duyệt, người đăng xoá tài khoản: việc bị huỷ, 73 giờ sau master không được nhắc', async () => {
+    const user = await newUser(app);
+    const held = await heldOf(user);
+    expect(await openTaskOf(held.id)).not.toBeNull();
+    const res = await listingApi(app, 'DELETE', '/me', user);
+    expect(res.statusCode, res.body).toBe(204);
+    await deliverAll(app);
+    expect(await openTaskOf(held.id)).toBeNull();
+    expect((await lastTaskOf(held.id))?.closeCause).toBe('listing_deleted');
+    now = at(73);
+    await app.modules.review.everyHour();
+    expect((await lastTaskOf(held.id))?.remindedAt).toBeNull();
   });
 });

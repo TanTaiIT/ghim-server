@@ -21,6 +21,6 @@ export const identityRoutes: FastifyPluginAsyncZod<IdentityRoutesOptions> = asyn
   { identity, config },
 ) => {
   await app.register(identityAuthRoutes, { identity, config });
-  await app.register(identityMeRoutes, { identity });
+  await app.register(identityMeRoutes, { identity, config });
   await app.register(identityOpsRoutes, { identity });
 };

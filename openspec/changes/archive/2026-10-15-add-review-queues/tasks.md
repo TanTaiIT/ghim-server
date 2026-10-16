@@ -71,4 +71,4 @@ Theo `design.md`. Test HTTP, DB chạy trên CI (PR nháp nhánh `add-listings`)
 
 ## 10. Kiểm tra tích hợp
 
-- [ ] 10.1 `pnpm run check` (CI), `pnpm run build`, `pnpm db:drift` xanh
+- [x] 10.1 `pnpm run check` (CI), `pnpm run build`, `pnpm db:drift` xanh

@@ -4,6 +4,7 @@ import { createPhrasesService, type ScreeningPhrasesService } from './ops/phrase
 import { createRulesService, type ScreeningRulesService } from './ops/rules.service.js';
 import { createConclusion } from './run/conclusion.js';
 import { createFactsService, type ScreeningFactsService } from './run/facts.service.js';
+import { createImageQueue } from './run/image-queue.js';
 import { createImageService, type ScreeningImageService } from './run/image.service.js';
 import { createNoticeService, type ScreeningNoticeService } from './run/notice.service.js';
 import { createRunService, type ScreeningRunService } from './run/run.service.js';
@@ -31,10 +32,11 @@ export interface ScreeningService
 export function createScreeningService(deps: ScreeningServiceDeps): ScreeningService {
   const shared = createScreeningShared(deps);
   const conclusion = createConclusion(shared);
+  const imageQueue = createImageQueue(shared);
   return {
     ...createRunService(shared, conclusion),
-    ...createImageService(shared, conclusion),
-    ...createUpkeepService(shared, conclusion),
+    ...createImageService(shared, conclusion, imageQueue),
+    ...createUpkeepService(shared, conclusion, imageQueue),
     ...createNoticeService(shared),
     ...createRulesService(shared),
     ...createPhrasesService(shared),

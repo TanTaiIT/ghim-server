@@ -173,6 +173,21 @@ describe('Tin sống gồm những gì', () => {
     expect((await submit(app, withHidden, await readyDraft(app, withHidden))).statusCode).toBe(200);
   });
 
+  it('9 tin đang hiển thị và 1 tin chờ duyệt trong nhóm đã đóng: còn chỗ (fix-audit-listing, T16)', async () => {
+    const group = await createActiveGroup(app, { master });
+    const user = await addMember(app, group.groupId);
+    await seedMany(user, 9);
+    await seedMany(user, 1, {
+      state: 'pending',
+      ...notLive,
+      placement: 'members_only',
+      groupId: group.groupId,
+      hideReasons: ['group_closed'],
+      leftGroupAt: now,
+    });
+    expect((await submit(app, user, await readyDraft(app, user))).statusCode).toBe(200);
+  });
+
   it('9 đang hiển thị, 5 đã bán, 5 hết hạn, 3 nháp: còn chỗ', async () => {
     const user = await newUser(app);
     await seedMany(user, 9);

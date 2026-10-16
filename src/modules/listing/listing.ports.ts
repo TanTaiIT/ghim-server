@@ -1,4 +1,6 @@
 import type {
+  ListingFault,
+  ListingHideReason,
   ListingPlacement,
   ListingRestriction,
   ListingState,
@@ -92,12 +94,21 @@ export type ListingGroupPort = Pick<
   | 'canRemoveBadge'
   | 'completePrivatization'
   | 'findGroup'
+  | 'isBanned'
+  | 'memberUnit'
 >;
 export type ListingCategoryPort = Pick<
   CategoryService,
-  'statusOf' | 'validateRegion' | 'validateAttributes'
+  'statusOf' | 'lockStatus' | 'validateRegion' | 'validateAttributes'
 >;
 export type ListingMediaPort = Pick<MediaService, 'resolve' | 'attach' | 'viewUrl' | 'copyImages'>;
+
+/** Một lượt rời nhóm như `group.member.left` mang theo — đủ để biết tin nào của người đó bị ẩn (C8). */
+export interface GroupLeave {
+  reason: 'left' | 'removed' | 'banned' | 'account_deleted';
+  /** Công tắc "nhận tin người ngoài" đúng lúc rời. */
+  allowOutsiders: boolean;
+}
 
 /** Dữ kiện của một tin để `review` định tuyến việc và kiểm quyết định (design add-review-queues mục 8). */
 export interface ReviewSubject {
@@ -112,6 +123,14 @@ export interface ReviewSubject {
   restrictions: ListingRestriction[];
   /** Tin đã rời nhóm hẳn (nhóm đóng, gỡ khỏi nhóm…) — không còn gì để điều hành nhóm xử. */
   detached: boolean;
+  /** Lý do tạm ẩn: tin đang ẩn không bị lấy mẫu, tin của tài khoản đã xoá không sinh việc (fix-audit-review, T7). */
+  hideReasons: ListingHideReason[];
+}
+
+/** Dòng tin `review` đang giữ khoá trong lượt ghi việc: phiên bản và trạng thái tại lúc đó (fix-audit-review, T5). */
+export interface ListingLock {
+  version: number;
+  state: ListingState;
 }
 
 export interface QuotaFacts {
@@ -156,6 +175,8 @@ export interface ListingFactsService {
   }): Promise<{ listingId: string; ownerId: string }[]>;
   /** Tổng thời gian tin đã được thấy tới `now` — lối "đã bán" cần đủ số ngày; `null` khi không có tin này. */
   shownMs(listingId: string, now: Date): Promise<number | null>;
+  /** Trạng thái hiện tại của tin (kể cả tin đã xoá mềm) — `trust` đối chiếu cặp mất / có lại tư cách tin sạch. */
+  stateOf(listingId: string): Promise<{ state: ListingState; fault: ListingFault | null } | null>;
   ownTexts(input: {
     accountId: string;
     since: Date;

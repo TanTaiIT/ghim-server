@@ -48,6 +48,7 @@ export type IdentityOpsService = Pick<
   | 'removeDisposableDomain'
   | 'seedDisposableDomainsIfEmpty'
   | 'accountState'
+  | 'lockAccountStatus'
   | 'accountSummaries'
   | 'accountIdByEmail'
   | 'emailHashOf'
@@ -75,6 +76,8 @@ export function createIdentityOpsService(
       const target = await repository.findAccountById(accountId);
       if (!target || target.status === 'deleted') throw new NotFoundError('Không có tài khoản này');
       if (target.status === 'locked') throw new ConflictError('Tài khoản đang bị khoá rồi');
+      // Chỉ master khoá được, nên đây là master tự khoá mình — hệ thống mất master, không ai mở lại được (TK 5).
+      if (target.role === 'master') throw new ConflictError('Không khoá được tài khoản master');
       await repository.lockAccount({
         accountId,
         reason,
@@ -346,6 +349,8 @@ export function createIdentityOpsService(
       const account = await repository.findAccountById(accountId);
       return account ? { role: account.role, status: account.status } : null;
     },
+
+    lockAccountStatus: (tx, accountId) => repository.lockAccountStatus(tx, accountId),
 
     async accountSummaries(ids) {
       const rows = await repository.findAccountSummaries([...new Set(ids)]);

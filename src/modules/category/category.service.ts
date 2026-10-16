@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
 
+import type { Prisma } from '@prisma/client';
+
 import { auditActor } from '../../common/audit/audit.js';
 import type { Actor } from '../../common/auth/actor.js';
 import { ConflictError, NotFoundError } from '../../common/errors/app-error.js';
@@ -108,6 +110,11 @@ export interface CategoryService {
   statusOf(
     ids: string[],
   ): Promise<Map<string, { enabled: boolean; templateVersion: number | null }>>;
+  /**
+   * Cửa cho `listing`, trong transaction của lượt gửi: giữ `FOR SHARE` dòng danh mục tới khi commit — tắt danh mục chờ
+   * lượt gửi, bên nghe tắt thấy tin đã gửi (fix-audit-listing, T15). `null` = không có danh mục.
+   */
+  lockStatus(tx: Prisma.TransactionClient, id: string): Promise<{ enabled: boolean } | null>;
   /** Lỗi của cặp tỉnh / phường (mã lạ, phường không thuộc tỉnh); `null` = hợp lệ. */
   validateRegion(provinceCode: number, wardCode: number | null): Promise<string | null>;
   /**
@@ -328,6 +335,11 @@ export function createCategoryService({ repository, clock }: CategoryServiceDeps
           { enabled: row.status === 'active', templateVersion: row.templateVersion },
         ]),
       );
+    },
+
+    async lockStatus(tx, id) {
+      const status = await repository.lockStatus(tx, id);
+      return status === null ? null : { enabled: status === 'active' };
     },
 
     async validateRegion(provinceCode, wardCode) {

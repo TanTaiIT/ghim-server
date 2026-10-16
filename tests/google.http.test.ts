@@ -69,7 +69,7 @@ describe('POST /auth/google', () => {
       emailHash: 'h',
       passwordHash: await hashPassword('ghim-rao-vat-2026!'),
       googleSub: null,
-      status: 'pending_verification',
+      status: 'active',
       displayName: 'Lan',
       at: NOW,
     });
@@ -90,6 +90,57 @@ describe('POST /auth/google', () => {
 
     // Lần sau nhận ra bằng sub, không cần email nữa.
     expect((await google('tok-cu')).statusCode).toBe(200);
+  });
+
+  it('email chỉ có đăng ký chưa xác nhận → đăng ký dở bị xoá hẳn, Google tạo tài khoản mới; phiên và mật khẩu cũ hết dùng', async () => {
+    const password = 'ke-xau-dang-ky-truoc-2026';
+    const squatter = await repository.createAccount({
+      email: 'nan-nhan@ghim.vn',
+      emailNormalized: 'nan-nhan@ghim.vn',
+      emailHash: 'h-nan-nhan',
+      passwordHash: await hashPassword(password),
+      googleSub: null,
+      status: 'pending_verification',
+      displayName: 'Kẻ xấu',
+      at: NOW,
+    });
+    const login = () =>
+      app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        payload: { email: 'nan-nhan@ghim.vn', password, deviceName: 'Máy kẻ xấu' },
+      });
+    const squatterToken = (await login()).json().data.accessToken as string;
+    identities.set('tok-nan-nhan', {
+      sub: 'g-nan-nhan',
+      email: 'nan-nhan@ghim.vn',
+      emailVerified: true,
+      name: 'Nạn nhân',
+      picture: null,
+    });
+
+    const res = await google('tok-nan-nhan');
+    expect(res.statusCode).toBe(200);
+    expect(await prisma.account.findUnique({ where: { id: squatter.id } })).toBeNull();
+    const account = await repository.findAccountByEmail('nan-nhan@ghim.vn');
+    expect(account).toMatchObject({
+      status: 'active',
+      googleSub: 'g-nan-nhan',
+      passwordHash: null,
+      displayName: 'Nạn nhân',
+    });
+    expect(await lastOutboxEvent()).toMatchObject({ type: 'identity.account.verified' });
+
+    const stale = await app.inject({
+      method: 'GET',
+      url: '/__test/me',
+      headers: { authorization: `Bearer ${squatterToken}` },
+    });
+    expect(stale.statusCode).toBe(401);
+    expect(stale.json().error.code).toBe('SESSION_REVOKED');
+    const again = await login();
+    expect(again.statusCode).toBe(401);
+    expect(again.json().error.code).toBe('INVALID_CREDENTIALS');
   });
 
   it('token sai hoặc Google chưa xác thực email → 401 INVALID_CREDENTIALS', async () => {
@@ -202,5 +253,59 @@ describe('ảnh đại diện Google (spec identity/profile, media/image-storage
     expect((await meOf(await google('tok-noi'))).avatarUrl).toBeNull();
     const account = await repository.findAccountByEmail('noi@gmail.com');
     expect(account?.googlePictureUrl).toBe(PICTURE);
+  });
+});
+
+describe('Người dùng Google đã xoá tài khoản (fix-audit-stuck-data, T13)', () => {
+  const DAY_MS = 86_400_000;
+  async function deletedGoogleUser(sub: string, email: string, daysAgo: number) {
+    const account = await repository.createAccount({
+      email,
+      emailNormalized: email,
+      emailHash: `h-${sub}`,
+      passwordHash: null,
+      googleSub: sub,
+      status: 'active',
+      displayName: 'Người cũ',
+      at: new Date(NOW.getTime() - (daysAgo + 1) * DAY_MS),
+    });
+    await repository.softDeleteAccount({
+      accountId: account.id,
+      at: new Date(NOW.getTime() - daysAgo * DAY_MS),
+      events: [],
+    });
+    identities.set(`tok-${sub}`, {
+      sub,
+      email,
+      emailVerified: true,
+      name: 'Quay lại',
+      picture: null,
+    });
+    return account;
+  }
+
+  it('đăng nhập Google trong thời gian chờ → 409 EMAIL_PENDING_DELETION kèm ngày; dòng cũ không đổi', async () => {
+    const old = await deletedGoogleUser('g-xoa-10', 'xoa10@ghim.vn', 10);
+    const res = await google('tok-g-xoa-10');
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error.code).toBe('EMAIL_PENDING_DELETION');
+    expect(await prisma.account.findUniqueOrThrow({ where: { id: old.id } })).toMatchObject({
+      status: 'deleted',
+      googleSub: 'g-xoa-10',
+    });
+  });
+
+  it('đăng nhập Google sau thời gian chờ → tài khoản mới đã xác nhận; dòng cũ đã xoá, nhả mã Google', async () => {
+    const old = await deletedGoogleUser('g-xoa-91', 'xoa91@ghim.vn', 91);
+    const res = await google('tok-g-xoa-91');
+    expect(res.statusCode, res.body).toBe(200);
+    const fresh = await repository.findAccountByGoogleSub('g-xoa-91');
+    expect(fresh).toMatchObject({ status: 'active', emailNormalized: 'xoa91@ghim.vn' });
+    expect(fresh?.id).not.toBe(old.id);
+    expect(await prisma.account.findUniqueOrThrow({ where: { id: old.id } })).toMatchObject({
+      status: 'deleted',
+      googleSub: null,
+      emailNormalized: `deleted:${old.id}`,
+    });
   });
 });

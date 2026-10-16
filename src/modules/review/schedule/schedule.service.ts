@@ -48,16 +48,22 @@ export function createScheduleService(
       other: config.get('postcheck.otherSamplePercent'),
     };
     const drawn: string[] = [];
-    await sequentially(candidates, async ({ listingId, listingVersion }) => {
+    await sequentially(candidates, async ({ listingId, listingVersion, approvedBy }) => {
       const subject = await listings.reviewSubject(listingId);
-      // Tin đã sửa, rời bảng hay đang có việc mở thì không lấy mẫu phiên bản này (spec review/post-review).
+      // Tin đã sửa, rời bảng hay đang có việc mở thì không lấy mẫu phiên bản này (spec review/post-review); tin đang
+      // tạm ẩn cũng không (T7).
       if (subject?.state !== 'live' || subject.version !== listingVersion) return;
+      if (subject.hideReasons.length > 0) return;
       if (await repository.hasOpenTask(listingId)) return;
       const run = await screening.runOf(listingId);
       const tier = run?.tier ?? (await trust.tierOf(subject.ownerId));
       const percent = riskSamplePercent({ score: run?.score ?? null, tier }, percents);
       if (!sampled(percent, random())) return;
-      await queue.addReason(listingId, { reason: 'sample_risk' });
+      // Người cho đạt / khôi phục phiên bản này không tự hậu kiểm nó (spec conflict-of-interest, T2).
+      await queue.addReason(listingId, {
+        reason: 'sample_risk',
+        alsoExclude: approvedBy ? [approvedBy] : [],
+      });
       drawn.push(listingId);
     });
     await repository.removeCandidates(
@@ -70,21 +76,25 @@ export function createScheduleService(
   const remindMasters = async (open: readonly ReviewTask[], now: Date): Promise<number> => {
     const routeOf = await routesFor(open);
     const afterHours = config.get('review.remindMasterHours');
-    const due = open.filter(
+    const atMaster = open.filter((task) => routeOf(task).level === 'master');
+    // Câu nhắc nêu mọi việc đang quá hạn ở hàng master, không chỉ việc vừa tới hạn nhắc trong lượt này (T9).
+    const overdue = atMaster.filter(
       (task) =>
-        routeOf(task).level === 'master' &&
-        masterReminderDue({
-          atMasterSince: task.escalatedAt ?? task.createdAt,
-          remindedAt: task.remindedAt,
-          now,
-          afterHours,
-        }),
+        (task.escalatedAt ?? task.createdAt).getTime() + afterHours * HOUR_MS <= now.getTime(),
+    );
+    const due = atMaster.filter((task) =>
+      masterReminderDue({
+        atMasterSince: task.escalatedAt ?? task.createdAt,
+        remindedAt: task.remindedAt,
+        now,
+        afterHours,
+      }),
     );
     if (due.length === 0) return 0;
     await repository.markReminded(
       due.map((task) => task.id),
       now,
-      reviewEvent(REVIEW_EVENTS.masterReminder, { count: due.length, hours: afterHours }),
+      reviewEvent(REVIEW_EVENTS.masterReminder, { count: overdue.length, hours: afterHours }),
     );
     return due.length;
   };

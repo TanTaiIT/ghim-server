@@ -146,10 +146,12 @@ export function createReviewShared(deps: ReviewServiceDeps) {
   const locateTask = async (actor: Actor, taskId: string, surface: Surface) => {
     const task = await deps.repository.findTask(taskId);
     if (!task || (surface.kind === 'group' && task.groupId !== surface.groupId)) return null;
+    // Route của nhóm không đòi lớp thứ hai, nên ở đó chỉ vai trong nhóm được tính; quyền master đi qua bàn vận hành
+    // (spec review/queues, chốt 15/10/2026).
     const viewer: Viewer =
       surface.kind === 'ops'
         ? await viewerOf(actor)
-        : { accountId: actor.accountId, isMaster: actor.role === 'master', categoryIds: new Set() };
+        : { accountId: actor.accountId, isMaster: false, categoryIds: new Set() };
     const route = (await routesFor([task]))(task);
     return { task, viewer, route, allowed: canHandle(route, actor.accountId, viewer.isMaster) };
   };

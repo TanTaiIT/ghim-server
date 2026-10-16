@@ -61,6 +61,8 @@ export interface CategoryRepository {
   findStatuses(
     ids: string[],
   ): Promise<{ id: string; status: CategoryStatus; templateVersion: number | null }[]>;
+  /** Trong transaction của `listing`: `FOR SHARE` dòng danh mục tới khi lượt gửi commit. */
+  lockStatus(tx: Tx, id: string): Promise<CategoryStatus | null>;
   findWard(code: number): Promise<{ provinceCode: number } | null>;
   provinceExists(code: number): Promise<boolean>;
   /** Phiên bản kế + tăng `settings_version` cùng transaction; phiên bản cũ không đụng. */
@@ -225,6 +227,12 @@ export function createCategoryRepository(prisma: PrismaClient): CategoryReposito
         where: { id: { in: ids } },
         select: { id: true, status: true, templateVersion: true },
       }),
+
+    async lockStatus(tx, id) {
+      const [row] = await tx.$queryRaw<{ status: CategoryStatus }[]>`
+        SELECT status FROM categories WHERE id = ${id}::uuid FOR SHARE`;
+      return row?.status ?? null;
+    },
 
     findWard: (code) => prisma.ward.findUnique({ where: { code }, select: { provinceCode: true } }),
 

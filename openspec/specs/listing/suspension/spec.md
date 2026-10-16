@@ -319,6 +319,11 @@ Khi một danh mục bị tắt, mọi tin trong danh mục SHALL tạm ẩn v�
 - **WHEN** người đăng đổi một tin đang tạm ẩn vì danh mục bị tắt sang một danh mục đang bật
 - **THEN** lý do "danh mục bị tắt" được gỡ và tin chuyển sang đang kiểm
 
+#### Scenario: Rút về nháp rồi gửi sang danh mục đang bật
+
+- **WHEN** người đăng rút về nháp một tin chờ duyệt đang tạm ẩn vì danh mục bị tắt, đổi sang một danh mục đang bật rồi gửi
+- **THEN** lý do "danh mục bị tắt" được gỡ và tin chuyển sang đang kiểm
+
 ### Requirement: Đổi nơi đăng ra khỏi nhóm thì lý do của nhóm rơi theo
 
 Tin đang tạm ẩn vì một nhóm — người đăng tự rời, bị gỡ hay bị cấm khỏi nhóm, nhóm bị tạm khoá — mà người đăng đổi
@@ -335,3 +340,64 @@ không thuộc nhóm (tài khoản, danh mục) vẫn giữ (chốt 12/10/2026).
 
 - **WHEN** người đăng đổi lên sàn chung một tin "chỉ thành viên" đang tạm ẩn vì đã rời nhóm X và vì danh mục bị tắt
 - **THEN** lý do "đã rời nhóm" được gỡ, còn lý do "danh mục bị tắt" vẫn giữ
+
+#### Scenario: Rút về nháp rồi đưa lên sàn chung
+
+- **WHEN** tin chờ duyệt trong nhóm X tạm ẩn vì nhóm X bị tạm khoá, người đăng rút về nháp, đổi lên sàn chung có đủ tỉnh và phường rồi gửi
+- **THEN** lý do "nhóm bị tạm khoá" được gỡ và tin chuyển sang đang kiểm ở sàn chung
+
+#### Scenario: Gia hạn kèm đổi nơi đăng
+
+- **WHEN** tin hết hạn đang tạm ẩn vì người đăng bị cấm khỏi nhóm X được gia hạn kèm đổi lên sàn chung có đủ tỉnh và phường
+- **THEN** lý do "bị cấm khỏi nhóm" được gỡ và tin chuyển sang đang kiểm ở sàn chung
+
+### Requirement: Tạm ẩn theo trạng thái hiện tại, không theo thứ tự xử
+
+Lý do tạm ẩn của tài khoản bị khoá, nhóm bị tạm khoá, bị cấm khỏi nhóm, đã rời nhóm và danh mục bị tắt SHALL khớp
+với trạng thái hiện tại của tài khoản, nhóm, lệnh cấm, tư cách thành viên và danh mục — bất kể các thay đổi được
+hệ thống xử theo thứ tự nào, hay một thay đổi cũ được xử lại sau thay đổi mới (chốt 15/10/2026).
+
+#### Scenario: Khoá nhóm được xử lại sau khi mở khoá
+
+- **WHEN** master khoá rồi mở khoá nhóm, và hệ thống xử lại lượt khoá sau lượt mở khoá
+- **THEN** tin của nhóm vẫn hiện, không mang lý do "nhóm bị tạm khoá"
+
+#### Scenario: Rời nhóm được xử lại sau khi vào lại
+
+- **WHEN** thành viên rời rồi vào lại nhóm, và hệ thống xử lại lượt rời sau lượt vào lại
+- **THEN** tin "chỉ thành viên" của người đó vẫn hiện
+
+#### Scenario: Mở khoá tài khoản được xử lại sau khi khoá lần nữa
+
+- **WHEN** master khoá, mở khoá rồi khoá lại một tài khoản, và hệ thống xử lại lượt mở khoá sau cùng
+- **THEN** tin của người đó vẫn tạm ẩn với lý do "tài khoản bị khoá"
+
+### Requirement: Tin còn việc chờ người duyệt không chuyển lên sàn chung được
+
+Tin đã rời nhóm hẳn mà còn việc chờ người duyệt — kể cả việc điều hành nhóm chuyển lên staff — MUST NOT chuyển lên sàn
+chung, để không ai chuyển tin đi cho thoát việc đang chờ (TK 27 cam kết 19, chốt 15/10/2026).
+
+#### Scenario: Chuyển tin đang chờ staff xem
+
+- **WHEN** điều hành nhóm gỡ tin khỏi nhóm kèm "trái quy định sàn" và người đăng chuyển tin đó lên sàn chung trước khi staff xử
+- **THEN** response có HTTP 409 `PLACEMENT_LOCKED` và không tin mới nào được tạo
+
+#### Scenario: Staff bác rồi chuyển
+
+- **WHEN** staff bác việc nhóm chuyển lên, rồi người đăng chuyển tin lên sàn chung
+- **THEN** tin mới được tạo ở sàn chung và chuyển sang đang kiểm
+
+### Requirement: Gửi tin đúng lúc tắt danh mục hay khoá tài khoản
+
+Lượt gửi trùng lúc danh mục bị tắt hay tài khoản người đăng bị khoá SHALL hoặc bị từ chối, hoặc để tin lên mang lý do
+tạm ẩn tương ứng; tin MUST NOT hiện ra như thể danh mục còn bật hay tài khoản chưa bị khoá (chốt 15/10/2026).
+
+#### Scenario: Danh mục bị tắt trong lúc gửi nháp
+
+- **WHEN** người dùng gửi nháp, và danh mục của nháp bị tắt sau khi lượt gửi đã kiểm danh mục nhưng trước khi ghi
+- **THEN** response có HTTP 409 `CATEGORY_DISABLED` và nháp vẫn là nháp
+
+#### Scenario: Tài khoản bị khoá trong lúc gửi nháp
+
+- **WHEN** người dùng gửi nháp, và tài khoản bị khoá sau khi lượt gửi đã qua bước đăng nhập nhưng trước khi ghi
+- **THEN** response có HTTP 403 `ACCOUNT_LOCKED` và nháp vẫn là nháp

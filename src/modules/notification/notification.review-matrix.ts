@@ -26,7 +26,11 @@ async function toMasters(
     groupId: null,
     alertable: true,
     // Câu luôn theo số của lượt mới nhất: dòng chưa đọc là trạng thái hiện tại, không phải số lần nhắc.
-    collapse: { key: draft.type, render: () => draft.body },
+    collapse: {
+      key: draft.type,
+      render: () => draft.body,
+      alertMinutes: 'notification.reviewAlertMinutes',
+    },
   };
   return { ...empty(), drafts: [notice] };
 }

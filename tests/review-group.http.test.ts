@@ -20,10 +20,12 @@ import {
 } from './group-helpers.js';
 import {
   getOwn,
+  groupSettings,
   listingApi,
   liveListingOf,
   machineHold,
   type OwnListing,
+  signedInAt,
   submitted,
 } from './listing-http-helpers.js';
 import { seedCategory } from './listing-helpers.js';
@@ -115,6 +117,7 @@ async function school() {
   return {
     group,
     unit10a,
+    unit10b,
     mod10a: await moderator(unit10a),
     mod10b: await moderator(unit10b),
     whole: await moderator(null),
@@ -211,6 +214,45 @@ describe('Staff xem việc nhóm chuyển lên', () => {
     const res = await groupClaim(whole, group.groupId, await taskIdOf(held.id));
     expect(res.statusCode).toBe(404);
     expect(codeOf(res)).toBe('NOT_FOUND');
+  });
+});
+
+describe('Quyền master chỉ ở bàn vận hành (fix-audit-security, C6)', () => {
+  it('master xem, nhận việc của nhóm qua route nhóm → 404; hàng chờ nhóm → 403; ở bàn vận hành thì xử được', async () => {
+    const category = await seedCategory();
+    const { group, poster } = await school();
+    const held = await heldBy(poster, inGroup(group, category));
+    const taskId = await taskIdOf(held.id);
+
+    const queue = await api(app, 'GET', `/groups/${group.groupId}/review/tasks`, master.token);
+    expect(queue.statusCode).toBe(403);
+    expect(codeOf(queue)).toBe('FORBIDDEN');
+    const view = await api(
+      app,
+      'GET',
+      `/groups/${group.groupId}/review/tasks/${taskId}`,
+      master.token,
+    );
+    expect(view.statusCode).toBe(404);
+    expect(codeOf(view)).toBe('NOT_FOUND');
+    const claim = await groupClaim(master, group.groupId, taskId);
+    expect(claim.statusCode).toBe(404);
+    expect(codeOf(claim)).toBe('NOT_FOUND');
+    expect(await prisma.reviewTask.findUniqueOrThrow({ where: { id: taskId } })).toMatchObject({
+      status: 'open',
+      claimedBy: null,
+    });
+
+    expect((await opsClaim(master, taskId)).statusCode).toBe(200);
+    const res = await api(app, 'POST', `/ops/review/tasks/${taskId}/decision`, master.token, {
+      outcome: 'pass',
+      machineJudgment: 'machine_right',
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(await prisma.reviewDecision.findFirstOrThrow({ where: { taskId } })).toMatchObject({
+      actorId: master.id,
+      actorRole: 'master',
+    });
   });
 });
 
@@ -344,6 +386,25 @@ describe('Đóng nhóm huỷ việc đang chờ về tin trong nhóm', () => {
   });
 });
 
+/** Nhóm công khai có điều hành cả nhóm và một người đăng có hai tin chờ duyệt: "nhóm công khai" và "chỉ thành viên". */
+async function twoHeld(allowOutsiders: boolean) {
+  const category = await seedCategory();
+  const group = await createActiveGroup(app, { master });
+  if (allowOutsiders) {
+    await groupSettings(app, group.owner, group.groupId, { allowOutsiders: true });
+  }
+  const moderator = await addMember(app, group.groupId);
+  await appointModerator(app, group, moderator, null);
+  const poster = await addMember(app, group.groupId);
+  const open = await heldBy(poster, {
+    placement: 'group_public',
+    groupId: group.groupId,
+    categoryId: category,
+  });
+  const inside = await heldBy(poster, inGroup(group, category));
+  return { group, moderator, poster, open, inside };
+}
+
 describe('Rời, bị gỡ hay bị cấm thì việc máy giữ trong nhóm của người đó bị huỷ', () => {
   it('bị gỡ khỏi nhóm khi có tin chờ duyệt: việc huỷ, tin không hiện trong nhóm', async () => {
     const category = await seedCategory();
@@ -384,6 +445,37 @@ describe('Rời, bị gỡ hay bị cấm thì việc máy giữ trong nhóm c�
     expect(await opsListingIds(staff)).toContain(market.id);
   });
 
+  it('tự rời nhóm đang nhận tin người ngoài: việc tin "nhóm công khai" vẫn mở ở hàng điều hành, tin "chỉ thành viên" huỷ', async () => {
+    const { group, moderator, poster, open, inside } = await twoHeld(true);
+    const left = await api(app, 'POST', `/groups/${group.groupId}/leave`, poster.token);
+    expect(left.statusCode, left.body).toBe(204);
+    await deliverAll(app);
+    expect(await openTasks(inside.id)).toEqual([]);
+    expect(await openTasks(open.id)).toHaveLength(1);
+    expect((await getOwn(app, poster, open.id)).hideReasons).toEqual([]);
+    expect(await groupListingIds(moderator, group.groupId)).toContain(open.id);
+  });
+
+  it('tự rời nhóm không nhận tin người ngoài, hay bị cấm khi nhóm nhận: việc cả hai tin huỷ', async () => {
+    const closed = await twoHeld(false);
+    await api(app, 'POST', `/groups/${closed.group.groupId}/leave`, closed.poster.token);
+    await deliverAll(app);
+    expect(await openTasks(closed.open.id)).toEqual([]);
+    expect(await openTasks(closed.inside.id)).toEqual([]);
+
+    const banned = await twoHeld(true);
+    const ban = await api(
+      app,
+      'PUT',
+      `/groups/${banned.group.groupId}/bans/${banned.poster.id}`,
+      banned.group.owner.token,
+    );
+    expect(ban.statusCode, ban.body).toBe(204);
+    await deliverAll(app);
+    expect(await openTasks(banned.open.id)).toEqual([]);
+    expect(await openTasks(banned.inside.id)).toEqual([]);
+  });
+
   it('rời nhóm rồi vào lại khi tin còn chờ duyệt: việc hàng 0 mới hạn 24 giờ từ lúc vào lại, ở hàng điều hành nhóm', async () => {
     const category = await seedCategory();
     const group = await createActiveGroup(app, { master });
@@ -413,5 +505,119 @@ describe('Rời, bị gỡ hay bị cấm thì việc máy giữ trong nhóm c�
       dueAt: new Date(now.getTime() + 24 * HOUR_MS),
     });
     expect(await groupListingIds(whole, group.groupId)).toContain(held.id);
+
+    // fix-audit-listeners: lượt rời được xử lại sau khi đã vào lại không huỷ việc mới.
+    await prisma.outboxEvent.create({
+      data: {
+        type: 'group.member.left',
+        payload: {
+          groupId: group.groupId,
+          accountId: poster.id,
+          reason: 'left',
+          allowOutsiders: false,
+        },
+      },
+    });
+    await deliverAll(app);
+    expect(await openTasks(held.id)).toHaveLength(1);
+    expect((await getOwn(app, poster, held.id)).hideReasons).toEqual([]);
+  });
+});
+
+describe('Việc chờ khoá nơi đăng của tin đã rời nhóm (fix-audit-review, T1)', () => {
+  it('việc nhóm chuyển lên staff còn chờ: chuyển lên sàn chung → 409 PLACEMENT_LOCKED; staff bác xong thì chuyển được', async () => {
+    const category = await seedCategory();
+    const staff = await staffOf([category]);
+    const { group, mod10a, poster } = await school();
+    const held = await heldBy(poster, inGroup(group, category));
+    await escalate(mod10a, group, held.id);
+    const move = () =>
+      listingApi(app, 'POST', `/listings/${held.id}/move-to-marketplace`, poster, {});
+    const locked = await move();
+    expect(locked.statusCode, locked.body).toBe(409);
+    expect(codeOf(locked)).toBe('PLACEMENT_LOCKED');
+    expect(await prisma.listing.count({ where: { movedFromListingId: held.id } })).toBe(0);
+
+    const taskId = await taskIdOf(held.id);
+    expect((await opsClaim(staff, taskId)).statusCode).toBe(200);
+    const dismissed = await api(app, 'POST', `/ops/review/tasks/${taskId}/decision`, staff.token, {
+      outcome: 'dismiss',
+      note: 'Không thấy dấu hiệu hàng giả',
+    });
+    expect(dismissed.statusCode, dismissed.body).toBe(200);
+    await deliverAll(app);
+    const moved = await move();
+    expect(moved.statusCode, moved.body).toBe(201);
+  });
+});
+
+describe('Người xử việc của nhóm là tài khoản đang hoạt động (fix-audit-review, T3)', () => {
+  it('điều hành viên duy nhất của lớp 10A bị khoá: việc tin lớp 10A ở hàng điều hành cả nhóm', async () => {
+    const category = await seedCategory();
+    const { group, mod10a, whole, poster } = await school();
+    const lock = await api(
+      app,
+      'POST',
+      `/ops/accounts/${mod10a.id}/lock`,
+      (await signedInAt(app, master, now)).token,
+      { reason: 'Vi phạm quy định' },
+    );
+    expect(lock.statusCode, lock.body).toBe(204);
+    await deliverAll(app);
+    const held = await heldBy(poster, inGroup(group, category));
+    expect(await groupListingIds(whole, group.groupId)).toContain(held.id);
+  });
+});
+
+describe('Cấm người ngoài khỏi nhóm (fix-audit-review, T7)', () => {
+  it('người ngoài có tin "nhóm công khai" chờ duyệt bị cấm: việc huỷ; gỡ cấm thì có việc hàng 0 mới', async () => {
+    const category = await seedCategory();
+    const group = await createActiveGroup(app, { master });
+    await groupSettings(app, group.owner, group.groupId, { allowOutsiders: true });
+    const moderator = await addMember(app, group.groupId);
+    await appointModerator(app, group, moderator, null);
+    const outsider = await newUser(app);
+    const held = await heldBy(outsider, {
+      placement: 'group_public',
+      groupId: group.groupId,
+      categoryId: category,
+    });
+    const taskId = await taskIdOf(held.id);
+    const banPath = `/groups/${group.groupId}/bans/${outsider.id}`;
+    const ban = await api(app, 'PUT', banPath, group.owner.token);
+    expect(ban.statusCode, ban.body).toBe(204);
+    await deliverAll(app);
+    expect(await prisma.reviewTask.findUniqueOrThrow({ where: { id: taskId } })).toMatchObject({
+      status: 'cancelled',
+    });
+    expect(await groupListingIds(moderator, group.groupId)).not.toContain(held.id);
+
+    const unban = await api(app, 'DELETE', banPath, group.owner.token);
+    expect(unban.statusCode, unban.body).toBe(204);
+    await deliverAll(app);
+    const [task] = await openTasks(held.id);
+    expect(task).toMatchObject({ queue: 0, reasons: ['machine_hold'] });
+    expect(task?.id).not.toBe(taskId);
+    expect(await groupListingIds(moderator, group.groupId)).toContain(held.id);
+  });
+});
+
+describe('Việc theo đơn vị hiện tại của người đăng (fix-audit-review, T8)', () => {
+  it('chuyển người đăng từ lớp 10A sang 10B: việc ở hàng điều hành lớp 10B, không còn ở lớp 10A', async () => {
+    const category = await seedCategory();
+    const { group, unit10b, mod10a, mod10b, poster } = await school();
+    const held = await heldBy(poster, inGroup(group, category));
+    expect(await groupListingIds(mod10a, group.groupId)).toContain(held.id);
+    const moved = await api(
+      app,
+      'PATCH',
+      `/groups/${group.groupId}/members/${poster.id}`,
+      group.owner.token,
+      { unitId: unit10b },
+    );
+    expect(moved.statusCode, moved.body).toBe(200);
+    await deliverAll(app);
+    expect(await groupListingIds(mod10b, group.groupId)).toContain(held.id);
+    expect(await groupListingIds(mod10a, group.groupId)).not.toContain(held.id);
   });
 });

@@ -1,6 +1,7 @@
 import type {
   Account,
   AccountFlag,
+  AccountStatus,
   CodePurpose,
   DeviceClearance,
   DevicePost,
@@ -17,6 +18,13 @@ import type {
 import { appendAudit, type AuditEntry } from '../../common/audit/audit.js';
 import { appendEvents, type OutboxEventInput } from '../../common/outbox/outbox.js';
 import { FLAG_CLEARED_REASONS } from './identity.schema.js';
+
+/**
+ * Dấu thay email của tài khoản đã ẩn danh: duy nhất theo mã tài khoản, và không bao giờ trùng một email thật vì mọi
+ * đường vào đều đòi email có `@` (C9).
+ */
+const DELETED_EMAIL_PREFIX = 'deleted:';
+const DELETED_DISPLAY_NAME = 'Tài khoản đã xoá';
 
 export type {
   Account,
@@ -246,8 +254,14 @@ export interface IdentityRepository {
   applyAccountChange(input: AccountChangeInput): Promise<boolean>;
   /** Xoá HẲN — chỉ cho đăng ký dở dang quá hạn; cascade kéo theo mã, phiên, dấu thiết bị. */
   deleteUnverifiedAccountsBefore(createdBefore: Date): Promise<number>;
-  /** Xoá HẲN một tài khoản đã qua 90 ngày chờ — giải phóng email cho lượt đăng ký mới. */
-  purgeAccount(id: string): Promise<void>;
+  /** Xoá HẲN một đăng ký dở khi chủ email vào bằng Google; `false` = dòng vừa được xác nhận nên không xoá. */
+  deleteUnverifiedAccount(id: string): Promise<boolean>;
+  /**
+   * Tài khoản đã xoá qua hết thời gian chờ: bỏ email, tên, ảnh, mật khẩu, mã Google, số điện thoại, lớp thứ hai để email
+   * và mã Google tự do; giữ dòng, dấu băm email và mọi dòng con (lịch sử chống gian lận — C9). Xoá thật là việc của
+   * `add-data-retention`. `false` = dòng không còn ở trạng thái đó (đã ẩn danh, hay chưa hết thời gian chờ).
+   */
+  anonymizeDeletedAccount(input: { id: string; deletedBefore: Date }): Promise<boolean>;
   lockAccount(input: LockAccountInput): Promise<void>;
   unlockAccount(input: UnlockAccountInput): Promise<void>;
   softDeleteAccount(input: SoftDeleteAccountInput): Promise<void>;
@@ -275,6 +289,7 @@ export interface IdentityRepository {
    * `hot-paths.db.test.ts` đếm số câu SQL.
    */
   findActorSession(sessionId: string): Promise<ActorSession | null>;
+  lockAccountStatus(tx: Prisma.TransactionClient, accountId: string): Promise<AccountStatus | null>;
   findSessionByRefreshHash(refreshTokenHash: string): Promise<Session | null>;
   findSessionByPreviousRefreshHash(prevRefreshTokenHash: string): Promise<Session | null>;
   updateSession(id: string, patch: SessionPatch): Promise<Session>;
@@ -355,6 +370,11 @@ async function revokeSessionsIn(
 export function createIdentityRepository(prisma: PrismaClient): IdentityRepository {
   return {
     findAccountById: (id) => prisma.account.findUnique({ where: { id } }),
+    async lockAccountStatus(tx, accountId) {
+      const [row] = await tx.$queryRaw<{ status: AccountStatus }[]>`
+        SELECT status FROM accounts WHERE id = ${accountId}::uuid FOR SHARE`;
+      return row?.status ?? null;
+    },
     findAccountByEmail: (emailNormalized) =>
       prisma.account.findUnique({ where: { emailNormalized } }),
     findAccountSummaries: (ids) =>
@@ -399,9 +419,40 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
       });
       return count;
     },
-    async purgeAccount(id) {
-      await prisma.account.delete({ where: { id } });
+    async deleteUnverifiedAccount(id) {
+      const { count } = await prisma.account.deleteMany({
+        where: { id, status: 'pending_verification' },
+      });
+      return count === 1;
     },
+    anonymizeDeletedAccount: ({ id, deletedBefore }) =>
+      prisma.$transaction(async (tx) => {
+        const tombstone = `${DELETED_EMAIL_PREFIX}${id}`;
+        const { count } = await tx.account.updateMany({
+          where: {
+            id,
+            status: 'deleted',
+            deletedAt: { lte: deletedBefore },
+            emailNormalized: { not: tombstone },
+          },
+          data: {
+            email: tombstone,
+            emailNormalized: tombstone,
+            displayName: DELETED_DISPLAY_NAME,
+            passwordHash: null,
+            googleSub: null,
+            googlePictureUrl: null,
+            avatarImageId: null,
+            avatarFromGoogle: false,
+            phone: null,
+            totpSecretEnc: null,
+            totpEnabledAt: null,
+          },
+        });
+        if (count === 0) return false;
+        await tx.verificationCode.deleteMany({ where: { accountId: id } });
+        return true;
+      }),
     lockAccount: ({ accountId, reason, lockedBy, at, events, audit }) =>
       prisma.$transaction(async (tx) => {
         await tx.account.update({

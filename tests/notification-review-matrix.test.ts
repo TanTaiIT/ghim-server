@@ -48,6 +48,8 @@ describe('N40 — việc nằm ở hàng master quá lâu', () => {
       groupId: null,
     });
     expect(draft?.collapse?.key).toBe('review.master.reminder');
+    // Nhắc lại tối đa một lần mỗi ngày (fix-audit-review, T9).
+    expect(draft?.collapse?.alertMinutes).toBe('notification.reviewAlertMinutes');
     expect(draft?.collapse?.render(5)).toBe('3 việc nằm ở hàng master quá 72 giờ chưa ai xử.');
   });
 
@@ -74,7 +76,7 @@ describe('N41 — nhiều việc sắp chạm hạn', () => {
       type: 'review.deadline.warning',
       title: 'Hàng chờ sắp chạm hạn',
       body: '5 trong 10 việc đang chờ sẽ chạm hạn trong 24 giờ tới.',
-      collapse: { key: 'review.deadline.warning' },
+      collapse: { key: 'review.deadline.warning', alertMinutes: 'notification.reviewAlertMinutes' },
     });
   });
 });

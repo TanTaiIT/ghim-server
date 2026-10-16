@@ -116,7 +116,29 @@ describe('image_checks, luật, dải, cụm từ, giá', () => {
     expect(
       await sqlStateOf(
         prisma.imageCheck.create({
-          data: { imageId: randomUUID(), ...base, status: 'error', dhash: 1n },
+          data: {
+            imageId: randomUUID(),
+            ...base,
+            status: 'error',
+            errorKind: 'transient',
+            dhash: 1n,
+          },
+        }),
+      ),
+    ).toBe(CHECK);
+    // image_checks_error_kind_check (fix-audit-screening-trust, T21): lỗi đi đôi với loại lỗi.
+    await prisma.imageCheck.create({
+      data: { imageId: randomUUID(), ...base, status: 'error', errorKind: 'permanent' },
+    });
+    expect(
+      await sqlStateOf(
+        prisma.imageCheck.create({ data: { imageId: randomUUID(), ...base, status: 'error' } }),
+      ),
+    ).toBe(CHECK);
+    expect(
+      await sqlStateOf(
+        prisma.imageCheck.create({
+          data: { imageId: randomUUID(), ...base, status: 'pending', errorKind: 'transient' },
         }),
       ),
     ).toBe(CHECK);

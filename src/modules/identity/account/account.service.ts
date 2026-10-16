@@ -8,8 +8,9 @@ import {
 } from '../../../common/errors/app-error.js';
 import { formatDateVN } from '../../../common/time/time.js';
 import { imageNotInStorage } from '../../media/media.service.js';
-import { hashEmail, normalizeEmail } from '../calc/email.calc.js';
+import { hashEmail, maskEmail, normalizeEmail } from '../calc/email.calc.js';
 import { hashPassword, verifyPassword } from '../calc/password.calc.js';
+import { IDENTITY_JOBS, type SendNoticeJob } from '../identity.jobs.js';
 import type { Account } from '../identity.repository.js';
 import {
   type IdentityService,
@@ -28,6 +29,7 @@ import {
   assertConsumed,
   invalidCredentials,
   emailTaken,
+  passwordNotSet,
   assertDisplayNameAllowed,
   type IdentityShared,
 } from '../identity.shared.js';
@@ -59,7 +61,7 @@ export function createIdentityAccountService(
   deps: IdentityServiceDeps,
   shared: IdentityShared,
 ): IdentityAccountService {
-  const { repository, config, clock, hashKey, secrets } = deps;
+  const { repository, config, clock, hashKey, secrets, jobs } = deps;
   const {
     isPrivileged,
     passwordIssue,
@@ -189,17 +191,25 @@ export function createIdentityAccountService(
       );
     },
 
-    async requestEmailChange(actor, { email }) {
+    async requestEmailChange(actor, { email, currentPassword, totpCode }) {
       const now = clock();
       const account = await accountOf(actor);
+      // Xác thực lại trước mọi luật khác: token lộ không gửi được mã, không dò được email nào đã có tài khoản (T12).
+      if (!account.passwordHash) throw passwordNotSet();
+      if (!(await verifyPassword(account.passwordHash, currentPassword))) {
+        throw invalidCredentials('Mật khẩu hiện tại không đúng');
+      }
+      if (account.totpEnabledAt && account.totpSecretEnc) {
+        if (!totpCode || !(await totpMatches(account.totpSecretEnc, totpCode))) {
+          throw invalidCredentials('Mã từ ứng dụng tạo mã không đúng');
+        }
+      }
       if (account.emailChangedAt) {
-        const nextAt = new Date(
-          account.emailChangedAt.getTime() +
-            config.get('identity.emailChangeIntervalDays') * DAY_MS,
-        );
+        const intervalDays = config.get('identity.emailChangeIntervalDays');
+        const nextAt = new Date(account.emailChangedAt.getTime() + intervalDays * DAY_MS);
         if (nextAt > now) {
           throw new TooManyRequestsError(
-            `Mỗi tài khoản đổi email tối đa một lần mỗi 30 ngày — đổi lại được từ ${formatDateVN(nextAt)}`,
+            `Mỗi tài khoản đổi email tối đa một lần mỗi ${intervalDays} ngày — đổi lại được từ ${formatDateVN(nextAt)}`,
             'EMAIL_CHANGE_TOO_SOON',
           );
         }
@@ -233,10 +243,17 @@ export function createIdentityAccountService(
           emailHash: hashEmail(emailNormalized, hashKey),
           emailChangedAt: now,
         },
+        revokeSessions: { reason: 'email_changed', exceptId: actor.sessionId },
         at: now,
         events: [],
       });
       assertConsumed(applied);
+      deps.sessionsRevoked?.account(account.id);
+      await jobs.send<SendNoticeJob>(IDENTITY_JOBS.sendNotice, {
+        to: account.email,
+        kind: 'email_changed',
+        newEmail: maskEmail(live.targetEmail),
+      });
     },
 
     // ── MẬT KHẨU ────────────────────────────────────────────────────────────────────────────────
@@ -268,7 +285,15 @@ export function createIdentityAccountService(
       if (!(await isPrivileged(account))) {
         throw new ForbiddenError('Lớp thứ hai chỉ dành cho master và staff');
       }
-      // Thiết lập lại = bí mật mới, chưa bật: tới khi xác nhận bằng mã đầu tiên thì bàn vận hành đóng.
+      // Thiết lập lại gỡ lớp đang bật trước khi có lớp mới: phiên chỉ qua mật khẩu (token bị lộ) tự đặt được ứng dụng
+      // tạo mã của mình. Đổi ứng dụng là việc của `cli:reset-2fa` (TK 5, spec sessions).
+      if (account.totpEnabledAt) {
+        throw new ConflictError(
+          'Lớp thứ hai đã bật — muốn đổi ứng dụng tạo mã thì liên hệ đội kỹ thuật',
+          'TWO_FACTOR_ENABLED',
+        );
+      }
+      // Thiết lập lần đầu = bí mật mới, chưa bật: tới khi xác nhận bằng mã đầu tiên thì bàn vận hành đóng.
       const secret = generateSecret();
       await repository.updateAccount(account.id, {
         totpSecretEnc: secrets.seal(secret),

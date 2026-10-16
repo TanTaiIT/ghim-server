@@ -1,35 +1,100 @@
 # Việc đang dở — calendar-ghim
 
-> Cập nhật 15/10/2026. Một chỗ để nhìn lại những gì đã bắt đầu, đã hoãn, hay đang chờ quyết. Làm xong việc nào thì
-> **xoá dòng đó** (git giữ lịch sử); có việc mới bị gác lại thì thêm vào đúng mục. Mỗi dòng ghi **nguồn** để mở ra đọc
-> chi tiết — file này chỉ tóm tắt, không thay TK, change hay spec.
+> Cập nhật 15/10/2026 (tối), sau khi archive `fix-audit-listing`. Một chỗ để nhìn lại những gì đã
+> bắt đầu, đã hoãn, hay đang chờ quyết. Làm xong việc nào thì **xoá dòng đó** (git giữ lịch sử); có việc mới bị gác lại
+> thì thêm vào đúng mục. Mỗi dòng ghi **nguồn** để mở ra đọc chi tiết — file này chỉ tóm tắt, không thay TK, change hay
+> spec.
+
+## 0. Ưu tiên: sửa lỗi rà soát 15/10/2026 — trước mọi tính năng mới
+
+Rà soát đọc code mọi module đã làm tìm ra 48 mục: 11 mức cao, 24 trung bình, 13 thấp. Chi tiết, chỗ trong code, kịch bản
+và hướng sửa ở **`docs/RA-SOAT-15-10-2026.md`** (đánh dấu từng mục khi sửa xong). Chốt 15/10/2026: sửa hết trước khi làm
+`add-reports` hay tính năng nào khác.
+
+| Đợt | Mục                          | Nội dung                                                                                                                      |
+| --- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| 1 ✔ | C3, C4, C5, C6, T10          | Bảo mật: chiếm tài khoản qua Google, master tự xoá / khoá, đăng ký lại lớp thứ hai, master qua app nhóm, trần / sàn cấu hình  |
+| 2 ✔ | C1, C2, C7, C8, C9, C10, C11 | Dữ liệu kẹt hay mất: bên nghe đối chiếu trạng thái hiện tại, kiểm ảnh bị bỏ, lý do ẩn bám theo, việc mất, xoá cứng dây chuyền |
+| 3   | T1–T24                       | Mức trung bình — còn T17, T18, T19 (phần A3, `group`)                                                                         |
+| 4   | L1–L13                       | Mức thấp                                                                                                                      |
+
+Mục nào đổi hành vi so với spec đang chạy thì đi qua một change OpenSpec (proposal có câu hỏi mở → bạn duyệt → code);
+mục code lệch spec thì sửa kèm test.
+
+**Đang dừng ở (15/10/2026, tối):** người dùng giao tech lead chọn phương án. Đã xong và đã push (nhánh
+`add-listings`), mỗi phần một change đã archive, một commit:
+
+- đợt 1 — `fix-audit-security` (C3, C4, C5, C6, T10);
+- đợt 2 — `fix-audit-stuck-data` (C7, C8, C9, C10, T13), `fix-audit-image-checks` (C2, T20, L8, C11),
+  `fix-audit-listeners` (C1);
+- đợt 3 phần C — `fix-audit-screening-trust` (T21–T24, cặp tin sạch của `trust`);
+- đợt 3 phần B — `fix-audit-review` (T1–T9, L11);
+- đợt 3 phần A1 — `fix-audit-identity` (T11 ân hạn 30 giây, T12 đổi email đòi mật khẩu + mã, báo email cũ, thu phiên
+  khác). **Phá vỡ API**: body `POST /me/email-change` thêm `currentPassword` (bắt buộc), `totpCode` (tuỳ);
+- đợt 3 phần A2 — `fix-audit-listing` (T14, T15, T16).
+
+**Làm tiếp ngày mai — đợt 3 phần A3, change `fix-audit-group` (T17, T18, T19).** Chưa viết dòng nào; đọc lại
+`docs/RA-SOAT-15-10-2026.md` mục T17–T19 rồi viết proposal / design / tasks như các change `fix-audit-*` đã archive.
+Phương án đã chọn:
+
+- **T17**: `acceptOwnerOffer` (`group.repository.ts`, nhánh người nhận chưa là thành viên) — `deleteMany` dòng cấm
+  trả `count > 0` thì phát `GROUP_EVENTS.unbanned` (`group.ban.lifted`, payload `{ groupId, accountId }`) trước
+  `memberJoined`. Test: giao chủ cho người đang bị cấm → tin của người đó hết `group_banned`.
+- **T18**: một thứ tự khoá cho mọi transaction của `group.repository.ts`: khoá người xin (R) → khoá cặp (P,
+  `lockPair`) → dòng nhóm (G) → lời mời (I) → đơn xin (J) → lời giao chủ (O) → thành viên / lệnh cấm (M, B). Bảy cặp
+  ngược thứ tự đã rà (số dòng ở bf2faef):
+  1. `acceptOwnerOffer` khoá G (1138) rồi mới P (1150) — mọi hàm khác P trước G. Sửa: đọc lời giao chủ không khoá,
+     `lockPair` rồi `groupStateFor(update)`, rồi mới nhận lời (updateMany có điều kiện).
+  2. `decideJoinRequest` khoá đơn (809) trước G, ngược `closeGroup` / `updateGroup` (G rồi J). Sửa: đọc đơn không
+     khoá, P → G → nhận đơn có điều kiện.
+  3. `acceptInvitation` khoá lời mời (739) trước P và G. Sửa như (2): P → G → nhận lời mời có điều kiện → thêm thành viên.
+     `insertMember` (353) tự lấy P và G — cần tách để bước nhận lời mời / đơn chen được sau G.
+  4. `removeMember` nhánh cấm: B → J → I; `cancelPendingFor` (1363), `expireDue` (1420), `closeGroup` (674): J
+     trước I. Đổi hết thành I → J → O.
+  5. `createInvitation` (860): P → lời mời quá hạn → tạo (khoá KEY SHARE dòng nhóm qua khoá ngoại) — ngược
+     `closeGroup`. Sửa: P → `groupStateFor(share)` → lời mời.
+  6. Lưới an toàn: `src/common/errors/error-handler.ts` map Prisma **P2034** (adapter-pg đổi cả 40001 lẫn 40P01 thành
+     P2034) → 409 `CONFLICT` "thử lại"; `tests/error-handler.test.ts` đang dùng P2034 làm ví dụ mã chưa map → đổi sang
+     mã khác (vd P2011).
+  - Lượt cập nhật hàng loạt theo hạn (`expireDue` với `closeGroup`) vẫn có thể khoá dòng khác thứ tự — hiếm, job tự
+    chạy lại, người dùng nhận 409 nhờ (6). Ghi vào Risks.
+- **T19**: thêm `GET /groups/:groupId/invitations` (lời mời đang chờ) và `GET /groups/:groupId/bans` (danh sách cấm,
+  kèm tên hiển thị, lúc cấm, người cấm), quyền như route mời / cấm. Lời mời hiện chỉ có dòng khi email có tài khoản —
+  liệt kê thẳng thì người quản lý dò được email nào đã đăng ký (trái TK 10). Phương án chọn: **lời mời "mù"** —
+  migration cho `group_invitations.account_id` nullable, thêm `email_hash` (dùng `identity.emailHashOf`) và
+  `email_hint` (che như `maskEmail`), unique lời mời đang chờ theo (`group_id`, `email_hash`); mời email chưa có
+  tài khoản vẫn ghi một dòng (không ai nhận, hết hạn như thường). Danh sách chỉ hiện `email_hint`, đơn vị, lúc mời, hạn
+  — giống nhau dù email có tài khoản hay không. Mời lại với đơn vị khác thì đổi đơn vị của lời mời đang chờ thay vì
+  lặng lẽ bỏ (`group.membership.service.ts` `invite`, ~589–611).
+
+**Sau A3 — đợt 4** (L1–L13 trừ L8, L11 đã sửa), rồi các câu thông báo cũ N10–N14, N26–N28, rồi `add-reports`.
 
 ## 1. Đang chờ quyết hoặc chờ duyệt
 
-| Việc                                 | Tình trạng                                                                                                                                                                                                                                                  | Bước tiếp                                                                                                            |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Change `notify-missing-images`       | Đã code (15/10/2026): ảnh mất khỏi kho → báo người đăng (N38) / chủ tài khoản (N39). Unit test xanh, chạy thật trên Neon + Cloudinary dev đúng. Còn task 3.1: test DB `tests/notification-media.db.test.ts` chưa chạy                                       | CI xanh → `/opsx:archive notify-missing-images`. Nguồn: `openspec/changes/notify-missing-images/`                    |
-| Change `add-review-queues`           | Đã code (15/10/2026): hàng chờ, nhận việc, quyết định, nhóm chuyển lên, job, thông báo master N40–N42, số liệu; tài liệu `docs/review.md`. Unit test xanh, chạy thật trên Neon dev đúng. Test `tests/review-*.http.test.ts` chưa chạy                       | CI xanh → `/opsx:archive add-review-queues`. Nguồn: `openspec/changes/add-review-queues/`                            |
-| PR nháp nhánh `add-listings`         | Chưa mở, nên CI chưa chạy test cần Postgres + RustFS. Máy này không có Docker: các test `*.http.test.ts`, `*.db.test.ts` mới thêm (ca 503 trong `tests/avatar.http.test.ts`, `tests/notification-media.db.test.ts`, `tests/review-*`) **chưa chạy lần nào** | Mở https://github.com/TanTaiIT/ghim-server/pull/new/add-listings, xem CI                                             |
-| Thư mục Cloudinary dev dùng chung    | Máy này đã dùng thư mục riêng `ghim-server-dev-pc13` (15/10/2026). `ghim-server-dev` còn ảnh của máy kia — lượt đối chiếu của máy này đã lỡ xoá 2 tệp ở đó trước khi đổi                                                                                    | Máy khác cũng dùng thư mục riêng: `?folder=ghim-server-dev-<tên máy>` trong `.env.development`                       |
-| Ghi dấu máy lúc đăng nhập của staff  | Luật "không xử việc của tài khoản dùng chung máy" chỉ biết hai tài khoản chung máy qua lượt **đăng tin** (`device_posts`). Staff chưa từng đăng tin từ máy mình thì tài khoản phụ của họ lọt                                                                | Change nhỏ: ghi dấu máy lúc staff, điều hành viên đăng nhập. Nguồn: design `add-review-queues` Risks, proposal câu 2 |
-| Tách module `region` khỏi `category` | Đã đề xuất: dữ liệu xã phường (`category/data/regions.json`, API `/regions/...`) dùng ở nhiều nơi nên đáng là module riêng                                                                                                                                  | Quyết làm hay không; làm thì là refactor, không cần change                                                           |
-| Skill `/debug`                       | Muốn: đặt breakpoint xong gõ `/debug` là tự vào chế độ debug. Chưa chốt kiểu (mở launch config của VS Code, hay chạy `node --inspect` nền rồi gắn vào)                                                                                                      | Chọn kiểu rồi viết skill                                                                                             |
-| Ý tưởng "quản lý hệ thống"           | Bạn mở đầu "điều gì làm một luồng business đi trật hướng khỏi hệ thống" nhưng chưa gửi phần ý tưởng                                                                                                                                                         | Gửi ý tưởng để bàn                                                                                                   |
-| Kiểm ảnh nhạy cảm (NSFW)             | Gác lại 15/10/2026. Ứng viên `nsfwjs` (mô hình tự chạy, ảnh không rời hệ thống) — rủi ro: chỉ bắt khiêu dâm; `@tensorflow/tfjs-node` không cập nhật từ 01/2025, chưa chắc cài được trên Node 24 Windows; ngưỡng chưa chốt                                   | Khi làm: chạy thử trong thư mục tạm (cài, đo tốc độ, chấm ảnh mẫu) rồi viết `add-image-moderation`                   |
+| Việc                                       | Tình trạng                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Bước tiếp                                                                                                                                   |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| PR nhánh `add-listings`                    | Đã mở; CI xanh 15/10/2026 (lượt 38719075637: check + 2069 test + `db:drift`). `add-review-queues`, `notify-missing-images` đã archive cùng ngày                                                                                                                                                                                                                                                                                                                              | Duyệt rồi merge vào `main`                                                                                                                  |
+| Bốn điểm chốt lúc code `add-review-queues` | Agent tự chốt vì TK, spec chưa nói rõ (ghi "đổi lúc code" trong design): (1) quyết định kiểm vai trước, kiểm việc giữ sau — người bị bãi nhiệm nhận 403 như spec; (2) gỡ khỏi nhóm trực tiếp: chủ nhóm, điều hành cả nhóm, điều hành đơn vị của tin, không theo chuỗi chuyển tiếp; (3) việc ở hàng master từ lúc sinh (danh mục chưa có staff) không "chuyển" khi quá hạn, mốc nhắc 72 giờ tính từ lúc sinh; (4) sáu lý do mẫu khởi đầu chèn ở bước khởi động khi bảng trống | Bạn xác nhận. Điểm nào muốn đổi thì một change nhỏ. Nguồn: `openspec/changes/archive/2026-10-15-add-review-queues/design.md` mục 2, 5, 6, 9 |
+| Thư mục Cloudinary dev dùng chung          | Máy này đã dùng thư mục riêng `ghim-server-dev-pc13` (15/10/2026). `ghim-server-dev` còn ảnh của máy kia — lượt đối chiếu của máy này đã lỡ xoá 2 tệp ở đó trước khi đổi                                                                                                                                                                                                                                                                                                     | Máy khác cũng dùng thư mục riêng: `?folder=ghim-server-dev-<tên máy>` trong `.env.development`                                              |
+| Ghi dấu máy lúc đăng nhập của staff        | Luật "không xử việc của tài khoản dùng chung máy" chỉ biết hai tài khoản chung máy qua lượt **đăng tin** (`device_posts`). Staff chưa từng đăng tin từ máy mình thì tài khoản phụ của họ lọt                                                                                                                                                                                                                                                                                 | Change nhỏ: ghi dấu máy lúc staff, điều hành viên đăng nhập. Nguồn: design `add-review-queues` Risks, proposal câu 2                        |
+| Tách module `region` khỏi `category`       | Đã đề xuất: dữ liệu xã phường (`category/data/regions.json`, API `/regions/...`) dùng ở nhiều nơi nên đáng là module riêng                                                                                                                                                                                                                                                                                                                                                   | Quyết làm hay không; làm thì là refactor, không cần change                                                                                  |
+| Skill `/debug`                             | Muốn: đặt breakpoint xong gõ `/debug` là tự vào chế độ debug. Chưa chốt kiểu (mở launch config của VS Code, hay chạy `node --inspect` nền rồi gắn vào)                                                                                                                                                                                                                                                                                                                       | Chọn kiểu rồi viết skill                                                                                                                    |
+| Ý tưởng "quản lý hệ thống"                 | Bạn mở đầu "điều gì làm một luồng business đi trật hướng khỏi hệ thống" nhưng chưa gửi phần ý tưởng                                                                                                                                                                                                                                                                                                                                                                          | Gửi ý tưởng để bàn                                                                                                                          |
+| Kiểm ảnh nhạy cảm (NSFW)                   | Gác lại 15/10/2026. Ứng viên `nsfwjs` (mô hình tự chạy, ảnh không rời hệ thống) — rủi ro: chỉ bắt khiêu dâm; `@tensorflow/tfjs-node` không cập nhật từ 01/2025, chưa chắc cài được trên Node 24 Windows; ngưỡng chưa chốt                                                                                                                                                                                                                                                    | Khi làm: chạy thử trong thư mục tạm (cài, đo tốc độ, chấm ảnh mẫu) rồi viết `add-image-moderation`                                          |
 
 ## 2. Change OpenSpec còn lại — theo thứ tự TK 29
 
 Nguồn: CLAUDE.md mục **Thứ tự change**, `openspec/changes/`. Mỗi change đã có proposal + specs; trả lời **Câu hỏi
-mở** trong proposal trước khi `/opsx:apply`.
+mở** trong proposal trước khi `/opsx:apply`. Cột ghi chú kể cả phần `add-review-queues` cố ý để lại cho change sau
+(proposal của nó, mục "Không làm").
 
-| Đợt | Change                 | Điều kiện / ghi chú                                                                           |
-| --- | ---------------------- | --------------------------------------------------------------------------------------------- |
-| 3   | `add-image-moderation` | Chờ chọn dịch vụ kiểm ảnh (mục 1) và rà soát pháp lý nếu gửi ảnh ra ngoài (TK 29 còn mở số 3) |
-| 4   | `add-reports`          | Sau khi archive `add-review-queues` (mục 1)                                                   |
-| 5   | `add-strikes`          |                                                                                               |
-| 6   | `add-messaging`        | Rồi `add-notifications`; đẩy thông báo lên điện thoại làm khi app sẵn sàng                    |
-| 7   | `add-data-retention`   | Xoá hẳn tin và ảnh theo hạn lưu (TK 25). Tới lúc đó tin xoá mềm vẫn giữ ảnh trong kho         |
+| Đợt | Change                 | Điều kiện / ghi chú                                                                                                                                                                     |
+| --- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3   | `add-image-moderation` | Chờ chọn dịch vụ kiểm ảnh (mục 1) và rà soát pháp lý nếu gửi ảnh ra ngoài (TK 29 còn mở số 3)                                                                                           |
+| 4   | `add-reports`          | Sau khi sửa xong lỗi rà soát (mục 0). Thêm hàng 1 (lý do `report`) vào hàng chờ; điểm báo cáo và báo cáo liên quan trong màn xử việc                                                    |
+| 5   | `add-strikes`          | Kết quả "vi phạm" (gậy) cho người duyệt; xác nhận việc hàng 4 kèm gậy; hàng 2 khiếu nại (lý do `appeal`, hạn 7 ngày); lịch sử gậy của người bán trong màn xử việc và nhật ký            |
+| 6   | `add-messaging`        | Rồi `add-notifications`: báo người đăng quyết định của người duyệt (từ chối, gỡ, khôi phục, gỡ khỏi nhóm) — `review` hiện chỉ báo master (N40–N42); đẩy lên điện thoại khi app sẵn sàng |
+| 7   | `add-data-retention`   | Xoá hẳn tin và ảnh theo hạn lưu (TK 25). Tới lúc đó tin xoá mềm vẫn giữ ảnh trong kho                                                                                                   |
 
 ## 3. Chuyển kho ảnh Cloudinary → Cloudflare R2
 
@@ -65,10 +130,30 @@ DeviceCheck) là quyết định sản phẩm, không phải việc dở — xem
 
 - [ ] Tạo lại khoá Cloudinary "moderation" (API secret đã gửi qua chat 15/10/2026), dán vào `.env.development`; nếu hệ
       cũ `docs/Vue` dùng chung tài khoản thì sửa cả bên đó.
-- [ ] Neon: xoá project cũ `us-east-1` (chuỗi cũ còn ở dòng comment trong `.env.development` — xoá luôn dòng đó), rồi reset mật khẩu `neondb_owner` của project Singapore (chuỗi kết nối đã gửi qua chat 15/10/2026) và cập nhật `DATABASE_URL`.
+- [ ] Neon: xoá project cũ `us-east-1` (chuỗi cũ còn ở dòng comment trong `.env.development` — xoá luôn dòng đó), rồi
+      reset mật khẩu `neondb_owner` của project Singapore (chuỗi kết nối đã gửi qua chat 15/10/2026) và cập nhật
+      `DATABASE_URL`.
 - [ ] App `ghim-app`: bỏ EXIF (vị trí GPS) khi nén ảnh — server không thấy ảnh nên không gỡ được (`docs/media.md` bước 1).
+- [ ] CI: đã nâng lên `actions/checkout@v6`, `actions/setup-node@v6`, `pnpm/action-setup@v6` (chạy Node 24) ngày
+      15/10/2026 — xem lượt CI kế tiếp còn xanh và hết cảnh báo Node 20 thì xoá dòng này.
+- [ ] CI: `runs-on: ubuntu-latest` chuyển sang Ubuntu 26 từ **19/10/2026** — xem lượt CI đầu tiên sau ngày đó (Postgres,
+      RustFS trong container); hỏng thì ghim `ubuntu-24.04`. Nguồn: cảnh báo của cùng lượt CI.
 
-## 6. Môi trường dev trên máy này (không Docker)
+## 6. Theo dõi khi có người dùng thật
+
+Không hỏng gì lúc này — là giới hạn đã biết của `add-review-queues`, cần nhìn lại khi số liệu lớn lên. Nguồn: design
+`add-review-queues` mục Risks.
+
+- **Hàng chờ tính người xử lúc đọc**, một lượt đọc tối đa 2000 việc mở (`OPEN_TASKS_CAP`, `review.repository.ts`): hàng
+  chờ, bảng tồn, lượt nhắc master và cảnh báo sắp chạm hạn không thấy việc vượt trần. Việc mở thường xuyên trên vài trăm
+  thì lưu bậc xử vào việc và tính lại theo sự kiện.
+- **Lấy mẫu hậu kiểm** xét tối đa 500 tin mới lên bảng mỗi giờ (`CANDIDATE_BATCH`, `schedule.service.ts`); hơn thế thì
+  ứng viên dồn sang giờ sau — nâng trần hay chạy dày hơn.
+- **Ảnh trùng không lưu "trùng với tin nào"**: màn xử việc tính lại, có thể khác lúc máy chấm nếu ảnh kia đã bị xoá.
+- **Sáu lý do mẫu khởi đầu nằm ở hai chỗ**: migration `init_review` (không sửa được) và `DEFAULT_REASON_TEMPLATES`
+  (`review.schema.ts`). DB mới vẫn nhận câu của migration trước, nên đổi câu khởi đầu thì làm bằng migration mới.
+
+## 7. Môi trường dev trên máy này (không Docker)
 
 Không phải việc dở — ghi để lần sau khỏi dò lại.
 
@@ -80,5 +165,12 @@ Không phải việc dở — ghi để lần sau khỏi dò lại.
   `STORAGE_URL`.
 - Dịch vụ giả: `VueJS/.vscode/ghim-dev-stubs.cjs` — SMTP :1025 in thư (mã xác nhận email đọc ở đây), S3 giả :9100 (không
   còn dùng khi kho là Cloudinary). Nạp qua `NODE_OPTIONS` trong `.env.development`; F5 dùng `VueJS/.vscode/launch.json`.
-- Kiểm tra chạy được ở đây: `typecheck`, `lint`, `format:check`, `test:unit`, `spec:validate`, `build`. Test cần
-  Postgres + RustFS chỉ chạy trên CI.
+- Kiểm tra chạy được ở đây: `typecheck`, `lint`, `format:check`, `test:unit`, `spec:validate`, `build`, `db:drift`
+  (chỉ đọc, so Neon dev với schema). Test cần Postgres + RustFS chỉ chạy trên CI, và CI chỉ chạy khi có pull request
+  (hoặc push lên `main`, `develop`).
+- Đọc kết quả CI khi máy không có `gh`: repo công khai nên API đọc không cần đăng nhập —
+  `api.github.com/repos/TanTaiIT/ghim-server/actions/runs?branch=<nhánh>` (lượt chạy), `/actions/runs/<id>/jobs` (job),
+  `/check-runs/<id job>/annotations` (test hỏng). Mỗi bước hiện tối đa 10 lỗi; trần 60 lượt gọi mỗi giờ. Log đầy đủ
+  cần đăng nhập — chụp màn hình.
+- VS Code báo lỗi kiểu Prisma (không thấy `reviewTask`…) sau khi đổi schema: language server dùng client cũ — chạy
+  "TypeScript: Restart TS Server". `pnpm run typecheck` mới là chuẩn.

@@ -3,6 +3,7 @@ import type { Listing, ListingHideReason, Prisma } from '@prisma/client';
 import type { OutboxEventInput } from '../../../common/outbox/outbox.js';
 import { DAY_MS, nextClock } from '../calc/display-period.calc.js';
 import { applyHideEvent, DETACHED_REASONS, type HideEvent, isDetached } from '../calc/hide.calc.js';
+import type { GroupLeave } from '../listing.ports.js';
 import { LISTING_EVENTS, listingEvent } from '../listing.outbox.js';
 import type { BatchRow, Tx } from '../listing.repository.js';
 import {
@@ -30,8 +31,25 @@ export interface ListingCascadeService {
     after?: ((tx: Tx, updated: Listing) => Promise<void>) | undefined;
   }): Promise<Listing>;
   onPrivatizationStarted(groupId: string): Promise<void>;
-  onUnitChanged(groupId: string, accountId: string, unitId: string | null): Promise<number>;
+  /*
+   * Bên nghe theo cặp (fix-audit-listeners, C1): sự kiện chỉ báo "có đổi"; chiều đặt / gỡ lấy từ trạng thái hiện tại, đọc
+   * trong transaction của mỗi lô sau khi đã khoá dòng — xử lại sự kiện cũ, tới trễ, hay nhiều tiến trình phát cùng lúc
+   * đều ra cùng một kết quả.
+   */
+  onAccountLockChanged(accountId: string): Promise<number>;
+  onGroupLockChanged(groupId: string): Promise<number>;
+  onBanChanged(groupId: string, accountId: string): Promise<number>;
+  /** `leave` = lượt rời (chụp lý do và công tắc người ngoài lúc rời); `null` = lượt vào. */
+  onMembershipChanged(
+    groupId: string,
+    accountId: string,
+    leave: GroupLeave | null,
+  ): Promise<number>;
+  onCategoryStatusChanged(categoryId: string): Promise<number>;
+  /** Ghi đơn vị hiện tại của thành viên lên tin của họ trong nhóm; không còn là thành viên thì thôi. */
+  onUnitChanged(groupId: string, accountId: string): Promise<number>;
   onBadgeRightsChanged(groupId: string, accountId: string | null): Promise<number>;
+  /** Gỡ "tài khoản mới" khi mức hiện tại đã khác T0 — lượt lên mức tới trễ sau một lượt tụt không gỡ nhầm. */
   onTierRaised(accountId: string): Promise<number>;
 }
 
@@ -83,7 +101,7 @@ const ownersOf = (rows: Changed): string[] => [
 ];
 
 export function createListingCascadeService(shared: ListingShared): ListingCascadeService {
-  const { repository, groups, config, clock, explainMiss } = shared;
+  const { repository, groups, categories, identity, trust, config, clock, explainMiss } = shared;
 
   /** Một sự kiện gộp cho cả lô (N32 / N33 gộp theo người đăng ở `notification`), không một sự kiện mỗi tin. */
   const hideEvents = (event: HideEvent, changed: Changed, groupId: string | null) => {
@@ -136,7 +154,71 @@ export function createListingCascadeService(shared: ListingShared): ListingCasca
     };
   };
 
+  /** `decide` chạy trong lô sau khi khoá dòng và trả sự kiện tạm ẩn đúng chiều hiện tại; `null` = lô không đổi. */
+  const reconcile = (
+    where: Prisma.ListingWhereInput,
+    decide: () => Promise<HideEvent | null>,
+    groupId: string | null = null,
+  ) => {
+    const now = clock();
+    return repository.applyBatch<HideEvent | null>({
+      where: { ...where, deletedAt: null },
+      at: now,
+      prepare: decide,
+      compute: (rows, event) => (event ? rows.flatMap((row) => hidden(row, event, now) ?? []) : []),
+      events: (changed, event) => (event ? hideEvents(event, changed, groupId) : []),
+    });
+  };
+
   return {
+    onAccountLockChanged: (accountId) =>
+      reconcile({ ownerId: accountId }, async () =>
+        (await identity.accountState(accountId))?.status === 'locked'
+          ? { kind: 'account_locked' }
+          : { kind: 'account_unlocked' },
+      ),
+
+    onGroupLockChanged: (groupId) =>
+      reconcile(
+        { groupId },
+        async () => {
+          const group = await groups.findGroup(groupId);
+          // Nhóm đã đóng: tin đã rời nhóm hẳn, lý do khoá không còn nghĩa gì để báo.
+          if (!group || group.state === 'closed') return null;
+          return { kind: group.state === 'locked' ? 'group_locked' : 'group_unlocked' };
+        },
+        groupId,
+      ),
+
+    onBanChanged: (groupId, accountId) =>
+      reconcile(
+        { ownerId: accountId, groupId },
+        async () => ({
+          kind: (await groups.isBanned(groupId, accountId)) ? 'ban_created' : 'ban_lifted',
+        }),
+        groupId,
+      ),
+
+    onMembershipChanged: (groupId, accountId, leave) =>
+      reconcile(
+        { ownerId: accountId, groupId },
+        async () => {
+          if ((await groups.membersAmong(groupId, [accountId])).has(accountId)) {
+            return { kind: 'member_joined' };
+          }
+          // Không còn là thành viên: chỉ lượt rời mới biết lý do và công tắc người ngoài để đặt lý do.
+          return leave ? { kind: 'member_left', ...leave } : null;
+        },
+        groupId,
+      ),
+
+    onCategoryStatusChanged: (categoryId) =>
+      reconcile({ categoryId }, async () => {
+        const category = (await categories.statusOf([categoryId])).get(categoryId);
+        if (!category) return null;
+        return { kind: category.enabled ? 'category_enabled' : 'category_disabled' };
+      }),
+
     onHideEvent(where, event, groupId = null) {
       const now = clock();
       return repository.applyBatch({
@@ -224,12 +306,15 @@ export function createListingCascadeService(shared: ListingShared): ListingCasca
       await groups.completePrivatization(groupId);
     },
 
-    onUnitChanged(groupId, accountId, unitId) {
-      return repository.applyBatch({
+    onUnitChanged(groupId, accountId) {
+      return repository.applyBatch<string | null | undefined>({
         where: { groupId, ownerId: accountId, deletedAt: null },
         at: clock(),
-        compute: (rows) =>
-          rows.filter((row) => row.unitId !== unitId).map((row) => ({ ...row, unitId })),
+        prepare: () => groups.memberUnit(groupId, accountId),
+        compute: (rows, unitId) =>
+          unitId === undefined
+            ? []
+            : rows.filter((row) => row.unitId !== unitId).map((row) => ({ ...row, unitId })),
       });
     },
 
@@ -261,11 +346,12 @@ export function createListingCascadeService(shared: ListingShared): ListingCasca
     },
 
     onTierRaised(accountId) {
-      return repository.applyBatch({
+      return repository.applyBatch<string>({
         where: { ownerId: accountId, deletedAt: null, restrictions: { has: 'new_account' } },
         at: clock(),
-        compute: (rows) =>
-          rows.map((row) => ({
+        prepare: () => trust.tierOf(accountId),
+        compute: (rows, tier) =>
+          (tier === 'T0' ? [] : rows).map((row) => ({
             ...row,
             restrictions: withRestriction(row.restrictions, 'new_account', false),
           })),

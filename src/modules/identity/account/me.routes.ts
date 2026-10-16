@@ -2,6 +2,7 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
 import { actorOf } from '../../../common/auth/actor.js';
+import type { RuntimeConfig } from '../../../common/config/runtime-config.js';
 import { errorResponse, ok, toOk } from '../../../common/schemas/response.js';
 import {
   avatarBodySchema,
@@ -20,10 +21,12 @@ import {
   twoFactorSetupSchema,
   userParamsSchema,
 } from '../identity.schema.js';
+import { sensitiveRateLimit } from '../auth/auth.routes.js';
 import type { IdentityService } from '../identity.service.js';
 
 export interface IdentityMeRoutesOptions {
   identity: IdentityService;
+  config: RuntimeConfig;
 }
 
 const TAGS_ME = ['Me'];
@@ -35,9 +38,11 @@ const bearer = [{ bearerAuth: [] }];
 /** Hồ sơ công khai (ai cũng xem được) và route của người đã đăng nhập (`/me/*`, qua `authenticate`). */
 export const identityMeRoutes: FastifyPluginAsyncZod<IdentityMeRoutesOptions> = async (
   app,
-  { identity },
+  { identity, config },
 ) => {
   const signedIn = [app.authenticate];
+  // Ba route kiểm mật khẩu / mã: token lộ không được dò thoải mái (fix-audit-identity).
+  const sensitive = sensitiveRateLimit(config);
 
   app.get('/users/:id', {
     schema: {
@@ -98,14 +103,17 @@ export const identityMeRoutes: FastifyPluginAsyncZod<IdentityMeRoutesOptions> = 
 
   app.post('/me/email-change', {
     preHandler: signedIn,
+    config: sensitive,
     schema: {
       tags: TAGS_ME,
-      summary: 'Xin đổi email — mã gửi tới email mới, email cũ vẫn là email đăng nhập',
+      summary:
+        'Xin đổi email — đòi mật khẩu (+ mã lớp hai nếu đã bật); mã gửi tới email mới, email cũ vẫn là email đăng nhập',
       security: bearer,
       body: emailChangeBodySchema,
       response: {
         200: ok(emptySchema),
         400: errorResponse,
+        401: errorResponse,
         409: errorResponse,
         429: errorResponse,
       },
@@ -118,9 +126,10 @@ export const identityMeRoutes: FastifyPluginAsyncZod<IdentityMeRoutesOptions> = 
 
   app.post('/me/email-change/confirm', {
     preHandler: signedIn,
+    config: sensitive,
     schema: {
       tags: TAGS_ME,
-      summary: 'Xác nhận email mới bằng mã',
+      summary: 'Xác nhận email mới bằng mã — báo email cũ, thu hồi mọi phiên khác',
       security: bearer,
       body: emailChangeConfirmBodySchema,
       response: { 200: ok(emptySchema), 400: errorResponse, 409: errorResponse },
@@ -202,6 +211,7 @@ export const identityMeRoutes: FastifyPluginAsyncZod<IdentityMeRoutesOptions> = 
 
   app.put('/me/password', {
     preHandler: signedIn,
+    config: sensitive,
     schema: {
       tags: TAGS_ME,
       summary: 'Đổi mật khẩu — thu hồi mọi phiên khác',

@@ -38,7 +38,7 @@ export function createIdentityAuthService(
   deps: IdentityServiceDeps,
   shared: IdentityShared,
 ): IdentityAuthService {
-  const { repository, clock, hashKey, googleVerifier } = deps;
+  const { repository, config, clock, hashKey, googleVerifier } = deps;
   const {
     isPrivileged,
     idleExpiry,
@@ -49,6 +49,7 @@ export function createIdentityAuthService(
     totpMatches,
     openSession,
     claimEmail,
+    releaseDeleted,
     assertNotDisposable,
     softDelete,
   } = shared;
@@ -142,6 +143,16 @@ export function createIdentityAuthService(
         // Token đã bị xoay mà còn được gửi lên: hoặc client lỗi, hoặc token đã lộ. Cả hai đều
         // không đáng giữ phiên — thu hồi, người dùng thật chỉ cần đăng nhập lại.
         const reused = await repository.findSessionByPreviousRefreshHash(hash);
+        // `last_active_at` chỉ được ghi lúc mở phiên và lúc xoay token: nó là mốc của lượt thay gần nhất. Trong ân
+        // hạn không cấp gì — người cầm token cũ không được thêm gì, chỉ chưa bị coi là kẻ trộm (T11).
+        const graceMs = config.get('identity.refreshGraceSeconds') * 1000;
+        if (
+          reused &&
+          !reused.revokedAt &&
+          reused.lastActiveAt.getTime() + graceMs > now.getTime()
+        ) {
+          throw refreshConflict();
+        }
         if (reused && !reused.revokedAt) {
           await repository.updateSession(reused.id, {
             revokedAt: now,
@@ -185,9 +196,23 @@ export function createIdentityAuthService(
       if (!google) throw invalidCredentials('Không xác thực được với Google, thử đăng nhập lại');
 
       let account = await repository.findAccountByGoogleSub(google.sub);
+      // Người dùng Google đã xoá tài khoản: như đăng ký lại cùng email — trong thời gian chờ thì 409 kèm ngày, sau đó
+      // dòng cũ được ẩn danh, nhả mã Google, và Google tạo tài khoản mới (spec account-deletion, T13).
+      if (account?.status === 'deleted' && account.deletedAt) {
+        await releaseDeleted({ ...account, deletedAt: account.deletedAt }, now);
+        account = null;
+      }
       if (!account) {
         const emailNormalized = normalizeEmail(google.email);
-        const existing = await claimEmail(emailNormalized, now);
+        let existing = await claimEmail(emailNormalized, now);
+        // Đăng ký dở chưa chứng minh được email là của ai. Nối Google vào đó thì mật khẩu và phiên của người đăng ký
+        // trước dùng chung được tài khoản của chủ email, nên xoá hẳn nó (spec registration, chốt 15/10/2026).
+        if (existing?.status === 'pending_verification' && google.emailVerified) {
+          const removed = await repository.deleteUnverifiedAccount(existing.id);
+          if (removed) deps.sessionsRevoked?.account(existing.id);
+          // Không xoá được = dòng vừa được xác nhận bằng mã: đọc lại, nó là tài khoản đã có như mọi email khác.
+          existing = removed ? null : await claimEmail(emailNormalized, now);
+        }
         if (existing) {
           // Google xác thực email đó là của người này → vào đúng tài khoản cũ, không sinh tài khoản thứ hai.
           if (!google.emailVerified)
@@ -195,7 +220,6 @@ export function createIdentityAuthService(
           account = await repository.updateAccount(existing.id, {
             googleSub: google.sub,
             googlePictureUrl: google.picture,
-            ...(existing.status === 'pending_verification' ? { status: 'active' as const } : {}),
           });
         } else {
           if (!google.emailVerified)

@@ -33,6 +33,13 @@ export function hashEmail(normalizedEmail: string, key: string): string {
  * `mx.tempmail.example`, `tempmail.example`, `example`. Danh sách miền dùng một lần so theo
  * đuôi nên miền con của miền bị chặn cũng bị chặn.
  */
+/** Email trong thư báo gửi người khác: ký tự đầu + `***` + `@miền` — đủ để chủ nhận ra, không lộ cả địa chỉ. */
+export function maskEmail(email: string): string {
+  const at = email.lastIndexOf('@');
+  if (at <= 0) return '***';
+  return `${email.slice(0, 1)}***${email.slice(at)}`;
+}
+
 export function domainSuffixes(email: string): string[] {
   const domain = email.slice(email.lastIndexOf('@') + 1).toLowerCase();
   const labels = domain.split('.').filter(Boolean);

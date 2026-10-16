@@ -438,3 +438,106 @@ describe('Báo master khi hậu kiểm làm không xuể', () => {
     expect(await review().weeklyPostcheck()).toEqual({ rate: 80, alerted: false });
   });
 });
+
+describe('Việc chuyển master trong lúc đang nhận (fix-audit-review, L11)', () => {
+  it('staff đang nhận việc hàng 0 thì việc quá hạn sang hàng master, rồi quyết: 409 TASK_REASSIGNED, tin vẫn chờ duyệt', async () => {
+    await closeAllOpenTasks();
+    const category = await seedCategory();
+    const staff = await staffOf([category]);
+    const poster = await newUser(app);
+    const held = await heldBy(poster, { categoryId: category });
+    const task = await taskOf(held.id);
+    now = at(24 * HOUR_MS - 5 * MINUTE_MS);
+    expect((await opsClaim(staff, task.id)).statusCode).toBe(200);
+    now = at(24 * HOUR_MS + MINUTE_MS);
+    await review().everyMinute();
+    expect((await taskOf(held.id)).escalatedAt).toEqual(now);
+    const res = await api(app, 'POST', `/ops/review/tasks/${task.id}/decision`, staff.token, {
+      outcome: 'pass',
+      machineJudgment: 'machine_right',
+    });
+    expect(res.statusCode, res.body).toBe(409);
+    expect(res.json().error.code).toBe('TASK_REASSIGNED');
+    expect((await getOwn(app, poster, held.id)).state).toBe('pending');
+  });
+});
+
+describe('Lấy mẫu theo rủi ro bỏ tin ẩn và người cho đạt (fix-audit-review, T2, T7)', () => {
+  beforeEach(async () => {
+    await prisma.reviewSampleCandidate.deleteMany();
+  });
+
+  it('staff cho đạt tin máy giữ: việc mẫu của phiên bản đó loại staff này, staff khác cùng danh mục nhận được', async () => {
+    const category = await seedCategory();
+    const staff = await staffOf([category]);
+    const other = await staffOf([category]);
+    const held = await heldBy(await newUser(app), { categoryId: category });
+    await machineRun(held, { score: 50, tier: 'T1', outcome: 'hold' });
+    const task = await taskOf(held.id);
+    await opsClaim(staff, task.id);
+    const passed = await api(app, 'POST', `/ops/review/tasks/${task.id}/decision`, staff.token, {
+      outcome: 'pass',
+      machineJudgment: 'machine_overreach',
+    });
+    expect(passed.statusCode, passed.body).toBe(200);
+    await deliverAll(app);
+    expect(
+      await prisma.reviewSampleCandidate.findFirstOrThrow({ where: { listingId: held.id } }),
+    ).toMatchObject({ approvedBy: staff.id });
+    overrides['postcheck.borderlineSamplePercent'] = 100;
+    await review().everyHour();
+    const [sample] = await openTasks(held.id);
+    expect(sample).toMatchObject({ queue: 5, reasons: ['sample_risk'] });
+    expect(sample?.excludedIds).toContain(staff.id);
+    expect(await opsListingIds(staff)).not.toContain(held.id);
+    expect(await opsListingIds(other)).toContain(held.id);
+  });
+
+  it('tin đang tạm ẩn vì chủ tin bị khoá tới lượt lấy mẫu: không bị lấy mẫu', async () => {
+    overrides['postcheck.borderlineSamplePercent'] = 100;
+    const poster = await newUser(app);
+    const live = await liveListingOf(app, poster);
+    await machineRun(live, { score: 50, tier: 'T2', outcome: 'pass_full' });
+    await deliverAll(app);
+    const lock = await api(app, 'POST', `/ops/accounts/${poster.id}/lock`, master.token, {
+      reason: 'Vi phạm quy định',
+    });
+    expect(lock.statusCode, lock.body).toBe(204);
+    await deliverAll(app);
+    const row = await prisma.listing.findUniqueOrThrow({ where: { id: live.id } });
+    expect(row.version).toBe(live.version);
+    expect(row.hideReasons).not.toEqual([]);
+    await review().everyHour();
+    expect(await openTasks(live.id)).toEqual([]);
+  });
+});
+
+describe('Nhắc master nêu đủ số việc, tối đa một lần mỗi ngày (fix-audit-review, T9)', () => {
+  it('3 việc đã quá 72 giờ và việc thứ tư vừa quá: dòng chưa đọc nêu 4 việc, không nhắc lại trong 24 giờ', async () => {
+    await closeAllOpenTasks();
+    await prisma.notification.deleteMany({ where: { type: 'review.master.reminder' } });
+    // Danh mục chưa có staff: việc ở hàng master từ lúc sinh, mốc nhắc tính từ lúc sinh.
+    const category = await seedCategory();
+    const heldAtMaster = async () => heldBy(await newUser(app), { categoryId: category });
+    await heldAtMaster();
+    await heldAtMaster();
+    await heldAtMaster();
+    now = at(2 * HOUR_MS);
+    await heldAtMaster();
+
+    now = at(73 * HOUR_MS);
+    expect((await review().everyHour()).reminded).toBe(3);
+    await deliverAll(app);
+    const [first] = await unreadOf(master.id, 'review.master.reminder');
+    expect(first?.body).toBe('3 việc nằm ở hàng master quá 72 giờ chưa ai xử.');
+    expect(first?.alertedAt).toEqual(now);
+
+    now = at(75 * HOUR_MS);
+    expect((await review().everyHour()).reminded).toBe(1);
+    await deliverAll(app);
+    const unread = await unreadOf(master.id, 'review.master.reminder');
+    expect(unread).toHaveLength(1);
+    expect(unread[0]?.body).toBe('4 việc nằm ở hàng master quá 72 giờ chưa ai xử.');
+    expect(unread[0]?.alertedAt).toEqual(at(73 * HOUR_MS));
+  });
+});

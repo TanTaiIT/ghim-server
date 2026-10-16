@@ -23,7 +23,7 @@ import {
   listingNotFound,
   withRestriction,
 } from '../listing.shared.js';
-import { type TrustTier } from '../listing.ports.js';
+import { type ListingLock, type TrustTier } from '../listing.ports.js';
 
 export interface MachineResult {
   listingId: string;
@@ -54,7 +54,8 @@ export interface ListingSystemService {
   /** Cụm từ cấm mới bật thật: rút tin đang hiện về chờ duyệt, không từ chối (cam kết 16). */
   recallByMachine(listingId: string, listingVersion: number): Promise<boolean>;
   /** Lưới an toàn thiếu kết quả ảnh: thêm lý do "máy" (design mục 8). */
-  restrictByMachine(listingId: string): Promise<boolean>;
+  /** Lưới an toàn hạn chế "máy"; có `version` thì chỉ khi tin còn đúng phiên bản đó — sự kiện tới trễ trượt qua (L8). */
+  restrictByMachine(listingId: string, version?: number): Promise<boolean>;
   /** Mũi tên của người duyệt / người xét khiếu nại — `review`, `add-strikes` gọi. */
   review(input: ReviewInput): Promise<Listing>;
   /**
@@ -75,7 +76,7 @@ export interface ListingSystemService {
    * mới ghi việc (quyết định, hook `after`); ghi việc ngoài lượt đó cũng phải khoá tin trước, không thì hai bên chờ nhau
    * — một bên giữ chỗ trong chỉ mục việc mở, một bên giữ dòng tin mà khoá ngoại của việc cần.
    */
-  lockForReview(tx: Tx, listingId: string): Promise<void>;
+  lockForReview(tx: Tx, listingId: string): Promise<ListingLock | null>;
 }
 
 /** Lên bảng (máy cho qua, người duyệt đạt / khôi phục, khiếu nại thắng): tính lý do "tài khoản mới" (mục 7). */
@@ -174,10 +175,11 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
       return recalled !== null;
     },
 
-    async restrictByMachine(listingId) {
+    async restrictByMachine(listingId, version) {
       const changed = await repository.change({
         id: listingId,
         states: ['checking', 'pending', 'live', 'sold', 'expired'],
+        ...(version === undefined ? {} : { version }),
         data: (locked) => ({ restrictions: withRestriction(locked.restrictions, 'machine', true) }),
       });
       return changed !== null;

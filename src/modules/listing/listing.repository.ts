@@ -60,11 +60,16 @@ export type BatchRow = Pick<
   | 'remindedFor'
 >;
 
-export interface BatchInput {
+export interface BatchInput<C = undefined> {
   where: Prisma.ListingWhereInput;
+  /**
+   * Đọc trạng thái của module khác SAU khi đã khoá dòng của lô, trong transaction của lô — mỗi lô đọc lại. Bên nghe đối
+   * chiếu (fix-audit-listeners, C1): bên nghe đối chiều chạy song song thì bên sau luôn thấy kết quả của bên trước.
+   */
+  prepare?: () => Promise<C>;
   /** Hàm thuần: cột mới cho dòng phải đổi; dòng không có trong kết quả thì giữ nguyên. */
-  compute: (rows: Listing[]) => BatchRow[];
-  events?: (changed: { before: Listing; after: BatchRow }[]) => OutboxEventInput[];
+  compute: (rows: Listing[], context: C) => BatchRow[];
+  events?: (changed: { before: Listing; after: BatchRow }[], context: C) => OutboxEventInput[];
   at: Date;
 }
 
@@ -91,7 +96,7 @@ export interface ListingRepository {
   }): Promise<Listing>;
   findSubmission(listingId: string, fromVersion: number): Promise<ListingSubmission | null>;
   /** Đổi theo lô cho bên nghe và việc nền: lô 500 dòng, mỗi lô một transaction. Trả số dòng đã đổi. */
-  applyBatch(input: BatchInput): Promise<number>;
+  applyBatch<C = undefined>(input: BatchInput<C>): Promise<number>;
   list(input: {
     where: Prisma.ListingWhereInput;
     order: ListingOrder;
@@ -100,8 +105,11 @@ export interface ListingRepository {
   }): Promise<Listing[]>;
   /** Tin "nhóm công khai" còn trong nhóm — đếm trong transaction đổi chế độ của `group` (cam kết 22). */
   countGroupPublic(tx: Tx, groupId: string): Promise<number>;
-  /** `FOR KEY SHARE` dòng tin trong `tx` của bên gọi: chờ lượt đổi tin đang chạy xong, không chặn lượt đọc. */
-  holdKey(tx: Tx, id: string): Promise<void>;
+  /**
+   * `FOR KEY SHARE` dòng tin trong `tx` của bên gọi: chờ lượt đổi tin đang chạy xong, không chặn lượt đọc. Trả phiên
+   * bản và trạng thái lúc giữ — đứng yên tới hết `tx` vì lượt đổi tin cần `FOR UPDATE` (fix-audit-review, T5).
+   */
+  holdKey(tx: Tx, id: string): Promise<{ version: number; state: ListingState } | null>;
   existingIds(ids: string[]): Promise<Set<string>>;
   badgeBlocked(listingId: string, groupId: string): Promise<boolean>;
   /** Tin này đã được chuyển lên sàn chung chưa (kiểm trước cho câu lỗi; unique mới là chốt thật). */
@@ -165,10 +173,8 @@ export const BATCH_SIZE = 500;
 const liveWhere = (ownerId: string): Prisma.ListingWhereInput => ({
   ownerId,
   deletedAt: null,
-  OR: [
-    { state: { in: ['checking', 'pending'] } },
-    { state: 'live', hideReasons: { isEmpty: true } },
-  ],
+  state: { in: ['checking', 'pending', 'live'] },
+  hideReasons: { isEmpty: true },
 });
 
 const orderBy = (order: ListingOrder): Prisma.ListingOrderByWithRelationInput[] =>
@@ -208,8 +214,8 @@ async function lockListing(tx: Tx, id: string): Promise<Listing | null> {
 
 export function createListingRepository(prisma: PrismaClient): ListingRepository {
   /** Một lô: chọn mã, khoá, đọc lại dòng đã khoá, tính, ghi một câu. `null` = hết dòng. */
-  const batchOnce = async (
-    input: BatchInput,
+  const batchOnce = async <C>(
+    input: BatchInput<C>,
     after: string | null,
   ): Promise<{ last: string; changed: number } | null> =>
     prisma.$transaction(async (tx) => {
@@ -225,7 +231,8 @@ export function createListingRepository(prisma: PrismaClient): ListingRepository
       if (!last) return null;
       await tx.$executeRaw`SELECT 1 FROM listings WHERE id = ANY(${ids}::uuid[]) FOR UPDATE`;
       const rows = await tx.listing.findMany({ where: { id: { in: ids } } });
-      const updates = input.compute(rows);
+      const context = (input.prepare ? await input.prepare() : undefined) as C;
+      const updates = input.compute(rows, context);
       if (updates.length > 0) {
         await tx.$executeRaw`
           UPDATE listings AS l SET
@@ -253,13 +260,13 @@ export function createListingRepository(prisma: PrismaClient): ListingRepository
           const before = byId.get(row.id);
           return before ? [{ before, after: row }] : [];
         });
-        await appendEvents(tx, input.events?.(changed) ?? []);
+        await appendEvents(tx, input.events?.(changed, context) ?? []);
       }
       return { last, changed: updates.length };
     });
 
-  const runBatches = async (
-    input: BatchInput,
+  const runBatches = async <C>(
+    input: BatchInput<C>,
     after: string | null,
     done: number,
   ): Promise<number> => {
@@ -329,7 +336,9 @@ export function createListingRepository(prisma: PrismaClient): ListingRepository
       }),
 
     holdKey: async (tx, id) => {
-      await tx.$executeRaw`SELECT 1 FROM listings WHERE id = ${id}::uuid FOR KEY SHARE`;
+      const [row] = await tx.$queryRaw<{ version: number; state: ListingState }[]>`
+        SELECT version, state FROM listings WHERE id = ${id}::uuid FOR KEY SHARE`;
+      return row ?? null;
     },
 
     countGroupPublic: (tx, groupId) =>

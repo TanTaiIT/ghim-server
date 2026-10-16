@@ -73,6 +73,24 @@ async function account({ role, status }: State = { role: 'user', status: 'active
   return id;
 }
 
+const lock = (accountId: string) =>
+  repositories.identity.lockAccount({
+    accountId,
+    reason: 'Điều tra',
+    lockedBy: MASTER.accountId,
+    at: NOW,
+    events: [],
+    audit: TEST_AUDIT,
+  });
+const unlock = (accountId: string) =>
+  repositories.identity.unlockAccount({
+    accountId,
+    unlockedBy: MASTER.accountId,
+    at: NOW,
+    events: [],
+    audit: TEST_AUDIT,
+  });
+
 function build() {
   const loads: number[] = [];
   const service = createPlatformService({
@@ -242,6 +260,7 @@ describe('thu, treo, trả lại', () => {
     const { service, privileges } = build();
     const hung = await account();
     await service.grantStaff(MASTER, hung, { scopes: [], categoryIds: [PHONE] });
+    await lock(hung);
 
     await service.suspendStaffForLock(hung);
     await service.suspendStaffForLock(hung);
@@ -259,8 +278,23 @@ describe('thu, treo, trả lại', () => {
     expect(await privileges.isStaff(hung)).toBe(true);
     // Treo là việc của hệ thống, không phải của người: không có dòng nhật ký.
     expect(
-      await prisma.auditLog.count({ where: { action: { not: 'platform.staff.grant' } } }),
+      await prisma.auditLog.count({
+        where: { action: { notIn: ['platform.staff.grant', TEST_AUDIT.action] } },
+      }),
     ).toBe(0);
+  });
+
+  it('lượt khoá được xử lại sau khi mở khoá và master đã trả quyền: không treo lại (fix-audit-listeners)', async () => {
+    const { service, privileges } = build();
+    const hung = await account();
+    await service.grantStaff(MASTER, hung, { scopes: [], categoryIds: [PHONE] });
+    await lock(hung);
+    await service.suspendStaffForLock(hung);
+    await unlock(hung);
+    await service.restoreStaff(MASTER, hung);
+
+    await service.suspendStaffForLock(hung);
+    expect(await privileges.permissionState(hung)).toBe('active');
   });
 
   it('trả lại khi tài khoản còn khoá → 409 INELIGIBLE, vẫn treo; mở khoá rồi trả lại → đúng phạm vi cũ', async () => {

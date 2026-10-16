@@ -187,6 +187,13 @@ export const accountLocked = (account: Pick<Account, 'lockedReason'>): Forbidden
     'ACCOUNT_LOCKED',
   );
 
+/** Tài khoản chỉ có Google: chưa có mật khẩu để xác thực lại — đặt qua "quên mật khẩu" (fix-audit-identity, T12). */
+export const passwordNotSet = (): ConflictError =>
+  new ConflictError(
+    'Tài khoản chưa có mật khẩu — đặt mật khẩu qua "quên mật khẩu" rồi đổi email',
+    'PASSWORD_NOT_SET',
+  );
+
 export const emailTaken = (): ConflictError =>
   new ConflictError(
     'Email này đã có tài khoản — đăng nhập hoặc dùng "quên mật khẩu"',
@@ -360,9 +367,28 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
   };
 
   /**
+   * Tài khoản đã xoá chặn email (và mã Google) của nó trong thời gian chờ → EMAIL_PENDING_DELETION kèm ngày. Hết thời gian
+   * chờ thì ẩn danh dòng cũ để email, mã Google tự do mà lịch sử chống gian lận còn (C9) — xoá hẳn là việc của
+   * `add-data-retention`.
+   */
+  const releaseDeleted = async (account: Account & { deletedAt: Date }, at: Date) => {
+    const holdMs = config.get('identity.deletedEmailHoldDays') * DAY_MS;
+    const reopenAt = new Date(account.deletedAt.getTime() + holdMs);
+    if (reopenAt > at) {
+      throw new ConflictError(
+        `Email này thuộc một tài khoản vừa xoá, đăng ký lại được từ ${formatDateVN(reopenAt)}`,
+        'EMAIL_PENDING_DELETION',
+      );
+    }
+    await repository.anonymizeDeletedAccount({
+      id: account.id,
+      deletedBefore: new Date(at.getTime() - holdMs),
+    });
+  };
+
+  /**
    * Luật "mỗi email một tài khoản" chung cho đăng ký, Google và đổi email: tài khoản còn sống →
-   * EMAIL_TAKEN; đã xoá trong 90 ngày chờ → EMAIL_PENDING_DELETION kèm ngày; qua 90 ngày → xoá
-   * hẳn dòng cũ để email tự do. Trả về dòng đang sống nếu có, để người gọi quyết nối hay từ chối.
+   * EMAIL_TAKEN; đã xoá thì qua `releaseDeleted`. Trả về dòng đang sống nếu có, để người gọi quyết nối hay từ chối.
    */
   const claimEmail = async (
     emailNormalized: string,
@@ -372,18 +398,7 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
     const existing = await repository.findAccountByEmail(emailNormalized);
     if (!existing || existing.id === ignoreAccountId) return null;
     if (existing.status !== 'deleted' || !existing.deletedAt) return existing;
-    const reopenAt = new Date(
-      existing.deletedAt.getTime() + config.get('identity.deletedEmailHoldDays') * DAY_MS,
-    );
-    if (reopenAt > at) {
-      throw new ConflictError(
-        `Email này thuộc một tài khoản vừa xoá, đăng ký lại được từ ${formatDateVN(reopenAt)}`,
-        'EMAIL_PENDING_DELETION',
-      );
-    }
-    // Hết hạn chờ: dòng cũ chỉ còn giữ chỗ email. Xoá hẳn ở đây là việc `add-data-retention`
-    // sẽ làm theo lịch; làm ngay để email đăng ký lại được như email mới (spec).
-    await repository.purgeAccount(existing.id);
+    await releaseDeleted({ ...existing, deletedAt: existing.deletedAt }, at);
     return null;
   };
 
@@ -398,6 +413,10 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
 
   /** Xoá là xoá mềm: giữ dòng 90 ngày (email chưa dùng lại được, báo cáo còn xử được), xoá hẳn là việc của `add-data-retention`. */
   const softDelete = async (account: Account): Promise<void> => {
+    // Không có luồng bỏ master trong app (TK 5): xoá master là hệ thống mất master vĩnh viễn.
+    if (account.role === 'master') {
+      throw new ConflictError('Tài khoản master không xoá được', 'ACCOUNT_DELETE_BLOCKED');
+    }
     if (account.status === 'locked') {
       throw new ConflictError(
         `Tài khoản đang bị khoá (${account.lockedReason ?? 'liên hệ hỗ trợ'}) nên chưa xoá được`,
@@ -449,6 +468,7 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
     isDisposableEmail,
     accountOf,
     claimEmail,
+    releaseDeleted,
     assertNotDisposable,
     softDelete,
     resolveActor,

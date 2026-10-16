@@ -1,6 +1,8 @@
 import type { ImageCheck, ScreeningRun } from '@prisma/client';
 
 import { generateLookupCode } from '../../../common/crypto/lookup-code.js';
+import { logger } from '../../../lib/logger.js';
+import { sequentially } from '../../../common/utils/sequential.js';
 import type { LiveListingFacts } from '../../listing/listing.ports.js';
 import { bandsOf, hamming } from '../calc/dhash.calc.js';
 import { conclude as concludeCalc, type Failure } from '../calc/decide.calc.js';
@@ -28,6 +30,7 @@ export function createConclusion(shared: ScreeningShared) {
 
   /** Ảnh trùng ảnh đã kiểm của tài khoản khác, trừ ảnh khớp danh sách trắng (spec image-checks). */
   const duplicateOf = async (
+    tx: Tx,
     check: ImageCheck,
     run: ScreeningRun,
     maxDistance: number,
@@ -35,14 +38,13 @@ export function createConclusion(shared: ScreeningShared) {
     if (check.dhash === null) return false;
     const hash = check.dhash;
     const bands = bandsOf(hash);
-    const candidates = await repository.duplicateCandidates({
-      bands,
-      excludeOwner: run.accountId,
-      excludeImageIds: run.imageIds,
-    });
+    const candidates = await repository.duplicateCandidates(
+      { bands, excludeOwner: run.accountId, excludeImageIds: run.imageIds },
+      tx,
+    );
     const near = (other: bigint | null) => other !== null && hamming(other, hash) <= maxDistance;
     if (!candidates.some((candidate) => near(candidate.dhash))) return false;
-    const whitelist = await repository.whitelistCandidates(bands);
+    const whitelist = await repository.whitelistCandidates(bands, tx);
     return !whitelist.some((entry) => near(entry.dhash));
   };
 
@@ -56,7 +58,11 @@ export function createConclusion(shared: ScreeningShared) {
     const settled = checks.filter((check) => check.status !== 'pending');
     if (settled.length < run.imageIds.length) return null;
     if (settled.some((check) => check.status === 'error')) return { failed: true, duplicates: [] };
-    const flags = await Promise.all(settled.map((check) => duplicateOf(check, run, maxDistance)));
+    // Lần lượt trên kết nối của transaction: song song thì mỗi ảnh xin thêm một kết nối của pool (T24).
+    const flags: boolean[] = [];
+    await sequentially(settled, async (check) => {
+      flags.push(await duplicateOf(tx, check, run, maxDistance));
+    });
     return {
       failed: false,
       duplicates: settled.filter((_, index) => flags[index]).map((check) => check.imageId),
@@ -81,15 +87,19 @@ export function createConclusion(shared: ScreeningShared) {
    * Kết luận khi đủ chữ và mọi ảnh, hay khi lưới an toàn hết chờ (`timedOut`) — còn thiếu thì để chờ. Ghi có điều kiện,
    * nên `false` cả khi chưa đủ lẫn khi lượt khác vừa kết luận trước.
    */
-  const conclude = async (tx: Tx, run: ScreeningRun, timedOut = false): Promise<boolean> => {
-    const text = textResultOf(run);
-    if (text.status === 'recall') return false;
+  /** Dữ kiện để kết luận, đọc qua `tx`; `null` = còn ảnh chưa có kết quả, chờ tiếp. */
+  const assess = async (
+    tx: Tx,
+    run: ScreeningRun,
+    text: ReturnType<typeof textResultOf>,
+    timedOut: boolean,
+  ) => {
     const raw: RawHit[] = text.status === 'ok' ? [...text.hits] : [];
     let failure: Failure | null = text.status === 'error' ? 'error' : null;
     if (text.status === 'ok') {
       const images = await imagesOf(tx, run, text.imageMaxDistance);
       if (!images) {
-        if (!timedOut) return false;
+        if (!timedOut) return null;
         failure = 'timeout';
       } else if (images.failed) {
         failure = 'error';
@@ -97,8 +107,28 @@ export function createConclusion(shared: ScreeningShared) {
         raw.push({ code: 'duplicate_image', refs: images.duplicates });
       }
     }
+    return { raw, failure, rules: await shared.rules.at(run.ruleVersion, tx) };
+  };
+
+  const conclude = async (tx: Tx, run: ScreeningRun, timedOut = false): Promise<boolean> => {
+    const text = textResultOf(run);
+    if (text.status === 'recall') return false;
+    // Phần đọc trong savepoint: lỗi lúc đọc thành "giữ cho người, lỗi" (bộ luật phiên bản 0, có sẵn trong bộ nhớ) thay
+    // vì làm hỏng cả lượt gửi — tin vẫn được nhận (spec machine-decision, T24).
+    const read = await repository.guarded(tx, () => assess(tx, run, text, timedOut));
+    let facts: NonNullable<Awaited<ReturnType<typeof assess>>>;
+    if (read.ok) {
+      if (read.value === null) return false;
+      facts = read.value;
+    } else {
+      logger.warn(
+        { err: read.error, runId: run.id },
+        'screening: đọc dữ kiện kết luận lỗi, giữ cho người',
+      );
+      facts = { raw: [], failure: 'error', rules: await shared.rules.at(0) };
+    }
+    const { raw, failure, rules } = facts;
     const ok = text.status === 'ok' ? text : null;
-    const rules = await shared.rules.at(run.ruleVersion);
     const verdict = concludeCalc({
       raw,
       book: ruleBookOf(rules.version, rules.snapshot, ok?.bands ?? bandThresholds(config)),

@@ -17,7 +17,8 @@ công ty, cộng đồng). Máy duyệt trước, người duyệt phần máy k
   OpenSpec**. File này chỉ nói luật đặt ở **đâu trong code**. TK, change và code lệch nhau → hỏi, đừng
   tự chọn một bên. Hai luật đụng nhau → thứ tự ưu tiên ở TK phần 4 (pháp lý → không tự xử việc của mình
   → máy không phạt → người dùng biết vì sao → tiện lợi).
-- **Việc đang dở**: `docs/VIEC-DANG-DO.md` — việc chờ quyết, change còn lại, checklist chuyển R2, môi trường dev.
+- **Việc đang dở**: `docs/VIEC-DANG-DO.md` — việc chờ quyết, change còn lại, checklist chuyển R2, bảo mật và CI,
+  giới hạn cần theo dõi khi có người dùng thật, môi trường dev.
   Làm xong việc nào thì xoá dòng đó; gác lại việc gì thì thêm vào.
 - **Hệ thống cũ**: `../../Vue/` (Express + MongoDB + agenda). Đọc để biết dữ liệu nào phải chuyển
   sang và tích hợp nào đang chạy; **không** chép pattern của nó sang đây.
@@ -133,7 +134,8 @@ src/
                                 requireCategoryOps(categoryIdOf); `Actor`
                                 trên request, `actorOf(request)` cho handler; `PrivilegeSource.staffGrant` trả
                                 cả gói quyền staff trong một lượt đọc (bản thật: `createPlatformPrivilegeSource`)
-    config/config-keys.ts     ← sổ đăng ký mọi con số TK 28: kiểu, giá trị khởi đầu, nhóm
+    config/config-keys.ts     ← sổ đăng ký mọi con số TK 28: kiểu, giá trị khởi đầu, nhóm, khoảng hợp lệ;
+                                ràng buộc giữa khoá (`configRelationIssues`)
     config/runtime-config.ts  ← `RuntimeConfig.get(key)`; bản tĩnh cho test và CLI
     crypto/secrets.ts         ← AES-256-GCM (`SecretBox`), SHA-256, HMAC tách scope, token ngẫu nhiên
     crypto/lookup-code.ts     ← mã tra cứu 8 ký tự Crockford: dấu tài khoản (`identity`), lượt máy kết luận (`screening`)
@@ -246,7 +248,7 @@ change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-cate
 `harden-module-infra` → `tune-hot-paths` → `cache-public-reads-revoke-deleted-staff` →
 `harden-production-runtime` → `add-groups` → `add-notification-core` (kéo từ đợt 6, chốt 11/10/2026) — mười change
 này đã archive 10–11/10/2026 · đợt 2
-`add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` (cả hai đã archive 12/10/2026) · đợt 3 `add-screening` (đã archive 13/10/2026) → `add-image-moderation` (khi chọn được dịch vụ kiểm ảnh, tách ra 12/10/2026) · đợt 4 `add-review-queues` (đã code 15/10/2026, chờ CI để archive) →
+`add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` (cả hai đã archive 12/10/2026) · đợt 3 `add-screening` (đã archive 13/10/2026) → `add-image-moderation` (khi chọn được dịch vụ kiểm ảnh, tách ra 12/10/2026) · đợt 4 `add-review-queues` (đã archive 15/10/2026) → **sửa lỗi rà soát 15/10/2026 trước mọi tính năng** (`docs/RA-SOAT-15-10-2026.md`; đợt 1 bảo mật = `fix-audit-security`) →
 `add-reports` · đợt 5 `add-strikes` · đợt 6 `add-messaging` → `add-notifications` · đợt 7
 `add-data-retention`.
 
@@ -308,7 +310,10 @@ Mỗi luật dưới đây là một cam kết ở TK phần 27; số trong ngo�
     định của người, chỉ `trust` ghi gậy, chỉ `listing` đổi trạng thái tin. Module khác đọc qua service
     của chủ hoặc nhận sự kiện — không `prisma.<bảng của module khác>.update` ở đâu cả.
 12. **Tác động chéo đi qua outbox** ghi trong **cùng transaction** với thay đổi gốc (30). Bên nghe phải
-    chịu được nhận trùng. Gọi đồng bộ chỉ bốn chỗ (TK 30): `listing` hỏi `trust` hạn chế/hạn mức, `listing`
+    chịu được nhận trùng **và xử lại sự kiện cũ sau sự kiện mới**: bộ phát chạy lại mọi bên nghe của một sự kiện khi một
+    bên ném, và nhiều tiến trình phát song song. Bên nghe của một cặp (khoá / mở, cấm / gỡ cấm, rời / vào, tắt / bật)
+    coi sự kiện là tín hiệu "có đổi" và lấy chiều từ trạng thái hiện tại — ở `listing` đọc trong lô sau khi khoá dòng
+    (`applyBatch` `prepare`), ở module khác chặn đầu bên nghe (change `fix-audit-listeners`). Gọi đồng bộ chỉ bốn chỗ (TK 30): `listing` hỏi `trust` hạn chế/hạn mức, `listing`
     gọi `screening` chấm chữ lúc gửi, mọi module hỏi `identity` "người này là ai", và chủ ảnh (`identity`,
     `listing`) gọi `media` xác nhận ảnh: `resolve` trước transaction lưu, `attach(tx)` trong transaction lưu — lưu hỏng
     thì ảnh vẫn "chưa xác nhận". Bảng `outbox_events`
@@ -346,9 +351,12 @@ Mỗi luật dưới đây là một cam kết ở TK phần 27; số trong ngo�
     `RuntimeConfig.get('<module>.<khoá>')`; bản thật `createVersionedRuntimeConfig` (`platform`) giữ
     phiên bản hiện hành của `config_versions` trong bộ nhớ, làm mới sau 5 giây hoặc ngay khi chính
     tiến trình ghi. Thêm con số = thêm khoá vào `src/common/config/config-keys.ts` (kiểu, giá trị khởi
-    đầu, nhóm TK 28); lần khởi động kế tiếp tự tạo phiên bản mới (người tạo: hệ thống) thêm đúng khoá
-    đó, nên mọi phiên bản luôn mang trọn bộ con số. Con số đọc lúc đăng ký route hay plugin là bị
-    đóng băng tới lần khởi động sau — luôn đọc `config.get` ở lượt dùng (vd `app.signAccessToken`).
+    đầu, nhóm TK 28, khoảng hợp lệ); lần khởi động kế tiếp tự tạo phiên bản mới (người tạo: hệ thống)
+    thêm đúng khoá đó, nên mọi phiên bản luôn mang trọn bộ con số. Khoảng hợp lệ (design
+    `fix-audit-security` mục 5): thời lượng dùng helper theo đơn vị (`days`, `hours`, `minutes`…, trần 100
+    năm); sàn mặc định 1, khoá chỉ nhận `0` khi `0` có nghĩa "tắt / không chờ" và code chạy đúng với nó;
+    code giả định thứ tự giữa hai khoá thì thêm một dòng vào `RELATIONS`. Con số đọc lúc đăng ký route
+    hay plugin là bị đóng băng tới lần khởi động sau — luôn đọc `config.get` ở lượt dùng (vd `app.signAccessToken`).
     Test đè từng khoá bằng `createStaticRuntimeConfig({ … })`.
 20. **Email**: chuẩn hoá (chữ thường, bỏ `+tag`, Gmail bỏ dấu chấm, `googlemail.com` → `gmail.com`)
     bằng **một** hàm trước khi so trùng và trước khi băm. Dấu băm là HMAC, khoá nằm ngoài DB (biến
@@ -404,7 +412,33 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   risk-scoring, hard-gates, image-checks, banned-phrases, rule-management, explanations) — archive từ `add-screening`
   ngày 13/10/2026 (thêm requirement vào `identity/profile`, `trust/seller-dashboard`). Hạ tầng `use-cloudinary-storage`
   (archive 15/10/2026) chỉ sửa `media/image-storage`: chỗ chặn ảnh sai cỡ / loại, tải lại không lỗi, kho không trả lời
-  → 503.
+  → 503. 6 của `review/` (queues, task-handling, conflict-of-interest, decisions, group-escalation, post-review) —
+  archive từ `add-review-queues` ngày 15/10/2026 (thêm requirement vào `group/group-lifecycle`, `group/membership`,
+  `platform/staff-permissions`, `screening/rule-management`); `notify-missing-images` cùng ngày thêm vào
+  `media/image-cleanup` requirement "Báo ảnh đang dùng mà mất khỏi kho" (N38, N39). `fix-audit-security` (đợt 1 sửa lỗi
+  rà soát, archive 15/10/2026) sửa `identity/registration` (Google gặp đăng ký chưa xác nhận), `identity/sessions`
+  (lớp thứ hai đã bật không thiết lập lại qua app), `platform/config-versions` (khoảng hợp lệ, thêm "Các con số giữ
+  ràng buộc giữa nhau"), thêm "Master không bị xoá hay khoá" vào `platform/master-accounts` và "Quyền master với việc
+  chỉ dùng ở bàn vận hành" vào `review/queues`. `fix-audit-stuck-data` (đợt 2 phần A, archive 15/10/2026) sửa `listing/lifecycle`,
+  `listing/suspension`, `listing/editing` (lý do ẩn trên mọi đường ghi, tin rời nhóm hẳn không rút về nháp), `group/membership`
+  (rời nhóm chỉ huỷ việc của tin bị ẩn), `group/group-roles` (thiếu chủ không chuyển riêng tư), `identity/account-deletion`
+  (ẩn danh thay vì xoá cứng; thêm "Người dùng Google đã xoá tài khoản"). `fix-audit-image-checks` (đợt 2 phần B, archive
+  15/10/2026) thêm "Mọi ảnh của lượt gửi đều được kiểm" vào `screening/image-checks`, "Quét lại lần hai sau thời gian chờ
+  ảnh" vào `screening/banned-phrases`, sửa lưới an toàn của `screening/machine-decision` (một lần mỗi phiên bản).
+  `fix-audit-listeners` (đợt 2 phần C, archive 15/10/2026) thêm luật "theo trạng thái hiện tại" vào `listing/suspension`,
+  `group/group-roles`, `platform/staff-permissions`, `review/queues`. `fix-audit-screening-trust` (đợt 3 phần C, archive
+  15/10/2026) thêm "Lỗi tạm thời của kho được kiểm lại ở lượt gửi sau" vào `screening/image-checks`, "Đổi cụm mức chắc
+  đang bật cũng quét lại" vào `screening/banned-phrases`, ca lỗi lúc kết luận vào `screening/machine-decision`, hai
+  requirement "theo trạng thái hiện tại" và "lần lượt" vào `trust/trust-tiers`. `fix-audit-review` (đợt 3 phần B, archive
+  15/10/2026) thêm sáu requirement vào `review/queues` (người bị khoá, xoá tài khoản, theo trạng thái hiện tại, rời
+  nhóm hẳn / bị cấm, theo đơn vị, nhắc master), "Một việc một quyết định" vào `review/task-handling`, "Tin đang tạm ẩn
+  không bị lấy mẫu" vào `review/post-review`, "Tin còn việc chờ người duyệt không chuyển lên sàn chung được" vào
+  `listing/suspension`. `fix-audit-identity` (đợt 3 phần A1, archive 15/10/2026) sửa "Làm mới phiên" của
+  `identity/sessions` (30 giây ân hạn), thêm "Xin đổi email phải nhập lại mật khẩu" và "Đổi email xong báo email cũ và
+  đăng xuất thiết bị khác" vào `identity/email-change`. `fix-audit-listing` (đợt 3 phần A2, archive 15/10/2026) thêm
+  "Lượt ghi của người đăng không đè thay đổi của hệ thống" vào `listing/editing`, "Gửi tin đúng lúc tắt danh mục hay
+  khoá tài khoản" vào `listing/suspension`, scenario tin chờ duyệt đã rời nhóm vào "Tin sống gồm những gì" của
+  `trust/quotas`.
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.

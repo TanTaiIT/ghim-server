@@ -103,6 +103,11 @@ kiểm, để không ai chuyển tin đi chỗ khác cho thoát việc đang ch�
 - **WHEN** người đăng sửa giá, không đổi nơi đăng, của một tin đang chờ duyệt
 - **THEN** sửa được nhận và tin chuyển sang đang kiểm
 
+#### Scenario: Gia hạn kèm đổi nơi đăng khi đang hậu kiểm
+
+- **WHEN** người đăng gia hạn sớm một tin đang hậu kiểm kèm đổi nơi đăng
+- **THEN** response có HTTP 409 `PLACEMENT_LOCKED` và tin không đổi
+
 ### Requirement: Chuyển tin vào nhóm mình không phải thành viên
 
 Đổi nơi đăng vào một nhóm mà người đăng không phải thành viên SHALL được xét như gửi tin mới theo luật người
@@ -134,3 +139,25 @@ sửa được nữa. Người đăng chỉ chuyển được tin đó lên sàn
 
 - **WHEN** người đăng xoá một tin bị gỡ khỏi nhóm
 - **THEN** tin bị xoá
+
+#### Scenario: Rút về nháp tin đã rời nhóm
+
+- **WHEN** người đăng rút về nháp một tin chờ duyệt của nhóm đã đóng
+- **THEN** response có HTTP 409 `LISTING_DETACHED` và tin vẫn chờ duyệt
+
+### Requirement: Lượt ghi của người đăng không đè thay đổi của hệ thống
+
+Lượt sửa, gửi lại, gia hạn hay lưu nháp của người đăng SHALL giữ nơi đăng và huy hiệu mà hệ thống vừa đổi (riêng tư
+hoá hạ "nhóm công khai" về "chỉ thành viên", gỡ huy hiệu) khi người đăng không đổi chúng; chỉ ô người đăng đổi mới thay
+giá trị đang có (chốt 15/10/2026).
+
+#### Scenario: Nhóm riêng tư hoá trong lúc sửa tiêu đề
+
+- **WHEN** người đăng mở tin "nhóm công khai" của mình, nhóm sang riêng tư và tin bị hạ về "chỉ thành viên", rồi người
+  đăng gửi sửa tiêu đề từ màn hình đã mở
+- **THEN** tin mang tiêu đề mới và vẫn là "chỉ thành viên"
+
+#### Scenario: Huy hiệu bị gỡ trong lúc bật giao tận nơi
+
+- **WHEN** người đăng mở tin mang huy hiệu nhóm, huy hiệu bị gỡ, rồi người đăng bật "giao tận nơi" từ màn hình đã mở
+- **THEN** tin bật "giao tận nơi" và không mang huy hiệu

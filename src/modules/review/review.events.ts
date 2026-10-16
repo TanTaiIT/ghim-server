@@ -11,9 +11,14 @@ import type { ReviewService } from './review.service.js';
 const listingRef = z.object({ listingId: z.string() });
 const stateChange = z.object({ listingId: z.string(), version: z.number(), arrow: z.string() });
 const member = z.object({ groupId: z.string(), accountId: z.string() });
+const memberLeft = member.extend({
+  reason: z.enum(['left', 'removed', 'banned', 'account_deleted']),
+  allowOutsiders: z.boolean(),
+});
 const groupOnly = z.object({ groupId: z.string() });
 const account = z.object({ accountId: z.string() });
 const ownerChange = z.object({ previousOwnerId: z.string().nullable() });
+const listingIds = z.object({ listingIds: z.array(z.string()) });
 
 /** Payload sai là lỗi của bên phát: ném để sự kiện nằm lại outbox và người trực thấy, không âm thầm bỏ qua. */
 function parse<T>(schema: z.ZodType<T>, type: string, payload: Record<string, unknown>): T {
@@ -42,21 +47,31 @@ export function registerReviewListeners(dispatcher: OutboxDispatcher, review: Re
   // ── TIN ────────────────────────────────────────────────────────────────────────────────────────
   on(LISTING_EVENTS.stateChanged, stateChange, (change) => review.onStateChanged(change));
   on(LISTING_EVENTS.edited, listingRef, ({ listingId }) => review.onEdited(listingId));
+  on(LISTING_EVENTS.detached, listingIds, ({ listingIds: ids }) => review.onDetached(ids));
   on(LISTING_EVENTS.deleted, listingRef, ({ listingId }) => review.onDeleted(listingId));
   on(SCREENING_EVENTS.listingRestricted, listingRef, ({ listingId }) =>
     review.onMachineRestricted(listingId),
   );
 
   // ── NHÓM ───────────────────────────────────────────────────────────────────────────────────────
-  on(GROUP_EVENTS.memberLeft, member, async ({ groupId, accountId }) => {
-    await review.onMemberLeft(groupId, accountId);
-    await review.recheckClaims(accountId);
-  });
+  on(
+    GROUP_EVENTS.memberLeft,
+    memberLeft,
+    async ({ groupId, accountId, reason, allowOutsiders }) => {
+      await review.onMemberLeft(groupId, accountId, { reason, allowOutsiders });
+      await review.recheckClaims(accountId);
+    },
+  );
   on(GROUP_EVENTS.memberJoined, member, ({ groupId, accountId }) =>
     review.onMemberBack(groupId, accountId),
   );
   on(GROUP_EVENTS.unbanned, member, ({ groupId, accountId }) =>
     review.onMemberBack(groupId, accountId),
+  );
+  on(GROUP_EVENTS.banned, member, ({ groupId, accountId }) => review.onBanned(groupId, accountId));
+  // Bên nghe của `listing` cho cùng sự kiện chạy trước (thứ tự module), nên tin đã mang đơn vị mới.
+  on(GROUP_EVENTS.memberUnitChanged, member, ({ groupId, accountId }) =>
+    review.onUnitChanged(groupId, accountId),
   );
   on(GROUP_EVENTS.closed, groupOnly, ({ groupId }) => review.onGroupClosed(groupId));
 
@@ -67,6 +82,9 @@ export function registerReviewListeners(dispatcher: OutboxDispatcher, review: Re
   );
   on(GROUP_EVENTS.locked, groupOnly, ({ groupId }) => review.recheckGroupClaims(groupId));
   on(PLATFORM_EVENTS.staffChanged, account, ({ accountId }) => review.recheckClaims(accountId));
-  on('identity.account.locked', account, ({ accountId }) => review.releaseAllClaims(accountId));
-  on('identity.account.deleted', account, ({ accountId }) => review.releaseAllClaims(accountId));
+  on('identity.account.locked', account, ({ accountId }) => review.onAccountLocked(accountId));
+  on('identity.account.deleted', account, async ({ accountId }) => {
+    await review.onAccountDeleted(accountId);
+    await review.releaseAllClaims(accountId);
+  });
 }

@@ -39,6 +39,8 @@ export interface ReviewRepository {
   findTask(id: string): Promise<ReviewTask | null>;
   hasOpenTask(listingId: string): Promise<boolean>;
   openTasksInGroup(groupId: string): Promise<ReviewTask[]>;
+  /** Việc mở có người này trong danh sách loại trừ — gồm mọi việc về tin của họ (người đăng luôn bị loại). */
+  openTasksExcluding(accountId: string): Promise<ReviewTask[]>;
   /** Việc đang mở mà người này đang giữ (chưa hết giờ) — xét lại khi họ mất vai hay mất quyền. */
   claimsOf(accountId: string, now: Date): Promise<ReviewTask[]>;
   /** Việc đang mở theo danh mục (staff), theo nhóm (điều hành), hay tất cả (master) — hạn sớm trước. */
@@ -58,7 +60,26 @@ export interface ReviewRepository {
   releaseAllClaims(accountId: string): Promise<number>;
   /** Trả việc về hàng chờ; chỉ khi đúng người đó còn đang giữ. */
   releaseClaim(id: string, accountId: string): Promise<boolean>;
-  addSampleCandidate(listingId: string, listingVersion: number, at: Date): Promise<void>;
+  /** `approvedBy` = người cho đạt / khôi phục (ghi trong transaction quyết định); lượt ghi sau không đổi dòng đã có. */
+  addSampleCandidate(
+    input: { listingId: string; listingVersion: number; at: Date; approvedBy?: string },
+    tx?: Tx,
+  ): Promise<void>;
+  /**
+   * Đóng việc vì quyết định chỉ khi việc còn mở, đúng người giữ, chưa hết giờ, chưa chuyển chỗ, đúng phiên bản đã nhận —
+   * một việc một quyết định (fix-audit-review, T6). `false` = không đóng được.
+   */
+  closeDecided(
+    tx: Tx,
+    input: {
+      id: string;
+      actorId: string;
+      claimedVersion: number | null;
+      escalatedAt: Date | null;
+      now: Date;
+    },
+  ): Promise<boolean>;
+  findTaskIn(tx: Tx, id: string): Promise<ReviewTask | null>;
 
   // ── VIỆC THEO LỊCH ──
   /** Việc mở đã quá hạn xử mà chưa chuyển master. */
@@ -156,6 +177,9 @@ export function createReviewRepository(prisma: PrismaClient): ReviewRepository {
 
     findTask: (id) => prisma.reviewTask.findUnique({ where: { id } }),
 
+    openTasksExcluding: (accountId) =>
+      prisma.reviewTask.findMany({ where: { status: 'open', excludedIds: { has: accountId } } }),
+
     async hasOpenTask(listingId) {
       const row = await prisma.reviewTask.findFirst({
         where: { listingId, status: 'open' },
@@ -241,13 +265,37 @@ export function createReviewRepository(prisma: PrismaClient): ReviewRepository {
       return count;
     },
 
-    async addSampleCandidate(listingId, listingVersion, at) {
-      await prisma.reviewSampleCandidate.upsert({
+    async addSampleCandidate({ listingId, listingVersion, at, approvedBy }, tx) {
+      await (tx ?? prisma).reviewSampleCandidate.upsert({
         where: { listingId_listingVersion: { listingId, listingVersion } },
-        create: { listingId, listingVersion, wentLiveAt: at },
+        create: { listingId, listingVersion, wentLiveAt: at, approvedBy: approvedBy ?? null },
         update: {},
       });
     },
+
+    async closeDecided(tx, { id, actorId, claimedVersion, escalatedAt, now }) {
+      const { count } = await tx.reviewTask.updateMany({
+        where: {
+          id,
+          status: 'open',
+          claimedBy: actorId,
+          claimExpiresAt: { gt: now },
+          claimedVersion,
+          escalatedAt,
+        },
+        data: {
+          status: 'decided',
+          closeCause: 'decided',
+          closedAt: now,
+          claimedBy: null,
+          claimExpiresAt: null,
+          claimedVersion: null,
+        },
+      });
+      return count === 1;
+    },
+
+    findTaskIn: (tx, id) => tx.reviewTask.findUnique({ where: { id } }),
 
     overdueTasks: (now) =>
       prisma.reviewTask.findMany({

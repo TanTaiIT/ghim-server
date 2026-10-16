@@ -27,6 +27,11 @@ export function createListingFactsService(shared: ListingShared): ListingFactsSe
       return rows.map((row) => ({ listingId: row.id, ownerId: row.ownerId }));
     },
 
+    async stateOf(listingId) {
+      const row = await repository.findById(listingId);
+      return row ? { state: row.state, fault: row.fault } : null;
+    },
+
     async shownMs(listingId, now) {
       const listing = await repository.findById(listingId);
       return listing ? shownMsAt(listing, now) : null;

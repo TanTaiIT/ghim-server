@@ -3,6 +3,7 @@ import { auditActor } from '../../common/audit/audit.js';
 import type { OpsScope, PrivilegeSource } from '../../common/auth/privilege-source.js';
 import {
   CONFIG_KEY_LIST,
+  configRelationIssues,
   configValueIssue,
   isConfigKey,
   type RuntimeConfigKey,
@@ -228,6 +229,8 @@ export function createPlatformService(deps: PlatformServiceDeps): PlatformServic
     },
 
     async suspendStaffForLock(accountId) {
+      // Lượt khoá được xử lại sau khi mở khoá và master đã trả quyền: không treo lại (fix-audit-listeners, C1).
+      if ((await identity.accountState(accountId))?.status !== 'locked') return;
       await repository.suspendStaff({ accountId, reason: SUSPENDED_REASON_LOCKED, at: clock() });
     },
 
@@ -309,6 +312,11 @@ export function createPlatformService(deps: PlatformServiceDeps): PlatformServic
         ...(current.values as Record<string, number>),
         ...changes,
       };
+      // Kiểm trên cả bộ: đổi một khoá có thể làm lệch khoá khác không nằm trong thay đổi.
+      const broken = configRelationIssues(values);
+      if (broken.length > 0) {
+        throw new BadRequestError(`Con số không hợp lệ — ${broken.join('; ')}`, 'VALIDATION_ERROR');
+      }
       const row = await repository.createConfigVersion({
         baseVersion,
         values,

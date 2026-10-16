@@ -4,6 +4,7 @@ import type {
   ReviewDecision,
   ReviewOutcome,
   ReviewReasonTemplate,
+  ReviewTask,
 } from '@prisma/client';
 
 import type { Actor } from '../../../common/auth/actor.js';
@@ -231,6 +232,14 @@ export function createDecisionService(
     return covers ? 'moderator' : null;
   };
 
+  /** Việc không đóng được vì quyết định: đọc lại trong `tx` để báo đúng chuyện đã xảy ra (T6). */
+  const whyNotClosed = async (tx: Tx, task: ReviewTask): Promise<Error> => {
+    const fresh = await repository.findTaskIn(tx, task.id);
+    if (fresh?.status !== 'open') return taskClosed();
+    if (fresh.escalatedAt?.getTime() !== task.escalatedAt?.getTime()) return taskReassigned();
+    return taskNotClaimed();
+  };
+
   /** Quyết định không qua việc: gỡ / khôi phục tin sàn, gỡ khỏi nhóm — nhật ký không gắn việc. */
   const directDecision = async (
     actor: Actor,
@@ -266,6 +275,17 @@ export function createDecisionService(
           posterTierAfter: facts.tier,
           decidedAt: clock(),
         });
+        if (outcome === 'restore' && row) {
+          await repository.addSampleCandidate(
+            {
+              listingId: subject.id,
+              listingVersion: row.version,
+              at: clock(),
+              approvedBy: actor.accountId,
+            },
+            tx,
+          );
+        }
         if (extra.escalate && note) await escalate(tx, subject.id, actor, note);
       },
     );
@@ -281,6 +301,8 @@ export function createDecisionService(
       if (task.status !== 'open') throw taskClosed();
       const role = await roleOn(actor, surface, task.categoryId, viewer);
       if (!role) throw new ForbiddenError();
+      // Việc đã chuyển chỗ (chuyển master xoá người giữ) nói đúng chuyện trước khi nói "chưa nhận" (L11).
+      if (!allowed) throw taskReassigned();
       const now = clock();
       if (
         task.claimedBy !== actor.accountId ||
@@ -289,7 +311,6 @@ export function createDecisionService(
       ) {
         throw taskNotClaimed();
       }
-      if (!allowed) throw taskReassigned();
       const subject = await listings.reviewSubject(task.listingId);
       if (!subject) throw taskClosed();
       if (subject.version !== task.claimedVersion) throw listingChanged();
@@ -320,6 +341,7 @@ export function createDecisionService(
       const sampleReviewer =
         outcome === 'pass' &&
         machineHeld &&
+        subject.hideReasons.length === 0 &&
         role !== 'master' &&
         sampled(config.get('postcheck.reviewerPassSamplePercent'), random());
       const overturns =
@@ -337,7 +359,26 @@ export function createDecisionService(
         task.groupId,
         async (tx, row) => {
           state = row?.state ?? state;
-          await repository.closeTask(tx, task.id, 'decided', now);
+          // Một việc một quyết định (T6): không đóng được thì ném — lượt đổi tin quay lui theo.
+          const closed = await repository.closeDecided(tx, {
+            id: task.id,
+            actorId: actor.accountId,
+            claimedVersion: task.claimedVersion,
+            escalatedAt: task.escalatedAt,
+            now: clock(),
+          });
+          if (!closed) throw await whyNotClosed(tx, task);
+          if (outcome === 'pass' && subject.state === 'pending' && row) {
+            await repository.addSampleCandidate(
+              {
+                listingId: task.listingId,
+                listingVersion: row.version,
+                at: now,
+                approvedBy: actor.accountId,
+              },
+              tx,
+            );
+          }
           written.decision = await repository.insertDecision(tx, {
             taskId: task.id,
             listingId: task.listingId,
@@ -370,7 +411,14 @@ export function createDecisionService(
             await escalate(tx, task.listingId, actor, body.note);
           }
         },
-      );
+      ).catch(async (error: unknown) => {
+        // Lượt quyết thứ hai trên tin vừa đổi vấp phiên bản tin trước: việc đã đóng thì nói việc đã đóng (T6).
+        if (error instanceof AppError && error.code === 'LISTING_CHANGED') {
+          const fresh = await repository.findTask(task.id);
+          if (fresh?.status !== 'open') throw taskClosed();
+        }
+        throw error;
+      });
       if (!written.decision) throw new Error('Quyết định không được ghi');
       return { decisionId: written.decision.id, outcome, listingState: state };
     },
