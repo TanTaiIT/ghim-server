@@ -20,6 +20,8 @@ import { codeFromMailLog, codeFromMailpit } from './smoke-mail.js';
  *      thấy, bảng tin chung KHÔNG thấy (spec listing/visibility).
  *   2. Tài khoản B mới gửi tin cùng ảnh đó. Mong đợi: máy giữ vì cổng cứng "ảnh trùng" (chỉ đúng ảnh của B), khách mở link
  *      nhận 404, hàng chờ có việc `machine_hold`.
+ *   3. Mũi tên của người đăng: A bật "giao tận nơi" (không qua máy, vẫn hiển thị), sửa giá (qua máy lại, người lạ không
+ *      thấy tới khi máy cho qua), B đánh dấu đã bán tin của A (403), A đánh dấu đã bán; B rút tin chờ duyệt về nháp.
  *
  *   pnpm smoke:posting [-- --base <url>] [--category <id>] [--mail-log <tệp>] [--allow-remote]
  *
@@ -295,9 +297,14 @@ async function postListing(
     `Tin của ${poster.label}`,
     `${listing.id}: tải ảnh ${uploadMs} ms, lưu nháp ${saved.ms} ms, gửi ${submitted.ms} ms → ${listing.state}`,
   );
+  return waitForMachine(poster, listing.id);
+}
+
+/** Đọc lại tin tới khi rời "đang kiểm" (máy cho qua hay giữ), tối đa 2 phút. */
+async function waitForMachine(poster: Poster, id: string): Promise<OwnListing> {
+  const as = { token: poster.token, device: poster.device };
   const waitStart = Date.now();
-  const id = listing.id;
-  listing = await poll(
+  const listing = await poll(
     async () =>
       dataOf<OwnListing>(await api('GET', `/listings/${id}`, as), 200, `Đọc tin ${poster.label}`),
     (current) => current.state !== 'checking',
@@ -378,6 +385,73 @@ async function checkHeld(held: OwnListing): Promise<void> {
   );
 }
 
+/**
+ * A sửa tin đang hiển thị — spec listing/editing. Chạy TRƯỚC khi B chép ảnh: bản sửa của A qua máy lại, mà máy so ảnh
+ * với ảnh của mọi tài khoản khác, kể cả bản chép đăng sau (chạy khói 16/10/2026 — chờ quyết, xem VIEC-DANG-DO).
+ */
+async function checkOwnerEdits(poster: Poster, start: OwnListing): Promise<OwnListing> {
+  const asA = { token: poster.token, device: poster.device };
+  let listing = start;
+
+  const light = await api('PATCH', `/listings/${listing.id}`, {
+    ...asA,
+    body: { version: listing.version, delivery: true },
+  });
+  listing = dataOf<OwnListing>(light, 200, 'Bật giao tận nơi');
+  check(
+    listing.state === 'live',
+    'bật "giao tận nơi": tin vẫn hiển thị, không qua máy',
+    listing.state,
+  );
+
+  const priced = await api('PATCH', `/listings/${listing.id}`, {
+    ...asA,
+    body: { version: listing.version, price: 2_300_000 },
+  });
+  listing = dataOf<OwnListing>(priced, 200, 'Sửa giá');
+  check(listing.state === 'checking', 'sửa giá tin đang hiển thị: qua máy lại', listing.state);
+  const hidden = await api('GET', `/listings/${listing.id}`);
+  check(hidden.status === 404, 'người lạ không thấy tin đang kiểm lại', `HTTP ${hidden.status}`);
+  listing = await waitForMachine(poster, listing.id);
+  check(listing.state === 'live', 'máy cho qua bản đã sửa', listing.state);
+  return listing;
+}
+
+/** Mũi tên của người đăng trên tin của A (đang hiển thị) và B (chờ duyệt) — spec listing/lifecycle. */
+async function checkOwnerArrows(
+  a: { poster: Poster; listing: OwnListing },
+  b: { poster: Poster; listing: OwnListing },
+): Promise<void> {
+  const asA = { token: a.poster.token, device: a.poster.device };
+  const asB = { token: b.poster.token, device: b.poster.device };
+  const listing = a.listing;
+
+  const stranger = await api('POST', `/listings/${listing.id}/sold`, asB);
+  const stillLive = dataOf<OwnListing>(
+    await api('GET', `/listings/${listing.id}`, asA),
+    200,
+    'Đọc tin A',
+  );
+  check(
+    stranger.status === 403 && stillLive.state === 'live',
+    'người khác đánh dấu đã bán: 403, tin vẫn hiển thị',
+    `HTTP ${stranger.status}, ${stillLive.state}`,
+  );
+  const sold = dataOf<OwnListing>(
+    await api('POST', `/listings/${listing.id}/sold`, asA),
+    200,
+    'Đánh dấu đã bán',
+  );
+  check(sold.state === 'sold', 'chủ tin đánh dấu đã bán', sold.state);
+
+  const withdrawn = dataOf<OwnListing>(
+    await api('POST', `/listings/${b.listing.id}/withdraw`, asB),
+    200,
+    'Rút tin chờ duyệt',
+  );
+  check(withdrawn.state === 'draft', 'B rút tin chờ duyệt về nháp', withdrawn.state);
+}
+
 // ── CHẠY ─────────────────────────────────────────────────────────────────────────────────────────
 
 try {
@@ -386,14 +460,22 @@ try {
   const context = { category, ...region };
   step('Dữ liệu nền', `danh mục "${category.name}", ${region.province.name} / ${region.ward.name}`);
 
-  const first = await postListing(await newPoster('A'), jpeg, context);
+  const posterA = await newPoster('A');
+  const first = await postListing(posterA, jpeg, context);
   check(first.state === 'live', 'tin của A lên bảng', first.state);
   check(first.restrictions.includes('new_account'), 'tin của A mang hạn chế "tài khoản mới" (T0)');
   await checkRestrictedVisibility(first);
+  const edited = await checkOwnerEdits(posterA, first);
 
-  const second = await postListing(await newPoster('B'), jpeg, context);
+  const posterB = await newPoster('B');
+  const second = await postListing(posterB, jpeg, context);
   check(second.state === 'pending', 'tin của B (ảnh trùng) bị máy giữ', second.state);
   await checkHeld(second);
+
+  await checkOwnerArrows(
+    { poster: posterA, listing: edited },
+    { poster: posterB, listing: second },
+  );
 } catch (error) {
   failures.push(error instanceof Error ? error.message : String(error));
   process.stderr.write(
