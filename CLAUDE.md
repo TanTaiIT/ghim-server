@@ -231,6 +231,8 @@ review }`,
 `media.image.missing` (`notification.media-matrix.ts`, N38 ảnh tin, N39 ảnh đại diện — change `notify-missing-images`),
 `review.*` (`notification.review-matrix.ts`, N40–N42 cho mọi master, người nhận hỏi `identity.masterIds`);
 câu cần tiêu đề hay người đăng của tin thì hỏi `listing` qua cổng (`titles`, `noticeTargets`), không đọc bảng của nó.
+`screening` nghe `media.images.deleted` (`{ imageIds }`, phát cùng transaction với ba lượt xoá dòng ảnh của `media`) để
+bỏ dấu ảnh — ảnh đã xoá hẳn không còn là ứng viên trùng (change `fix-audit-trust-media-low`).
 
 `review` (change `add-review-queues`, hướng dẫn cho bàn vận hành và app ở `docs/review.md`): `queue/` sinh, gộp, huỷ
 việc theo `listing.state.changed` và sự kiện `group`, `platform`, `identity`; `desk/` hàng chờ, nhận việc, quyết
@@ -447,7 +449,10 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   cả khi đăng nhập cùng lúc" vào `identity/sessions`. `fix-audit-group-low` (đợt 4 phần 2, archive 16/10/2026) thêm
   "Chủ nhóm bị xoá tài khoản giữa chừng", "Chủ bị khoá khi nhóm đang chuyển sang riêng tư" vào `group/group-roles`,
   "Huỷ kèm theo vẫn báo" vào `group/membership`, "Bật hiện tên nhóm khi đổi sang riêng tư" vào `group/group-modes`, "Xoá
-  đơn vị thì xoá thông báo gửi riêng cho nó" vào `notification/group-announcements`.
+  đơn vị thì xoá thông báo gửi riêng cho nó" vào `notification/group-announcements`. `fix-audit-trust-media-low` (đợt 4 phần 3,
+  archive 16/10/2026) thêm "Lên T1 đúng lúc tin đang lên bảng" vào `listing/visibility`, "Tài khoản T3 vẫn được tính
+  lại khi còn tin sạch chưa tính" vào `trust/trust-tiers`, "Ảnh đã xoá hẳn không còn để so trùng" vào
+  `screening/image-checks`.
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.

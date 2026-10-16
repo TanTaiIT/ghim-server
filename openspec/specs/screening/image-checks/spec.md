@@ -92,3 +92,13 @@ sau giữ cho người ngay như cũ (chốt 15/10/2026).
 
 - **WHEN** việc kiểm một ảnh lỗi vì tệp không đọc được, rồi người đăng sửa tin gửi lại
 - **THEN** lượt mới giữ cho người ngay, ảnh không được kiểm lại
+
+### Requirement: Ảnh đã xoá hẳn không còn để so trùng
+
+Ảnh bị xoá hẳn khỏi kho SHALL không còn được dùng để so trùng với ảnh của tài khoản khác. Dấu ảnh đã kiểm của nó MUST
+được bỏ cùng lúc ảnh bị xoá hẳn.
+
+#### Scenario: Ảnh bị thay rồi được dọn
+
+- **WHEN** người dùng thay ảnh đại diện, lượt đối chiếu kho xoá hẳn ảnh cũ, và ảnh cũ đã có dấu ảnh đã kiểm
+- **THEN** dấu ảnh của ảnh cũ không còn, dấu ảnh của ảnh mới vẫn còn

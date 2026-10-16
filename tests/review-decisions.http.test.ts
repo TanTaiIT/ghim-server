@@ -57,6 +57,7 @@ const config: RuntimeConfig = {
 /** Mức tin cậy theo từng người đăng (mặc định T1), không chặn lượt gửi nào. */
 const trust: ListingTrustPort = {
   tierOf: (accountId) => Promise.resolve(tiers.get(accountId) ?? 'T1'),
+  tierIn: (_tx, accountId) => Promise.resolve(tiers.get(accountId) ?? 'T1'),
   assertCanSubmit: () => Promise.resolve(),
 };
 

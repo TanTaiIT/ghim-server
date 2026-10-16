@@ -11,6 +11,8 @@ export const IMAGE_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as 
 export const MEDIA_EVENTS = {
   /** Ảnh đang được dùng mà tệp không còn trong kho — chủ của ảnh quyết làm gì, `media` không sửa chủ. */
   imageMissing: 'media.image.missing',
+  /** Dòng ảnh đã xoá hẳn (lượt dọn ảnh bỏ, ảnh chưa xác nhận, ảnh của tin đã xoá) — `{ imageIds }`, mỗi lô một sự kiện. */
+  imagesDeleted: 'media.images.deleted',
 } as const satisfies Record<string, OutboxEventType>;
 
 export const uploadBodySchema = z

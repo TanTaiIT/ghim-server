@@ -8,7 +8,7 @@ import { imageKey } from '../src/lib/storage/storage.js';
 import { MEDIA_JOBS } from '../src/modules/media/media.jobs.js';
 import { createMediaService } from '../src/modules/media/media.service.js';
 import { outboxEvents, prisma } from './db-helpers.js';
-import { api, newUser } from './group-helpers.js';
+import { api, deliverAll, newUser } from './group-helpers.js';
 import { setAvatar, uploadImage } from './media-helpers.js';
 import { fakeJpeg, storageOf, uploadWith } from './storage-helpers.js';
 import { buildTestApp, repositories, TEST_NOW } from './test-app.js';
@@ -114,6 +114,36 @@ describe('Đối chiếu kho ảnh hằng tháng', () => {
     expect(result.released).toBeGreaterThanOrEqual(1);
     expect(await inStorage(first)).toBe(false);
     expect(await inStorage(second)).toBe(true);
+  });
+
+  it('ảnh bị thay: dòng ảnh cũ xoá kèm media.images.deleted, dấu ảnh của screening đi theo (fix-audit-trust-media-low, L10)', async () => {
+    const user = await newUser(app);
+    const first = await uploadImage(app, user);
+    await setAvatar(app, user, { imageId: first });
+    const second = await uploadImage(app, user);
+    await setAvatar(app, user, { imageId: second });
+    await prisma.imageCheck.createMany({
+      data: [first, second].map((imageId) => ({
+        imageId,
+        ownerAccountId: user.id,
+        status: 'done' as const,
+        dhash: 1n,
+        checkedAt: now,
+      })),
+    });
+
+    await reconcile();
+    expect(await outboxEvents()).toContainEqual(
+      expect.objectContaining({
+        type: 'media.images.deleted',
+        payload: { imageIds: expect.arrayContaining([first]) },
+      }),
+    );
+    await deliverAll(app);
+    const checks = await prisma.imageCheck.findMany({
+      where: { imageId: { in: [first, second] } },
+    });
+    expect(checks.map((row) => row.imageId)).toEqual([second]);
   });
 
   it('tệp không ứng với ảnh nào: xoá khi đã cũ hơn hạn một quyền tải, còn mới thì để yên', async () => {

@@ -69,6 +69,14 @@ Không có.
   email của tài khoản bị khoá vĩnh viễn giữ tới khi gỡ khoá, master xem lại mỗi 2 năm để giữ tiếp hay gỡ; email
   bị chặn đăng ký tới khi gỡ khoá. Có báo cáo mở vẫn xoá được tài khoản; dữ liệu dính tới báo cáo đó được tạm giữ
   (TK 7, TK 23).
+- **Chuyển từ rà soát 15/10/2026** (`docs/RA-SOAT-15-10-2026.md`, đợt 4) — phải xử trong design của change này:
+  - **L13**: khoá ngoại `listings.group_id → groups`, `listings.category_id → categories` là `RESTRICT` — xoá hẳn nhóm
+    đã đóng hay danh mục đã gỡ bị chặn khi còn tin trỏ tới. Thứ tự dọn phải là tin trước, nhóm / danh mục sau; hoặc đổi
+    khoá ngoại khi xoá hẳn nhóm / danh mục thành một bước có chủ (TK 30).
+  - Xoá hẳn tài khoản kéo `images` theo khoá ngoại (`uploader_id … ON DELETE CASCADE`) mà không phát
+    `media.images.deleted` — dấu ảnh của `screening` (`image_checks`) của các ảnh đó không được dọn (fix-audit-trust-media-low,
+    L10 chỉ phủ ba lượt dọn của `media`). Xoá hẳn tài khoản phải đi qua `media` để phát sự kiện, hoặc dọn dấu ảnh theo
+    `owner_account_id`.
 - **Câu hỏi mở** — TK không nói hoặc tự mâu thuẫn, cần người dùng chốt trước khi viết design:
   - **Rà soát pháp lý (TK 25, TK 29 câu hỏi mở 3):** toàn bộ bảng hạn lưu, dấu băm email (kể cả ngoại lệ giữ tới
     khi gỡ khoá của tài khoản bị khoá vĩnh viễn), dấu thiết bị và việc giữ hội thoại làm bằng chứng cần luật sư

@@ -98,8 +98,10 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
 
   /**
    * Một mũi tên có điều kiện `version` từ bảng của `listing.calc.ts`; lên bảng thì tính lý do "tài khoản mới" theo mức
-   * tin cậy đọc trước transaction (mục 7). `null` = phiên bản đã đổi, hay trạng thái ngoài `states` — máy truyền đúng
-   * trạng thái nguồn để kết quả cũ trượt êm; người duyệt để mặc định nên sai trạng thái là 409 `INVALID_TRANSITION`.
+   * tin cậy đọc TRONG transaction, sau khoá chung của `trust` (mục 7; rà soát L7): đọc trước transaction thì lượt lên mức
+   * chen giữa — bên nghe đổi mức chạy khi tin còn đang kiểm — để lý do bám mãi. `null` = phiên bản đã đổi, hay trạng thái
+   * ngoài `states` — máy truyền đúng trạng thái nguồn để kết quả cũ trượt êm; người duyệt để mặc định nên sai trạng thái
+   * là 409 `INVALID_TRANSITION`.
    */
   const decide = async (
     input: {
@@ -113,14 +115,15 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
     columns: (locked: Listing, tier: TrustTier) => Prisma.ListingUncheckedUpdateInput,
     rankAt: Date | null = null,
   ) => {
-    const listing = await repository.findById(input.listingId);
-    if (!listing) return null;
-    const tier = await trust.tierOf(listing.ownerId);
     const now = clock();
+    let tier: TrustTier = 'T0';
     return repository.change({
       id: input.listingId,
       states: input.states ?? LISTING_STATES,
       version: input.version,
+      before: async (tx, locked) => {
+        tier = await trust.tierIn(tx, locked.ownerId);
+      },
       data: (locked) => {
         const next = transition(locked.state, input.arrow, input.side);
         if (!next) throw invalidTransition();

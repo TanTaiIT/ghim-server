@@ -199,6 +199,8 @@ export interface ScreeningRepository {
   claimStalePending(staleBefore: Date, now: Date, limit: number): Promise<string[]>;
   /** Gửi việc hỏng: trả các ảnh về "chưa xếp" để lượt thử lại xếp ngay. */
   unqueue(imageIds: string[]): Promise<void>;
+  /** Ảnh đã xoá hẳn ở `media`: bỏ dấu ảnh — không còn là ứng viên trùng của tin sau (rà soát L10). Trả số dòng xoá. */
+  deleteImageChecks(imageIds: string[]): Promise<number>;
   findImageCheck(imageId: string): Promise<ImageCheck | null>;
   /** Mỗi lượt thử của việc kiểm ảnh; trả số lượt đã thử kể cả lượt này. */
   bumpAttempts(imageId: string): Promise<number>;
@@ -587,6 +589,14 @@ export function createScreeningRepository(prisma: PrismaClient): ScreeningReposi
         where: { imageId: { in: imageIds }, status: 'pending' },
         data: { queuedAt: null },
       });
+    },
+
+    async deleteImageChecks(imageIds) {
+      if (imageIds.length === 0) return 0;
+      const { count } = await prisma.imageCheck.deleteMany({
+        where: { imageId: { in: imageIds } },
+      });
+      return count;
     },
 
     duplicateCandidates: ({ bands, excludeOwner, excludeImageIds }, tx) =>

@@ -17,6 +17,11 @@ export interface ListingStateChange {
 export interface TrustTierService {
   /** Mức đã lưu ở lần tính gần nhất; chưa tính bao giờ = T0. Không tính lại trong request đọc (design T5). */
   tierOf(accountId: string): Promise<TrustTier>;
+  /**
+   * Mức đọc trong `tx` của bên gọi, sau khoá chung theo người: lượt đổi mức chen giữa chờ `tx` commit, rồi phát sự kiện
+   * đổi mức mà bên nghe thấy được dòng vừa ghi (rà soát L7).
+   */
+  tierIn(tx: Tx, accountId: string): Promise<TrustTier>;
   /** Số tin sạch đã tính ở lần tính mức gần nhất — người duyệt thấy lịch sử tin sạch của người bán (TK 17). */
   cleanCount(accountId: string): Promise<number>;
   /** Tính lại từ toàn bộ dữ kiện và bảng con số hiện hành; ghi khi kết quả đổi. */
@@ -103,6 +108,10 @@ export function createTrustTierService(deps: TrustServiceDeps): TrustTierService
   return {
     async tierOf(accountId) {
       return (await repository.findTier(accountId))?.tier ?? 'T0';
+    },
+
+    async tierIn(tx, accountId) {
+      return (await repository.holdTier(tx, accountId))?.tier ?? 'T0';
     },
 
     async cleanCount(accountId) {

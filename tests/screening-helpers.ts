@@ -29,6 +29,7 @@ export function tierPort(
 ): ListingTrustPort {
   return {
     tierOf: (accountId) => Promise.resolve(tiers.get(accountId) ?? fallback),
+    tierIn: (_tx, accountId) => Promise.resolve(tiers.get(accountId) ?? fallback),
     assertCanSubmit: () => Promise.resolve(),
   };
 }
