@@ -70,8 +70,12 @@ export function createFactsService(shared: ScreeningShared): ScreeningFactsServi
       const checks = await repository.imageChecks(run.imageIds);
       const perImage = await Promise.all(
         checks.map(async (check): Promise<DuplicateMatch[]> => {
-          if (check.status !== 'done' || check.dhash === null) return [];
+          if (check.status !== 'done' || check.dhash === null || check.checkedAt === null) {
+            return [];
+          }
           const hash = check.dhash;
+          // Cùng luật với cổng của máy: chỉ ảnh đã kiểm xong trước — người duyệt tin gốc không thấy bản chép như "trùng".
+          const before = { checkedAt: check.checkedAt, imageId: check.imageId };
           const bands = bandsOf(hash);
           const near = (other: bigint | null) =>
             other !== null && hamming(other, hash) <= maxDistance;
@@ -80,6 +84,7 @@ export function createFactsService(shared: ScreeningShared): ScreeningFactsServi
               bands,
               excludeOwner: run.accountId,
               excludeImageIds: run.imageIds,
+              before,
             }),
             repository.whitelistCandidates(bands),
           ]);

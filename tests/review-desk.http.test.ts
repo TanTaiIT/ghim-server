@@ -171,7 +171,12 @@ const bands = (hash: bigint) => {
   return { band0: band(0), band1: band(1), band2: band(2), band3: band(3), band4: band(4) };
 };
 
-const checked = (imageId: string, ownerAccountId: string, value: bigint) =>
+const checked = (
+  imageId: string,
+  ownerAccountId: string,
+  value: bigint,
+  checkedAt: Date = TEST_NOW,
+) =>
   prisma.imageCheck.upsert({
     where: { imageId },
     create: {
@@ -180,9 +185,9 @@ const checked = (imageId: string, ownerAccountId: string, value: bigint) =>
       status: 'done',
       dhash: toStored(value),
       ...bands(value),
-      checkedAt: TEST_NOW,
+      checkedAt,
     },
-    update: { status: 'done', dhash: toStored(value), ...bands(value), checkedAt: TEST_NOW },
+    update: { status: 'done', dhash: toStored(value), ...bands(value), checkedAt },
   });
 
 describe('Việc vào hàng của ai', () => {
@@ -401,7 +406,8 @@ describe('Người xử thấy đủ bối cảnh', () => {
     const hash = 0x1234_5678_9abc_def0n;
     const [ownImage, theirImage] = [held.images[0]?.id ?? '', theirs.images[0]?.id ?? ''];
     await checked(ownImage, poster.id, hash);
-    await checked(theirImage, other.id, hash ^ 1n);
+    // Tin của X đăng trước: chỉ ảnh kiểm xong trước mới là "ảnh trùng" (duplicate-image-first-wins).
+    await checked(theirImage, other.id, hash ^ 1n, new Date(TEST_NOW.getTime() - 60_000));
     const run: Prisma.ScreeningRunUncheckedCreateInput = {
       listingId: held.id,
       listingVersion: held.version - 1,

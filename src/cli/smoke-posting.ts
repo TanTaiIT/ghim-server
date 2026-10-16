@@ -21,7 +21,8 @@ import { codeFromMailLog, codeFromMailpit } from './smoke-mail.js';
  *   2. Tài khoản B mới gửi tin cùng ảnh đó. Mong đợi: máy giữ vì cổng cứng "ảnh trùng" (chỉ đúng ảnh của B), khách mở link
  *      nhận 404, hàng chờ có việc `machine_hold`.
  *   3. Mũi tên của người đăng: A bật "giao tận nơi" (không qua máy, vẫn hiển thị), sửa giá (qua máy lại, người lạ không
- *      thấy tới khi máy cho qua), B đánh dấu đã bán tin của A (403), A đánh dấu đã bán; B rút tin chờ duyệt về nháp.
+ *      thấy tới khi máy cho qua); sau khi B chép ảnh, A sửa giá lần nữa vẫn qua (người đăng trước thắng); B đánh dấu đã
+ *      bán tin của A (403), A đánh dấu đã bán; B rút tin chờ duyệt về nháp.
  *
  *   pnpm smoke:posting [-- --base <url>] [--category <id>] [--mail-log <tệp>] [--allow-remote]
  *
@@ -386,8 +387,8 @@ async function checkHeld(held: OwnListing): Promise<void> {
 }
 
 /**
- * A sửa tin đang hiển thị — spec listing/editing. Chạy TRƯỚC khi B chép ảnh: bản sửa của A qua máy lại, mà máy so ảnh
- * với ảnh của mọi tài khoản khác, kể cả bản chép đăng sau (chạy khói 16/10/2026 — chờ quyết, xem VIEC-DANG-DO).
+ * A sửa tin đang hiển thị — spec listing/editing. Chạy trước khi B chép ảnh; lượt sửa sau khi bị chép kiểm ở
+ * `checkOwnerArrows` (người đăng trước thắng — duplicate-image-first-wins).
  */
 async function checkOwnerEdits(poster: Poster, start: OwnListing): Promise<OwnListing> {
   const asA = { token: poster.token, device: poster.device };
@@ -424,7 +425,19 @@ async function checkOwnerArrows(
 ): Promise<void> {
   const asA = { token: a.poster.token, device: a.poster.device };
   const asB = { token: b.poster.token, device: b.poster.device };
-  const listing = a.listing;
+
+  // Chủ ảnh sửa tin sau khi bị chép: bản chép kiểm xong sau nên không làm tin của A thành "ảnh trùng".
+  const repriced = await api('PATCH', `/listings/${a.listing.id}`, {
+    ...asA,
+    body: { version: a.listing.version, price: 2_200_000 },
+  });
+  dataOf<OwnListing>(repriced, 200, 'Sửa giá sau khi bị chép');
+  const listing = await waitForMachine(a.poster, a.listing.id);
+  check(
+    listing.state === 'live',
+    'A sửa tin sau khi B chép ảnh: vẫn qua, không dính "ảnh trùng"',
+    listing.state,
+  );
 
   const stranger = await api('POST', `/listings/${listing.id}/sold`, asB);
   const stillLive = dataOf<OwnListing>(

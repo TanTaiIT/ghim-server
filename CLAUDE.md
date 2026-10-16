@@ -452,7 +452,9 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   đơn vị thì xoá thông báo gửi riêng cho nó" vào `notification/group-announcements`. `fix-audit-trust-media-low` (đợt 4 phần 3,
   archive 16/10/2026) thêm "Lên T1 đúng lúc tin đang lên bảng" vào `listing/visibility`, "Tài khoản T3 vẫn được tính
   lại khi còn tin sạch chưa tính" vào `trust/trust-tiers`, "Ảnh đã xoá hẳn không còn để so trùng" vào
-  `screening/image-checks`.
+  `screening/image-checks`. `duplicate-image-first-wins` (archive 16/10/2026, từ lượt chạy khói trên dev)
+  sửa "Ảnh trùng với tin của tài khoản khác là cổng cứng" của `screening/image-checks`: chỉ so với ảnh đã kiểm xong
+  trước — người đăng trước thắng.
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.

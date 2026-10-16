@@ -36,7 +36,12 @@ const bandColumns = (hash: bigint) => {
   const band = (index: number) => bands[index] ?? 0;
   return { band0: band(0), band1: band(1), band2: band(2), band3: band(3), band4: band(4) };
 };
-const checkedImage = (imageId: string, ownerAccountId: string, hash: bigint) =>
+const checkedImage = (
+  imageId: string,
+  ownerAccountId: string,
+  hash: bigint,
+  checkedAt: Date = TEST_NOW,
+) =>
   prisma.imageCheck.create({
     data: {
       imageId,
@@ -44,7 +49,7 @@ const checkedImage = (imageId: string, ownerAccountId: string, hash: bigint) =>
       status: 'done',
       dhash: toStored(hash),
       ...bandColumns(hash),
-      checkedAt: TEST_NOW,
+      checkedAt,
     },
   });
 const decidedRun = (listingId: string, accountId: string, imageIds: string[], hits: object[]) =>
@@ -143,7 +148,8 @@ describe('screening', () => {
     const hash = 0x0123_4567_89ab_cdefn;
     const [ownImage, matchImage] = [randomUUID(), randomUUID()];
     await checkedImage(ownImage, mine.id, hash);
-    await checkedImage(matchImage, theirs.id, hash ^ 0b11n);
+    // Ảnh của người kia kiểm xong trước: chỉ ảnh đăng trước mới là "ảnh trùng" (duplicate-image-first-wins).
+    await checkedImage(matchImage, theirs.id, hash ^ 0b11n, new Date(TEST_NOW.getTime() - 60_000));
     const listingId = randomUUID();
     await decidedRun(listingId, mine.id, [ownImage], []);
     expect(await app.modules.screening.duplicateMatches(listingId)).toEqual([
