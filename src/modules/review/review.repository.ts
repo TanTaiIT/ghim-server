@@ -33,6 +33,12 @@ export interface ReviewRepository {
     write: (tx: Tx, open: ReviewTask | null) => Promise<T>,
     options: { lockListing: (tx: Tx) => Promise<void>; tx?: Tx | undefined },
   ): Promise<T>;
+  /** Như `withOpenTask` cho việc về một người (add-reports): khoá việc mở của tài khoản, không có dòng tin để khoá. */
+  withOpenAccountTask<T>(
+    accountId: string,
+    write: (tx: Tx, open: ReviewTask | null) => Promise<T>,
+    tx?: Tx,
+  ): Promise<T>;
   insertTask(tx: Tx, data: Prisma.ReviewTaskUncheckedCreateInput): Promise<ReviewTask>;
   updateTask(tx: Tx, id: string, data: Prisma.ReviewTaskUncheckedUpdateInput): Promise<ReviewTask>;
   closeTask(tx: Tx, id: string, cause: ReviewCloseCause, at: Date): Promise<ReviewTask>;
@@ -43,8 +49,15 @@ export interface ReviewRepository {
   openTasksExcluding(accountId: string): Promise<ReviewTask[]>;
   /** Việc đang mở mà người này đang giữ (chưa hết giờ) — xét lại khi họ mất vai hay mất quyền. */
   claimsOf(accountId: string, now: Date): Promise<ReviewTask[]>;
-  /** Việc đang mở theo danh mục (staff), theo nhóm (điều hành), hay tất cả (master) — hạn sớm trước. */
-  openTasks(filter: { categoryIds?: string[]; groupId?: string }): Promise<ReviewTask[]>;
+  /**
+   * Việc đang mở theo danh mục (staff), việc về người (staff việc an toàn), theo nhóm (điều hành), hay tất cả (master)
+   * — hạn sớm trước.
+   */
+  openTasks(filter: {
+    categoryIds?: string[];
+    accountTasks?: boolean;
+    groupId?: string;
+  }): Promise<ReviewTask[]>;
   /**
    * Nhận việc: chỉ thắng khi việc còn mở và chưa ai giữ, hay người giữ đã hết giờ, hay chính người này nhận lại — hai
    * người nhận cùng lúc thì đúng một người thắng (spec review/task-handling).
@@ -54,7 +67,8 @@ export interface ReviewRepository {
     accountId: string;
     now: Date;
     expiresAt: Date;
-    listingVersion: number;
+    /** `null` với việc về một người — không có phiên bản tin để giữ. */
+    listingVersion: number | null;
   }): Promise<boolean>;
   /** Tài khoản bị khoá, bị xoá: trả mọi việc người đó đang giữ. */
   releaseAllClaims(accountId: string): Promise<number>;
@@ -141,6 +155,17 @@ async function inTx<T>(
   return write(tx, open);
 }
 
+async function inAccountTx<T>(
+  accountId: string,
+  write: (tx: Tx, open: ReviewTask | null) => Promise<T>,
+  tx: Tx,
+): Promise<T> {
+  await tx.$queryRaw`SELECT id FROM review_tasks
+    WHERE account_id = ${accountId}::uuid AND status = 'open' FOR UPDATE`;
+  const open = await tx.reviewTask.findFirst({ where: { accountId, status: 'open' } });
+  return write(tx, open);
+}
+
 export function createReviewRepository(prisma: PrismaClient): ReviewRepository {
   const withRetry = async <T>(
     listingId: string,
@@ -156,9 +181,25 @@ export function createReviewRepository(prisma: PrismaClient): ReviewRepository {
     }
   };
 
+  const withAccountRetry = async <T>(
+    accountId: string,
+    write: (tx: Tx, open: ReviewTask | null) => Promise<T>,
+    attempt = 1,
+  ): Promise<T> => {
+    try {
+      return await prisma.$transaction((tx) => inAccountTx(accountId, write, tx));
+    } catch (error) {
+      if (!isUniqueViolation(error) || attempt >= MAX_ATTEMPTS) throw error;
+      return withAccountRetry(accountId, write, attempt + 1);
+    }
+  };
+
   return {
     withOpenTask: (listingId, write, { lockListing, tx }) =>
       tx ? inTx(listingId, write, lockListing, tx) : withRetry(listingId, write, lockListing),
+
+    withOpenAccountTask: (accountId, write, tx) =>
+      tx ? inAccountTx(accountId, write, tx) : withAccountRetry(accountId, write),
 
     insertTask: (tx, data) => tx.reviewTask.create({ data }),
 
@@ -198,11 +239,18 @@ export function createReviewRepository(prisma: PrismaClient): ReviewRepository {
         where: { status: 'open', claimedBy: accountId, claimExpiresAt: { gt: now } },
       }),
 
-    openTasks: ({ categoryIds, groupId }) =>
+    openTasks: ({ categoryIds, accountTasks, groupId }) =>
       prisma.reviewTask.findMany({
         where: {
           status: 'open',
-          ...(categoryIds ? { categoryId: { in: categoryIds } } : {}),
+          ...(categoryIds || accountTasks
+            ? {
+                OR: [
+                  ...(categoryIds ? [{ categoryId: { in: categoryIds } }] : []),
+                  ...(accountTasks ? [{ accountId: { not: null } }] : []),
+                ],
+              }
+            : {}),
           ...(groupId ? { groupId } : {}),
         },
         orderBy: [{ dueAt: 'asc' }, { id: 'asc' }],

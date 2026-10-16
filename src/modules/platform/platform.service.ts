@@ -97,6 +97,8 @@ export interface PlatformService {
   listStaff(categoryId?: string): Promise<StaffPermissionDto[]>;
   /** Cổng cho `review`: staff đang hoạt động của từng danh mục — người xử việc của danh mục đó (TK 16). */
   activeStaffByCategory(categoryIds: string[]): Promise<Map<string, string[]>>;
+  /** Staff đang hoạt động mang một việc ở bàn vận hành — `review` hỏi người xử báo cáo về một người (add-reports). */
+  activeStaffWithScope(scope: OpsScope): Promise<string[]>;
 
   /**
    * Chạy lúc khởi động: bảng rỗng → phiên bản 1 từ sổ đăng ký; phiên bản hiện hành thiếu khoá nào
@@ -239,6 +241,7 @@ export function createPlatformService(deps: PlatformServiceDeps): PlatformServic
     },
 
     activeStaffByCategory: (categoryIds) => repository.activeStaffByCategory(categoryIds),
+    activeStaffWithScope: (scope) => repository.activeStaffWithScope(scope),
 
     async listStaff(categoryId) {
       const rows = await repository.listStaff(categoryId === undefined ? {} : { categoryId });

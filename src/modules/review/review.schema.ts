@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { paginationQuerySchema } from '../../common/schemas/pagination.js';
 import { ownListingSchema } from '../listing/listing.schema.js';
+import { relatedReportSchema } from './report/report.schema.js';
 
 /** Tuple của enum `review_reason` — số hàng ở `calc/task.calc.ts`. */
 export const REVIEW_REASONS = [
@@ -10,6 +11,8 @@ export const REVIEW_REASONS = [
   'group_escalation',
   'sample_risk',
   'sample_reviewer',
+  'report',
+  'report_severe',
 ] as const;
 
 export const ROUTE_LEVELS = [
@@ -17,6 +20,7 @@ export const ROUTE_LEVELS = [
   'group_moderators',
   'group_owner',
   'category_staff',
+  'safety_staff',
   'master',
 ] as const;
 
@@ -41,7 +45,11 @@ const claimStateSchema = z.object({
 
 export const taskItemSchema = z.object({
   id: z.uuid(),
-  listingId: z.uuid(),
+  /** Việc về một tin hay về một người (báo cáo về người — add-reports). */
+  subjectKind: z.enum(['listing', 'account']),
+  listingId: z.uuid().nullable(),
+  accountId: z.uuid().nullable(),
+  /** Tiêu đề tin, hay tên hiển thị của người bị báo. */
   title: z.string().nullable(),
   queue: z.number().int(),
   reasons: z.array(z.enum(REVIEW_REASONS)),
@@ -59,7 +67,9 @@ export const taskItemSchema = z.object({
  * ảnh trùng ở tài khoản khác, tài khoản dùng chung thiết bị — không bao giờ có mã thiết bị.
  */
 export const taskDetailSchema = taskItemSchema.extend({
-  listing: ownListingSchema,
+  /** Bản lưu của tin — kể cả tin người đăng đã xoá còn báo cáo mở (add-reports); việc về người thì `null`. */
+  listing: ownListingSchema.nullable(),
+  listingDeleted: z.boolean(),
   machine: z
     .object({
       listingVersion: z.number().int(),
@@ -90,12 +100,15 @@ export const taskDetailSchema = taskItemSchema.extend({
     z.object({ accountId: z.uuid(), displayName: z.string().nullable() }),
   ),
   escalation: z.object({ by: z.uuid(), note: z.string() }).nullable(),
+  /** Báo cáo về tin và về người (đăng) — kể cả đã đóng, không có ai đã báo (add-reports). */
+  reports: z.array(relatedReportSchema),
 });
 
 export const claimResultSchema = z.object({
   taskId: z.uuid(),
   claimExpiresAt: iso,
-  listingVersion: z.number().int(),
+  /** `null` với việc về một người. */
+  listingVersion: z.number().int().nullable(),
 });
 
 export type QueueQuery = z.infer<typeof queueQuerySchema>;
@@ -125,9 +138,22 @@ const noteRequired = {
 
 export const decisionBodySchema = z
   .object({
-    outcome: z.enum(['pass', 'mistake', 'detach', 'dismiss']),
+    /** `keep` = không đổi tin — quyết định về báo cáo (add-reports). */
+    outcome: z.enum(['pass', 'mistake', 'detach', 'dismiss', 'keep']),
     machineJudgment: z.enum(['machine_right', 'machine_overreach']).optional(),
     reasonTemplateId: z.uuid().optional(),
+    /**
+     * Bắt buộc với việc có lý do báo cáo (add-reports): báo cáo đúng hay bác, kèm hệ quả ngoài tin trong quyền người
+     * xử — cấm người đăng khỏi nhóm (quản trị nhóm, master), khoá tài khoản (master).
+     */
+    report: z
+      .object({
+        verdict: z.enum(['upheld', 'dismissed']),
+        banFromGroup: z.boolean().optional(),
+        lockAccount: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
     ...escalation,
   })
   .strict()
@@ -141,8 +167,10 @@ export const directDetachBodySchema = z
 
 export const decisionResultSchema = z.object({
   decisionId: z.uuid(),
-  outcome: z.enum(['pass', 'reject', 'remove', 'detach', 'dismiss', 'restore']),
-  listingState: z.string(),
+  outcome: z.enum(['pass', 'reject', 'remove', 'detach', 'dismiss', 'restore', 'keep']),
+  /** `null` với việc về một người. */
+  listingState: z.string().nullable(),
+  reportVerdict: z.enum(['upheld', 'dismissed']).nullable(),
 });
 
 export const listingParamsSchema = z.object({ listingId: z.uuid() });

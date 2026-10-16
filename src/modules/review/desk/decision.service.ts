@@ -1,6 +1,7 @@
 import type {
   Listing,
   ListingState,
+  ReportVerdict,
   ReviewActorRole,
   ReviewDecision,
   ReviewOutcome,
@@ -16,8 +17,12 @@ import {
   ForbiddenError,
   NotFoundError,
 } from '../../../common/errors/app-error.js';
+import { sequentially } from '../../../common/utils/sequential.js';
 import type { ReviewSubject } from '../../listing/listing.ports.js';
+import { scoreDelta, suspendedUntilAfter } from '../calc/report.calc.js';
 import { sampled } from '../calc/sampling.calc.js';
+import { REPORT_REASONS } from '../calc/task.calc.js';
+import type { ReportSubject } from '../report/report.repository.js';
 import type { ReviewQueueService } from '../queue/queue.service.js';
 import { type ListingDecidedOutcome, REVIEW_EVENTS, reviewEvent } from '../review.outbox.js';
 import type { Tx } from '../review.repository.js';
@@ -161,17 +166,21 @@ export function createDecisionService(
   shared: ReviewShared,
   queue: ReviewQueueService,
 ): ReviewDecisionService {
-  const { repository, listings, screening, trust, groups, config, clock, random } = shared;
+  const { repository, reports, listings, screening, trust, groups, config, clock, random } = shared;
+  const { reportRules } = shared;
   const { viewerOf, locateTask, withSharedDevices } = shared;
 
   /** Vai trên phạm vi của việc, đọc lại lúc quyết — mất vai thì 403 dù việc còn trong tay (spec review/decisions). */
   const roleOn = async (
     actor: Actor,
     surface: Surface,
-    categoryId: string | null,
+    task: Pick<ReviewTask, 'categoryId' | 'accountId'>,
     viewer: Viewer,
   ): Promise<ReviewActorRole | null> => {
+    const { categoryId } = task;
     if (viewer.isMaster) return 'master';
+    // Việc về một người: staff được giao việc an toàn (add-reports).
+    if (task.accountId) return viewer.scopes.has('user_reports') ? 'staff' : null;
     if (surface.kind === 'ops') {
       return categoryId !== null && viewer.categoryIds.has(categoryId) ? 'staff' : null;
     }
@@ -231,6 +240,7 @@ export function createDecisionService(
         await listings.detachByGroup({ ...base, groupId }).catch(asListingChanged);
         return;
       case 'dismiss':
+      case 'keep':
         await repository.inTransaction((tx) => after(tx, null));
         return;
     }
@@ -354,7 +364,146 @@ export function createDecisionService(
       },
     );
     if (!written.decision) throw new Error('Quyết định không được ghi');
-    return { decisionId: written.decision.id, outcome, listingState: state };
+    return { decisionId: written.decision.id, outcome, listingState: state, reportVerdict: null };
+  };
+
+  /**
+   * Đóng báo cáo trong transaction của quyết định (design add-reports mục 7, 8): cộng / trừ điểm từng người báo, phát
+   * sự kiện cho người báo (N46) và cho hệ quả; báo cáo đã tự ẩn tin thì `listing` gỡ cờ.
+   */
+  const closeReport = async (
+    tx: Tx,
+    input: {
+      reportId: string;
+      verdict: ReportVerdict;
+      decisionId: string;
+      actor: Actor;
+      banGroupId: string | null;
+      lockAccount: boolean;
+      at: Date;
+    },
+  ): Promise<void> => {
+    const { verdict, at } = input;
+    const closed = await reports.close(tx, {
+      id: input.reportId,
+      verdict,
+      decisionId: input.decisionId,
+      at,
+    });
+    if (!closed) throw taskClosed();
+    const rules = reportRules();
+    await sequentially(closed.entries, async ({ reporterId }) => {
+      const score = await reports.adjustScore(tx, reporterId, scoreDelta(verdict));
+      const until = suspendedUntilAfter(verdict, score, at, rules);
+      if (until) await reports.suspend(tx, reporterId, until);
+    });
+    await repository.emitIn(tx, [
+      reviewEvent(REVIEW_EVENTS.reportDecided, {
+        reportId: closed.id,
+        verdict,
+        subjectKind: closed.subjectKind,
+        listingId: closed.listingId,
+        accountId: closed.accountId,
+        reporterIds: closed.entries.map((entry) => entry.reporterId),
+        banGroupId: input.banGroupId,
+        lockAccount: input.lockAccount,
+        by: input.actor.accountId,
+        byMaster: input.actor.role === 'master',
+      }),
+      ...(closed.autoHiddenAt && closed.listingId
+        ? [reviewEvent(REVIEW_EVENTS.reportHideChanged, { listingId: closed.listingId })]
+        : []),
+    ]);
+  };
+
+  /**
+   * Hệ quả ngoài tin của báo cáo đúng, kiểm quyền trước mọi lượt ghi (spec review/reports "Hệ quả khi báo cáo đúng"):
+   * cấm khỏi nhóm — quản trị nhóm, master, tin trong nhóm, người đăng không phải chủ nhóm; khoá tài khoản — master.
+   */
+  const consequencesOf = async (
+    body: DecisionBody,
+    role: ReviewActorRole,
+    scope: { groupId: string | null; inGroup: boolean; ownerId: string },
+  ): Promise<{ banGroupId: string | null; lockAccount: boolean }> => {
+    const report = body.report;
+    if (!report) return { banGroupId: null, lockAccount: false };
+    const wants = report.banFromGroup === true || report.lockAccount === true;
+    if (wants && report.verdict !== 'upheld') {
+      throw outcomeNotAllowed('Chỉ báo cáo đúng mới kèm cấm khỏi nhóm hay khoá tài khoản');
+    }
+    if (report.lockAccount && role !== 'master') {
+      throw new ForbiddenError('Chỉ master khoá được tài khoản');
+    }
+    if (!report.banFromGroup) return { banGroupId: null, lockAccount: report.lockAccount === true };
+    if (role === 'staff')
+      throw new ForbiddenError('Cấm khỏi nhóm là việc của quản trị nhóm hay master');
+    if (!scope.inGroup || !scope.groupId) throw outcomeNotAllowed('Tin không ở trong nhóm nào');
+    const reviewers = await groups.reviewersOf(scope.groupId);
+    if (reviewers?.ownerId === scope.ownerId) throw outcomeNotAllowed('Không cấm được chủ nhóm');
+    return { banGroupId: scope.groupId, lockAccount: report.lockAccount === true };
+  };
+
+  /** Quyết định về một người (báo cáo về người — add-reports): "đúng" hay "bác", không có tin nào để đổi. */
+  const decideAboutPerson = async (
+    actor: Actor,
+    task: ReviewTask,
+    role: ReviewActorRole,
+    body: DecisionBody,
+  ): Promise<DecisionResultDto> => {
+    const accountId = task.accountId ?? '';
+    const verdict = body.report?.verdict;
+    if (!verdict) throw invalid('Việc có báo cáo: chọn báo cáo đúng hay bác');
+    if (body.outcome !== 'keep') {
+      throw outcomeNotAllowed('Báo cáo về một người chỉ quyết đúng hay bác, không đổi tin nào');
+    }
+    if (body.report?.banFromGroup)
+      throw outcomeNotAllowed('Báo cáo về một người không gắn nhóm nào');
+    const { lockAccount } = await consequencesOf(body, role, {
+      groupId: null,
+      inGroup: false,
+      ownerId: accountId,
+    });
+    const tier = await trust.tierOf(accountId);
+    const now = clock();
+    const decision = await repository.inTransaction(async (tx) => {
+      const closed = await repository.closeDecided(tx, {
+        id: task.id,
+        actorId: actor.accountId,
+        claimedVersion: null,
+        escalatedAt: task.escalatedAt,
+        now: clock(),
+      });
+      if (!closed) throw await whyNotClosed(tx, task);
+      const subject: ReportSubject = { kind: 'account', accountId };
+      const report = await reports.lockOpenIn(tx, subject);
+      const written = await repository.insertDecision(tx, {
+        taskId: task.id,
+        accountId,
+        actorId: actor.accountId,
+        actorRole: role,
+        outcome: 'keep',
+        note: body.note ?? null,
+        taskReasons: task.reasons,
+        queue: task.queue,
+        posterTierAfter: tier,
+        reportId: report?.id ?? null,
+        reportVerdict: report ? verdict : null,
+        decidedAt: now,
+      });
+      if (report) {
+        await closeReport(tx, {
+          reportId: report.id,
+          verdict,
+          decisionId: written.id,
+          actor,
+          banGroupId: null,
+          lockAccount,
+          at: now,
+        });
+      }
+      return written;
+    });
+    return { decisionId: decision.id, outcome: 'keep', listingState: null, reportVerdict: verdict };
   };
 
   return {
@@ -363,7 +512,7 @@ export function createDecisionService(
       if (!found) throw taskNotFound();
       const { task, viewer, allowed } = found;
       if (task.status !== 'open') throw taskClosed();
-      const role = await roleOn(actor, surface, task.categoryId, viewer);
+      const role = await roleOn(actor, surface, task, viewer);
       if (!role) throw new ForbiddenError();
       // Việc đã chuyển chỗ (chuyển master xoá người giữ) nói đúng chuyện trước khi nói "chưa nhận" (L11).
       if (!allowed) throw taskReassigned();
@@ -375,10 +524,25 @@ export function createDecisionService(
       ) {
         throw taskNotClaimed();
       }
-      const subject = await listings.reviewSubject(task.listingId);
+      const { listingId } = task;
+      if (!listingId) return decideAboutPerson(actor, task, role, body);
+      // Bản lưu của tin đã xoá vẫn quyết được báo cáo về nó (add-reports).
+      const subject = await listings.reviewSubject(listingId, { includeDeleted: true });
       if (!subject) throw taskClosed();
       if (subject.version !== task.claimedVersion) throw listingChanged();
 
+      const reported = task.reasons.some((reason) => REPORT_REASONS.has(reason));
+      const verdict = body.report?.verdict ?? null;
+      if (reported && !verdict) throw invalid('Việc có báo cáo: chọn báo cáo đúng hay bác');
+      if (!reported && body.report) throw invalid('Việc này không có báo cáo nào để quyết');
+      if (body.outcome === 'keep' && !reported) {
+        throw outcomeNotAllowed('Giữ nguyên tin chỉ dùng cho việc có báo cáo');
+      }
+      if (subject.deleted && body.outcome !== 'keep') {
+        throw outcomeNotAllowed(
+          'Người đăng đã xoá tin — chỉ quyết được báo cáo, không đổi được tin',
+        );
+      }
       const outcome = outcomeOf(body, subject);
       const machineHeld = task.reasons.some((reason) => MACHINE_REASONS.has(reason));
       const escalated = task.reasons.includes('group_escalation');
@@ -396,6 +560,21 @@ export function createDecisionService(
       if (outcome === 'pass' && task.reasons.includes('machine_hold') && !body.machineJudgment) {
         throw invalid('Cho đạt tin máy giữ thì chọn "máy đúng" hay "máy quá tay"');
       }
+      if (outcome === 'keep' && task.reasons.includes('machine_hold')) {
+        throw outcomeNotAllowed('Tin đang chờ duyệt — cho đạt hay từ chối');
+      }
+      if (verdict === 'upheld' && outcome === 'pass') {
+        throw outcomeNotAllowed('Báo cáo đúng thì không cho đạt tin');
+      }
+      // Gỡ tin vì báo cáo là của staff danh mục, master; quản trị nhóm gỡ khỏi nhóm (TK 23).
+      if (reported && outcome === 'remove' && (role === 'owner' || role === 'moderator')) {
+        throw new ForbiddenError();
+      }
+      const consequences = await consequencesOf(body, role, {
+        groupId: task.groupId,
+        inGroup,
+        ownerId: subject.ownerId,
+      });
       const template =
         outcome === 'reject' || outcome === 'remove'
           ? await activeTemplate(body.reasonTemplateId)
@@ -435,7 +614,7 @@ export function createDecisionService(
           if (outcome === 'pass' && subject.state === 'pending' && row) {
             await repository.addSampleCandidate(
               {
-                listingId: task.listingId,
+                listingId,
                 listingVersion: row.version,
                 at: now,
                 approvedBy: actor.accountId,
@@ -443,9 +622,12 @@ export function createDecisionService(
               tx,
             );
           }
+          const report = verdict
+            ? await reports.lockOpenIn(tx, { kind: 'listing', listingId })
+            : null;
           written.decision = await repository.insertDecision(tx, {
             taskId: task.id,
-            listingId: task.listingId,
+            listingId,
             actorId: actor.accountId,
             actorRole: role,
             outcome,
@@ -461,8 +643,20 @@ export function createDecisionService(
             listingStateAfter: state,
             posterTierAfter: facts.tier,
             overturnsDecisionId: overturns,
+            reportId: report?.id ?? null,
+            reportVerdict: report ? verdict : null,
             decidedAt: now,
           });
+          if (report && verdict) {
+            await closeReport(tx, {
+              reportId: report.id,
+              verdict,
+              decisionId: written.decision.id,
+              actor,
+              ...consequences,
+              at: now,
+            });
+          }
           await repository.emitIn(
             tx,
             decidedEvents({
@@ -475,7 +669,7 @@ export function createDecisionService(
             }),
           );
           if (sampleReviewer) {
-            await queue.addReason(task.listingId, {
+            await queue.addReason(listingId, {
               reason: 'sample_reviewer',
               alsoExclude: [actor.accountId],
               sampledDecisionId: written.decision.id,
@@ -483,7 +677,7 @@ export function createDecisionService(
             });
           }
           if (outcome === 'detach' && body.platformViolation && body.note) {
-            await escalate(tx, task.listingId, actor, body.note);
+            await escalate(tx, listingId, actor, body.note);
           }
         },
       ).catch(async (error: unknown) => {
@@ -495,7 +689,12 @@ export function createDecisionService(
         throw error;
       });
       if (!written.decision) throw new Error('Quyết định không được ghi');
-      return { decisionId: written.decision.id, outcome, listingState: state };
+      return {
+        decisionId: written.decision.id,
+        outcome,
+        listingState: state,
+        reportVerdict: verdict,
+      };
     },
 
     async removeDirectly(actor, listingId, { reasonTemplateId }) {

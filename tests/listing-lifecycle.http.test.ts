@@ -461,7 +461,10 @@ describe('Nơi đăng khi sửa', () => {
       identity: app.modules.identity,
       trust: createInterimTrust('T1'),
       screening: interimScreening,
-      openWork: { blocksPlacement: () => Promise.resolve(true) },
+      openWork: {
+        blocksPlacement: () => Promise.resolve(true),
+        reportHidden: () => Promise.resolve(false),
+      },
       config: createStaticRuntimeConfig({}),
       clock: () => now,
     });

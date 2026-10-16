@@ -26,6 +26,7 @@ export const LISTING_HIDE_REASONS = [
   'group_closed',
   'group_privatized',
   'detached_by_group',
+  'reported',
 ] as const;
 export const LISTING_RESTRICTIONS = ['machine', 'new_account', 'strike'] as const;
 

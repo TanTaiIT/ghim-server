@@ -15,6 +15,7 @@ const ORDER: readonly ListingHideReason[] = [
   'group_closed',
   'group_privatized',
   'detached_by_group',
+  'reported',
 ];
 
 /** Rời nhóm hẳn: không lý do nào gỡ được, người đăng chỉ chuyển tin lên sàn chung thành tin mới (TK 9, 10, 17). */
@@ -43,7 +44,9 @@ export type HideEvent =
   | { kind: 'member_joined' | 'ban_created' | 'ban_lifted' }
   | { kind: 'group_locked' | 'group_unlocked' | 'group_closed' }
   | { kind: 'category_disabled' | 'category_enabled' }
-  | { kind: 'detached_by_group' | 'outsider_privatized' };
+  | { kind: 'detached_by_group' | 'outsider_privatized' }
+  /** Báo cáo đang mở đã tự ẩn tin / không còn (add-reports) — chiều lấy từ `review` lúc xử. */
+  | { kind: 'reported' | 'report_cleared' };
 
 export interface HideTarget {
   state: ListingState;
@@ -102,6 +105,10 @@ function addAndRemove(
       return [['detached_by_group'], []];
     case 'outsider_privatized':
       return [['group_privatized'], []];
+    case 'reported':
+      return [['reported'], []];
+    case 'report_cleared':
+      return [[], ['reported']];
   }
 }
 

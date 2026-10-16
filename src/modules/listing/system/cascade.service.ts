@@ -46,6 +46,8 @@ export interface ListingCascadeService {
     leave: GroupLeave | null,
   ): Promise<number>;
   onCategoryStatusChanged(categoryId: string): Promise<number>;
+  /** Báo cáo về tin vừa tự ẩn / vừa có quyết định: cờ `reported` theo `review` lúc xử (add-reports). */
+  onReportHideChanged(listingId: string): Promise<number>;
   /** Ghi đơn vị hiện tại của thành viên lên tin của họ trong nhóm; không còn là thành viên thì thôi. */
   onUnitChanged(groupId: string, accountId: string): Promise<number>;
   onBadgeRightsChanged(groupId: string, accountId: string | null): Promise<number>;
@@ -101,7 +103,8 @@ const ownersOf = (rows: Changed): string[] => [
 ];
 
 export function createListingCascadeService(shared: ListingShared): ListingCascadeService {
-  const { repository, groups, categories, identity, trust, config, clock, explainMiss } = shared;
+  const { repository, groups, categories, identity, trust, openWork, config, clock, explainMiss } =
+    shared;
 
   /** Một sự kiện gộp cho cả lô (N32 / N33 gộp theo người đăng ở `notification`), không một sự kiện mỗi tin. */
   const hideEvents = (event: HideEvent, changed: Changed, groupId: string | null) => {
@@ -210,6 +213,13 @@ export function createListingCascadeService(shared: ListingShared): ListingCasca
           return leave ? { kind: 'member_left', ...leave } : null;
         },
         groupId,
+      ),
+
+    onReportHideChanged: (listingId) =>
+      reconcile({ id: listingId }, async () =>
+        (await openWork.reportHidden(listingId))
+          ? { kind: 'reported' }
+          : { kind: 'report_cleared' },
       ),
 
     onCategoryStatusChanged: (categoryId) =>

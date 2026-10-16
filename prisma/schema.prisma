@@ -1024,6 +1024,8 @@ enum ListingHideReason {
   group_closed
   group_privatized
   detached_by_group
+  /// Nhiều người đáng tin cùng báo (add-reports): chỉ quyết định của người xử gỡ được.
+  reported
 
   @@map("listing_hide_reason")
 }
@@ -1583,14 +1585,16 @@ model CategoryKeyword {
 
 // ── REVIEW: ENUM ─────────────────────────────────────────────────────────────────────────────────
 
-/// Lý do một việc có mặt trong hàng chờ; số hàng của việc = số nhỏ nhất trong các lý do (TK 16). `report` (hàng 1),
-/// `appeal` (hàng 2) do add-reports, add-strikes thêm.
+/// Lý do một việc có mặt trong hàng chờ; số hàng của việc = số nhỏ nhất trong các lý do (TK 16). `appeal` (hàng 2) do
+/// add-strikes thêm. `report_severe` = báo cáo có lượt lừa đảo / hàng cấm — luôn về staff (TK 23).
 enum ReviewReason {
   machine_hold
   machine_restricted
   group_escalation
   sample_risk
   sample_reviewer
+  report
+  report_severe
 
   @@map("review_reason")
 }
@@ -1626,6 +1630,8 @@ enum ReviewOutcome {
   detach
   dismiss
   restore
+  /// Quyết định về báo cáo không đổi tin (add-reports).
+  keep
 
   @@map("review_outcome")
 }
@@ -1662,11 +1668,16 @@ enum ReviewActorRole {
 /// (migration init_review):
 ///   review_tasks_reasons_check: status <> 'open' OR COALESCE(cardinality(reasons), 0) > 0
 ///   review_tasks_queue_check:   queue BETWEEN 0 AND 5
-///   review_tasks_claim_check:   (claimed_by IS NULL) = (claim_expires_at IS NULL) AND (claimed_by IS NULL) = (claimed_version IS NULL)
+///   review_tasks_claim_check:   (claimed_by IS NULL) = (claim_expires_at IS NULL) AND (claimed_by IS NOT NULL OR claimed_version IS NULL)
+///                               AND (claimed_by IS NULL OR listing_id IS NULL OR claimed_version IS NOT NULL)
 ///   review_tasks_closed_check:  (status = 'open') = (closed_at IS NULL) AND (status = 'open') = (close_cause IS NULL)
+///   review_tasks_subject_check: (listing_id IS NULL) <> (account_id IS NULL) — việc về một tin hay về một người
+///                               (add-reports)
 model ReviewTask {
   id                String            @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  listingId         String            @map("listing_id") @db.Uuid
+  listingId         String?           @map("listing_id") @db.Uuid
+  /// Việc về một người (báo cáo về người — add-reports; khiếu nại gậy — add-strikes).
+  accountId         String?           @map("account_id") @db.Uuid
   status            ReviewTaskStatus  @default(open)
   reasons           ReviewReason[]
   queue             Int               @db.SmallInt
@@ -1693,10 +1704,12 @@ model ReviewTask {
   createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  listing Listing? @relation(fields: [listingId], references: [id], onDelete: Cascade)
 
   /// Một tin, một việc đang mở (TK 16) — hai lối sinh việc cùng lúc vẫn ra một việc.
   @@unique([listingId], where: raw("status = 'open'"), map: "review_tasks_open_listing_key")
+  /// Một người, một việc đang mở — như với tin.
+  @@unique([accountId], where: raw("status = 'open'"), map: "review_tasks_open_account_key")
   @@index([categoryId], where: raw("status = 'open'"), map: "review_tasks_open_category_idx")
   @@index([groupId], where: raw("status = 'open'"), map: "review_tasks_open_group_idx")
   @@index([dueAt], where: raw("status = 'open'"), map: "review_tasks_open_due_idx")
@@ -1708,10 +1721,15 @@ model ReviewTask {
 /// riêng (add-data-retention). CHECK tay (migration init_review):
 ///   review_decisions_severity_check: (outcome IN ('reject', 'remove')) = (severity IS NOT NULL)
 ///   review_decisions_judgment_check: machine_judgment IS NULL OR outcome = 'pass'
+///   review_decisions_subject_check:  (listing_id IS NULL) <> (account_id IS NULL)
+///                                    AND (listing_id IS NULL) = (listing_state_after IS NULL) (add-reports)
+///   review_decisions_report_check:   (report_id IS NULL) = (report_verdict IS NULL)
 model ReviewDecision {
   id                  String                 @id @default(dbgenerated("uuidv7()")) @db.Uuid
   taskId              String?                @map("task_id") @db.Uuid
-  listingId           String                 @map("listing_id") @db.Uuid
+  listingId           String?                @map("listing_id") @db.Uuid
+  /// Quyết định về một người (việc về người).
+  accountId           String?                @map("account_id") @db.Uuid
   actorId             String                 @map("actor_id") @db.Uuid
   actorRole           ReviewActorRole        @map("actor_role")
   outcome             ReviewOutcome
@@ -1724,10 +1742,13 @@ model ReviewDecision {
   machineHits         String[]               @default([]) @map("machine_hits")
   taskReasons         ReviewReason[]         @default([]) @map("task_reasons")
   queue               Int?                   @db.SmallInt
-  listingStateAfter   ListingState           @map("listing_state_after")
+  listingStateAfter   ListingState?          @map("listing_state_after")
   posterTierAfter     TrustTier?             @map("poster_tier_after")
   /// Quyết định "đạt" mà lần hậu kiểm này lật (gỡ tin hay gỡ khỏi nhóm).
   overturnsDecisionId String?                @map("overturns_decision_id") @db.Uuid
+  /// Báo cáo quyết định này đóng, và kết quả của nó (add-reports).
+  reportId            String?                @map("report_id") @db.Uuid
+  reportVerdict       ReportVerdict?         @map("report_verdict")
   decidedAt           DateTime               @map("decided_at") @db.Timestamptz(3)
 
   @@index([actorId, decidedAt])
@@ -1761,4 +1782,98 @@ model ReviewSampleCandidate {
 
   @@id([listingId, listingVersion])
   @@map("review_sample_candidates")
+}
+
+// ── REVIEW: BÁO CÁO (add-reports) ────────────────────────────────────────────────────────────────
+
+/// Năm loại báo cáo cố định để thống kê được (TK 23).
+enum ReportCategory {
+  fraud
+  misinformation
+  harassment
+  prohibited
+  other
+
+  @@map("report_category")
+}
+
+enum ReportSubjectKind {
+  listing
+  account
+
+  @@map("report_subject_kind")
+}
+
+enum ReportStatus {
+  open
+  upheld
+  dismissed
+
+  @@map("report_status")
+}
+
+enum ReportVerdict {
+  upheld
+  dismissed
+
+  @@map("report_verdict")
+}
+
+/// Một báo cáo về một đối tượng — mọi lượt báo trong lúc nó mở gộp vào đây (TK 23). Không khoá ngoại sang tin hay tài
+/// khoản: báo cáo sống qua lượt xoá của chủ, xử trên bản lưu (cam kết 25). CHECK tay (migration add_reports):
+///   reports_subject_check: (subject_kind = 'listing') = (listing_id IS NOT NULL)
+///   reports_decided_check: (status = 'open') = (decided_at IS NULL)
+model Report {
+  id           String            @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  subjectKind  ReportSubjectKind @map("subject_kind")
+  listingId    String?           @map("listing_id") @db.Uuid
+  /// Người bị báo; với báo cáo về tin là người đăng tin.
+  accountId    String            @map("account_id") @db.Uuid
+  status       ReportStatus      @default(open)
+  /// Có ít nhất một lượt lừa đảo hay hàng cấm — luật của hai loại đó thắng khi gộp.
+  severe       Boolean           @default(false)
+  /// Mọi lượt báo đều của người có điểm báo cáo dưới mức bình thường — xếp cuối hàng.
+  lowPriority  Boolean           @default(false) @map("low_priority")
+  /// Lúc tin bị tạm ẩn vì nhiều người báo; null = chưa.
+  autoHiddenAt DateTime?         @map("auto_hidden_at") @db.Timestamptz(3)
+  decisionId   String?           @map("decision_id") @db.Uuid
+  decidedAt    DateTime?         @map("decided_at") @db.Timestamptz(3)
+  createdAt    DateTime          @map("created_at") @db.Timestamptz(3)
+
+  entries ReportEntry[]
+
+  @@unique([listingId], where: raw("status = 'open'"), map: "reports_open_listing_key")
+  @@unique([accountId], where: raw("status = 'open' AND subject_kind = 'account'"), map: "reports_open_account_key")
+  @@index([accountId, createdAt])
+  @@index([listingId, createdAt])
+  @@map("reports")
+}
+
+/// Một lượt báo: một người một lượt trong một báo cáo. `counts_for_hide` chụp lúc báo — có dấu máy, mức đủ, điểm bình
+/// thường (TK 23).
+model ReportEntry {
+  id            String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  reportId      String         @map("report_id") @db.Uuid
+  reporterId    String         @map("reporter_id") @db.Uuid
+  category      ReportCategory
+  deviceHash    String?        @map("device_hash")
+  countsForHide Boolean        @map("counts_for_hide")
+  createdAt     DateTime       @map("created_at") @db.Timestamptz(3)
+
+  report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, reporterId])
+  @@index([reporterId, createdAt])
+  @@map("report_entries")
+}
+
+/// Điểm tin cậy báo cáo (TK 23): bác −1, đúng +1. Không phải án phạt — không module nào khác đọc.
+model ReporterScore {
+  accountId      String    @id @map("account_id") @db.Uuid
+  score          Int       @default(0)
+  /// Mất quyền báo cáo tới lúc này (điểm xuống dưới mức mất quyền).
+  suspendedUntil DateTime? @map("suspended_until") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("reporter_scores")
 }

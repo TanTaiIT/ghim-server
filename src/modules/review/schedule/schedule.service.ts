@@ -131,7 +131,8 @@ export function createScheduleService(
         if (action === 'escalate' && !atMaster && (await repository.escalateTask(task.id, now))) {
           escalated.push(task.id);
         }
-        if (action === 'expire') {
+        // Chỉ việc về tin có lý do mẫu — việc về người không bao giờ tự huỷ.
+        if (action === 'expire' && task.listingId) {
           // Mẫu không ai xử kịp: huỷ, đếm "bỏ sót"; tin không đổi (spec review/post-review).
           await queue.dropReasons(task.listingId, SAMPLES, 'expired');
           expired.push(task.id);

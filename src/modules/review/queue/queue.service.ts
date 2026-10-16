@@ -13,6 +13,7 @@ import {
   earliest,
   QUEUE_OF,
   queueOf,
+  REPORT_REASONS,
   SAMPLE_REASONS,
   withoutReasons,
   withReasons,
@@ -49,6 +50,11 @@ export interface StateChange {
 
 export interface ReviewQueueService {
   addReason(listingId: string, input: AddReason): Promise<void>;
+  /** Việc về một người (báo cáo về người — add-reports): như `addReason`, không có tin. */
+  addAccountReason(
+    accountId: string,
+    input: Pick<AddReason, 'reason' | 'alsoExclude' | 'tx'>,
+  ): Promise<void>;
   dropReasons(
     listingId: string,
     reasons: readonly ReviewReason[],
@@ -198,14 +204,56 @@ export function createQueueService(shared: ReviewShared): ReviewQueueService {
     });
   };
 
+  /**
+   * Huỷ việc vì chuyện xảy ra với tin (xoá, rút, đã bán, hết hạn, chủ tin xoá tài khoản). Lý do báo cáo ở lại: báo cáo
+   * chỉ đóng bằng quyết định của người, xử trên bản lưu (cam kết 25, add-reports).
+   */
   const cancel = (
     listingId: string,
     cause: ReviewCloseCause,
     expect?: ListingExpect,
   ): Promise<void> =>
     onOpenTask(listingId, async (tx, open, listing) => {
-      if (open && matches(listing, expect)) await repository.closeTask(tx, open.id, cause, clock());
+      if (!open || !matches(listing, expect)) return;
+      const kept = open.reasons.filter((reason) => REPORT_REASONS.has(reason));
+      if (kept.length === 0) {
+        await repository.closeTask(tx, open.id, cause, clock());
+        return;
+      }
+      if (kept.length < open.reasons.length) {
+        await repository.updateTask(tx, open.id, { reasons: kept, queue: queueOf(kept) });
+      }
     });
+
+  const addAccountReason: ReviewQueueService['addAccountReason'] = async (accountId, input) => {
+    const excluded = await withSharedDevices([accountId, ...(input.alsoExclude ?? [])]);
+    const now = clock();
+    const due = deadlineOf(input.reason, now, deadlines());
+    await repository.withOpenAccountTask(
+      accountId,
+      async (tx, open) => {
+        if (!open) {
+          await repository.insertTask(tx, {
+            accountId,
+            reasons: [input.reason],
+            createdAt: now,
+            queue: QUEUE_OF[input.reason],
+            dueAt: due,
+            excludedIds: excluded,
+          });
+          return;
+        }
+        const reasons = withReasons(open.reasons, [input.reason]);
+        await repository.updateTask(tx, open.id, {
+          reasons,
+          queue: queueOf(reasons),
+          dueAt: earliest(open.dueAt, due),
+          excludedIds: [...new Set([...open.excludedIds, ...excluded])],
+        });
+      },
+      input.tx,
+    );
+  };
 
   /** Việc mở của tin lấy lại phạm vi (danh mục, nhóm, đơn vị) từ tin hiện tại. */
   const rescope = async (listingId: string): Promise<void> => {
@@ -225,6 +273,7 @@ export function createQueueService(shared: ReviewShared): ReviewQueueService {
 
   return {
     addReason,
+    addAccountReason,
     dropReasons,
 
     async onStateChanged(change) {
@@ -327,25 +376,28 @@ export function createQueueService(shared: ReviewShared): ReviewQueueService {
     async onAccountDeleted(accountId) {
       // Người đăng luôn nằm trong danh sách loại trừ của việc về tin của mình.
       const tasks = await repository.openTasksExcluding(accountId);
-      await sequentially(tasks, async (task) => {
-        const subject = await listings.reviewSubject(task.listingId);
-        if (subject?.ownerId === accountId) await cancel(task.listingId, 'listing_deleted');
+      await sequentially(tasks, async ({ listingId }) => {
+        // Việc về chính người đó (báo cáo về người) ở lại — xử trên bản lưu (add-reports).
+        if (!listingId) return;
+        const subject = await listings.reviewSubject(listingId);
+        if (subject?.ownerId === accountId) await cancel(listingId, 'listing_deleted');
       });
     },
 
     async onUnitChanged(groupId, accountId) {
       const tasks = await repository.openTasksInGroup(groupId);
-      await sequentially(tasks, async (task) => {
-        const subject = await listings.reviewSubject(task.listingId);
-        if (subject?.ownerId === accountId) await rescope(task.listingId);
+      await sequentially(tasks, async ({ listingId }) => {
+        if (!listingId) return;
+        const subject = await listings.reviewSubject(listingId);
+        if (subject?.ownerId === accountId) await rescope(listingId);
       });
     },
 
     async onGroupClosed(groupId) {
       const tasks = await repository.openTasksInGroup(groupId);
-      await sequentially(tasks, (task) =>
-        dropReasons(task.listingId, CLOSED_GROUP_REASONS, 'group_closed'),
-      );
+      await sequentially(tasks, async ({ listingId }) => {
+        if (listingId) await dropReasons(listingId, CLOSED_GROUP_REASONS, 'group_closed');
+      });
     },
 
     async backfill() {

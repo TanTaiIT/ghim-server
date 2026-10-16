@@ -32,6 +32,7 @@ import {
 export type IdentityOpsService = Pick<
   IdentityService,
   | 'lockAccount'
+  | 'lockFromReport'
   | 'unlockAccount'
   | 'recordListingSubmission'
   | 'deviceFlagsFor'
@@ -100,6 +101,29 @@ export function createIdentityOpsService(
       });
       if (!locked) throw new ConflictError('Tài khoản đang bị khoá rồi');
       deps.sessionsRevoked?.account(accountId);
+    },
+
+    async lockFromReport({ accountId, by, reason }) {
+      const target = await repository.findAccountById(accountId);
+      if (!target || target.status === 'deleted' || target.status === 'locked') return;
+      if (target.role === 'master') return;
+      const locked = await repository.lockAccount({
+        accountId,
+        reason,
+        lockedBy: by,
+        at: clock(),
+        events: [{ type: 'identity.account.locked', payload: { accountId, reason, lockedBy: by } }],
+        audit: {
+          actorId: by,
+          actorRole: 'master',
+          action: 'identity.account.lock',
+          targetType: 'account',
+          targetId: accountId,
+          reason,
+          details: { cause: 'report' },
+        },
+      });
+      if (locked) deps.sessionsRevoked?.account(accountId);
     },
 
     async unlockAccount(actor, accountId) {

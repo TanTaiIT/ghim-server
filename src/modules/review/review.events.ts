@@ -6,6 +6,7 @@ import { GROUP_EVENTS } from '../group/group.outbox.js';
 import { LISTING_EVENTS } from '../listing/listing.outbox.js';
 import { PLATFORM_EVENTS } from '../platform/platform.outbox.js';
 import { SCREENING_EVENTS } from '../screening/screening.outbox.js';
+import { REVIEW_EVENTS } from './review.outbox.js';
 import type { ReviewService } from './review.service.js';
 
 const listingRef = z.object({ listingId: z.string() });
@@ -19,6 +20,16 @@ const groupOnly = z.object({ groupId: z.string() });
 const account = z.object({ accountId: z.string() });
 const ownerChange = z.object({ previousOwnerId: z.string().nullable() });
 const listingIds = z.object({ listingIds: z.array(z.string()) });
+const reportDecided = z.object({
+  verdict: z.enum(['upheld', 'dismissed']),
+  subjectKind: z.enum(['listing', 'account']),
+  listingId: z.string().nullable(),
+  accountId: z.string(),
+  banGroupId: z.string().nullable(),
+  lockAccount: z.boolean(),
+  by: z.string(),
+  byMaster: z.boolean(),
+});
 
 /** Payload sai là lỗi của bên phát: ném để sự kiện nằm lại outbox và người trực thấy, không âm thầm bỏ qua. */
 function parse<T>(schema: z.ZodType<T>, type: string, payload: Record<string, unknown>): T {
@@ -83,6 +94,8 @@ export function registerReviewListeners(dispatcher: OutboxDispatcher, review: Re
   on(GROUP_EVENTS.locked, groupOnly, ({ groupId }) => review.recheckGroupClaims(groupId));
   on(PLATFORM_EVENTS.staffChanged, account, ({ accountId }) => review.recheckClaims(accountId));
   on('identity.account.locked', account, ({ accountId }) => review.onAccountLocked(accountId));
+  // ── HỆ QUẢ CỦA BÁO CÁO ĐÚNG: áp sau commit của quyết định, bên nhận bỏ qua khi đã áp (add-reports) ─────
+  on(REVIEW_EVENTS.reportDecided, reportDecided, (payload) => review.onReportDecided(payload));
   on('identity.account.deleted', account, async ({ accountId }) => {
     await review.onAccountDeleted(accountId);
     await review.releaseAllClaims(accountId);

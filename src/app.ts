@@ -66,6 +66,10 @@ import {
   createReviewRepository,
   type ReviewRepository,
 } from './modules/review/review.repository.js';
+import {
+  createReportRepository,
+  type ReportRepository,
+} from './modules/review/report/report.repository.js';
 import type { ReviewService } from './modules/review/review.service.js';
 import { sharpHasher } from './modules/screening/run/image-hash.js';
 import { createScreeningModule } from './modules/screening/screening.module.js';
@@ -127,6 +131,7 @@ export interface Repositories {
   trust: TrustRepository;
   screening: ScreeningRepository;
   review: ReviewRepository;
+  report: ReportRepository;
 }
 
 declare module 'fastify' {
@@ -217,6 +222,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     trust: overrides.repositories?.trust ?? createTrustRepository(prisma),
     screening: overrides.repositories?.screening ?? createScreeningRepository(prisma),
     review: overrides.repositories?.review ?? createReviewRepository(prisma),
+    report: overrides.repositories?.report ?? createReportRepository(prisma),
   };
   const { config, versioned } = await resolveConfig(overrides.config, repositories.platform);
   const deps: AppDeps = {
@@ -332,6 +338,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     openWork: {
       blocksPlacement: (listingId) =>
         reviewService?.blocksPlacement(listingId) ?? notBuilt('review'),
+      reportHidden: (listingId) => reviewService?.reportHidden(listingId) ?? notBuilt('review'),
     },
     config: deps.config,
     clock: deps.clock,
@@ -365,12 +372,15 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
   screeningService = screeningModule.service;
   const review = createReviewModule({
     repository: repositories.review,
+    reports: repositories.report,
     listings: listing.service,
     screening: screeningModule.service,
     identity: identity.service,
     trust: {
       tierOf: (accountId) => trust.tierOf(accountId),
       cleanCount: (accountId) => trustModule.service.cleanCount(accountId),
+      voidByReport: (listingId, accountId) =>
+        trustModule.service.voidByReport(listingId, accountId),
     },
     groups: group.service,
     platform: platform.service,

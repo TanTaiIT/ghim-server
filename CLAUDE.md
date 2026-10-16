@@ -245,6 +245,14 @@ cổng của `listing` (`review`, `confirmLive`, `detachByGroup`) với hook `af
 người duyệt trong cùng transaction đổi tin. Ngược lại `review` cài `OpenWork.blocksPlacement` cho `listing`. Mã lỗi
 riêng: `TASK_CLAIMED`, `TASK_NOT_CLAIMED`, `TASK_CLOSED`, `TASK_REASSIGNED`, `TASK_OPEN`, `LISTING_CHANGED`,
 `OUTCOME_NOT_ALLOWED` (409).
+Báo cáo (change `add-reports`): `report/` — `POST /reports`, `GET /me/reports`, bảng `reports` / `report_entries` /
+`reporter_scores`. Báo cáo về tin là lý do `report` / `report_severe` (hàng 1) trên việc của tin; báo cáo về một
+người là việc gắn `review_tasks.account_id` (không có tin), bậc `safety_staff` (scope `user_reports`). Lý do báo cáo
+sống qua xoá tin, rút, đã bán, xoá tài khoản, đóng nhóm (`cancel` chỉ bỏ lý do khác) — chỉ quyết định đóng được, trên
+bản lưu (`reviewSubject(id, { includeDeleted })`). Tạm ẩn tự động là lý do `reported` của `listing`, đối chiếu qua
+`review.report.hide_changed` + `OpenWork.reportHidden`. Hệ quả cấm khỏi nhóm / khoá tài khoản / mất tin sạch áp ở bên
+nghe `review.report.decided` (`group.banFromReport`, `identity.lockFromReport`, `trust.voidByReport`); N46 báo người
+báo. Mã lỗi: `CANNOT_REPORT_SELF` (400), `REPORTING_SUSPENDED` (403), `REPORT_RATE_LIMITED` (429).
 Endpoint của bàn vận hành nằm trong module sở hữu dữ liệu, đăng ký dưới tiền tố `/api/v1/ops/...` —
 không có module `ops-*` gom route của người khác.
 
@@ -254,7 +262,7 @@ change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-cate
 `harden-production-runtime` → `add-groups` → `add-notification-core` (kéo từ đợt 6, chốt 11/10/2026) — mười change
 này đã archive 10–11/10/2026 · đợt 2
 `add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` (cả hai đã archive 12/10/2026) · đợt 3 `add-screening` (đã archive 13/10/2026) → `add-image-moderation` (khi chọn được dịch vụ kiểm ảnh, tách ra 12/10/2026) · đợt 4 `add-review-queues` (đã archive 15/10/2026) → **sửa lỗi rà soát 15/10/2026 trước mọi tính năng** (`docs/RA-SOAT-15-10-2026.md`; đợt 1 bảo mật = `fix-audit-security`) →
-`add-reports` · đợt 5 `add-strikes` · đợt 6 `add-messaging` → `add-notifications` · đợt 7
+`add-reports` (đã archive 16/10/2026) · đợt 5 `add-strikes` · đợt 6 `add-messaging` → `add-notifications` · đợt 7
 `add-data-retention`.
 
 - `add-platform-roles` và `add-categories` cần nhau (quyền staff gắn theo danh mục; danh mục cần staff soạn
@@ -461,6 +469,9 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   báo người đăng khi máy giữ / rút tin về và khi người duyệt đạt, từ chối, gỡ, khôi phục; ai ký; câu nhắc không lộ lý
   do; những chuyện không báo. `fix-stale-group-notices` (archive 16/10/2026) thêm "Thông báo theo trạng thái hiện tại
   của nhóm" vào `notification/group-notices`: dòng ma trận N3, N6, N10–N14, N26–N28 chỉ viết khi câu còn đúng.
+  `add-reports` (archive 16/10/2026) tạo `review/reports`, `review/report-auto-hide`, `review/reporter-score`; thêm
+  "Có báo cáo đang mở vẫn tự xoá được tài khoản" vào `identity/account-deletion`, "Tin đang bị báo cáo vẫn xoá được"
+  vào `listing/deletion`, "Đóng nhóm không huỷ báo cáo" vào `group/group-lifecycle`.
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.

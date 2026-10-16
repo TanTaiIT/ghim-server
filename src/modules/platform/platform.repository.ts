@@ -8,6 +8,7 @@ import type {
 } from '@prisma/client';
 
 import { appendAudit, type AuditEntry } from '../../common/audit/audit.js';
+import type { OpsScope } from '../../common/auth/privilege-source.js';
 import { appendEvents } from '../../common/outbox/outbox.js';
 import { staffChangedEvent } from './platform.outbox.js';
 
@@ -84,6 +85,7 @@ export interface PlatformRepository {
   listStaff(filter: { categoryId?: string }): Promise<StaffPermissionRow[]>;
   /** Staff đang hoạt động (không bị treo) của từng danh mục. */
   activeStaffByCategory(categoryIds: string[]): Promise<Map<string, string[]>>;
+  activeStaffWithScope(scope: OpsScope): Promise<string[]>;
   /** Thay cả gói phạm vi; giữ nguyên trạng thái treo nếu đang treo. */
   upsertStaff(input: StaffGrantInput): Promise<StaffPermissionRow>;
   /** `false` khi không có quyền để thu. */
@@ -163,6 +165,14 @@ export function createPlatformRepository(prisma: PrismaClient): PlatformReposito
         ...withCategories,
       });
       return rows.map(toRow);
+    },
+
+    async activeStaffWithScope(scope) {
+      const rows = await prisma.staffPermission.findMany({
+        where: { status: 'active', scopes: { has: scope } },
+        select: { accountId: true },
+      });
+      return rows.map((row) => row.accountId);
     },
 
     async activeStaffByCategory(categoryIds) {

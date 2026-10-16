@@ -237,6 +237,11 @@ export interface IdentityService extends ActorResolver {
   confirmEmailChange(actor: Actor, input: { code: string }): Promise<void>;
 
   lockAccount(actor: Actor, accountId: string, reason: string): Promise<void>;
+  /**
+   * Hệ quả "khoá tài khoản" của báo cáo đúng do master quyết (add-reports): quyền đã kiểm lúc quyết, ở đây chỉ áp.
+   * Tài khoản đã khoá, đã xoá hay là master thì thôi — bên nghe chạy lại vô hại.
+   */
+  lockFromReport(input: { accountId: string; by: string; reason: string }): Promise<void>;
   unlockAccount(actor: Actor, accountId: string): Promise<void>;
   deleteMyAccount(actor: Actor): Promise<void>;
   requestDeletion(input: { email: string; password: string }): Promise<void>;

@@ -84,6 +84,8 @@ export interface ListingScreeningPort {
 /** Việc đang chờ của người duyệt, báo cáo, hậu kiểm khoá nơi đăng (cam kết 19) — `review` cài (`blocksPlacement`). */
 export interface OpenWork {
   blocksPlacement(listingId: string): Promise<boolean>;
+  /** Tin đang có báo cáo mở đã tự ẩn vì nhiều người báo (add-reports) — bên nghe đối chiếu cờ `reported` theo đây. */
+  reportHidden(listingId: string): Promise<boolean>;
 }
 
 export type ListingGroupPort = Pick<
@@ -127,6 +129,18 @@ export interface ReviewSubject {
   detached: boolean;
   /** Lý do tạm ẩn: tin đang ẩn không bị lấy mẫu, tin của tài khoản đã xoá không sinh việc (fix-audit-review, T7). */
   hideReasons: ListingHideReason[];
+  /** Người đăng đã xoá tin — chỉ có khi hỏi kèm `includeDeleted`: báo cáo xử trên bản lưu (add-reports). */
+  deleted: boolean;
+}
+
+/** Tin người báo cáo đang nhắm tới, khi người đó thấy được nó (add-reports). */
+export interface ReportTarget {
+  id: string;
+  ownerId: string;
+  state: ListingState;
+  placement: ListingPlacement | null;
+  /** Đang hiện với người khác: chỉ tin sàn chung đang hiện mới tự ẩn khi nhiều người báo. */
+  visible: boolean;
 }
 
 /** Dòng tin `review` đang giữ khoá trong lượt ghi việc: phiên bản và trạng thái tại lúc đó (fix-audit-review, T5). */
