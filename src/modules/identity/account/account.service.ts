@@ -39,6 +39,10 @@ export type IdentityAccountService = Pick<
   | 'listSessions'
   | 'revokeSession'
   | 'revokeOtherSessions'
+  | 'setPushToken'
+  | 'clearPushToken'
+  | 'pushTargets'
+  | 'forgetPushToken'
   | 'getPublicProfile'
   | 'getMe'
   | 'updateMe'
@@ -126,6 +130,11 @@ export function createIdentityAccountService(
       });
       deps.sessionsRevoked?.account(actor.accountId);
     },
+
+    setPushToken: (actor, token) => repository.setPushToken(actor.sessionId, token),
+    clearPushToken: (actor) => repository.clearPushToken(actor.sessionId),
+    pushTargets: (accountIds) => repository.pushTargets(accountIds, clock()),
+    forgetPushToken: (token) => repository.forgetPushToken(token),
 
     // ── HỒ SƠ ───────────────────────────────────────────────────────────────────────────────────
 

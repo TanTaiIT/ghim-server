@@ -196,6 +196,37 @@ export const messagingRoutes: FastifyPluginAsyncZod<MessagingRoutesOptions> = as
     },
   });
 
+  app.put('/me/conversations/:conversationId/viewing', {
+    preHandler: user,
+    schema: {
+      tags: TAGS,
+      summary:
+        'Máy này đang mở hội thoại: tin nhắn của nó không đẩy lên máy này trong 10 phút — gọi lại khi còn mở',
+      security: bearer,
+      params: conversationParamsSchema,
+      response: { 204: emptySchema, ...errors },
+    },
+    handler: async (request, reply) => {
+      await messaging.setViewing(actorOf(request), request.params.conversationId);
+      return reply.status(204).send(null);
+    },
+  });
+
+  app.delete('/me/conversations/:conversationId/viewing', {
+    preHandler: user,
+    schema: {
+      tags: TAGS,
+      summary: 'Đã đóng hội thoại trên máy này',
+      security: bearer,
+      params: conversationParamsSchema,
+      response: { 204: emptySchema, ...errors },
+    },
+    handler: async (request, reply) => {
+      await messaging.clearViewing(actorOf(request), request.params.conversationId);
+      return reply.status(204).send(null);
+    },
+  });
+
   app.post('/me/blocks', {
     preHandler: user,
     schema: {

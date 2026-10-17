@@ -101,9 +101,11 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
     `overwrite=false` —, ký đường xem — S3 có hạn, Cloudinary không hết hạn —, `head`, `read` có trần byte cho máy
     duyệt băm ảnh, `copy`, `deleteMany`, `list`).
     App tải thẳng, ảnh không qua server; hướng dẫn cho app ở `docs/media.md`. MinIO đã gỡ image khỏi Docker Hub.
-- **(chưa có)** — vẫn phải hỏi trước vì chưa chọn: push lên điện thoại (đề xuất Expo
-  Push Service, hoãn tới khi app làm — design của `add-notification-core` mục 3), kiểm ảnh nhạy cảm, theo dõi lỗi
-  (hệ thống cũ dùng Sentry).
+- **Đẩy lên điện thoại** (`src/common/push/expo-push.ts`, change `add-notifications`, chốt 17/10/2026): Expo Push Service
+  qua `fetch` thuần, không package; `EXPO_PUSH_URL` có mặc định, `EXPO_ACCESS_TOKEN` tuỳ chọn; token gắn phiên
+  (`sessions.push_token`, `identity` sở hữu); test dùng `tests/fakes/push.fake.ts`, `buildTestApp` mặc định `noopPush`.
+  Tài khoản Expo / EAS, khoá FCM và APNs do chủ dự án tạo khi app sẵn sàng — server chỉ gửi khi có token đăng ký.
+- **(chưa có)** — vẫn phải hỏi trước vì chưa chọn: kiểm ảnh nhạy cảm, theo dõi lỗi (hệ thống cũ dùng Sentry).
 
 ## Cấu trúc thư mục (BẮT BUỘC tuân theo)
 
@@ -232,7 +234,11 @@ review }`,
 `review.*` (`notification.review-matrix.ts`, N40–N42 cho mọi master, người nhận hỏi `identity.masterIds`; N45
 `review.listing.decided` báo người đăng kết quả duyệt — `review` phát trong transaction của nhật ký quyết định), và
 mũi tên `hold`, `recall` của `listing.state.changed` (N43, N44 — câu của máy hỏi `screening.notices`; change
-`notify-listing-decisions`);
+`notify-listing-decisions`), và `messaging.message.sent` (`notification.messaging-matrix.ts`, N47 — nội dung tin nhắn hỏi
+`messaging.previewOf`; gộp theo hội thoại nhưng `collapse.alertEvery` nhắc mỗi tin — change `add-notifications`). Dòng có
+`alert` xếp việc `notification.push` (`notification.jobs.ts`): token của phiên còn sống qua `identity.pushTargets`, bỏ máy
+đang mở đúng hội thoại (`messaging.viewingSessions`), gửi qua cổng `PushSender`, ticket vào `push_tickets`;
+`notification.push-receipts` mỗi 15 phút đọc biên nhận, `DeviceNotRegistered` → `identity.forgetPushToken`;
 câu cần tiêu đề hay người đăng của tin thì hỏi `listing` qua cổng (`titles`, `noticeTargets`), không đọc bảng của nó.
 `screening` nghe `media.images.deleted` (`{ imageIds }`, phát cùng transaction với ba lượt xoá dòng ảnh của `media`) để
 bỏ dấu ảnh — ảnh đã xoá hẳn không còn là ứng viên trùng (change `fix-audit-trust-media-low`).
@@ -276,7 +282,7 @@ change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-cate
 `harden-production-runtime` → `add-groups` → `add-notification-core` (kéo từ đợt 6, chốt 11/10/2026) — mười change
 này đã archive 10–11/10/2026 · đợt 2
 `add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` (cả hai đã archive 12/10/2026) · đợt 3 `add-screening` (đã archive 13/10/2026) → `add-image-moderation` (khi chọn được dịch vụ kiểm ảnh, tách ra 12/10/2026) · đợt 4 `add-review-queues` (đã archive 15/10/2026) → **sửa lỗi rà soát 15/10/2026 trước mọi tính năng** (`docs/RA-SOAT-15-10-2026.md`; đợt 1 bảo mật = `fix-audit-security`) →
-`add-reports` (đã archive 16/10/2026) · đợt 5 `add-strikes` (đã archive 17/10/2026) · đợt 6 `add-messaging` (đã archive 17/10/2026) → `add-notifications` · đợt 7
+`add-reports` (đã archive 16/10/2026) · đợt 5 `add-strikes` (đã archive 17/10/2026) · đợt 6 `add-messaging` → `add-notifications` (cả hai đã archive 17/10/2026) · đợt 7
 `add-data-retention`.
 
 - `add-platform-roles` và `add-categories` cần nhau (quyền staff gắn theo danh mục; danh mục cần staff soạn

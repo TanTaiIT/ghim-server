@@ -21,6 +21,7 @@ import { CACHE_NONE } from './common/http/cache.js';
 import type { AppModule } from './common/module/app-module.js';
 import { createOutboxDispatcher, type OutboxDispatcher } from './common/outbox/dispatcher.js';
 import { createOutboxModule } from './common/outbox/outbox.jobs.js';
+import { createExpoPush, type PushSender } from './common/push/expo-push.js';
 import { createRealtimeGateway, type Realtime } from './common/realtime/realtime.js';
 import { registerSwagger } from './common/plugins/swagger.js';
 import { sequentially } from './common/utils/sequential.js';
@@ -174,6 +175,8 @@ export interface AppDeps {
   mailer: Mailer;
   storage: Storage;
   googleVerifier: GoogleTokenVerifier;
+  /** Đẩy thông báo lên điện thoại (add-notifications) — test đưa bản giả, không bao giờ gọi Expo. */
+  push: PushSender;
   privilegeSource: PrivilegeSource;
   config: RuntimeConfig;
   clock: () => Date;
@@ -245,6 +248,9 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     mailer: overrides.mailer ?? defaultMailer(),
     storage: overrides.storage ?? createStorage(parseStorageUrl(env.STORAGE_URL)),
     googleVerifier: overrides.googleVerifier ?? createGoogleTokenVerifier(env.GOOGLE_CLIENT_IDS),
+    push:
+      overrides.push ??
+      createExpoPush({ url: env.EXPO_PUSH_URL, accessToken: env.EXPO_ACCESS_TOKEN ?? null }),
     privilegeSource:
       overrides.privilegeSource ?? createPlatformPrivilegeSource(repositories.platform),
     config,
@@ -471,6 +477,12 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     identity: identity.service,
     listings: listing.service,
     screening: screeningModule.service,
+    messaging: {
+      previewOf: (messageId) => messaging.service.previewOf(messageId),
+      viewingSessions: (conversationId) => messaging.service.viewingSessions(conversationId),
+    },
+    push: deps.push,
+    jobs: deps.jobs,
     realtime,
     config: deps.config,
     clock: deps.clock,

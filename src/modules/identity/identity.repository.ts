@@ -321,6 +321,16 @@ export interface IdentityRepository {
   rotateRefreshToken(input: RotateRefreshInput): Promise<boolean>;
   /** Phiên chưa thu hồi, mới hoạt động trước. */
   listActiveSessions(accountId: string): Promise<Session[]>;
+  /** Token đẩy gắn phiên (add-notifications): một token một phiên — đang ở phiên khác thì chuyển sang. */
+  setPushToken(sessionId: string, token: string): Promise<void>;
+  clearPushToken(sessionId: string): Promise<void>;
+  /** Expo báo máy đã gỡ app: bỏ token ở phiên nào đang giữ. */
+  forgetPushToken(token: string): Promise<void>;
+  /** Token của phiên còn sống (chưa thu hồi, chưa hết hạn) của những người này. */
+  pushTargets(
+    accountIds: string[],
+    now: Date,
+  ): Promise<{ accountId: string; sessionId: string; token: string }[]>;
   revokeSessions(input: RevokeSessionsInput): Promise<number>;
   deleteSessionsInactiveBefore(before: Date): Promise<number>;
 
@@ -631,6 +641,41 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
         where: { accountId, revokedAt: null },
         orderBy: { lastActiveAt: 'desc' },
       }),
+
+    setPushToken: (sessionId, token) =>
+      prisma.$transaction(async (tx) => {
+        await tx.session.updateMany({
+          where: { pushToken: token, id: { not: sessionId } },
+          data: { pushToken: null },
+        });
+        await tx.session.update({ where: { id: sessionId }, data: { pushToken: token } });
+      }),
+
+    async clearPushToken(sessionId) {
+      await prisma.session.update({ where: { id: sessionId }, data: { pushToken: null } });
+    },
+
+    async forgetPushToken(token) {
+      await prisma.session.updateMany({ where: { pushToken: token }, data: { pushToken: null } });
+    },
+
+    async pushTargets(accountIds, now) {
+      if (accountIds.length === 0) return [];
+      const rows = await prisma.session.findMany({
+        where: {
+          accountId: { in: accountIds },
+          revokedAt: null,
+          expiresAt: { gt: now },
+          pushToken: { not: null },
+        },
+        select: { accountId: true, id: true, pushToken: true },
+      });
+      return rows.flatMap((row) =>
+        row.pushToken
+          ? [{ accountId: row.accountId, sessionId: row.id, token: row.pushToken }]
+          : [],
+      );
+    },
     revokeSessions: (input) => prisma.$transaction((tx) => revokeSessionsIn(tx, input)),
     async deleteSessionsInactiveBefore(before) {
       const { count } = await prisma.session.deleteMany({

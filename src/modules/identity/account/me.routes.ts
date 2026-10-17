@@ -20,6 +20,7 @@ import {
   twoFactorConfirmBodySchema,
   twoFactorSetupSchema,
   userParamsSchema,
+  pushTokenBodySchema,
 } from '../identity.schema.js';
 import { sensitiveRateLimit } from '../auth/auth.routes.js';
 import type { IdentityService } from '../identity.service.js';
@@ -205,6 +206,36 @@ export const identityMeRoutes: FastifyPluginAsyncZod<IdentityMeRoutesOptions> = 
     },
     handler: async (request, reply) => {
       await identity.revokeSession(actorOf(request), request.params.id);
+      return reply.status(204).send(null);
+    },
+  });
+
+  app.put('/me/push-token', {
+    preHandler: signedIn,
+    schema: {
+      tags: TAGS_ME,
+      summary:
+        'Cho phép hiện thông báo trên máy này: gắn token Expo Push vào phiên hiện tại — token đang ở phiên khác thì chuyển sang',
+      security: bearer,
+      body: pushTokenBodySchema,
+      response: { 204: emptySchema, 400: errorResponse, 401: errorResponse },
+    },
+    handler: async (request, reply) => {
+      await identity.setPushToken(actorOf(request), request.body.token);
+      return reply.status(204).send(null);
+    },
+  });
+
+  app.delete('/me/push-token', {
+    preHandler: signedIn,
+    schema: {
+      tags: TAGS_ME,
+      summary: 'Thôi hiện thông báo trên máy này',
+      security: bearer,
+      response: { 204: emptySchema, 401: errorResponse },
+    },
+    handler: async (request, reply) => {
+      await identity.clearPushToken(actorOf(request));
       return reply.status(204).send(null);
     },
   });

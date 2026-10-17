@@ -95,3 +95,5 @@ export const assertCanMessage = (actor: Actor): void => {
 };
 
 export const DAY_MS = 86_400_000;
+/** Dấu "đang mở hội thoại" của một máy sống ngần này; app gọi lại khi còn mở (design add-notifications mục 4). */
+export const VIEWING_TTL_MS = 10 * 60_000;

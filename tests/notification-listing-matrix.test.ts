@@ -28,6 +28,7 @@ const contextWith = (notice: MachineNotice | null): MatrixContext => ({
   listingTargets: unused,
   masterIds: unused,
   machineNotice: () => Promise.resolve(notice),
+  messagePreview: unused,
 });
 
 const stateChanged = (payload: Payload, notice: MachineNotice | null = null) => {

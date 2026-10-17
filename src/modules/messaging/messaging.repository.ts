@@ -65,6 +65,11 @@ export interface MessagingRepository {
     blockerId: string,
     page: { skip: number; take: number },
   ): Promise<{ items: AccountBlock[]; total: number }>;
+  /** Máy (phiên) đang mở hội thoại, hiệu lực tới `expiresAt` (add-notifications). */
+  setPresence(sessionId: string, conversationId: string, expiresAt: Date): Promise<void>;
+  clearPresence(sessionId: string, conversationId: string): Promise<void>;
+  viewingSessions(conversationId: string, now: Date): Promise<string[]>;
+  findMessage(id: string): Promise<Message | null>;
   emitIn(tx: Tx, events: OutboxEventInput[]): Promise<void>;
 }
 
@@ -285,6 +290,28 @@ export function createMessagingRepository(prisma: PrismaClient): MessagingReposi
       ]);
       return { items, total };
     },
+
+    async setPresence(sessionId, conversationId, expiresAt) {
+      await prisma.conversationPresence.upsert({
+        where: { sessionId },
+        create: { sessionId, conversationId, expiresAt },
+        update: { conversationId, expiresAt },
+      });
+    },
+
+    async clearPresence(sessionId, conversationId) {
+      await prisma.conversationPresence.deleteMany({ where: { sessionId, conversationId } });
+    },
+
+    async viewingSessions(conversationId, now) {
+      const rows = await prisma.conversationPresence.findMany({
+        where: { conversationId, expiresAt: { gt: now } },
+        select: { sessionId: true },
+      });
+      return rows.map((row) => row.sessionId);
+    },
+
+    findMessage: (id) => prisma.message.findUnique({ where: { id } }),
 
     emitIn: (tx, events) => appendEvents(tx, events),
   };

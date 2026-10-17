@@ -1,4 +1,4 @@
-import type { Notification, Prisma, PrismaClient } from '@prisma/client';
+import type { Notification, Prisma, PrismaClient, PushTicket } from '@prisma/client';
 
 import type { NotificationCategory } from './notification.schema.js';
 
@@ -43,6 +43,15 @@ export interface NotificationRepository {
   /** Người trong danh sách đang tắt tiếng nhóm này. */
   mutedAmong(groupId: string, accountIds: string[]): Promise<Set<string>>;
   setMute(accountId: string, groupId: string, muted: boolean, at: Date): Promise<void>;
+
+  // ── PUSH (add-notifications) ──
+  findByIds(ids: string[]): Promise<Notification[]>;
+  savePushTickets(
+    rows: { id: string; sessionId: string; token: string; createdAt: Date }[],
+  ): Promise<void>;
+  /** Ticket cũ hơn `before`, cũ nhất trước — đọc biên nhận theo lô. */
+  pushTicketsBefore(before: Date, limit: number): Promise<PushTicket[]>;
+  deletePushTickets(ids: string[]): Promise<void>;
 }
 
 export function createNotificationRepository(prisma: PrismaClient): NotificationRepository {
@@ -165,6 +174,28 @@ export function createNotificationRepository(prisma: PrismaClient): Notification
         select: { accountId: true },
       });
       return new Set(rows.map((row) => row.accountId));
+    },
+
+    findByIds: (ids) =>
+      ids.length === 0
+        ? Promise.resolve([])
+        : prisma.notification.findMany({ where: { id: { in: ids } } }),
+
+    async savePushTickets(rows) {
+      if (rows.length === 0) return;
+      await prisma.pushTicket.createMany({ data: rows, skipDuplicates: true });
+    },
+
+    pushTicketsBefore: (before, limit) =>
+      prisma.pushTicket.findMany({
+        where: { createdAt: { lt: before } },
+        orderBy: { createdAt: 'asc' },
+        take: limit,
+      }),
+
+    async deletePushTickets(ids) {
+      if (ids.length === 0) return;
+      await prisma.pushTicket.deleteMany({ where: { id: { in: ids } } });
     },
 
     async setMute(accountId, groupId, muted, at) {

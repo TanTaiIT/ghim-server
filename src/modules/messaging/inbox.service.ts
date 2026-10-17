@@ -29,6 +29,12 @@ export interface InboxService {
   hasInquiry(listingId: string): Promise<boolean>;
   /** Cổng cho `review`: bản ghi hội thoại đi kèm lượt báo — không phụ thuộc hai bên đã xoá phía mình. */
   transcripts(conversationIds: string[]): Promise<Map<string, ConversationTranscriptDto>>;
+  /** Cổng cho `notification`: phiên đang mở hội thoại này — máy đó không nhận push tin nhắn của nó. */
+  viewingSessions(conversationId: string): Promise<string[]>;
+  /** Cổng cho `notification`: nội dung và người gửi của một tin nhắn cho câu thông báo (TK 30). */
+  previewOf(
+    messageId: string,
+  ): Promise<{ conversationId: string; senderId: string; body: string } | null>;
   /** Bên nghe `messaging.message.sent`: báo hiệu cho người nhận qua realtime — app tải lại qua HTTP. */
   signalMessage(input: { conversationId: string; messageId: string; recipientId: string }): void;
 }
@@ -150,6 +156,15 @@ export function createInboxService(deps: MessagingServiceDeps): {
             },
           ]),
         );
+      },
+
+      viewingSessions: (conversationId) => repository.viewingSessions(conversationId, clock()),
+
+      async previewOf(messageId) {
+        const row = await repository.findMessage(messageId);
+        return row
+          ? { conversationId: row.conversationId, senderId: row.senderId, body: row.body }
+          : null;
       },
 
       signalMessage({ conversationId, messageId, recipientId }) {

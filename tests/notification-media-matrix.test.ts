@@ -28,6 +28,7 @@ const contextWith = (
   pendingCount: unused,
   listingTitles: unused,
   machineNotice: unused,
+  messagePreview: unused,
   listingTargets: (ids) =>
     Promise.resolve(
       new Map(ids.flatMap((id) => (targets[id] ? [[id, targets[id]] as const] : []))),

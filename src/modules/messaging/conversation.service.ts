@@ -17,6 +17,7 @@ import {
   otherOf,
   ownListing,
   sideOf,
+  VIEWING_TTL_MS,
 } from './messaging.shared.js';
 
 export interface ConversationService {
@@ -29,6 +30,9 @@ export interface ConversationService {
   markRead(actor: Actor, conversationId: string): Promise<void>;
   /** Xoá hội thoại = ẩn phía mình; bên kia vẫn thấy đủ (spec conversation-deletion). */
   remove(actor: Actor, conversationId: string): Promise<void>;
+  /** Máy này đang mở hội thoại — tin nhắn của nó không đẩy lên máy này trong `VIEWING_TTL_MS` (add-notifications). */
+  setViewing(actor: Actor, conversationId: string): Promise<void>;
+  clearViewing(actor: Actor, conversationId: string): Promise<void>;
   /** Bên nghe `identity.account.deleted`: ẩn mọi hội thoại phía người xoá. */
   onAccountDeleted(accountId: string): Promise<number>;
 }
@@ -144,6 +148,20 @@ export function createConversationService(
     async remove(actor, conversationId) {
       const { side } = await owned(actor, conversationId);
       await repository.hide(conversationId, side, clock());
+    },
+
+    async setViewing(actor, conversationId) {
+      await owned(actor, conversationId);
+      await repository.setPresence(
+        actor.sessionId,
+        conversationId,
+        new Date(clock().getTime() + VIEWING_TTL_MS),
+      );
+    },
+
+    async clearViewing(actor, conversationId) {
+      await owned(actor, conversationId);
+      await repository.clearPresence(actor.sessionId, conversationId);
     },
 
     onAccountDeleted: (accountId) => repository.hideAllOf(accountId, clock()),

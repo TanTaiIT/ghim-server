@@ -2,6 +2,8 @@ import type { AppModule } from '../../common/module/app-module.js';
 import { GROUP_EVENTS } from '../group/group.outbox.js';
 import { LISTING_NOTICE_EVENTS } from './notification.listing-matrix.js';
 import { MEDIA_NOTICE_EVENTS } from './notification.media-matrix.js';
+import { registerNotificationJobs } from './notification.jobs.js';
+import { MESSAGING_NOTICE_EVENTS } from './notification.messaging-matrix.js';
 import { REVIEW_NOTICE_EVENTS } from './notification.review-matrix.js';
 import { notificationRoutes } from './notification.routes.js';
 import {
@@ -30,10 +32,12 @@ export function createNotificationModule(deps: NotificationServiceDeps): {
           ...LISTING_NOTICE_EVENTS,
           ...MEDIA_NOTICE_EVENTS,
           ...REVIEW_NOTICE_EVENTS,
+          ...MESSAGING_NOTICE_EVENTS,
         ]) {
           dispatcher.register(type, (payload, event) => service.handleEvent(payload, event));
         }
       },
+      jobs: (jobs) => registerNotificationJobs(jobs, service),
     },
   };
 }

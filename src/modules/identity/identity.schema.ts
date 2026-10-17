@@ -108,6 +108,13 @@ export const sessionSchema = z.object({
 
 export const sessionParamsSchema = z.object({ id: z.uuid() });
 
+/** Token của Expo Push Service — dạng cố định, không nhận chuỗi tuỳ ý (add-notifications). */
+export const pushTokenBodySchema = z
+  .object({
+    token: z.string().regex(/^ExponentPushToken\[[A-Za-z0-9_-]+\]$/, 'Token đẩy không hợp lệ'),
+  })
+  .strict();
+
 export const googleBodySchema = z.object({
   idToken: z.string().min(1),
   deviceName: z.string().trim().min(1).max(DEVICE_NAME_MAX).optional(),

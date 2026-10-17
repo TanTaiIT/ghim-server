@@ -22,6 +22,7 @@ người làm master dùng tài khoản cá nhân. Không nhắn cho tin của c
 | `POST /me/conversations/{id}/read`        | Đã đọc tới giờ → `204`; `unreadCount` của hội thoại về 0                                                                                                                             |
 | `DELETE /me/conversations/{id}`           | Xoá khỏi danh sách của tôi → `204`; bên kia vẫn thấy đủ; bên kia nhắn tiếp thì hiện lại                                                                                              |
 | `POST /me/conversations/{id}/reports`     | `{ category }` (`fraud` / `misinformation` / `harassment` / `prohibited` / `other`) — báo cáo **bên kia**, kèm hội thoại làm bằng chứng; luật như `POST /reports` (`docs/review.md`) |
+| `PUT /me/conversations/{id}/viewing`      | Máy này đang mở hội thoại → `204`; tin nhắn của nó không đẩy lên máy này trong 10 phút — gọi lại khi còn mở; `DELETE …/viewing` khi đóng (`docs/realtime.md`)                        |
 | `POST /me/blocks`                         | `{ accountId }` → `204` (lặp lại vô hại); `DELETE /me/blocks/{accountId}` gỡ; `GET /me/blocks` danh sách người tôi đã chặn                                                           |
 
 Hội thoại:
@@ -70,7 +71,8 @@ không được báo gì. Gỡ chặn thì nhắn lại được (trừ khi bên
 ## Realtime
 
 Người nhận đang nối socket (`docs/realtime.md`) nhận `message:new { conversationId, messageId }` — chỉ báo hiệu, app tải
-lại hội thoại qua HTTP. Dòng hộp thư và đẩy lên điện thoại là `add-notifications`.
+lại hội thoại qua HTTP. Mỗi tin nhắn cũng vào hộp thư của bên nhận (nhóm "tin nhắn", một dòng chưa đọc mỗi hội thoại,
+nhắc mỗi tin) và đẩy lên máy đã cho phép, trừ máy đang mở đúng hội thoại (add-notifications).
 
 ## Mã lỗi
 

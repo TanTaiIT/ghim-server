@@ -214,8 +214,12 @@ model Session {
   expiresAt            DateTime             @map("expires_at") @db.Timestamptz(3)
   revokedAt            DateTime?            @map("revoked_at") @db.Timestamptz(3)
   revokeReason         SessionRevokeReason? @map("revoke_reason")
+  /// Token Expo Push của máy đang giữ phiên này (add-notifications): một token một phiên; phiên thu hồi thì máy hết nhận.
+  pushToken            String?              @unique @map("push_token")
 
-  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account     Account                @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  pushTickets PushTicket[]
+  presences   ConversationPresence[]
 
   // Đếm phiên đang sống và tìm phiên ít hoạt động nhất để đẩy ra — một index phục vụ cả hai.
   @@index([accountId, revokedAt, lastActiveAt])
@@ -2087,10 +2091,11 @@ model Conversation {
   buyerReadAt    DateTime? @map("buyer_read_at") @db.Timestamptz(3)
   sellerReadAt   DateTime? @map("seller_read_at") @db.Timestamptz(3)
 
-  listing  Listing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  seller   Account   @relation("conversation_seller", fields: [sellerId], references: [id], onDelete: Cascade)
-  buyer    Account   @relation("conversation_buyer", fields: [buyerId], references: [id], onDelete: Cascade)
-  messages Message[]
+  listing   Listing                @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  seller    Account                @relation("conversation_seller", fields: [sellerId], references: [id], onDelete: Cascade)
+  buyer     Account                @relation("conversation_buyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  messages  Message[]
+  presences ConversationPresence[]
 
   /// Một tin, một người mua, một hội thoại — hai lượt mở cùng lúc vẫn ra một.
   @@unique([listingId, buyerId])
@@ -2128,4 +2133,34 @@ model AccountBlock {
   @@id([blockerId, blockedId])
   @@index([blockedId])
   @@map("account_blocks")
+}
+
+/// Máy (phiên) đang mở đúng một hội thoại — tin nhắn của hội thoại đó không đẩy lên máy ấy (add-notifications, design
+/// mục 4). Hiệu lực ngắn, app gọi lại khi còn mở; `messaging` sở hữu.
+model ConversationPresence {
+  sessionId      String   @id @map("session_id") @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  expiresAt      DateTime @map("expires_at") @db.Timestamptz(3)
+
+  session      Session      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@map("conversation_presences")
+}
+
+// ── NOTIFICATION — PUSH (add-notifications) ──────────────────────────────────────────────────────
+
+/// Ticket Expo của một lượt đẩy đã nhận: đọc biên nhận sau 15 phút, máy đã gỡ app thì quên token (design mục 3).
+model PushTicket {
+  /// Mã ticket do Expo cấp.
+  id        String   @id
+  sessionId String   @map("session_id") @db.Uuid
+  token     String
+  createdAt DateTime @map("created_at") @db.Timestamptz(3)
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@map("push_tickets")
 }

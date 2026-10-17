@@ -102,3 +102,22 @@ Tất cả cần `Authorization: Bearer <access token>`, dưới `/api/v1`:
 | `DELETE /me/group-mutes/:groupId`            | Bật lại tiếng                                                                 |
 
 Swagger (`/docs`, môi trường dev) có schema đầy đủ, tag **Notifications**.
+
+## Đẩy lên điện thoại (add-notifications)
+
+Server đẩy qua **Expo Push Service**; app là Expo nên lấy `ExponentPushToken[…]` bằng `expo-notifications` sau khi người
+dùng cho phép. Token gắn với **phiên đăng nhập** của máy đó:
+
+| Route                   | Việc                                                                                                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PUT /me/push-token`    | `{ token }` → 204. Gọi sau khi được cho phép và sau mỗi lần token đổi. Token đang ở phiên khác (máy đăng nhập tài khoản khác) thì chuyển sang phiên này |
+| `DELETE /me/push-token` | Thôi hiện thông báo trên máy này → 204                                                                                                                  |
+
+- Chỉ thông báo có `alert: true` mới đẩy (cùng luật với banner: bật tắt nhóm, tắt tiếng nhóm, trần gộp). Push mang
+  `title`, `body` như dòng hộp thư và `data` (`notificationId`, `type`, các mã của dòng) để mở đúng màn.
+- Phiên bị thu hồi hay hết hạn (đăng xuất, đổi mật khẩu, khoá tài khoản) thì máy đó tự hết nhận — không cần gọi gì.
+- Máy đã gỡ app (Expo báo `DeviceNotRegistered`) thì server quên token; cài lại thì gọi `PUT` lần nữa.
+- **Đang mở đúng hội thoại**: app gọi `PUT /me/conversations/{id}/viewing` khi mở màn hội thoại (lặp lại mỗi vài phút
+  khi còn mở — dấu sống 10 phút) và `DELETE …/viewing` khi đóng: tin nhắn của hội thoại đó không đẩy lên máy ấy; máy
+  khác của cùng người vẫn nhận. Hộp thư và `message:new` không đổi.
+- Đẩy là việc nền sau khi hộp thư đã ghi: chậm vài giây; mất mạng thì app tải lại qua HTTP như mọi khi.

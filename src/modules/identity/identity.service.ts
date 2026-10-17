@@ -228,6 +228,15 @@ export interface IdentityService extends ActorResolver {
   listSessions(actor: Actor): Promise<SessionDto[]>;
   revokeSession(actor: Actor, sessionId: string): Promise<void>;
   revokeOtherSessions(actor: Actor): Promise<void>;
+  /** Token Expo Push của máy đang giữ phiên này (add-notifications); token ở phiên khác thì chuyển sang phiên này. */
+  setPushToken(actor: Actor, token: string): Promise<void>;
+  clearPushToken(actor: Actor): Promise<void>;
+  /** Cổng cho `notification`: token của phiên còn sống của những người này — máy đã đăng xuất, bị khoá thì vắng. */
+  pushTargets(
+    accountIds: string[],
+  ): Promise<{ accountId: string; sessionId: string; token: string }[]>;
+  /** Cổng cho `notification`: Expo báo máy đã gỡ app — bỏ token. */
+  forgetPushToken(token: string): Promise<void>;
 
   forgotPassword(input: { email: string }): Promise<void>;
   resetPassword(input: { email: string; code: string; password: string }): Promise<void>;
