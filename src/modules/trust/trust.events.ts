@@ -17,6 +17,7 @@ const stateChanged = z.object({
 const accountDeleted = z.object({ accountId: z.string() });
 const accountEmail = z.object({ accountId: z.string(), emailHash: z.string() });
 const strikeAccount = z.object({ accountId: z.string() });
+const accountsPurged = z.object({ accountIds: z.array(z.string()) });
 
 /** Payload sai là lỗi của bên phát: ném để sự kiện nằm lại outbox, không âm thầm bỏ qua. */
 function parse<T>(schema: z.ZodType<T>, type: string, payload: Record<string, unknown>): T {
@@ -46,6 +47,12 @@ export function registerTrustListeners(dispatcher: OutboxDispatcher, trust: Trus
   dispatcher.register('identity.account.email_changed', async (payload) => {
     const { accountId, emailHash } = parse(accountEmail, 'identity.account.email_changed', payload);
     await trust.onEmailChanged(accountId, emailHash);
+  });
+  // Đăng ký dở dang bị xoá hẳn (add-data-retention): gậy không còn khoá ngoại sang tài khoản, `trust` tự dọn.
+  dispatcher.register('identity.account.purged', async (payload) => {
+    await trust.onAccountsPurged(
+      parse(accountsPurged, 'identity.account.purged', payload).accountIds,
+    );
   });
   // Mức tính lại theo mọi thay đổi của gậy — trần T1, điều kiện T3 (spec trust-tiers).
   dispatcher.register(TRUST_EVENTS.strikeStanding, async (payload) => {

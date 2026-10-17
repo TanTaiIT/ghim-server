@@ -177,6 +177,13 @@ export interface ScreeningRepository {
   /** Lượt đã kết luận của các tin, mới nhất trước — câu báo cho người đăng. */
   decidedRuns(listingIds: string[]): Promise<ScreeningRun[]>;
   findRunByLookupCode(code: string): Promise<ScreeningRun | null>;
+  // ── HẠN LƯU (add-data-retention) ──
+  /**
+   * Lượt máy bắt đầu trước mốc, tối đa `limit`: lượt đã kết luận cộng vào `screening_run_stats` (theo tháng, phiên bản,
+   * kết quả, nguyên nhân, dải, từng mã luật đã trúng và dòng tổng `*`) rồi xoá; lượt chưa kết luận chỉ xoá. Một transaction.
+   */
+  foldRunsBefore(startedBefore: Date, limit: number): Promise<{ folded: number; deleted: number }>;
+  deleteMarksBefore(markedBefore: Date): Promise<number>;
   /** Tin trong `listingIds` đã từng bị rút về vì cụm này (cụm nằm trong `hits` của lượt `recall`), ở phiên bản nào cũng được. */
   recalledFor(phraseId: string, listingIds: string[]): Promise<Set<string>>;
 
@@ -511,6 +518,45 @@ export function createScreeningRepository(prisma: PrismaClient): ScreeningReposi
           }),
 
     findRunByLookupCode: (code) => prisma.screeningRun.findUnique({ where: { lookupCode: code } }),
+
+    foldRunsBefore: (startedBefore, limit) =>
+      prisma.$transaction(async (tx) => {
+        const rows = await tx.$queryRaw<{ id: string }[]>`
+          SELECT id::text AS id FROM screening_runs
+           WHERE started_at < ${startedBefore}
+           ORDER BY started_at, id
+           LIMIT ${limit}
+           FOR UPDATE SKIP LOCKED`;
+        const ids = rows.map((row) => row.id);
+        if (ids.length === 0) return { folded: 0, deleted: 0 };
+        // `hits` là jsonb mảng `{ code, … }`; dòng tổng `*` đếm lượt, dòng theo mã đếm lượt có luật đó trúng.
+        const folded = await tx.$executeRaw`
+          INSERT INTO screening_run_stats
+            (month, rule_version, config_version, outcome, cause, band, rule_code, runs)
+          SELECT date_trunc('month', r.started_at)::date, r.rule_version, r.config_version, r.outcome::text,
+                 coalesce(r.cause::text, ''), coalesce(r.band::text, ''), h.code, count(*)::int
+            FROM screening_runs r
+            CROSS JOIN LATERAL (
+              SELECT '*' AS code
+              UNION
+              SELECT DISTINCT e->>'code'
+                FROM jsonb_array_elements(CASE WHEN jsonb_typeof(r.hits) = 'array' THEN r.hits ELSE '[]'::jsonb END) e
+               WHERE e ? 'code') h
+           WHERE r.id = ANY(${ids}::uuid[]) AND r.decided_at IS NOT NULL
+           GROUP BY 1, 2, 3, 4, 5, 6, 7
+          ON CONFLICT (month, rule_version, config_version, outcome, cause, band, rule_code)
+          DO UPDATE SET runs = screening_run_stats.runs + EXCLUDED.runs`;
+        const deleted = await tx.$executeRaw`
+          DELETE FROM screening_runs WHERE id = ANY(${ids}::uuid[])`;
+        return { folded, deleted };
+      }),
+
+    async deleteMarksBefore(markedBefore) {
+      const { count } = await prisma.screeningUncheckedMark.deleteMany({
+        where: { markedAt: { lt: markedBefore } },
+      });
+      return count;
+    },
 
     // ── THỜI GIAN CHỜ ───────────────────────────────────────────────────────────────────────────
 

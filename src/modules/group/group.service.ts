@@ -40,6 +40,9 @@ export interface GroupSystemService {
   onAccountDeleted(accountId: string): Promise<void>;
   expireDue(): Promise<{ requests: number; invitations: number; offers: number }>;
   lockOwnerlessTimedOut(): Promise<string[]>;
+  /** `ops` dọn nhóm đóng quá hạn lưu (add-data-retention): ứng viên theo trang, rồi xoá thành viên và các danh sách. */
+  purgeDue(closedBefore: Date, after: string | null, limit: number): Promise<string[]>;
+  purgeClosed(groupId: string): Promise<{ members: number } | null>;
   ownsAnyGroup(accountId: string): Promise<boolean>;
   managerIds(groupId: string): Promise<string[]>;
   /** Mọi điều hành viên (mọi phạm vi) — thông báo thiếu chủ tới hết. */
@@ -154,6 +157,9 @@ export function createGroupService(deps: GroupServiceDeps): GroupService {
     },
 
     expireDue: () => repository.expireDue(clock()),
+    purgeDue: (closedBefore, after, limit) =>
+      repository.closedGroupsDue(closedBefore, after, limit),
+    purgeClosed: (groupId) => repository.purgeClosedGroup(groupId, clock()),
     lockOwnerlessTimedOut: () =>
       repository.lockOwnerlessTimedOut(clock(), deps.config.get('group.ownerlessMaxDays')),
     ownsAnyGroup: (accountId) => repository.ownsAnyGroup(accountId),

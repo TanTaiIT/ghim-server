@@ -90,6 +90,21 @@ export interface ReportRepository {
     reporterId: string,
     page: { skip: number; take: number },
   ): Promise<{ items: MyReportRow[]; total: number }>;
+  /**
+   * Tạm giữ bằng chứng (add-data-retention): báo cáo đang mở hay đóng sau `since` dính tới tin, người, hội thoại trong
+   * danh sách — trả mã tin bị báo, mã người bị báo (báo cáo về người), mã người đăng của mọi báo cáo, mã hội thoại gửi kèm.
+   */
+  holds(
+    input: { listingIds: string[]; accountIds: string[]; conversationIds: string[] },
+    since: Date,
+  ): Promise<ReportHolds>;
+}
+
+export interface ReportHolds {
+  listingIds: Set<string>;
+  subjectAccountIds: Set<string>;
+  posterIds: Set<string>;
+  conversationIds: Set<string>;
 }
 
 const lockKey = (subject: ReportSubject): string =>
@@ -215,6 +230,44 @@ export function createReportRepository(prisma: PrismaClient): ReportRepository {
           rows.filter((row) => row.subjectKind === 'account').map((row) => row.accountId),
         ),
       };
+    },
+
+    async holds({ listingIds, accountIds, conversationIds }, since) {
+      const holds: ReportHolds = {
+        listingIds: new Set(),
+        subjectAccountIds: new Set(),
+        posterIds: new Set(),
+        conversationIds: new Set(),
+      };
+      const subjects: Prisma.ReportWhereInput[] = [
+        ...(listingIds.length > 0 ? [{ listingId: { in: listingIds } }] : []),
+        ...(accountIds.length > 0 ? [{ accountId: { in: accountIds } }] : []),
+        ...(conversationIds.length > 0
+          ? [{ entries: { some: { conversationId: { in: conversationIds } } } }]
+          : []),
+      ];
+      if (subjects.length === 0) return holds;
+      const rows = await prisma.report.findMany({
+        where: {
+          OR: [{ status: 'open' }, { decidedAt: { gt: since } }],
+          AND: [{ OR: subjects }],
+        },
+        select: {
+          subjectKind: true,
+          listingId: true,
+          accountId: true,
+          entries: { where: { conversationId: { not: null } }, select: { conversationId: true } },
+        },
+      });
+      for (const row of rows) {
+        if (row.listingId) holds.listingIds.add(row.listingId);
+        if (row.subjectKind === 'account') holds.subjectAccountIds.add(row.accountId);
+        holds.posterIds.add(row.accountId);
+        for (const entry of row.entries) {
+          if (entry.conversationId) holds.conversationIds.add(entry.conversationId);
+        }
+      }
+      return holds;
     },
 
     async myReports(reporterId, { skip, take }) {

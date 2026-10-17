@@ -7,6 +7,7 @@ import { parseDomainList } from '../identity.jobs.js';
 import type { OutboxEventInput } from '../identity.repository.js';
 import { FLAG_CLEARED_REASONS } from '../identity.schema.js';
 import { hashPassword } from '../calc/password.calc.js';
+import { pseudonymOf } from '../calc/pseudonym.calc.js';
 import {
   hashDeviceId,
   requiredDeviceFlags,
@@ -66,6 +67,10 @@ export type IdentityOpsService = Pick<
   | 'accountEmailHash'
   | 'createMaster'
   | 'resetTwoFactor'
+  | 'purgeDue'
+  | 'purgeDeletedAccount'
+  | 'purgeDeviceData'
+  | 'pseudonymOf'
 >;
 
 /**
@@ -552,6 +557,22 @@ export function createIdentityOpsService(
       await repository.updateAccount(account.id, { role: 'master' });
       return { accountId: account.id };
     },
+
+    // ── HẠN LƯU (add-data-retention) ──────────────────────────────────────────────────────────
+
+    purgeDue: (deletedBefore, after, limit) =>
+      repository.deletedAccountsDue(deletedBefore, after, limit),
+
+    async purgeDeletedAccount(accountId) {
+      const now = clock();
+      // Đã ẩn danh từ lượt đăng ký lại cùng email thì `false` — vẫn ghi đã dọn.
+      await repository.anonymizeDeletedAccount({ id: accountId, deletedBefore: now });
+      await repository.markAccountPurged(accountId, now);
+    },
+
+    purgeDeviceData: (before) => repository.purgeDeviceData(before),
+
+    pseudonymOf: (accountId) => pseudonymOf(accountId, hashKey),
 
     async resetTwoFactor({ email }) {
       const account = await repository.findAccountByEmail(normalizeEmail(email));

@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createOutboxDispatcher } from '../src/common/outbox/dispatcher.js';
-import { createPurgePublishedHandler } from '../src/common/outbox/outbox.jobs.js';
+import { createPurgePublishedHandler } from '../src/modules/ops/ops.jobs.js';
 import { prisma, sqlStateOf, truncateAll } from './db-helpers.js';
 
 /* Trần thời gian của DB, việc dọn outbox và lượt tắt êm trên Postgres thật. */

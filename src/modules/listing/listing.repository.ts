@@ -11,6 +11,8 @@ import { appendAudit, type AuditEntry } from '../../common/audit/audit.js';
 import { appendEvents, type OutboxEventInput } from '../../common/outbox/outbox.js';
 import type { CursorKey } from '../../common/schemas/cursor.js';
 import { DETACHED_REASONS } from './calc/hide.calc.js';
+import type { RetentionRow } from './listing.ports.js';
+import { LISTING_EVENTS, listingEvent } from './listing.outbox.js';
 
 export type Tx = Prisma.TransactionClient;
 
@@ -58,6 +60,7 @@ export type BatchRow = Pick<
   | 'shownSince'
   | 'leftGroupAt'
   | 'remindedFor'
+  | 'purgeRemindedFor'
 >;
 
 export interface BatchInput<C = undefined> {
@@ -160,6 +163,21 @@ export interface ListingRepository {
     after: string | null,
     take: number,
   ): Promise<Pick<Listing, 'id' | 'version' | 'ownerId' | 'title' | 'description' | 'imageIds'>[]>;
+
+  // ── HẠN LƯU (add-data-retention) ──
+  /** Tin khớp điều kiện một luật hạn lưu, theo trang con trỏ `id` (tin đang tạm giữ bị bỏ qua nên trang không lùi). */
+  retentionDue(
+    where: Prisma.ListingWhereInput,
+    after: string | null,
+    limit: number,
+  ): Promise<RetentionRow[]>;
+  /**
+   * Xoá HẲN các tin trong `ids` còn khớp `where` lúc xoá — một transaction, điều kiện của luật kiểm lại ngay trong câu
+   * xoá (tin vừa được gia hạn giữa lúc chọn và lúc xoá thì ở lại). Trả mã đã xoá.
+   */
+  purgeWhere(ids: string[], where: Prisma.ListingWhereInput): Promise<string[]>;
+  /** Xoá mềm theo lô kèm `listing.listing.deleted` mỗi tin (bên nghe huỷ việc đang mở). Trả mã vừa xoá mềm. */
+  softDeleteWhere(where: Prisma.ListingWhereInput, at: Date): Promise<string[]>;
 }
 
 /** Người đăng nhiều tin nhất cũng chỉ so với ngần này tin gần nhất — lượt chấm chữ không chậm dần theo số tin. */
@@ -207,6 +225,7 @@ const jsonOf = (row: BatchRow) => ({
   shown_since: row.shownSince?.toISOString() ?? null,
   left_group_at: row.leftGroupAt?.toISOString() ?? null,
   reminded_for: row.remindedFor?.toISOString() ?? null,
+  purge_reminded_for: row.purgeRemindedFor?.toISOString() ?? null,
 });
 
 async function lockListing(tx: Tx, id: string): Promise<Listing | null> {
@@ -251,11 +270,13 @@ export function createListingRepository(prisma: PrismaClient): ListingRepository
             shown_since = v.shown_since,
             left_group_at = v.left_group_at,
             reminded_for = v.reminded_for,
+            purge_reminded_for = v.purge_reminded_for,
             updated_at = ${input.at}
           FROM jsonb_to_recordset(${JSON.stringify(updates.map(jsonOf))}::jsonb) AS v(
             id uuid, state text, version int, hide_reasons text[], restrictions text[], placement text,
             badge_group_id uuid, unit_id uuid, expires_at timestamptz, clock_remaining_ms bigint, shown_ms bigint,
-            shown_since timestamptz, left_group_at timestamptz, reminded_for timestamptz)
+            shown_since timestamptz, left_group_at timestamptz, reminded_for timestamptz,
+            purge_reminded_for timestamptz)
           WHERE l.id = v.id`;
         const byId = new Map(rows.map((row) => [row.id, row]));
         const changed = updates.flatMap((row) => {
@@ -474,6 +495,43 @@ export function createListingRepository(prisma: PrismaClient): ListingRepository
           description: true,
           imageIds: true,
         },
+      }),
+
+    retentionDue: (where, after, limit) =>
+      prisma.listing.findMany({
+        where: { ...where, ...(after ? { id: { gt: after } } : {}) },
+        orderBy: { id: 'asc' },
+        take: limit,
+        select: { id: true, ownerId: true, groupId: true, updatedAt: true },
+      }),
+
+    purgeWhere: (ids, where) =>
+      prisma.$transaction(async (tx) => {
+        if (ids.length === 0) return [];
+        await tx.$executeRaw`SELECT 1 FROM listings WHERE id = ANY(${ids}::uuid[]) FOR UPDATE`;
+        const due = await tx.listing.findMany({
+          where: { ...where, id: { in: ids } },
+          select: { id: true },
+        });
+        const dueIds = due.map((row) => row.id);
+        if (dueIds.length > 0) await tx.listing.deleteMany({ where: { id: { in: dueIds } } });
+        return dueIds;
+      }),
+
+    softDeleteWhere: (where, at) =>
+      prisma.$transaction(async (tx) => {
+        const rows = await tx.listing.updateManyAndReturn({
+          where: { ...where, deletedAt: null },
+          data: { deletedAt: at },
+          select: { id: true, ownerId: true },
+        });
+        await appendEvents(
+          tx,
+          rows.map((row) =>
+            listingEvent(LISTING_EVENTS.deleted, { listingId: row.id, ownerId: row.ownerId }),
+          ),
+        );
+        return rows.map((row) => row.id);
       }),
 
     async existingIds(ids) {

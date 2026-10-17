@@ -70,6 +70,15 @@ export interface MessagingRepository {
   clearPresence(sessionId: string, conversationId: string): Promise<void>;
   viewingSessions(conversationId: string, now: Date): Promise<string[]>;
   findMessage(id: string): Promise<Message | null>;
+  // ── HẠN LƯU (add-data-retention) ──
+  /** Hội thoại khớp điều kiện xoá hẳn, theo trang con trỏ `id` (hội thoại đang tạm giữ bị bỏ qua nên trang không lùi). */
+  retentionDue(
+    where: Prisma.ConversationWhereInput,
+    after: string | null,
+    limit: number,
+  ): Promise<Pick<Conversation, 'id' | 'listingId' | 'buyerId' | 'sellerId'>[]>;
+  /** Xoá hẳn các hội thoại trong `ids` còn khớp `where` lúc xoá — tin nhắn, dấu đang mở đi theo khoá ngoại. */
+  purge(ids: string[], where: Prisma.ConversationWhereInput): Promise<number>;
   emitIn(tx: Tx, events: OutboxEventInput[]): Promise<void>;
 }
 
@@ -312,6 +321,22 @@ export function createMessagingRepository(prisma: PrismaClient): MessagingReposi
     },
 
     findMessage: (id) => prisma.message.findUnique({ where: { id } }),
+
+    retentionDue: (where, after, limit) =>
+      prisma.conversation.findMany({
+        where: { ...where, ...(after ? { id: { gt: after } } : {}) },
+        orderBy: { id: 'asc' },
+        take: limit,
+        select: { id: true, listingId: true, buyerId: true, sellerId: true },
+      }),
+
+    async purge(ids, where) {
+      if (ids.length === 0) return 0;
+      const { count } = await prisma.conversation.deleteMany({
+        where: { ...where, id: { in: ids } },
+      });
+      return count;
+    },
 
     emitIn: (tx, events) => appendEvents(tx, events),
   };

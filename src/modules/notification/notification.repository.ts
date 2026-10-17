@@ -52,6 +52,8 @@ export interface NotificationRepository {
   /** Ticket cũ hơn `before`, cũ nhất trước — đọc biên nhận theo lô. */
   pushTicketsBefore(before: Date, limit: number): Promise<PushTicket[]>;
   deletePushTickets(ids: string[]): Promise<void>;
+  /** Hạn lưu (add-data-retention): xoá tối đa `limit` dòng cập nhật lần cuối trước mốc; trả số đã xoá. */
+  deleteBefore(updatedBefore: Date, limit: number): Promise<number>;
 }
 
 export function createNotificationRepository(prisma: PrismaClient): NotificationRepository {
@@ -197,6 +199,11 @@ export function createNotificationRepository(prisma: PrismaClient): Notification
       if (ids.length === 0) return;
       await prisma.pushTicket.deleteMany({ where: { id: { in: ids } } });
     },
+
+    deleteBefore: (updatedBefore, limit) =>
+      prisma.$executeRaw`
+        DELETE FROM notifications WHERE id IN (
+          SELECT id FROM notifications WHERE updated_at < ${updatedBefore} LIMIT ${limit})`,
 
     async setMute(accountId, groupId, muted, at) {
       if (!muted) {

@@ -66,6 +66,9 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
     `Asia/Ho_Chi_Minh`, `singletonKey` mặc định = tên việc; `work` nhận `retryLimit` và `concurrency` — số việc
     cùng loại chạy song song mỗi tiến trình); module khai việc của mình trong
     `<module>.jobs.ts` với tên `<module>.<việc>`, nối qua `jobs` của định nghĩa module (`<module>.module.ts`).
+    Handler của việc theo lịch trả `JobOutcome | void` (`partial`, `summary`); `createJobs` bọc bằng `recordedRun`
+    ghi mỗi lượt vào `job_runs` (`done` / `partial` / `failed` — TK 26 luật 2, add-data-retention) qua `runLog` =
+    repository của `ops`; `GET /ops/jobs/runs` (master) đọc. Việc theo sự kiện không ghi.
   - Gửi email (mã xác nhận, đổi email): **nodemailer** qua `SMTP_URL`, đứng sau interface `Mailer` ở
     `src/lib/mailer.ts` (`createSmtpMailer`, `createFakeMailer` cho test). `SMTP_URL` bắt buộc ngoài
     test vì mã xác nhận không bao giờ vào log — dev dùng **Mailpit** trong docker-compose
@@ -226,7 +229,7 @@ review }`,
 | 4    | `review`       | 16, 17, 23 | **Việc** và hàng chờ, nhận việc 10 phút, quyết định của người, hậu kiểm, báo cáo   |
 | 6    | `messaging`    | 24         | Hội thoại, tin nhắn, chặn người                                                    |
 | 1, 6 | `notification` | 24         | Hộp thư, nhóm bật/tắt, tắt tiếng nhóm, realtime (đợt 1); đẩy thông báo (đợt 6)     |
-| 7    | `ops`          | 25, 26     | Outbox dispatcher, job theo lịch, dọn dữ liệu, tạm giữ bằng chứng                  |
+| 7    | `ops`          | 25, 26     | Dọn dữ liệu theo hạn lưu, tạm giữ bằng chứng, sổ việc nền `job_runs`, dọn outbox   |
 
 `media` lên đợt 2 (TK 29 xếp ở đợt 3) vì nháp tin đăng đã cần ảnh; chỉ phần **kiểm** ảnh ở đợt 3.
 `notification` nghe `group.*`, các `listing.*` có dòng ma trận (`notification.listing-matrix.ts`) và
@@ -283,7 +286,7 @@ change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-cate
 này đã archive 10–11/10/2026 · đợt 2
 `add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` (cả hai đã archive 12/10/2026) · đợt 3 `add-screening` (đã archive 13/10/2026) → `add-image-moderation` (khi chọn được dịch vụ kiểm ảnh, tách ra 12/10/2026) · đợt 4 `add-review-queues` (đã archive 15/10/2026) → **sửa lỗi rà soát 15/10/2026 trước mọi tính năng** (`docs/RA-SOAT-15-10-2026.md`; đợt 1 bảo mật = `fix-audit-security`) →
 `add-reports` (đã archive 16/10/2026) · đợt 5 `add-strikes` (đã archive 17/10/2026) · đợt 6 `add-messaging` → `add-notifications` (cả hai đã archive 17/10/2026) · đợt 7
-`add-data-retention`.
+`add-data-retention` (đã archive 17/10/2026).
 
 - `add-platform-roles` và `add-categories` cần nhau (quyền staff gắn theo danh mục; danh mục cần staff soạn
   mẫu) nên làm chung một lượt và archive trước `add-groups`; `add-groups` chỉ thêm requirement vào
@@ -291,7 +294,19 @@ này đã archive 10–11/10/2026 · đợt 2
 - `fix-session-refresh-race` và `harden-module-infra` là kết quả rà soát 10/10/2026 sau ba module đầu, đã
   archive trước `add-groups`: module mới dựng trên hạ tầng đã sửa.
 - Việc chạy theo lịch đã cần từ đợt 1 (dọn đăng ký dở dang, nhóm thiếu chủ quá 30 ngày) dù `ops` ở đợt 7:
-  dùng pg-boss ngay từ `add-identity`; `ops` sau này chỉ gom dispatcher outbox và lịch dọn dữ liệu.
+  dùng pg-boss ngay từ `add-identity`; `ops` (add-data-retention) chỉ nhận việc dọn outbox và lịch dọn dữ liệu —
+  bộ phát outbox vẫn ở `common/outbox` vì mọi module cần nó từ đợt 1.
+
+`ops` (change `add-data-retention`, hướng dẫn ở `docs/retention.md`): dựng **sau cùng** trong `buildApp`, chỉ gọi cổng
+hạn lưu của module sở hữu dữ liệu, không ghi bảng của ai (`listing.retentionDue / purge / softDeleteWhere / remindPurge`,
+`media.purgeOwners`, `group.purgeDue / purgeClosed`, `identity.purgeDue / purgeDeletedAccount / purgeDeviceData /
+pseudonymOf`, `messaging.retentionDue / purge`, `notification.purgeBefore`, `screening.foldRuns`, `trust.strikesOfListings /
+anonymizeDue / anonymizeStrike / dropLiftedEmailHashes`, `review.reportHolds / pseudonymizeDecisions`, `pseudonymizeAudit` ở
+`common/audit`). `retention.service.ts` = dãy bước cố định (`RETENTION_STEPS`) theo trang 500, trần 10 phút → `partial` +
+`ops.retention-continue { from }`; `evidence-hold.service.ts` tính tạm giữ từ dữ kiện của `review`, `trust`; luật thuần ở
+`calc/retention.calc.ts`. Con số `retention.*` (nhóm "Hạn lưu"). Hai khoá ngoại đã bỏ: `conversations.listing_id`,
+`strikes.account_id` (ẩn danh hoá thay bằng mã giả; `identity.account.purged` → `trust` xoá gậy của đăng ký dở đã dọn).
+N48 `listing.purge.reminder` ở `notification.listing-matrix.ts`.
 
 Module mẫu để bám theo: **`src/modules/identity/`** — repository với transaction + outbox, service
 factory nhận deps (đồng hồ, config, jobs…), route tách theo mối quan tâm, calc thuần có test riêng,
@@ -360,8 +375,8 @@ Mỗi luật dưới đây là một cam kết ở TK phần 27; số trong ngo�
     `next_attempt_at = now()` là phát lại ngay. Bên nghe đăng ký ở `<module>.events.ts`, nối qua
     `listeners` của định nghĩa module (vd `platform.events.ts` treo quyền khi khoá, thu quyền khi xoá); bên nghe phải
     idempotent và **không dựa vào thứ tự** giữa các sự kiện. Sự kiện đã phát quá 30 ngày được việc
-    `outbox.purge-published` (04:30 hằng ngày, `src/common/outbox/outbox.jobs.ts`) xoá; sự kiện chưa phát
-    thì không. `ops` (đợt 7) nhận lại và mở rộng; hợp đồng bên nghe không đổi.
+    `outbox.purge-published` (04:30 hằng ngày, `src/modules/ops/ops.jobs.ts` — chuyển từ `common/outbox` ở
+    add-data-retention, tên giữ vì pg-boss lưu lịch theo tên) xoá; sự kiện chưa phát thì không. Hợp đồng bên nghe không đổi.
 13. **Trạng thái tin, cờ tạm ẩn, lý do hạn chế là ba thứ riêng** (15, 18, 19). Lý do hạn chế là một
     tập (`machine`, `new_account`, `strike`), mỗi lý do đặt/gỡ độc lập. Đường chuyển trạng thái tin
     là **bảng thuần** trong `listing/calc/listing.calc.ts`, có unit test cho mọi mũi tên của sơ đồ TK
@@ -399,8 +414,9 @@ Mỗi luật dưới đây là một cam kết ở TK phần 27; số trong ngo�
 22. **Dữ liệu có hạn lưu** (25). Tạm giữ bằng chứng thắng mọi hạn lưu. Nhật ký quyết định giữ mãi
     nhưng không chứa nội dung tin. Mọi thay đổi dữ liệu do master / staff làm ghi một dòng
     `appendAudit(tx, entry)` trong **cùng transaction** (repository nhận `audit` như nhận `events`;
-    service dựng dòng từ `Actor` qua `auditActor`). Trigger `audit_log_immutable` chặn UPDATE / DELETE;
-    `details` chỉ mang mã và số. Chỉ `platform` có cửa đọc (`GET /ops/audit`, master).
+    service dựng dòng từ `Actor` qua `auditActor`). Trigger `audit_log_immutable` chặn DELETE luôn luôn, UPDATE chỉ
+    cho `pseudonymizeAudit` (transaction đặt `ghim.anonymize = 'on'`, đổi đúng `target_id` / `details` — ẩn danh hoá
+    gậy, add-data-retention); `details` chỉ mang mã và số. Chỉ `platform` có cửa đọc (`GET /ops/audit`, master).
 23. **Giá** là `BigInt` đồng, không âm, qua `priceSchema` (`src/common/schemas/money.ts`). `0` = cho
     tặng. Không khai giá bằng `z.number()` trần.
 24. **Thời gian**: thời điểm lưu `@db.Timestamptz(3)`. Việc "theo ngày" (nhắc lúc 9 giờ sáng) tính

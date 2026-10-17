@@ -97,6 +97,8 @@ export interface NotificationService {
   }): Promise<{ sent: number; forgotten: number }>;
   /** Việc mỗi 15 phút: đọc biên nhận Expo, quên token máy đã gỡ app. */
   pushReceipts(): Promise<{ checked: number; forgotten: number }>;
+  /** `ops` dọn theo hạn lưu (add-data-retention): dòng hộp thư cập nhật lần cuối trước mốc. Trả số đã xoá. */
+  purgeBefore(updatedBefore: Date): Promise<number>;
 }
 
 /** Trang người nhận khi báo cả nhóm: đủ lớn để ít lượt, đủ nhỏ để một câu `INSERT` không phình (design mục 4). */
@@ -106,6 +108,8 @@ const MINUTE_MS = 60_000;
 const RECEIPT_DELAY_MS = 15 * MINUTE_MS;
 const RECEIPT_GIVE_UP_MS = 24 * 60 * MINUTE_MS;
 const RECEIPT_BATCH = 1000;
+/** Một câu xoá của lượt dọn hộp thư — nhỏ để không giữ khoá lâu, lặp tới khi hết. */
+const PURGE_BATCH = 5000;
 
 export const toNotificationDto = (row: Notification): NotificationDto => ({
   id: row.id,
@@ -450,6 +454,14 @@ export function createNotificationService(deps: NotificationServiceDeps): Notifi
         throw new ConflictError('Bạn không phải thành viên của nhóm này', 'NOT_GROUP_MEMBER');
       }
       await repository.setMute(actor.accountId, groupId, muted, clock());
+    },
+
+    async purgeBefore(updatedBefore) {
+      const drain = async (done: number): Promise<number> => {
+        const deleted = await repository.deleteBefore(updatedBefore, PURGE_BATCH);
+        return deleted < PURGE_BATCH ? done + deleted : drain(done + deleted);
+      };
+      return drain(0);
     },
   };
 }

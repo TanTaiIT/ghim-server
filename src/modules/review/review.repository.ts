@@ -129,6 +129,11 @@ export interface ReviewRepository {
   insertDecision(tx: Tx, data: Prisma.ReviewDecisionUncheckedCreateInput): Promise<ReviewDecision>;
   /** Gậy quyết định này ra — ghi sau khi `trust` chèn gậy trỏ về quyết định (add-strikes). */
   linkIssuedStrike(tx: Tx, decisionId: string, strikeId: string): Promise<void>;
+  /** Ẩn danh hoá gậy (add-data-retention): quyết định về gậy đó hay ra gậy đó thôi nêu người — chỉ còn mã giả. */
+  pseudonymizeDecisions(
+    tx: Tx,
+    input: { strikeId: string; accountId: string; pseudonym: string },
+  ): Promise<number>;
   findDecision(id: string): Promise<ReviewDecision | null>;
   /** Lý do mẫu: master thấy cả lý do đã tắt, người xử chỉ thấy lý do đang bật. */
   listTemplates(input: { includeInactive: boolean }): Promise<ReviewReasonTemplate[]>;
@@ -304,6 +309,14 @@ export function createReviewRepository(prisma: PrismaClient): ReviewRepository {
         where: { id: decisionId },
         data: { issuedStrikeId: strikeId },
       });
+    },
+
+    async pseudonymizeDecisions(tx, { strikeId, accountId, pseudonym }) {
+      const { count } = await tx.reviewDecision.updateMany({
+        where: { accountId, OR: [{ strikeId }, { issuedStrikeId: strikeId }] },
+        data: { accountId: pseudonym },
+      });
+      return count;
     },
 
     findDecision: (id) => prisma.reviewDecision.findUnique({ where: { id } }),

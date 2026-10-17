@@ -12,7 +12,7 @@ import { RUNTIME_CONFIG_DEFAULTS } from '../src/common/config/runtime-config.js'
 
 /* Sổ đăng ký là hợp đồng với mọi change sau: đủ nhóm TK 28, mỗi khoá đúng dạng và có giá trị hợp lệ. */
 describe('CONFIG_KEYS', () => {
-  it('phủ đủ 13 nhóm của bảng TK 28', () => {
+  it('phủ đủ 14 nhóm: 13 của bảng TK 28 và hạn lưu (TK 25, add-data-retention)', () => {
     const groups = new Set(Object.values(CONFIG_KEYS).map((spec) => spec.group));
     expect([...groups].toSorted()).toEqual(
       [
@@ -29,6 +29,7 @@ describe('CONFIG_KEYS', () => {
         'Nhóm',
         'Thông báo',
         'Ảnh',
+        'Hạn lưu',
       ].toSorted(),
     );
   });

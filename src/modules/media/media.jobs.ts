@@ -1,4 +1,4 @@
-import type { JobName, Jobs } from '../../lib/jobs.js';
+import type { JobName, JobOutcome, Jobs } from '../../lib/jobs.js';
 import { logger } from '../../lib/logger.js';
 import type { MediaService } from './media.service.js';
 
@@ -19,9 +19,10 @@ export async function registerMediaJobs(jobs: Jobs, media: MediaService): Promis
   await jobs.schedule(MEDIA_JOBS.purgeUnconfirmed, PURGE_CRON, async () => {
     const deleted = await media.purgeUnconfirmed();
     if (deleted > 0) logger.info({ deleted }, 'media.purge-unconfirmed');
+    return { summary: { deleted } };
   });
 
-  const reconcile = async (after?: string) => {
+  const reconcile = async (after?: string): Promise<JobOutcome> => {
     const result = await media.reconcile({ after, budgetMs: RECONCILE_BUDGET_MS });
     if (result.missing > 0) {
       logger.error(
@@ -30,13 +31,16 @@ export async function registerMediaJobs(jobs: Jobs, media: MediaService): Promis
       );
     }
     if (result.next) {
-      // TK 26 luật 2: làm dở thì phải nói ra.
+      // TK 26 luật 2: làm dở thì phải nói ra — vào sổ `job_runs` và xếp lượt làm tiếp.
       logger.warn({ ...result }, 'media.reconcile mới làm được một phần, xếp lượt làm tiếp');
       await jobs.send(MEDIA_JOBS.reconcileContinue, { after: result.next });
-      return;
+      return { partial: true, summary: { ...result } };
     }
     logger.info({ ...result }, 'media.reconcile');
+    return { summary: { ...result } };
   };
   await jobs.schedule(MEDIA_JOBS.reconcile, RECONCILE_CRON, () => reconcile());
-  await jobs.work<{ after: string }>(MEDIA_JOBS.reconcileContinue, (data) => reconcile(data.after));
+  await jobs.work<{ after: string }>(MEDIA_JOBS.reconcileContinue, async (data) => {
+    await reconcile(data.after);
+  });
 }

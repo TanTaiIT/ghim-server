@@ -110,7 +110,34 @@ export type ListingCategoryPort = Pick<
   CategoryService,
   'statusOf' | 'lockStatus' | 'validateRegion' | 'validateAttributes'
 >;
-export type ListingMediaPort = Pick<MediaService, 'resolve' | 'attach' | 'viewUrl' | 'copyImages'>;
+export type ListingMediaPort = Pick<
+  MediaService,
+  'resolve' | 'attach' | 'viewUrl' | 'copyImages' | 'purgeOwners'
+>;
+
+/**
+ * Luật hạn lưu của TK 25 mà `ops` áp lên tin (add-data-retention). Mốc do `ops` tính từ bảng con số; `listing` chỉ dịch
+ * mỗi luật thành điều kiện trên bảng của mình, và kiểm lại điều kiện đó lúc xoá.
+ */
+export type RetentionRule =
+  | { kind: 'draft'; updatedBefore: Date }
+  /** Từ chối / gỡ vì sai sót, hay đã rời nhóm hẳn vì bị gỡ khỏi nhóm / nhóm sang riêng tư — không được sửa từ mốc. */
+  | { kind: 'mistake'; updatedBefore: Date }
+  /** Từ chối / gỡ vì vi phạm — mốc theo gậy, `ops` chọn mã rồi mới gọi xoá. */
+  | { kind: 'violation' }
+  | { kind: 'self_deleted'; deletedBefore: Date }
+  | { kind: 'sold'; updatedBefore: Date }
+  | { kind: 'expired'; expiredBefore: Date }
+  /** Tin đã xoá mềm của một tài khoản bị xoá hẳn / một nhóm đóng quá hạn. */
+  | { kind: 'owner'; ownerId: string }
+  | { kind: 'group'; groupId: string };
+
+export interface RetentionRow {
+  id: string;
+  ownerId: string;
+  groupId: string | null;
+  updatedAt: Date;
+}
 
 /** Một lượt rời nhóm như `group.member.left` mang theo — đủ để biết tin nào của người đó bị ẩn (C8). */
 export interface GroupLeave {

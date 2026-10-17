@@ -1,3 +1,5 @@
+import type { Prisma } from '@prisma/client';
+
 import type { Actor } from '../../common/auth/actor.js';
 import { startOfDayVN } from '../../common/time/time.js';
 import { toMessageDto } from './inbox.service.js';
@@ -35,7 +37,24 @@ export interface ConversationService {
   clearViewing(actor: Actor, conversationId: string): Promise<void>;
   /** Bên nghe `identity.account.deleted`: ẩn mọi hội thoại phía người xoá. */
   onAccountDeleted(accountId: string): Promise<number>;
+  /**
+   * `ops` dọn theo hạn lưu (add-data-retention): cả hai bên đã xoá phía mình (xoá tài khoản tính là đã xoá), hay quá
+   * `idleBefore` không ai hoạt động. Điều kiện kiểm lại lúc xoá; tin nhắn, dấu đang mở đi theo.
+   */
+  retentionDue(
+    input: { idleBefore: Date },
+    after: string | null,
+    limit: number,
+  ): Promise<Pick<Conversation, 'id' | 'listingId' | 'buyerId' | 'sellerId'>[]>;
+  purge(ids: string[], input: { idleBefore: Date }): Promise<number>;
 }
+
+const retentionWhere = ({ idleBefore }: { idleBefore: Date }): Prisma.ConversationWhereInput => ({
+  OR: [
+    { buyerHiddenAt: { not: null }, sellerHiddenAt: { not: null } },
+    { lastActivityAt: { lt: idleBefore } },
+  ],
+});
 
 /**
  * Mở hội thoại và nhắn tin (design add-messaging mục 2, 3). Hội thoại đã mở không hỏi lại trạng thái tin: tin đã bán,
@@ -165,5 +184,9 @@ export function createConversationService(
     },
 
     onAccountDeleted: (accountId) => repository.hideAllOf(accountId, clock()),
+
+    retentionDue: (input, after, limit) =>
+      repository.retentionDue(retentionWhere(input), after, limit),
+    purge: (ids, input) => repository.purge(ids, retentionWhere(input)),
   };
 }

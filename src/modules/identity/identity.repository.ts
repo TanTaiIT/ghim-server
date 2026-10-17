@@ -265,6 +265,13 @@ export interface IdentityRepository {
    * `add-data-retention`. `false` = dòng không còn ở trạng thái đó (đã ẩn danh, hay chưa hết thời gian chờ).
    */
   anonymizeDeletedAccount(input: { id: string; deletedBefore: Date }): Promise<boolean>;
+  // ── HẠN LƯU (add-data-retention) ──
+  /** Tài khoản đã xoá trước `deletedBefore` mà `ops` chưa dọn, theo trang con trỏ `id` (tài khoản đang tạm giữ bị bỏ qua). */
+  deletedAccountsDue(deletedBefore: Date, after: string | null, limit: number): Promise<string[]>;
+  /** Lượt dọn xong: ghi `purged_at`, xoá hồ sơ xác minh giấy tờ (số giấy tờ là dữ liệu cá nhân, không giữ mãi). */
+  markAccountPurged(id: string, at: Date): Promise<void>;
+  /** Dữ liệu thiết bị quá hạn lưu (TK 8): lượt ghi dấu máy, đánh dấu đã gỡ, địa chỉ mạng của phiên mở trước mốc. */
+  purgeDeviceData(before: Date): Promise<{ posts: number; flags: number; sessionIps: number }>;
   /**
    * Khoá dòng tài khoản rồi mới đọc trạng thái, ghi trạng thái đó vào `statusBeforeLock` (fix-audit-identity-low,
    * L1). `false` = không có tài khoản, hoặc nó không còn `active` / `pending_verification` (lượt khoá khác vừa chạy)
@@ -403,6 +410,22 @@ async function revokeSessionsIn(
   return count;
 }
 
+/**
+ * Xoá HẲN đăng ký dở dang và báo `identity.account.purged`: gậy đã kế thừa không còn khoá ngoại sang tài khoản
+ * (add-data-retention) nên `trust` nghe mà dọn. Chỉ những dòng còn `pending_verification` lúc xoá mới vào sự kiện.
+ */
+async function purgeUnverifiedIn(tx: Prisma.TransactionClient, ids: string[]): Promise<number> {
+  if (ids.length === 0) return 0;
+  const purged = await tx.$queryRaw<{ id: string }[]>`
+    DELETE FROM accounts WHERE id = ANY(${ids}::uuid[]) AND status = 'pending_verification' RETURNING id::text`;
+  if (purged.length > 0) {
+    await appendEvents(tx, [
+      { type: 'identity.account.purged', payload: { accountIds: purged.map((row) => row.id) } },
+    ]);
+  }
+  return purged.length;
+}
+
 export function createIdentityRepository(prisma: PrismaClient): IdentityRepository {
   return {
     findAccountById: (id) => prisma.account.findUnique({ where: { id } }),
@@ -449,18 +472,19 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
         await appendEvents(tx, events);
         return true;
       }),
-    async deleteUnverifiedAccountsBefore(createdBefore) {
-      const { count } = await prisma.account.deleteMany({
-        where: { status: 'pending_verification', createdAt: { lt: createdBefore } },
-      });
-      return count;
-    },
-    async deleteUnverifiedAccount(id) {
-      const { count } = await prisma.account.deleteMany({
-        where: { id, status: 'pending_verification' },
-      });
-      return count === 1;
-    },
+    deleteUnverifiedAccountsBefore: (createdBefore) =>
+      prisma.$transaction(async (tx) => {
+        const rows = await tx.account.findMany({
+          where: { status: 'pending_verification', createdAt: { lt: createdBefore } },
+          select: { id: true },
+        });
+        return purgeUnverifiedIn(
+          tx,
+          rows.map((row) => row.id),
+        );
+      }),
+    deleteUnverifiedAccount: (id) =>
+      prisma.$transaction(async (tx) => (await purgeUnverifiedIn(tx, [id])) === 1),
     anonymizeDeletedAccount: ({ id, deletedBefore }) =>
       prisma.$transaction(async (tx) => {
         const tombstone = `${DELETED_EMAIL_PREFIX}${id}`;
@@ -489,6 +513,36 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
         await tx.verificationCode.deleteMany({ where: { accountId: id } });
         return true;
       }),
+    deletedAccountsDue: async (deletedBefore, after, limit) =>
+      (
+        await prisma.account.findMany({
+          where: {
+            status: 'deleted',
+            deletedAt: { lt: deletedBefore },
+            purgedAt: null,
+            ...(after ? { id: { gt: after } } : {}),
+          },
+          orderBy: { id: 'asc' },
+          take: limit,
+          select: { id: true },
+        })
+      ).map((row) => row.id),
+    markAccountPurged: (id, at) =>
+      prisma.$transaction(async (tx) => {
+        await tx.idVerification.deleteMany({ where: { accountId: id } });
+        await tx.account.update({ where: { id }, data: { purgedAt: at } });
+      }),
+    async purgeDeviceData(before) {
+      const [posts, flags, sessions] = await Promise.all([
+        prisma.devicePost.deleteMany({ where: { lastPostedAt: { lt: before } } }),
+        prisma.accountFlag.deleteMany({ where: { clearedAt: { lt: before } } }),
+        prisma.session.updateMany({
+          where: { createdAt: { lt: before }, ip: { not: null } },
+          data: { ip: null },
+        }),
+      ]);
+      return { posts: posts.count, flags: flags.count, sessionIps: sessions.count };
+    },
     lockAccount: ({ accountId, reason, lockedBy, at, events, audit }) =>
       prisma.$transaction(async (tx) => {
         const [row] = await tx.$queryRaw<{ status: AccountStatus }[]>`

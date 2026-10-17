@@ -20,7 +20,6 @@ import { errorHandler } from './common/errors/error-handler.js';
 import { CACHE_NONE } from './common/http/cache.js';
 import type { AppModule } from './common/module/app-module.js';
 import { createOutboxDispatcher, type OutboxDispatcher } from './common/outbox/dispatcher.js';
-import { createOutboxModule } from './common/outbox/outbox.jobs.js';
 import { createExpoPush, type PushSender } from './common/push/expo-push.js';
 import { createRealtimeGateway, type Realtime } from './common/realtime/realtime.js';
 import { registerSwagger } from './common/plugins/swagger.js';
@@ -97,6 +96,9 @@ import type { MessagingService } from './modules/messaging/messaging.service.js'
 import { createNotificationModule } from './modules/notification/notification.module.js';
 import { createNotificationRepository } from './modules/notification/notification.repository.js';
 import type { NotificationService } from './modules/notification/notification.service.js';
+import { createOpsModule } from './modules/ops/ops.module.js';
+import { createOpsRepository, type OpsRepository } from './modules/ops/ops.repository.js';
+import type { OpsService } from './modules/ops/ops.service.js';
 import { createPlatformModule } from './modules/platform/platform.module.js';
 import {
   createPlatformRepository,
@@ -130,6 +132,7 @@ export interface AppServices {
   screening: ScreeningService;
   review: ReviewService;
   messaging: MessagingService;
+  ops: OpsService;
 }
 
 export interface Repositories {
@@ -145,6 +148,8 @@ export interface Repositories {
   review: ReviewRepository;
   report: ReportRepository;
   messaging: MessagingRepository;
+  /** Sổ kết quả việc nền (`job_runs`) — `createJobs` ghi qua nó, nên dựng trước `jobs`. */
+  ops: OpsRepository;
 }
 
 declare module 'fastify' {
@@ -240,11 +245,14 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     review: overrides.repositories?.review ?? createReviewRepository(prisma),
     report: overrides.repositories?.report ?? createReportRepository(prisma),
     messaging: overrides.repositories?.messaging ?? createMessagingRepository(prisma),
+    ops: overrides.repositories?.ops ?? createOpsRepository(prisma),
   };
   const { config, versioned } = await resolveConfig(overrides.config, repositories.platform);
   const deps: AppDeps = {
     repositories,
-    jobs: overrides.jobs ?? createJobs(env.DATABASE_URL, { max: env.JOBS_POOL_MAX }),
+    jobs:
+      overrides.jobs ??
+      createJobs(env.DATABASE_URL, { max: env.JOBS_POOL_MAX, runLog: repositories.ops }),
     mailer: overrides.mailer ?? defaultMailer(),
     storage: overrides.storage ?? createStorage(parseStorageUrl(env.STORAGE_URL)),
     googleVerifier: overrides.googleVerifier ?? createGoogleTokenVerifier(env.GOOGLE_CLIENT_IDS),
@@ -487,6 +495,23 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     config: deps.config,
     clock: deps.clock,
   });
+  // `ops` sau cùng (TK 29 đợt 7): gọi cổng hạn lưu của mọi module, không ai gọi ngược lại; nhận việc dọn outbox.
+  const ops = createOpsModule({
+    repository: repositories.ops,
+    prisma,
+    listings: listing.service,
+    media: media.service,
+    groups: group.service,
+    identity: identity.service,
+    messaging: messaging.service,
+    notification: notification.service,
+    screening: screeningModule.service,
+    trust: trustModule.service,
+    review: review.service,
+    jobs: deps.jobs,
+    config: deps.config,
+    clock: deps.clock,
+  });
   const moduleList: readonly AppModule[] = [
     media.module,
     identity.module,
@@ -499,7 +524,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     review.module,
     messaging.module,
     notification.module,
-    createOutboxModule(prisma),
+    ops.module,
   ];
   const outbox = createOutboxDispatcher(prisma);
   for (const appModule of moduleList) appModule.listeners?.(outbox);
@@ -587,6 +612,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     screening: screeningModule.service,
     review: review.service,
     messaging: messaging.service,
+    ops: ops.service,
   });
   app.decorate('moduleList', moduleList);
 

@@ -286,6 +286,17 @@ export interface IdentityService extends ActorResolver {
   unlockAccount(actor: Actor, accountId: string): Promise<void>;
   deleteMyAccount(actor: Actor): Promise<void>;
   requestDeletion(input: { email: string; password: string }): Promise<void>;
+  // ── HẠN LƯU (add-data-retention) — `ops` gọi ──
+  /** Tài khoản đã xoá trước `deletedBefore` chưa được dọn, theo trang con trỏ `id`. */
+  purgeDue(deletedBefore: Date, after: string | null, limit: number): Promise<string[]>;
+  /**
+   * Xoá hẳn hồ sơ: ẩn danh hoá (như khi hết thời gian chờ), xoá hồ sơ giấy tờ, ghi đã dọn. Tin và ảnh của người đó do
+   * `ops` đi qua `listing`, `media` trước; dòng tài khoản giữ cho lịch sử chống gian lận.
+   */
+  purgeDeletedAccount(accountId: string): Promise<void>;
+  purgeDeviceData(before: Date): Promise<{ posts: number; flags: number; sessionIps: number }>;
+  /** Mã giả thay mã tài khoản khi ẩn danh hoá gậy: HMAC khoá ngoài DB, dạng UUID — cùng người cùng mã, không dò ngược. */
+  pseudonymOf(accountId: string): string;
 
   /**
    * Dấu băm của mã máy app gửi (`x-device-id`) — HMAC thuần, không chạm DB. `listing` ghi dấu này vào sự kiện gửi tin
