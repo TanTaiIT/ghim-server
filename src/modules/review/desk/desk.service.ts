@@ -7,6 +7,7 @@ import type { Route } from '../calc/route.calc.js';
 import { REPORT_REASONS } from '../calc/task.calc.js';
 import type { StrikeDetailDto } from '../../trust/strike/strike.schema.js';
 import { toRelated } from '../report/report.service.js';
+import type { ReportWithEntries } from '../report/report.repository.js';
 import type { ReviewTask } from '../review.repository.js';
 import type { ClaimResultDto, QueueQuery, TaskDetailDto, TaskItemDto } from '../review.schema.js';
 import {
@@ -68,6 +69,7 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
     identity,
     trust,
     media,
+    messaging,
     groups,
     config,
     clock,
@@ -168,6 +170,14 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
     return new Map(found.flatMap((strike) => (strike ? [[strike.id, strike] as const] : [])));
   };
 
+  /** Bản ghi hội thoại mà lượt báo của báo cáo đang mở trỏ tới — chỉ tới khi báo cáo đóng (spec review/reports). */
+  const transcriptsOf = async (related: ReportWithEntries[]) => {
+    const ids = related
+      .filter((report) => report.status === 'open')
+      .flatMap((report) => report.entries.flatMap((entry) => entry.conversationId ?? []));
+    return [...(await messaging.transcripts([...new Set(ids)])).values()];
+  };
+
   const nameMap = async (ids: string[]): Promise<Map<string, string | null>> => {
     const summaries = await identity.accountSummaries([...new Set(ids)]);
     return new Map([...summaries].map(([id, summary]) => [id, summary.displayName]));
@@ -209,6 +219,7 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
       })),
       escalation: null,
       reports: related.map(toRelated),
+      conversations: await transcriptsOf(related),
       strike: null,
     };
   };
@@ -256,6 +267,7 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
       })),
       escalation: null,
       reports: related.map(toRelated),
+      conversations: await transcriptsOf(related),
       strike,
     };
   };
@@ -367,6 +379,7 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
             ? { by: task.escalatedBy, note: task.escalationNote }
             : null,
         reports: related.map(toRelated),
+        conversations: await transcriptsOf(related),
         strike: null,
       };
     },

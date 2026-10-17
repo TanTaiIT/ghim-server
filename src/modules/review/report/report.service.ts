@@ -50,6 +50,8 @@ export interface ReviewReportService {
     actor: Actor,
     body: ReportBody,
     deviceId: string | null,
+    /** Báo cáo từ hội thoại (add-messaging): `messaging` đã kiểm tư cách; lượt báo mang mã hội thoại làm bằng chứng. */
+    evidence?: { conversationId: string },
   ): Promise<{ created: boolean; report: MyReportDto }>;
   myReports(actor: Actor, query: PaginationQuery): Promise<Page<MyReportDto>>;
   /** Cổng `OpenWork.reportHidden` cho `listing`: tin có báo cáo mở đã tự ẩn. */
@@ -94,7 +96,11 @@ export const toRelated = (report: ReportWithEntries): RelatedReportDto => ({
   reporterCount: report.entries.length,
   entries: report.entries
     .toSorted((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
-    .map((entry) => ({ category: entry.category, reportedAt: entry.createdAt.toISOString() })),
+    .map((entry) => ({
+      category: entry.category,
+      reportedAt: entry.createdAt.toISOString(),
+      conversationId: entry.conversationId,
+    })),
   createdAt: report.createdAt.toISOString(),
   decidedAt: report.decidedAt?.toISOString() ?? null,
 });
@@ -171,6 +177,7 @@ export function createReportService(
       counts: boolean;
       normal: boolean;
       hideable: boolean;
+      conversationId: string | null;
     },
     attempt = 1,
   ): Promise<{ created: boolean; report: Report; entry: ReportEntry }> => {
@@ -216,6 +223,7 @@ export function createReportService(
           category,
           deviceHash: input.deviceHash,
           countsForHide: input.counts,
+          conversationId: input.conversationId,
           createdAt: now,
         });
         if (subject.kind === 'listing' && input.hideable && !report.autoHiddenAt) {
@@ -239,7 +247,7 @@ export function createReportService(
   };
 
   return {
-    async submitReport(actor, body, deviceId) {
+    async submitReport(actor, body, deviceId, evidence) {
       const score = await assertCanReport(actor);
       const { subject, ownerId, hideable } = await resolve(actor, body);
       if (ownerId === actor.accountId) {
@@ -259,6 +267,7 @@ export function createReportService(
         counts: countsForHide({ deviceHash, tier, score }, rules),
         normal: normalScore(score, rules),
         hideable,
+        conversationId: evidence?.conversationId ?? null,
       });
       return { created, report: toMine(report, entry) };
     },

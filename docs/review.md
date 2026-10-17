@@ -51,6 +51,10 @@ Master xử được mọi việc. Việc ngoài phạm vi trả `404 NOT_FOUND`
 | `GET /stats/reviewers`                                   | Master: tỉ lệ bị lật theo người duyệt                                                                                                                                                                                                                                                                                                                          |
 | `GET /stats/rules`                                       | Master: tỉ lệ máy quá tay theo luật, số lượt "máy quá tay"                                                                                                                                                                                                                                                                                                     |
 
+Báo cáo gửi **từ hội thoại** (add-messaging) là báo cáo về người; chi tiết việc có thêm `conversations[]` — bản ghi hội thoại mà
+lượt báo của báo cáo đang mở trỏ tới (tin, hai bên, tin nhắn theo thứ tự gửi, `flagged` = trúng cụm mơ hồ), đọc được kể cả khi hai
+bên đã xoá phía mình; `reports[].entries[].conversationId` trỏ tới bản ghi. Luật nhắn tin ở `docs/messaging.md`.
+
 ## App — `/api/v1/groups/{groupId}/review` (điều hành viên, chủ nhóm)
 
 `GET /tasks`, `GET /tasks/{taskId}`, `POST /tasks/{taskId}/claim`, `POST /tasks/{taskId}/decision` như trên nhưng chỉ

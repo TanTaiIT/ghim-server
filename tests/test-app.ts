@@ -13,6 +13,7 @@ import { createTrustRepository } from '../src/modules/trust/trust.repository.js'
 import { createScreeningRepository } from '../src/modules/screening/screening.repository.js';
 import { createReviewRepository } from '../src/modules/review/review.repository.js';
 import { createMediaRepository } from '../src/modules/media/media.repository.js';
+import { createMessagingRepository } from '../src/modules/messaging/messaging.repository.js';
 import { createPlatformRepository } from '../src/modules/platform/platform.repository.js';
 import { createReportRepository } from '../src/modules/review/report/report.repository.js';
 import { createFakeJobs } from './fakes/jobs.fake.js';
@@ -32,6 +33,7 @@ export const repositories = {
   screening: createScreeningRepository(prisma),
   review: createReviewRepository(prisma),
   report: createReportRepository(prisma),
+  messaging: createMessagingRepository(prisma),
 };
 
 /** Một dòng nhật ký hợp lệ cho chỗ repository đòi `audit` mà test không kiểm; `actorId` là UUID vì cột là uuid. */

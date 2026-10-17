@@ -3,6 +3,7 @@ import type { GroupService } from '../group/group.service.js';
 import type { IdentityService } from '../identity/identity.service.js';
 import type { ListingService } from '../listing/listing.service.js';
 import type { MediaService } from '../media/media.service.js';
+import type { MessagingService } from '../messaging/messaging.service.js';
 import type { PlatformService } from '../platform/platform.service.js';
 import type { ScreeningService } from '../screening/screening.service.js';
 import type { TrustService } from '../trust/trust.service.js';
@@ -52,4 +53,6 @@ export type ReviewPlatformPort = Pick<
   'activeStaffByCategory' | 'activeStaffWithScope'
 >;
 export type ReviewCategoryPort = Pick<CategoryService, 'settingsOf'>;
+/** Bản ghi hội thoại cho người xử báo cáo gửi từ hội thoại (add-messaging) — nối muộn, `messaging` dựng sau. */
+export type ReviewMessagingPort = Pick<MessagingService, 'transcripts'>;
 export type ReviewMediaPort = Pick<MediaService, 'ownersOf'>;

@@ -85,9 +85,14 @@ import {
 } from './modules/trust/strike/strike.repository.js';
 import { createTrustRepository, type TrustRepository } from './modules/trust/trust.repository.js';
 import type { TrustService } from './modules/trust/trust.service.js';
-import { noBuyerInterest } from './modules/trust/trust.shared.js';
 import { createMediaRepository, type MediaRepository } from './modules/media/media.repository.js';
 import type { MediaService } from './modules/media/media.service.js';
+import { createMessagingModule } from './modules/messaging/messaging.module.js';
+import {
+  createMessagingRepository,
+  type MessagingRepository,
+} from './modules/messaging/messaging.repository.js';
+import type { MessagingService } from './modules/messaging/messaging.service.js';
 import { createNotificationModule } from './modules/notification/notification.module.js';
 import { createNotificationRepository } from './modules/notification/notification.repository.js';
 import type { NotificationService } from './modules/notification/notification.service.js';
@@ -123,6 +128,7 @@ export interface AppServices {
   trust: TrustService;
   screening: ScreeningService;
   review: ReviewService;
+  messaging: MessagingService;
 }
 
 export interface Repositories {
@@ -137,6 +143,7 @@ export interface Repositories {
   screening: ScreeningRepository;
   review: ReviewRepository;
   report: ReportRepository;
+  messaging: MessagingRepository;
 }
 
 declare module 'fastify' {
@@ -229,6 +236,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     screening: overrides.repositories?.screening ?? createScreeningRepository(prisma),
     review: overrides.repositories?.review ?? createReviewRepository(prisma),
     report: overrides.repositories?.report ?? createReportRepository(prisma),
+    messaging: overrides.repositories?.messaging ?? createMessagingRepository(prisma),
   };
   const { config, versioned } = await resolveConfig(overrides.config, repositories.platform);
   const deps: AppDeps = {
@@ -276,6 +284,10 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
   const screening: ListingScreeningPort = overrides.screening ?? lateScreening;
   // `review` dựng sau mọi module nó hỏi; `listing` hỏi ngược "tin có việc đang mở không" lúc đổi nơi đăng — nối muộn.
   let reviewService: ReviewService | null = null;
+  // `messaging` dựng sau `review` và `trust` (hỏi cả hai), mà `trust` hỏi "có người nhắn hỏi mua" và `review` lấy bản
+  // ghi hội thoại cho người xử: hai chiều nối muộn (design add-messaging mục 8, 9).
+  let messagingService: MessagingService | null = null;
+  const lateMessaging = (): MessagingService => messagingService ?? notBuilt('messaging');
   // Cổng realtime cần HTTP server của Fastify, mà module dựng trước Fastify: module cầm một tay nối, cổng thật gắn
   // vào ngay sau khi Fastify có server (dưới đây).
   let gateway: Realtime | null = null;
@@ -375,7 +387,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     privileges: deps.privilegeSource,
     listings: listing.service,
     identity: identity.service,
-    buyerInterest: noBuyerInterest,
+    buyerInterest: { hasInquiry: (listingId) => lateMessaging().hasInquiry(listingId) },
     holds: {
       explain: (ids) => screeningService?.explainHolds(ids) ?? notBuilt('screening'),
       cooldownOf: (accountId) => screeningService?.cooldownOf(accountId) ?? notBuilt('screening'),
@@ -423,12 +435,25 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     platform: platform.service,
     categories: category.service,
     media: media.service,
+    messaging: { transcripts: (ids) => lateMessaging().transcripts(ids) },
     privileges: deps.privilegeSource,
     jobs: deps.jobs,
     config: deps.config,
     clock: deps.clock,
   });
   reviewService = review.service;
+  const messaging = createMessagingModule({
+    repository: repositories.messaging,
+    identity: identity.service,
+    listings: listing.service,
+    trust: { tierOf: (accountId) => trust.tierOf(accountId) },
+    screening: screeningModule.service,
+    review: review.service,
+    realtime,
+    config: deps.config,
+    clock: deps.clock,
+  });
+  messagingService = messaging.service;
   const notification = createNotificationModule({
     repository: createNotificationRepository(prisma),
     groups: {
@@ -460,6 +485,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     trustModule.module,
     screeningModule.module,
     review.module,
+    messaging.module,
     notification.module,
     createOutboxModule(prisma),
   ];
@@ -548,6 +574,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     trust: trustModule.service,
     screening: screeningModule.service,
     review: review.service,
+    messaging: messaging.service,
   });
   app.decorate('moduleList', moduleList);
 
