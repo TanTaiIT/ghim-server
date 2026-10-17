@@ -1111,6 +1111,8 @@ enum ListingSubmissionKind {
 ///   listings_shown_check:            shown_ms >= 0
 ///   listings_renewal_check:          renewal IS NULL OR state IN ('draft', 'checking', 'pending')
 ///   listings_fault_check:            fault IS NULL OR state IN ('rejected', 'removed')
+/// CHECK tay (migration prepare_promotions):
+///   listings_rank_check:             (rank_at IS NULL) = (first_live_at IS NULL) — vị trí đi cùng mốc lên bảng tới khi có gói đẩy tin
 model Listing {
   id                 String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
   ownerId            String               @map("owner_id") @db.Uuid
@@ -1143,6 +1145,11 @@ model Listing {
   restrictions       ListingRestriction[] @default([])
   /// Vị trí trên bảng tin: không đổi khi sửa hay gia hạn.
   firstLiveAt        DateTime?            @map("first_live_at") @db.Timestamptz(3)
+  /// Vị trí xếp hạng trên bảng tin (TK 30 `rankAt`, change prepare-promotions): = `first_live_at` lúc lên bảng lần đầu, tin
+  /// trùng của chính mình kế thừa tin cũ; chỉ gói đẩy tin (TK 29, hoãn) mới đổi. Bốn index bảng tin xếp theo cột này.
+  rankAt             DateTime?            @map("rank_at") @db.Timestamptz(3)
+  /// Hạn tin nổi bật (TK 30 `featuredUntil`) — giữ chỗ, luôn null tới khi có gói đẩy tin.
+  featuredUntil      DateTime?            @map("featured_until") @db.Timestamptz(3)
   /// Đồng hồ ngày hiển thị: `expires_at` khi đang chạy, `clock_remaining_ms` khi đang dừng.
   expiresAt          DateTime?            @map("expires_at") @db.Timestamptz(3)
   clockRemainingMs   BigInt?              @map("clock_remaining_ms")
@@ -1183,10 +1190,11 @@ model Listing {
 
   /// Mỗi tin chuyển lên sàn chung một lần (ALREADY_MOVED) — kể cả hai lượt song song.
   @@unique([movedFromListingId], where: raw("moved_from_listing_id IS NOT NULL"), map: "listings_moved_from_key")
-  @@index([firstLiveAt(sort: Desc), id(sort: Desc)], where: raw("state = 'live' AND placement = 'marketplace' AND cardinality(hide_reasons) = 0 AND cardinality(restrictions) = 0 AND deleted_at IS NULL"), map: "listings_feed_idx")
-  @@index([categoryId, firstLiveAt(sort: Desc), id(sort: Desc)], where: raw("state = 'live' AND placement = 'marketplace' AND cardinality(hide_reasons) = 0 AND cardinality(restrictions) = 0 AND deleted_at IS NULL"), map: "listings_feed_category_idx")
-  @@index([firstLiveAt(sort: Desc), id(sort: Desc)], where: raw("state = 'live' AND placement = 'marketplace' AND cardinality(hide_reasons) = 0 AND deleted_at IS NULL"), map: "listings_search_idx")
-  @@index([groupId, firstLiveAt(sort: Desc), id(sort: Desc)], where: raw("state = 'live' AND cardinality(hide_reasons) = 0 AND deleted_at IS NULL"), map: "listings_group_feed_idx")
+  @@index([rankAt(sort: Desc), id(sort: Desc)], where: raw("state = 'live' AND placement = 'marketplace' AND cardinality(hide_reasons) = 0 AND cardinality(restrictions) = 0 AND deleted_at IS NULL"), map: "listings_feed_idx")
+  @@index([categoryId, rankAt(sort: Desc), id(sort: Desc)], where: raw("state = 'live' AND placement = 'marketplace' AND cardinality(hide_reasons) = 0 AND cardinality(restrictions) = 0 AND deleted_at IS NULL"), map: "listings_feed_category_idx")
+  @@index([rankAt(sort: Desc), id(sort: Desc)], where: raw("state = 'live' AND placement = 'marketplace' AND cardinality(hide_reasons) = 0 AND deleted_at IS NULL"), map: "listings_search_idx")
+  @@index([groupId, rankAt(sort: Desc), id(sort: Desc)], where: raw("state = 'live' AND cardinality(hide_reasons) = 0 AND deleted_at IS NULL"), map: "listings_group_feed_idx")
+  @@index([featuredUntil], where: raw("featured_until IS NOT NULL"), map: "listings_featured_idx")
   @@index([expiresAt], where: raw("state = 'live' AND expires_at IS NOT NULL"), map: "listings_expiry_idx")
   @@index([groupId], where: raw("deleted_at IS NULL"), map: "listings_group_idx")
   @@index([categoryId], where: raw("deleted_at IS NULL"), map: "listings_category_idx")

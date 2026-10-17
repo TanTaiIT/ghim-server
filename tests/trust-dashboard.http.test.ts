@@ -127,6 +127,7 @@ describe('Hạn mức còn lại', () => {
       liveCap: 20,
       submissionsLeft: 0,
       nextSubmissionAt: new Date(now.getTime() + 10 * MINUTE_MS).toISOString(),
+      fee: { amount: 0, currency: 'xu' },
     });
   });
 });

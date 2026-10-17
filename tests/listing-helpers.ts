@@ -69,7 +69,7 @@ export function liveListing(
   categoryId: string,
   overrides: Partial<Prisma.ListingUncheckedCreateInput> = {},
 ): Prisma.ListingUncheckedCreateInput {
-  return {
+  const merged: Prisma.ListingUncheckedCreateInput = {
     ownerId,
     state: 'live',
     placement: 'marketplace',
@@ -83,6 +83,8 @@ export function liveListing(
     shownSince: TEST_NOW,
     ...overrides,
   };
+  // Vị trí đi cùng mốc lên bảng (CHECK `listings_rank_check`) — ca nào cố ý tách hai cột thì tự ghi `rankAt`.
+  return { rankAt: merged.firstLiveAt ?? null, ...merged };
 }
 
 export const seedListing = (data: Prisma.ListingUncheckedCreateInput): Promise<Listing> =>

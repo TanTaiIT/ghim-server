@@ -5,6 +5,8 @@ export const DAY_MS = 86_400_000;
 /** Các cột đồng hồ của một tin: `expires_at` khi đang chạy, `clock_remaining_ms` khi đang dừng, không bao giờ cả hai. */
 export interface ListingClock {
   firstLiveAt: Date | null;
+  /** Vị trí trên bảng tin — đặt cùng `firstLiveAt`, chỉ gói đẩy tin (hoãn) mới tách hai cột (prepare-promotions). */
+  rankAt: Date | null;
   expiresAt: Date | null;
   clockRemainingMs: bigint | null;
   shownMs: bigint;
@@ -62,6 +64,7 @@ export function nextClock(
   // `version` cũ đè lên giá trị mới.
   const clock: ListingClock = {
     firstLiveAt: before.firstLiveAt,
+    rankAt: before.rankAt,
     expiresAt: before.expiresAt,
     clockRemainingMs: before.clockRemainingMs,
     shownMs: before.shownMs,
@@ -72,6 +75,7 @@ export function nextClock(
 
   if (goesLive && clock.firstLiveAt === null) {
     clock.firstLiveAt = rankAt ?? now;
+    clock.rankAt = rankAt ?? now;
     clock.expiresAt = plus(now, ms(settings.visibleDays));
     clock.clockRemainingMs = null;
   } else if (goesLive && clock.renewal !== null) {

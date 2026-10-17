@@ -254,6 +254,12 @@ dung); tự nghe `message.sent` để báo `message:new` qua realtime và `ident
 muộn: `trust.buyerInterest.hasInquiry` (tin sạch lối "đã bán"), `review.messaging.transcripts` (bản ghi cho người xử). Chỉ
 `messaging` ghi hội thoại, tin nhắn, chặn.
 
+`listing` vị trí trên bảng tin (change `prepare-promotions`): `listings.rank_at` là cột xếp hạng của bốn index bảng tin và
+con trỏ trang, đặt cùng `first_live_at` trong `nextClock` (tin trùng của mình kế thừa qua `rankAsListingId`) — chỉ gói
+`rank_to_top` (`add-promotions`, hoãn) mới tách hai cột; CHECK `listings_rank_check` giữ chúng đi cùng nhau tới đó.
+`featured_until` giữ chỗ, luôn null, DTO trả `featuredUntil`. Phí đăng tin là `listing/calc/fee.calc.ts` (`postingFee`,
+trả 0 Xu — TK 29), `trust` đưa vào `quota.fee` của bảng uy tín qua cổng dữ kiện.
+
 `trust` phần gậy (change `add-strikes`, hướng dẫn ở `docs/strikes.md`): `strike/` ra gậy trong transaction quyết định của
 `review` (`issueStrike(tx)`), khiếu nại, kênh hỗ trợ, ân xá, quyết gậy nghiêm trọng / xem lại; `calc/strike.calc.ts` thuần (hiệu
 lực, điểm, mốc hết tạm khoá). Mọi thay đổi phát `trust.strike.standing` — `listing` (lý do `strike`, `strike_wave`), `identity`
@@ -286,7 +292,8 @@ change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-cate
 này đã archive 10–11/10/2026 · đợt 2
 `add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` (cả hai đã archive 12/10/2026) · đợt 3 `add-screening` (đã archive 13/10/2026) → `add-image-moderation` (khi chọn được dịch vụ kiểm ảnh, tách ra 12/10/2026) · đợt 4 `add-review-queues` (đã archive 15/10/2026) → **sửa lỗi rà soát 15/10/2026 trước mọi tính năng** (`docs/RA-SOAT-15-10-2026.md`; đợt 1 bảo mật = `fix-audit-security`) →
 `add-reports` (đã archive 16/10/2026) · đợt 5 `add-strikes` (đã archive 17/10/2026) · đợt 6 `add-messaging` → `add-notifications` (cả hai đã archive 17/10/2026) · đợt 7
-`add-data-retention` (đã archive 17/10/2026).
+`add-data-retention` (đã archive 17/10/2026) · giữ chỗ gói đẩy tin `prepare-promotions` (đã archive 17/10/2026;
+kế hoạch `docs/KE-HOACH-GOI-DAY-TIN.md`) → `add-wallet` → `add-promotions` → `add-topup` (nằm chờ chủ dự án chốt).
 
 - `add-platform-roles` và `add-categories` cần nhau (quyền staff gắn theo danh mục; danh mục cần staff soạn
   mẫu) nên làm chung một lượt và archive trước `add-groups`; `add-groups` chỉ thêm requirement vào

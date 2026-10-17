@@ -11,6 +11,7 @@ import type {
 import type { CategoryService } from '../category/category.service.js';
 import type { GroupService } from '../group/group.service.js';
 import type { MediaService } from '../media/media.service.js';
+import type { PostingFee } from './calc/fee.calc.js';
 
 /*
  * Hợp đồng của `listing` với module khác (CLAUDE.md luật 12): `trust`, `screening` cài các cổng này, `app.ts` nối vào,
@@ -223,6 +224,8 @@ export interface ListingFactsService {
   }): Promise<{ listingId: string; ownerId: string }[]>;
   /** Tổng thời gian tin đã được thấy tới `now` — lối "đã bán" cần đủ số ngày; `null` khi không có tin này. */
   shownMs(listingId: string, now: Date): Promise<number | null>;
+  /** Phí một lượt đăng tin cho bảng uy tín (TK 29): hiện 0 Xu (prepare-promotions). */
+  postingFee(): PostingFee;
   /** Trạng thái hiện tại của tin (kể cả tin đã xoá mềm) — `trust` đối chiếu cặp mất / có lại tư cách tin sạch. */
   stateOf(listingId: string): Promise<{ state: ListingState; fault: ListingFault | null } | null>;
   /**

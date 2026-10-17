@@ -321,6 +321,10 @@ describe('Dấu hiệu theo dữ kiện của chính người đăng', () => {
     expect(codesOf(again.run)).toEqual(['own_duplicate']);
     expect(again.run.rankAsListingId).toBe(old.id);
     expect(again.listing.firstLiveAt).toBe(old.firstLiveAt);
+    // Vị trí xếp hạng kế thừa như mốc lên bảng (prepare-promotions): không đứng trên tin lên bảng sau tin cũ.
+    expect(
+      (await prisma.listing.findUniqueOrThrow({ where: { id: again.listing.id } })).rankAt,
+    ).toEqual(new Date(old.firstLiveAt ?? 0));
 
     const other = await userAt('T2');
     const gone = (await screened(app, other, fields)).listing;

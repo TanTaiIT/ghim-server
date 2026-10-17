@@ -146,3 +146,14 @@ tức ngày người đó gửi tin lại được.
 - **WHEN** người bán có một gậy nặng hết hạn ở ngày 150 và một gậy thường hết hạn ở ngày 60, mở bảng uy tín ở
   ngày 10
 - **THEN** bảng nêu đang tạm khoá đăng tin tới ngày 60
+
+### Requirement: Phí đăng tin
+
+Bảng uy tín SHALL cho biết phí của một lượt đăng tin cùng chỗ với hạn mức, để app hiện trước khi người đăng soạn tin.
+Phí hiện bằng 0 Xu (TK 29 — phí đăng tin hoãn, app hiện "Miễn phí"); luật phí nằm một chỗ ở `listing`, ngày bật phí không
+đổi hợp đồng này.
+
+#### Scenario: Bảng uy tín khi chưa thu phí
+
+- **WHEN** người đăng mở bảng uy tín của mình
+- **THEN** response có `quota.fee` là `{ amount: 0, currency: "xu" }`

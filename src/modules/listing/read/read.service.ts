@@ -76,7 +76,7 @@ const PENDING_IN_GROUP_LIMIT = 100;
 /** Việc bù lúc khởi động — giai đoạn đầu chỉ vài chục tin; lần khởi động sau bù tiếp phần còn lại. */
 const BACKLOG_LIMIT = 5000;
 
-const liveKey = (row: Listing): CursorKey => ({ at: row.firstLiveAt ?? row.createdAt, id: row.id });
+const liveKey = (row: Listing): CursorKey => ({ at: row.rankAt ?? row.createdAt, id: row.id });
 const updatedKey = (row: Listing): CursorKey => ({ at: row.updatedAt, id: row.id });
 
 const keywordWhere = (q: string | undefined): Prisma.ListingWhereInput =>

@@ -119,29 +119,29 @@ cổng `listing.applyPromotion(tx, { listingId, version, effect, until })` **tro
 - Catalog, cấp Xu tay, hoàn Xu: `appendAudit` cùng transaction. Bàn vận hành: doanh thu Xu theo ngày / gói / danh mục,
   số dư tổng (phải = tổng sổ cái — việc đối chiếu hằng đêm, lệch thì báo master).
 
-## 5. Làm ngay bây giờ — change `prepare-promotions` (nhỏ, không đổi hành vi người dùng thấy)
+## 5. Bước 0 — change `prepare-promotions` (đã archive 17/10/2026, không đổi hành vi người dùng thấy)
 
-Mục tiêu: ngày bật chỉ thêm module, không chuyển đổi dữ liệu, không phát hành lại app vì đổi hợp đồng API.
+Mục tiêu: ngày bật chỉ thêm module, không chuyển đổi dữ liệu, không phát hành lại app vì đổi hợp đồng API. Trạng thái
+từng mục ghi cuối dòng.
 
 1. `listings.rank_at` (backfill = `first_live_at`), ba index bảng tin chuyển sang `rank_at`, con trỏ trang theo `rankAt`;
-   `rankAsListingId` đặt `rank_at` của tin cũ; `first_live_at` giữ nguyên nghĩa cũ. Test bảng tin không đổi kết quả.
-2. `listings.featured_until` (luôn null), DTO tin thêm `featuredUntil: null` — app dựng dải nổi bật từ đầu, hôm nay rỗng.
-3. Hợp đồng phí: `POST /listings/:id/submit` và `GET /me/listings/quota` trả `fee: { amount: 0, currency: 'xu' }`; app hiện
-   "Miễn phí" ngay bây giờ (TK 29). Luật phí thuần một chỗ (`listing/calc/fee.calc.ts`, trả 0) để ngày bật chỉ đổi hàm.
-4. Thêm nhóm thông báo `wallet` vào enum `notification_category` ngay (enum ADD VALUE là migration riêng; thêm sau khi có
-   dữ liệu cũng được nhưng tiện hơn khi làm cùng lượt), chưa có dòng ma trận nào.
-5. TK: đề xuất phần mới "Gói đẩy tin và ví Xu" (nội dung mục 1, 4 ở đây, rút gọn) để chủ TK duyệt — tôi viết bản nháp,
-   không tự sửa TK.
-6. OpenSpec: proposal `add-wallet` và `add-promotions` kèm spec delta và câu hỏi mở — để trong `openspec/changes/` như
-   các change đợt 1–7 từng nằm chờ.
-
-Ước lượng: change nhỏ nửa ngày (mục 1–4), bản nháp TK + hai proposal nửa ngày.
+   `rankAsListingId` đặt `rank_at` của tin cũ; `first_live_at` giữ nguyên nghĩa cũ. Test bảng tin không đổi kết quả. **Xong**
+   (migration `prepare_promotions`, CHECK `listings_rank_check`, bốn index bảng tin + index nổi bật).
+2. `listings.featured_until` (luôn null), DTO tin thêm `featuredUntil: null` — app dựng dải nổi bật từ đầu, hôm nay rỗng. **Xong**.
+3. Hợp đồng phí: bảng uy tín `GET /me/trust` trả `quota.fee: { amount: 0, currency: 'xu' }` (hạn mức và phí cùng chỗ app
+   đọc trước khi soạn tin; lượt gửi sẽ trả dòng sổ cái khi có `add-wallet`); app hiện "Miễn phí" ngay bây giờ (TK 29).
+   Luật phí thuần một chỗ (`listing/calc/fee.calc.ts`, trả 0) để ngày bật chỉ đổi hàm. **Xong**.
+4. Nhóm thông báo `wallet`: **chuyển sang `add-wallet`** — TK 24 đang chốt chín nhóm, thêm giá trị enum là migration riêng
+   rẻ bất cứ lúc nào, và thêm trước thì bảng bật tắt của người dùng hiện một nhóm trống.
+5. TK: bản nháp phần mới "Gói đẩy tin và ví Xu" ở **phụ lục A** dưới đây, chủ TK duyệt rồi mới vào `THIET-KE-HE-THONG.md`.
+6. OpenSpec: proposal `add-wallet` và `add-promotions` kèm spec delta và câu hỏi mở nằm chờ trong `openspec/changes/`
+   (như các change đợt 1–7 từng nằm chờ). **Xong** — `add-topup` viết khi quyết thu tiền.
 
 ## 6. Lộ trình bật
 
 | Bước | Khi nào                          | Gồm                                                                                                                                                                                                                |
 | ---- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 0    | ngay bây giờ                     | mục 5                                                                                                                                                                                                              |
+| 0 ✔  | 17/10/2026                       | mục 5 — `prepare-promotions` đã archive                                                                                                                                                                            |
 | 1    | có người dùng thật, muốn thử gói | `add-wallet` (sổ cái, master cấp Xu, ví trong app), `add-promotions` (catalog, mua gói, hiệu ứng, dải nổi bật, N49–N51) — **không nạp tiền**: Xu do master tặng (`promo_grant`), đủ để đo người dùng có dùng không |
 | 2    | quyết thu tiền                   | `add-topup` (VietQR theo bài học hệ cũ, đối soát, hoàn), điều khoản sử dụng (Xu một chiều), kế toán / hoá đơn                                                                                                      |
 | 3    | (tuỳ)                            | phí đăng tin bằng Xu (`fee > 0`, hoàn khi bị từ chối, N tin miễn phí mỗi tháng) — cùng hạ tầng, chỉ đổi luật phí                                                                                                   |
@@ -169,3 +169,39 @@ Mục tiêu: ngày bật chỉ thêm module, không chuyển đổi dữ liệu,
   song song hai lượt mua cùng tin, cùng ví.
 - Gói đẩy là động cơ cho kẻ lập nhiều tài khoản mua chéo: mức tối thiểu T1 + thời gian chờ + trần mỗi ngày chặn phần lớn;
   phần còn lại là việc của máy duyệt như mọi tin.
+
+## Phụ lục A — bản nháp phần TK "Gói đẩy tin và ví Xu" (chờ chủ TK duyệt)
+
+> Viết theo giọng của `THIET-KE-HE-THONG.md` (vì sao, luật, con số, ví dụ). Mọi con số là đề xuất, chốt theo mục 7.
+
+**Vì sao có.** Tin lên bảng rồi trôi dần theo tin mới (phần 19); người bán muốn tin mình được thấy lâu hơn thì chỉ có cách
+xoá đăng lại — đã bị chặn (phần 14). Gói đẩy tin là đường **có trả phí, có giới hạn** để làm việc đó, thay cho mọi mẹo.
+
+**Ví Xu.** Xu là đơn vị nội bộ, nạp một chiều (nạp vào được, không đổi ngược ra tiền), không có hạn sử dụng. Mỗi tài khoản
+một ví; mọi biến động là một dòng sổ cái không sửa không xoá (sai thì ghi dòng ngược dấu), người dùng tự đọc được. Giai
+đoạn đầu chưa nạp tiền: Xu do master cấp (tặng khai trương, hỗ trợ). Khi thu tiền: nạp qua chuyển khoản VietQR, cộng theo
+số tiền thật nhận được.
+
+**Hai hiệu ứng.** _Đẩy lên đầu_: tin đứng như vừa lên bảng, rồi trôi dần như thường. _Nổi bật_: tin vào dải "Tin nổi bật"
+(tối đa 6 tin, xoay vòng) ở đầu bảng tin sàn chung, danh mục và bảng tin nhóm, trong N ngày. Gói do master soạn: giá Xu,
+thời hạn, thời gian chờ, mức tin cậy tối thiểu, phạm vi.
+
+**Luật mua.** Chỉ tin đang hiển thị **đầy đủ**, không tạm ẩn; người mua không đang tạm khoá đăng tin; từ mức T1 trở lên;
+mỗi tin một lần mỗi 24 giờ cho cùng gói, mỗi người tối đa 3 lượt mỗi ngày. Mua gói không mở tin, không gỡ lý do hạn chế,
+không đổi ngày hết hạn. Tin bị gỡ vì vi phạm: không hoàn; khiếu nại thắng hay ân xá: hoàn phần ngày chưa hưởng.
+
+**Ba luật không đổi.** Không việc nền nào tự mở tin (phần 26); sửa, gia hạn, đăng lại không đổi vị trí (phần 14, 19) — đẩy
+tin là đường duy nhất; từ chối mua phải nói lý do (phần 4).
+
+| Con số                                 | Giá trị khởi đầu    |
+| -------------------------------------- | ------------------- |
+| Dải nổi bật, tối đa                    | 6 tin               |
+| Thời gian chờ giữa hai lần đẩy một tin | 24 giờ              |
+| Mức tối thiểu được mua gói             | T1                  |
+| Số lượt mua mỗi người mỗi ngày         | 3                   |
+| Hoàn Xu khi khiếu nại thắng            | có, phần chưa hưởng |
+
+> **Ví dụ — anh Tuấn ở T2 có tin "Xe đạp cũ" đã hiện 10 ngày.** Anh mua gói "Đẩy lên đầu" 20 Xu: tin đứng đầu bảng tin
+> như vừa đăng, ngày hết hạn vẫn là ngày 30. Mua lại sau 2 giờ: bị từ chối, "được mua lại lúc …". Ngày 12 tin bị gỡ vì vi
+> phạm: không hoàn. Anh khiếu nại thắng ngày 15: tin hiện lại, gói "Nổi bật 7 ngày" mua ngày 11 được hoàn phần 3 ngày chưa
+> hưởng.

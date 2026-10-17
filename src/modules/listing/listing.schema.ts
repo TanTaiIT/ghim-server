@@ -127,6 +127,8 @@ export const listingSchema = z.object({
   /** Huy hiệu nhóm — ẩn khi nhóm đang tạm khoá, mở khoá thì hiện lại (spec group/badges). */
   badge: listingBadgeSchema.nullable(),
   firstLiveAt: iso.nullable(),
+  /** Hạn tin nổi bật — giữ chỗ cho gói đẩy tin (TK 29, 30), luôn null tới khi có gói. */
+  featuredUntil: iso.nullable(),
   expiresAt: iso.nullable(),
   createdAt: iso,
   updatedAt: iso,

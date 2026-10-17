@@ -19,6 +19,7 @@ const day = (n: number) => new Date(DAY_ONE.getTime() + (n - 1) * DAY_MS);
 const SETTINGS = { visibleDays: 30, renewExtendDays: 30 };
 const NEW_DRAFT: ListingClock = {
   firstLiveAt: null,
+  rankAt: null,
   expiresAt: null,
   clockRemainingMs: null,
   shownMs: 0n,

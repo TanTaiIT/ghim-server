@@ -198,13 +198,11 @@ const liveWhere = (ownerId: string): Prisma.ListingWhereInput => ({
 });
 
 const orderBy = (order: ListingOrder): Prisma.ListingOrderByWithRelationInput[] =>
-  order === 'live'
-    ? [{ firstLiveAt: 'desc' }, { id: 'desc' }]
-    : [{ updatedAt: 'desc' }, { id: 'desc' }];
+  order === 'live' ? [{ rankAt: 'desc' }, { id: 'desc' }] : [{ updatedAt: 'desc' }, { id: 'desc' }];
 
 /** Trang sau con trỏ (`at`, `id`) theo đúng thứ tự xếp — không lặp, không sót khi có tin mới chen lên đầu. */
 function afterCursor(order: ListingOrder, cursor: CursorKey): Prisma.ListingWhereInput {
-  const column = order === 'live' ? 'firstLiveAt' : 'updatedAt';
+  const column = order === 'live' ? 'rankAt' : 'updatedAt';
   return {
     OR: [{ [column]: { lt: cursor.at } }, { [column]: cursor.at, id: { lt: cursor.id } }],
   };
