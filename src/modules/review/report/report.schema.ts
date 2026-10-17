@@ -43,7 +43,10 @@ export const relatedReportSchema = z.object({
   severe: z.boolean(),
   autoHidden: z.boolean(),
   reporterCount: z.number().int(),
-  entries: z.array(z.object({ category, reportedAt: z.iso.datetime() })),
+  /** `conversationId`: lượt báo gửi từ hội thoại — bản ghi nằm ở `conversations[]` của chi tiết việc (add-messaging). */
+  entries: z.array(
+    z.object({ category, reportedAt: z.iso.datetime(), conversationId: z.uuid().nullable() }),
+  ),
   createdAt: z.iso.datetime(),
   decidedAt: z.iso.datetime().nullable(),
 });

@@ -49,7 +49,9 @@ Phần hoãn cuối của rà soát — thông báo nhóm theo trạng thái hi�
 `fix-stale-group-notices` (16/10/2026). `add-reports` xong cùng ngày (người dùng giao tech lead chốt 14 câu hỏi mở —
 design mục 11; migration `add_reports_enums`, `add_reports` — production cần `pnpm db:deploy:prod`). `add-strikes` xong
 17/10/2026 (tech lead chốt 14 câu hỏi mở — design mục 12; migration `add_strikes_enums`, `add_strikes`,
-`add_strikes_close_cause` — production cần `pnpm db:deploy:prod`; hướng dẫn `docs/strikes.md`). **Làm tiếp:** `add-messaging`.
+`add_strikes_close_cause`; hướng dẫn `docs/strikes.md`; CI xanh qua PR #7, merge `main` `15493d2`). `add-messaging` xong cùng ngày (tech lead
+chốt 11 câu hỏi mở — design mục 10; migration `add_messaging`; hướng dẫn `docs/messaging.md`). Production cần `pnpm db:deploy:prod`
+cho 9 migration từ `group_invitations_blind` tới `add_messaging`. **Làm tiếp:** `add-notifications`.
 
 ## 1. Đang chờ quyết hoặc chờ duyệt
 
@@ -70,13 +72,13 @@ Nguồn: CLAUDE.md mục **Thứ tự change**, `openspec/changes/`. Mỗi chang
 mở** trong proposal trước khi `/opsx:apply`. Cột ghi chú kể cả phần `add-review-queues` cố ý để lại cho change sau
 (proposal của nó, mục "Không làm").
 
-| Đợt | Change                 | Điều kiện / ghi chú                                                                                                                                                        |
-| --- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 3   | `add-image-moderation` | Chờ chọn dịch vụ kiểm ảnh (mục 1) và rà soát pháp lý nếu gửi ảnh ra ngoài (TK 29 còn mở số 3)                                                                              |
-| 4 ✔ | `add-reports`          | Archive 16/10/2026. Còn để cho change sau: báo cáo đúng kèm gậy (`add-strikes`), báo cáo từ hội thoại (`add-messaging`), giữ bằng chứng quá hạn lưu (`add-data-retention`) |
-| 5 ✔ | `add-strikes`          | Archive 17/10/2026. Còn để cho change sau: thông báo khi nhận gậy / có kết quả khiếu nại (`add-notifications`), hạn lưu hồ sơ gậy (`add-data-retention`)                   |
-| 6   | `add-messaging`        | Rồi `add-notifications`: đẩy lên điện thoại khi app sẵn sàng. Báo người đăng kết quả duyệt tin đã làm ở `notify-listing-decisions` (archive 16/10/2026)                    |
-| 7   | `add-data-retention`   | Xoá hẳn tin và ảnh theo hạn lưu (TK 25). Tới lúc đó tin xoá mềm vẫn giữ ảnh trong kho                                                                                      |
+| Đợt | Change                 | Điều kiện / ghi chú                                                                                                                                                                           |
+| --- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3   | `add-image-moderation` | Chờ chọn dịch vụ kiểm ảnh (mục 1) và rà soát pháp lý nếu gửi ảnh ra ngoài (TK 29 còn mở số 3)                                                                                                 |
+| 4 ✔ | `add-reports`          | Archive 16/10/2026. Còn để cho change sau: báo cáo đúng kèm gậy (`add-strikes`), báo cáo từ hội thoại (`add-messaging`), giữ bằng chứng quá hạn lưu (`add-data-retention`)                    |
+| 5 ✔ | `add-strikes`          | Archive 17/10/2026. Còn để cho change sau: thông báo khi nhận gậy / có kết quả khiếu nại (`add-notifications`), hạn lưu hồ sơ gậy (`add-data-retention`)                                      |
+| 6 ✔ | `add-messaging`        | Archive 17/10/2026. Còn để cho change sau: báo tin nhắn mới (hộp thư, đẩy điện thoại, không đẩy hội thoại đang mở) → `add-notifications`; xoá hẳn và tạm giữ hội thoại → `add-data-retention` |
+| 7   | `add-data-retention`   | Xoá hẳn tin và ảnh theo hạn lưu (TK 25). Tới lúc đó tin xoá mềm vẫn giữ ảnh trong kho                                                                                                         |
 
 ## 3. Chuyển kho ảnh Cloudinary → Cloudflare R2
 

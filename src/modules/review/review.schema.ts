@@ -73,6 +73,26 @@ export const taskItemSchema = z.object({
 });
 
 /**
+ * Bản ghi hội thoại đi kèm lượt báo (add-messaging): người xử đọc tới khi báo cáo đóng, không phụ thuộc hai bên đã
+ * xoá phía mình. `flagged` = tin nhắn trúng cụm mơ hồ đang bật.
+ */
+export const conversationTranscriptSchema = z.object({
+  id: z.uuid(),
+  listingId: z.uuid(),
+  buyerId: z.uuid(),
+  sellerId: z.uuid(),
+  messages: z.array(
+    z.object({
+      id: z.uuid(),
+      senderId: z.uuid(),
+      body: z.string(),
+      flagged: z.boolean(),
+      createdAt: iso,
+    }),
+  ),
+});
+
+/**
  * Bối cảnh người xử thấy (TK 17, spec review/task-handling): tin, điểm và luật máy đã trúng, tin sạch của người bán,
  * ảnh trùng ở tài khoản khác, tài khoản dùng chung thiết bị — không bao giờ có mã thiết bị.
  */
@@ -116,6 +136,8 @@ export const taskDetailSchema = taskItemSchema.extend({
   reports: z.array(relatedReportSchema),
   /** Việc về gậy: hồ sơ gậy — điều trích, lời khiếu nại, nhận xét của staff (add-strikes); việc khác thì `null`. */
   strike: strikeDetailSchema.nullable(),
+  /** Hội thoại mà lượt báo của báo cáo đang mở trỏ tới (add-messaging). */
+  conversations: z.array(conversationTranscriptSchema),
 });
 
 export const claimResultSchema = z.object({
@@ -129,6 +151,7 @@ export type QueueQuery = z.infer<typeof queueQuerySchema>;
 export type TaskItemDto = z.infer<typeof taskItemSchema>;
 export type TaskDetailDto = z.infer<typeof taskDetailSchema>;
 export type ClaimResultDto = z.infer<typeof claimResultSchema>;
+export type ConversationTranscriptDto = z.infer<typeof conversationTranscriptSchema>;
 
 // ── QUYẾT ĐỊNH ───────────────────────────────────────────────────────────────────────────────────
 

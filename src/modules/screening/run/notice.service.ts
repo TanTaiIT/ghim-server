@@ -13,6 +13,11 @@ export interface ScreeningNoticeService {
   cooldownOf(accountId: string): Promise<Date | null>;
   /** Cổng `NameScreen` của `identity`: tên trúng cụm mức chắc đang bật — cụm mơ hồ không tác dụng với tên (câu 12). */
   hiddenNames(names: string[]): Promise<Set<string>>;
+  /**
+   * Cổng cho `messaging` (add-messaging): cùng bộ so của tin đăng. `blocked` = trúng cụm mức chắc đang bật; `flagged` =
+   * trúng cụm mơ hồ đang bật; cụm chạy thử không đổi gì (spec banned-phrases).
+   */
+  phraseVerdict(text: string): Promise<{ blocked: boolean; flagged: boolean }>;
 }
 
 /** Điều `screening` cho module khác hiện ra (design mục 8, 9): câu báo, thời gian chờ, tên bị lọc. */
@@ -58,6 +63,15 @@ export function createNoticeService(shared: ScreeningShared): ScreeningNoticeSer
     },
 
     cooldownOf: (accountId) => repository.activeCooldown(accountId, clock()),
+
+    async phraseVerdict(text) {
+      const { matcher } = await shared.rules.current();
+      const live = matcher.match(text).filter((hit) => hit.mode === 'on');
+      return {
+        blocked: live.some((hit) => hit.level === 'certain'),
+        flagged: live.some((hit) => hit.level === 'ambiguous'),
+      };
+    },
 
     async hiddenNames(names) {
       const { matcher } = await shared.rules.current();

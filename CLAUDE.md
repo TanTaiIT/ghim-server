@@ -237,6 +237,14 @@ câu cần tiêu đề hay người đăng của tin thì hỏi `listing` qua c�
 `screening` nghe `media.images.deleted` (`{ imageIds }`, phát cùng transaction với ba lượt xoá dòng ảnh của `media`) để
 bỏ dấu ảnh — ảnh đã xoá hẳn không còn là ứng viên trùng (change `fix-audit-trust-media-low`).
 
+`messaging` (change `add-messaging`, hướng dẫn cho app ở `docs/messaging.md`): hội thoại gắn với một tin (một tin + một người mua =
+một hội thoại; cột "phía tôi" theo vai mua / bán, `sideOf`), tin nhắn, chặn người, báo cáo từ hội thoại qua cổng `review.submitReport`
+kèm `conversationId` trên lượt báo; hạn mức hội thoại mới mỗi ngày theo mức (`quota.newConversationsPerDay*`, ngày lịch giờ Việt
+Nam); tin nhắn qua `screening.phraseVerdict`. Phát `messaging.conversation.opened`, `messaging.message.sent` (không mang nội
+dung); tự nghe `message.sent` để báo `message:new` qua realtime và `identity.account.deleted` để ẩn phía người xoá. Cổng ngược nối
+muộn: `trust.buyerInterest.hasInquiry` (tin sạch lối "đã bán"), `review.messaging.transcripts` (bản ghi cho người xử). Chỉ
+`messaging` ghi hội thoại, tin nhắn, chặn.
+
 `trust` phần gậy (change `add-strikes`, hướng dẫn ở `docs/strikes.md`): `strike/` ra gậy trong transaction quyết định của
 `review` (`issueStrike(tx)`), khiếu nại, kênh hỗ trợ, ân xá, quyết gậy nghiêm trọng / xem lại; `calc/strike.calc.ts` thuần (hiệu
 lực, điểm, mốc hết tạm khoá). Mọi thay đổi phát `trust.strike.standing` — `listing` (lý do `strike`, `strike_wave`), `identity`
@@ -268,7 +276,7 @@ change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-cate
 `harden-production-runtime` → `add-groups` → `add-notification-core` (kéo từ đợt 6, chốt 11/10/2026) — mười change
 này đã archive 10–11/10/2026 · đợt 2
 `add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` (cả hai đã archive 12/10/2026) · đợt 3 `add-screening` (đã archive 13/10/2026) → `add-image-moderation` (khi chọn được dịch vụ kiểm ảnh, tách ra 12/10/2026) · đợt 4 `add-review-queues` (đã archive 15/10/2026) → **sửa lỗi rà soát 15/10/2026 trước mọi tính năng** (`docs/RA-SOAT-15-10-2026.md`; đợt 1 bảo mật = `fix-audit-security`) →
-`add-reports` (đã archive 16/10/2026) · đợt 5 `add-strikes` (đã archive 17/10/2026) · đợt 6 `add-messaging` → `add-notifications` · đợt 7
+`add-reports` (đã archive 16/10/2026) · đợt 5 `add-strikes` (đã archive 17/10/2026) · đợt 6 `add-messaging` (đã archive 17/10/2026) → `add-notifications` · đợt 7
 `add-data-retention`.
 
 - `add-platform-roles` và `add-categories` cần nhau (quyền staff gắn theo danh mục; danh mục cần staff soạn
@@ -332,7 +340,7 @@ Mỗi luật dưới đây là một cam kết ở TK phần 27; số trong ngo�
     chịu được nhận trùng **và xử lại sự kiện cũ sau sự kiện mới**: bộ phát chạy lại mọi bên nghe của một sự kiện khi một
     bên ném, và nhiều tiến trình phát song song. Bên nghe của một cặp (khoá / mở, cấm / gỡ cấm, rời / vào, tắt / bật)
     coi sự kiện là tín hiệu "có đổi" và lấy chiều từ trạng thái hiện tại — ở `listing` đọc trong lô sau khi khoá dòng
-    (`applyBatch` `prepare`), ở module khác chặn đầu bên nghe (change `fix-audit-listeners`). Gọi đồng bộ chỉ bốn chỗ (TK 30): `listing` hỏi `trust` hạn chế/hạn mức, `listing`
+    (`applyBatch` `prepare`), ở module khác chặn đầu bên nghe (change `fix-audit-listeners`). Gọi đồng bộ chỉ sáu chỗ (TK 30; hai chỗ sau thêm ở add-messaging: `messaging` hỏi `trust` mức để tính hạn mức hội thoại mới và hỏi `screening` bộ lọc cụm lúc gửi tin nhắn — chỉ đọc, không ghi chéo): `listing` hỏi `trust` hạn chế/hạn mức, `listing`
     gọi `screening` chấm chữ lúc gửi, mọi module hỏi `identity` "người này là ai", và chủ ảnh (`identity`,
     `listing`) gọi `media` xác nhận ảnh: `resolve` trước transaction lưu, `attach(tx)` trong transaction lưu — lưu hỏng
     thì ảnh vẫn "chưa xác nhận". Bảng `outbox_events`

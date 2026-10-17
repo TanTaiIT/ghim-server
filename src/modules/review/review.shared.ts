@@ -15,6 +15,7 @@ import type {
   ReviewIdentityPort,
   ReviewListingPort,
   ReviewMediaPort,
+  ReviewMessagingPort,
   ReviewPlatformPort,
   ReviewScreeningPort,
   ReviewTrustPort,
@@ -34,6 +35,7 @@ export interface ReviewServiceDeps {
   platform: ReviewPlatformPort;
   categories: ReviewCategoryPort;
   media: ReviewMediaPort;
+  messaging: ReviewMessagingPort;
   /** Quyền staff của người đang hỏi — đọc lại mỗi lượt, không tin vai trong token (quyền bị treo có hiệu lực ngay). */
   privileges: PrivilegeSource;
   jobs: Jobs;

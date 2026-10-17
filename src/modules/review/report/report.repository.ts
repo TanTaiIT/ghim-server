@@ -53,6 +53,7 @@ export interface ReportRepository {
       category: ReportCategory;
       deviceHash: string | null;
       countsForHide: boolean;
+      conversationId: string | null;
       createdAt: Date;
     },
   ): Promise<ReportEntry>;
