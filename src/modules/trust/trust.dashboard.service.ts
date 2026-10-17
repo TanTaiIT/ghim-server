@@ -1,8 +1,16 @@
 import type { Actor } from '../../common/auth/actor.js';
 import { quotaDecision } from './calc/quota.calc.js';
+import { standingOf } from './calc/strike.calc.js';
 import { ageDays, nextStep } from './calc/tier.calc.js';
+import type { TrustStrikeService } from './strike/strike.service.js';
 import type { TrustDashboardDto } from './trust.schema.js';
-import { HOUR_MS, quotaSettings, tierSettings, type TrustServiceDeps } from './trust.shared.js';
+import {
+  HOUR_MS,
+  quotaSettings,
+  strikeRules,
+  tierSettings,
+  type TrustServiceDeps,
+} from './trust.shared.js';
 
 export interface TrustDashboardService {
   dashboard(actor: Actor): Promise<TrustDashboardDto>;
@@ -12,8 +20,11 @@ export interface TrustDashboardService {
  * Bảng uy tín (design mục 9): một response, không tính lại mức — mức và số tin sạch là của lần tính gần nhất, để khớp
  * với mức `listing` đang dùng. Câu cho tin chờ duyệt do `screening` cấp, nên không câu nào nêu tín hiệu gian lận.
  */
-export function createTrustDashboardService(deps: TrustServiceDeps): TrustDashboardService {
-  const { repository, listings, identity, holds, config, clock } = deps;
+export function createTrustDashboardService(
+  deps: TrustServiceDeps,
+  strikeService: TrustStrikeService,
+): TrustDashboardService {
+  const { repository, strikes, listings, identity, holds, config, clock } = deps;
 
   return {
     async dashboard(actor) {
@@ -39,10 +50,13 @@ export function createTrustDashboardService(deps: TrustServiceDeps): TrustDashbo
         settings,
         now,
       });
-      const [notices, cooldownUntil] = await Promise.all([
+      const [notices, cooldownUntil, strikeRows, strikeDtos] = await Promise.all([
         holds.explain(listingFacts.pending.map((row) => row.id)),
         holds.cooldownOf(actor.accountId),
+        strikes.listOf(actor.accountId),
+        strikeService.strikesOf(actor.accountId),
       ]);
+      const standing = standingOf(strikeRows, now, strikeRules(config));
       return {
         tier,
         countedClean,
@@ -56,6 +70,9 @@ export function createTrustDashboardService(deps: TrustServiceDeps): TrustDashbo
             !rate.ok && rate.code === 'SUBMISSION_RATE_LIMITED' ? rate.retryAt.toISOString() : null,
         },
         cooldownUntil: cooldownUntil?.toISOString() ?? null,
+        strikes: strikeDtos,
+        strikePoints: standing.points,
+        postingLockedUntil: standing.postingLockedUntil?.toISOString() ?? null,
         restricted: listingFacts.restricted.map(({ id, title, restrictions }) => ({
           id,
           title,

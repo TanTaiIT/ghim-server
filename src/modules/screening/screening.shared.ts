@@ -32,6 +32,8 @@ export type ScreeningIdentityPort = Pick<
 export type ScreeningMediaPort = Pick<MediaService, 'readImage'>;
 export interface ScreeningTrustPort {
   tierOf(accountId: string): Promise<TrustTier>;
+  /** Điểm gậy đang hiệu lực — hàng "có gậy" của ma trận (add-strikes). */
+  strikePointsOf(accountId: string): Promise<number>;
 }
 
 /** Băm ảnh sau cổng (design mục 3): `sharp` ở app thật — đổi sang pHash về sau không sửa luật. */
@@ -68,6 +70,8 @@ export type TextResult =
       tier: TrustTier;
       hits: RawHit[];
       alwaysManual: boolean;
+      /** Người bán đang có gậy lúc chấm — hàng "có gậy" của ma trận (add-strikes). */
+      struck: boolean;
       /** Đánh dấu luôn giữ theo thiết bị — chỉ loại, không dấu thiết bị (luật 21). */
       deviceFlags: string[];
       rankAsListingId: string | null;

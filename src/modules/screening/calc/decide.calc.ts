@@ -52,6 +52,8 @@ export function decide(input: {
   deviceFlagged: boolean;
   band: ScreeningBand;
   tier: TrustTier | null;
+  /** Người bán đang có gậy còn hiệu lực: hàng "có gậy" thay hàng của mức (TK 14, 21; add-strikes). */
+  struck: boolean;
   placement: ListingPlacement;
 }): Decision {
   if (input.failure) return hold(input.failure);
@@ -59,6 +61,8 @@ export function decide(input: {
   if (input.alwaysManual) return hold('always_manual');
   if (input.deviceFlagged) return hold('device');
   if (input.band === 'high' || input.tier === null) return hold('score');
+  // Hàng "có gậy" ở mọi nơi đăng: dải Thấp cho qua hạn chế (lý do "gậy" do `listing` đặt), dải Vừa giữ cho người.
+  if (input.struck) return input.band === 'medium' ? hold('score') : pass('pass_limited');
   switch (input.tier) {
     case 'T0':
       if (input.band === 'medium') return hold('score');
@@ -90,6 +94,7 @@ export function conclude(input: {
   alwaysManual: boolean;
   deviceFlagged: boolean;
   tier: TrustTier | null;
+  struck: boolean;
   placement: ListingPlacement;
 }): Verdict {
   const hits = applyRules(input.raw, input.book, input.categoryId);

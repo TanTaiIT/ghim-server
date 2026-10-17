@@ -39,6 +39,12 @@ export interface ReviewRepository {
     write: (tx: Tx, open: ReviewTask | null) => Promise<T>,
     tx?: Tx,
   ): Promise<T>;
+  /** Như `withOpenAccountTask` cho việc về một gậy (add-strikes). */
+  withOpenStrikeTask<T>(
+    strikeId: string,
+    write: (tx: Tx, open: ReviewTask | null) => Promise<T>,
+    tx?: Tx,
+  ): Promise<T>;
   insertTask(tx: Tx, data: Prisma.ReviewTaskUncheckedCreateInput): Promise<ReviewTask>;
   updateTask(tx: Tx, id: string, data: Prisma.ReviewTaskUncheckedUpdateInput): Promise<ReviewTask>;
   closeTask(tx: Tx, id: string, cause: ReviewCloseCause, at: Date): Promise<ReviewTask>;
@@ -121,6 +127,8 @@ export interface ReviewRepository {
   /** Quyết định không đổi gì trên tin (bác việc nhóm chuyển lên) vẫn ghi việc và nhật ký trong một transaction. */
   inTransaction<T>(write: (tx: Tx) => Promise<T>): Promise<T>;
   insertDecision(tx: Tx, data: Prisma.ReviewDecisionUncheckedCreateInput): Promise<ReviewDecision>;
+  /** Gậy quyết định này ra — ghi sau khi `trust` chèn gậy trỏ về quyết định (add-strikes). */
+  linkIssuedStrike(tx: Tx, decisionId: string, strikeId: string): Promise<void>;
   findDecision(id: string): Promise<ReviewDecision | null>;
   /** Lý do mẫu: master thấy cả lý do đã tắt, người xử chỉ thấy lý do đang bật. */
   listTemplates(input: { includeInactive: boolean }): Promise<ReviewReasonTemplate[]>;
@@ -166,40 +174,42 @@ async function inAccountTx<T>(
   return write(tx, open);
 }
 
-export function createReviewRepository(prisma: PrismaClient): ReviewRepository {
-  const withRetry = async <T>(
-    listingId: string,
-    write: (tx: Tx, open: ReviewTask | null) => Promise<T>,
-    lockListing: (tx: Tx) => Promise<void>,
-    attempt = 1,
-  ): Promise<T> => {
-    try {
-      return await prisma.$transaction((tx) => inTx(listingId, write, lockListing, tx));
-    } catch (error) {
-      if (!isUniqueViolation(error) || attempt >= MAX_ATTEMPTS) throw error;
-      return withRetry(listingId, write, lockListing, attempt + 1);
-    }
-  };
+async function inStrikeTx<T>(
+  strikeId: string,
+  write: (tx: Tx, open: ReviewTask | null) => Promise<T>,
+  tx: Tx,
+): Promise<T> {
+  await tx.$queryRaw`SELECT id FROM review_tasks
+    WHERE strike_id = ${strikeId}::uuid AND status = 'open' FOR UPDATE`;
+  const open = await tx.reviewTask.findFirst({ where: { strikeId, status: 'open' } });
+  return write(tx, open);
+}
 
-  const withAccountRetry = async <T>(
-    accountId: string,
-    write: (tx: Tx, open: ReviewTask | null) => Promise<T>,
-    attempt = 1,
-  ): Promise<T> => {
+export function createReviewRepository(prisma: PrismaClient): ReviewRepository {
+  const withRetry = async <T>(run: (tx: Tx) => Promise<T>, attempt = 1): Promise<T> => {
     try {
-      return await prisma.$transaction((tx) => inAccountTx(accountId, write, tx));
+      return await prisma.$transaction(run);
     } catch (error) {
       if (!isUniqueViolation(error) || attempt >= MAX_ATTEMPTS) throw error;
-      return withAccountRetry(accountId, write, attempt + 1);
+      return withRetry(run, attempt + 1);
     }
   };
 
   return {
     withOpenTask: (listingId, write, { lockListing, tx }) =>
-      tx ? inTx(listingId, write, lockListing, tx) : withRetry(listingId, write, lockListing),
+      tx
+        ? inTx(listingId, write, lockListing, tx)
+        : withRetry((locking) => inTx(listingId, write, lockListing, locking)),
 
     withOpenAccountTask: (accountId, write, tx) =>
-      tx ? inAccountTx(accountId, write, tx) : withAccountRetry(accountId, write),
+      tx
+        ? inAccountTx(accountId, write, tx)
+        : withRetry((locking) => inAccountTx(accountId, write, locking)),
+
+    withOpenStrikeTask: (strikeId, write, tx) =>
+      tx
+        ? inStrikeTx(strikeId, write, tx)
+        : withRetry((locking) => inStrikeTx(strikeId, write, locking)),
 
     insertTask: (tx, data) => tx.reviewTask.create({ data }),
 
@@ -288,6 +298,13 @@ export function createReviewRepository(prisma: PrismaClient): ReviewRepository {
     inTransaction: (write) => prisma.$transaction((tx) => write(tx)),
 
     insertDecision: (tx, data) => tx.reviewDecision.create({ data }),
+
+    async linkIssuedStrike(tx, decisionId, strikeId) {
+      await tx.reviewDecision.update({
+        where: { id: decisionId },
+        data: { issuedStrikeId: strikeId },
+      });
+    },
 
     findDecision: (id) => prisma.reviewDecision.findUnique({ where: { id } }),
 

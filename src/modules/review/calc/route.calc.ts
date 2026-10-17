@@ -21,8 +21,11 @@ export interface GroupReviewers {
 }
 
 export interface RouteInput {
-  /** Việc về một người (`account`) không có phạm vi tin: staff việc an toàn rồi master. */
-  subject: 'listing' | 'account';
+  /**
+   * Việc về một người (`account`) không có phạm vi tin: staff việc an toàn rồi master. Việc về gậy (`strike`): staff
+   * danh mục của gậy rồi master — gậy không có danh mục (master ra, từ báo cáo về người) đi thẳng master (add-strikes).
+   */
+  subject: 'listing' | 'account' | 'strike';
   queue: Queue;
   reasons: readonly ReviewReason[];
   placement: ListingPlacement | null;
@@ -86,7 +89,7 @@ export function routeOf(input: RouteInput): Route {
   if (!input.escalated && input.subject === 'account') {
     levels.push(['safety_staff', keep(input.safetyStaff)]);
   }
-  if (!input.escalated && input.subject === 'listing') {
+  if (!input.escalated && input.subject !== 'account') {
     levels.push(['category_staff', keep(input.categoryStaff)]);
   }
 

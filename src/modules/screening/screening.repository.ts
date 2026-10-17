@@ -37,6 +37,8 @@ export interface InitialRule {
   code: string;
   kind: ScreeningRuleKind;
   weight: number;
+  /** Luật đòi bật ngay dù thêm sau phiên bản 1 (add-strikes); mặc định theo lượt chèn. */
+  mode?: ScreeningRuleMode | undefined;
 }
 
 export interface NewRun {
@@ -338,7 +340,14 @@ export function createScreeningRepository(prisma: PrismaClient): ScreeningReposi
         const missing = rules.filter((rule) => !known.has(rule.code));
         if (missing.length === 0) return null;
         const mode: ScreeningRuleMode = (await latestVersion(tx)) === 0 ? 'on' : 'trial';
-        await tx.screeningRule.createMany({ data: missing.map((rule) => ({ ...rule, mode })) });
+        await tx.screeningRule.createMany({
+          data: missing.map((rule) => ({
+            code: rule.code,
+            kind: rule.kind,
+            weight: rule.weight,
+            mode: rule.mode ?? mode,
+          })),
+        });
         return { version: await writeVersion(tx, null, at), added: missing.length };
       }),
 

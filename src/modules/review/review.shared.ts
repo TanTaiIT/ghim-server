@@ -79,6 +79,7 @@ export function createReviewShared(deps: ReviewServiceDeps) {
     groupEscalationHours: config.get('review.groupEscalationHours'),
     sampleDays: config.get('review.sampleDays'),
     reportHours: config.get('review.reportHours'),
+    appealDays: config.get('review.appealDays'),
   });
 
   const reportRules = (): ReportRules => ({
@@ -132,7 +133,7 @@ export function createReviewShared(deps: ReviewServiceDeps) {
     const groups = new Map(reviewers);
     return (task) =>
       routeOf({
-        subject: task.accountId === null ? 'listing' : 'account',
+        subject: subjectOf(task),
         queue: queueOf(task.reasons),
         reasons: task.reasons,
         placement: task.placement,
@@ -184,7 +185,12 @@ export function createReviewShared(deps: ReviewServiceDeps) {
             scopes: new Set(),
           };
     const route = (await routesFor([task]))(task);
-    return { task, viewer, route, allowed: canHandle(route, actor.accountId, viewer.isMaster) };
+    return {
+      task,
+      viewer,
+      route,
+      allowed: mayHandle(task, route, actor.accountId, viewer.isMaster),
+    };
   };
 
   return {
@@ -199,6 +205,25 @@ export function createReviewShared(deps: ReviewServiceDeps) {
     locateTask,
   };
 }
+
+/** Chủ thể của việc — CHECK của bảng bảo đảm đúng một trong ba (add-reports, add-strikes). */
+export const subjectOf = (
+  task: Pick<ReviewTask, 'listingId' | 'accountId' | 'strikeId'>,
+): 'listing' | 'account' | 'strike' =>
+  task.strikeId ? 'strike' : task.accountId ? 'account' : 'listing';
+
+/**
+ * Master xử mọi việc kể cả việc có mình trong danh sách loại trừ (spec review/queues) — trừ việc về gậy: master ra gậy
+ * nghiêm trọng không tự quyết, việc đó mở với người ra gậy trong danh sách loại trừ (spec serious-strikes).
+ */
+export const mayHandle = (
+  task: Pick<ReviewTask, 'strikeId' | 'excludedIds'>,
+  route: Route,
+  accountId: string,
+  isMaster: boolean,
+): boolean =>
+  canHandle(route, accountId, isMaster) &&
+  !(isMaster && task.strikeId !== null && task.excludedIds.includes(accountId));
 
 /** Bàn vận hành (staff, master) hay app của nhóm (điều hành viên, chủ nhóm) — việc ngoài nhóm đang xem là 404. */
 export type Surface = { kind: 'ops' } | { kind: 'group'; groupId: string };

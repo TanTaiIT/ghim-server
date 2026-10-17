@@ -1,18 +1,35 @@
+import type { PrivilegeSource } from '../../common/auth/privilege-source.js';
 import type { RuntimeConfig } from '../../common/config/runtime-config.js';
 import type { ListingFactsService } from '../listing/listing.ports.js';
 import type { QuotaSettings } from './calc/quota.calc.js';
 import type { TierSettings, TrustTier } from './calc/tier.calc.js';
+import type { StrikeRules } from './calc/strike.calc.js';
+import type { StrikeRepository } from './strike/strike.repository.js';
 import type { TrustRepository } from './trust.repository.js';
 
 /** Dữ kiện tin đăng `trust` cần — `listing` trả lời, `trust` không đọc bảng `listings` (design mục 1, luật 12). */
 export type TrustListingPort = Pick<
   ListingFactsService,
-  'quotaFacts' | 'occupying' | 'dashboardFacts' | 'shownCandidates' | 'shownMs' | 'stateOf'
+  | 'quotaFacts'
+  | 'occupying'
+  | 'dashboardFacts'
+  | 'shownCandidates'
+  | 'shownMs'
+  | 'stateOf'
+  | 'compensateLockedDays'
 >;
 
 /** Tuổi tài khoản tính từ lúc tạo (câu 6) — `identity` trả lời; tài khoản đã xoá thì không tính lại. */
 export interface TrustIdentityPort {
-  accountSummaries(ids: string[]): Promise<Map<string, { status: string; createdAt: Date }>>;
+  accountSummaries(
+    ids: string[],
+  ): Promise<Map<string, { status: string; createdAt: Date; displayName: string }>>;
+  /** Gậy đi theo email (TK 21): dấu băm kể cả của tài khoản đã xoá còn trong thời gian giữ. */
+  emailHashIncludingDeleted(accountId: string): Promise<string | null>;
+  accountIdByEmail(email: string): Promise<string | null>;
+  /** Kênh hỗ trợ của gậy nghiêm trọng: mã tới email đã đăng ký; tiêu mã khi nộp khiếu nại. */
+  requestLockedAppealCode(accountId: string): Promise<void>;
+  consumeLockedAppealCode(accountId: string, code: string): Promise<boolean>;
 }
 
 /**
@@ -44,6 +61,9 @@ export interface HoldExplanation {
 
 export interface TrustServiceDeps {
   repository: TrustRepository;
+  strikes: StrikeRepository;
+  /** Quyền staff đang hoạt động — ai ghi nhận xét được vào hồ sơ gậy nghiêm trọng. */
+  privileges: PrivilegeSource;
   listings: TrustListingPort;
   identity: TrustIdentityPort;
   buyerInterest: BuyerInterest;
@@ -67,6 +87,18 @@ export const tierSettings = (config: RuntimeConfig): TierSettings => ({
     T3: config.get('trust.t3MinCleanListings'),
   },
   maxCleanPer7Days: config.get('trust.maxCleanPer7Days'),
+  noStrikeDaysForT3: config.get('trust.t3NoStrikeDays'),
+});
+
+export const strikeRules = (config: RuntimeConfig): StrikeRules => ({
+  normalPoints: config.get('strike.normalPoints'),
+  normalDays: config.get('strike.normalDays'),
+  severePoints: config.get('strike.severePoints'),
+  severeDays: config.get('strike.severeDays'),
+  postingLockFromPoints: config.get('strike.postingLockFromPoints'),
+  appealDays: config.get('strike.appealDays'),
+  seriousAppealDays: config.get('strike.seriousAppealDays'),
+  permanentReviewYears: config.get('strike.permanentReviewYears'),
 });
 
 export const quotaSettings = (config: RuntimeConfig, tier: TrustTier): QuotaSettings => ({

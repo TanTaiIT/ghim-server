@@ -27,6 +27,8 @@ export function createListingFactsService(shared: ListingShared): ListingFactsSe
       return rows.map((row) => ({ listingId: row.id, ownerId: row.ownerId }));
     },
 
+    compensateLockedDays: (tx, { accountId, ms }) => repository.extendLiveExpiry(tx, accountId, ms),
+
     async stateOf(listingId) {
       const row = await repository.findById(listingId);
       return row ? { state: row.state, fault: row.fault } : null;

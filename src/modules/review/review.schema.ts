@@ -2,6 +2,12 @@ import { z } from 'zod';
 
 import { paginationQuerySchema } from '../../common/schemas/pagination.js';
 import { ownListingSchema } from '../listing/listing.schema.js';
+import {
+  SERIOUS_DECISIONS,
+  STRIKE_KINDS,
+  strikeDetailSchema,
+  strikeSchema,
+} from '../trust/strike/strike.schema.js';
 import { relatedReportSchema } from './report/report.schema.js';
 
 /** Tuple của enum `review_reason` — số hàng ở `calc/task.calc.ts`. */
@@ -13,6 +19,9 @@ export const REVIEW_REASONS = [
   'sample_reviewer',
   'report',
   'report_severe',
+  'appeal',
+  'serious_strike',
+  'permanent_review',
 ] as const;
 
 export const ROUTE_LEVELS = [
@@ -45,11 +54,12 @@ const claimStateSchema = z.object({
 
 export const taskItemSchema = z.object({
   id: z.uuid(),
-  /** Việc về một tin hay về một người (báo cáo về người — add-reports). */
-  subjectKind: z.enum(['listing', 'account']),
+  /** Việc về một tin, về một người (báo cáo về người — add-reports), hay về một gậy (add-strikes). */
+  subjectKind: z.enum(['listing', 'account', 'strike']),
   listingId: z.uuid().nullable(),
   accountId: z.uuid().nullable(),
-  /** Tiêu đề tin, hay tên hiển thị của người bị báo. */
+  strikeId: z.uuid().nullable(),
+  /** Tiêu đề tin, hay tên hiển thị của người bị báo / người nhận gậy. */
   title: z.string().nullable(),
   queue: z.number().int(),
   reasons: z.array(z.enum(REVIEW_REASONS)),
@@ -86,6 +96,8 @@ export const taskDetailSchema = taskItemSchema.extend({
     displayName: z.string().nullable(),
     tier: z.enum(['T0', 'T1', 'T2', 'T3']),
     cleanListings: z.number().int(),
+    /** Lịch sử gậy của người bán, kể cả đã huỷ / hết hạn (TK 17, add-strikes). */
+    strikes: z.array(strikeSchema),
   }),
   duplicates: z.array(
     z.object({
@@ -102,6 +114,8 @@ export const taskDetailSchema = taskItemSchema.extend({
   escalation: z.object({ by: z.uuid(), note: z.string() }).nullable(),
   /** Báo cáo về tin và về người (đăng) — kể cả đã đóng, không có ai đã báo (add-reports). */
   reports: z.array(relatedReportSchema),
+  /** Việc về gậy: hồ sơ gậy — điều trích, lời khiếu nại, nhận xét của staff (add-strikes); việc khác thì `null`. */
+  strike: strikeDetailSchema.nullable(),
 });
 
 export const claimResultSchema = z.object({
@@ -138,8 +152,11 @@ const noteRequired = {
 
 export const decisionBodySchema = z
   .object({
-    /** `keep` = không đổi tin — quyết định về báo cáo (add-reports). */
-    outcome: z.enum(['pass', 'mistake', 'detach', 'dismiss', 'keep']),
+    /**
+     * `keep` = không đổi tin — quyết định về báo cáo (add-reports) hay về gậy (add-strikes); `violation` = từ chối / gỡ
+     * vì vi phạm, bắt buộc kèm `strike`.
+     */
+    outcome: z.enum(['pass', 'mistake', 'detach', 'dismiss', 'keep', 'violation']),
     machineJudgment: z.enum(['machine_right', 'machine_overreach']).optional(),
     reasonTemplateId: z.uuid().optional(),
     /**
@@ -154,10 +171,32 @@ export const decisionBodySchema = z
       })
       .strict()
       .optional(),
+    /** Gậy kèm quyết định vi phạm (bắt buộc) hay báo cáo đúng (tuỳ) — staff danh mục, master (add-strikes). */
+    strike: z
+      .object({ kind: z.enum(STRIKE_KINDS), ruleArticleId: z.uuid() })
+      .strict()
+      .optional(),
+    /** Việc về gậy, mỗi tình trạng một nút: khiếu nại gậy thường / nặng; gậy nghiêm trọng; xem lại khoá vĩnh viễn. */
+    appeal: z
+      .object({ verdict: z.enum(['won', 'lost']) })
+      .strict()
+      .optional(),
+    serious: z
+      .object({ decision: z.enum(SERIOUS_DECISIONS) })
+      .strict()
+      .optional(),
+    permanent: z
+      .object({ decision: z.enum(['keep', 'lift']) })
+      .strict()
+      .optional(),
     ...escalation,
   })
   .strict()
-  .refine(hasNoteWhenEscalating, noteRequired);
+  .refine(hasNoteWhenEscalating, noteRequired)
+  .refine((body) => body.outcome !== 'violation' || body.strike !== undefined, {
+    message: 'Quyết định vi phạm thì chọn loại gậy và trích một điều trong quy định sàn',
+    path: ['strike'],
+  });
 
 /** Gỡ khỏi nhóm một tin không có việc mở (design mục 11) — kèm `platformViolation` thì như quyết định `detach`. */
 export const directDetachBodySchema = z
@@ -171,6 +210,8 @@ export const decisionResultSchema = z.object({
   /** `null` với việc về một người. */
   listingState: z.string().nullable(),
   reportVerdict: z.enum(['upheld', 'dismissed']).nullable(),
+  /** Gậy quyết định này ra, hay gậy nó quyết (việc về gậy) — add-strikes. */
+  strikeId: z.uuid().nullable(),
 });
 
 export const listingParamsSchema = z.object({ listingId: z.uuid() });

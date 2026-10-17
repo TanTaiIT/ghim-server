@@ -18,7 +18,9 @@ import {
   clockSettings,
   EDITABLE_STATES,
   invalidTransition,
+  listingDeleteBlocked,
   listingDetached,
+  listingUnderViolation,
   type ListingShared,
   listingNotFound,
   placementLocked,
@@ -290,8 +292,9 @@ export function createListingPostingService(shared: ListingShared): ListingPosti
     }
     if (outcome.badge === 'attach') await assertBadge(listing, after);
     if (!outcome.machine) return applyNow(actor, listing, after, body.version, outcome);
-    if (transition(listing.state, 'edit', 'owner', listing.fault) === null)
-      throw invalidTransition();
+    if (transition(listing.state, 'edit', 'owner', listing.fault) === null) {
+      throw listing.fault === 'violation' ? listingUnderViolation() : invalidTransition();
+    }
     // Đổi sang danh mục khác thì bước 4 của lượt gửi đã từ chối danh mục đang tắt (spec suspension).
     const rewrite = {
       groupChanged: listing.groupId !== after.groupId,
@@ -470,7 +473,14 @@ export function createListingPostingService(shared: ListingShared): ListingPosti
     },
 
     async remove(actor, id) {
-      await ownedBy(actor, id);
+      const listing = await ownedBy(actor, id);
+      // Tin bị từ chối / gỡ vì vi phạm là hồ sơ của gậy (spec listing/deletion, add-strikes).
+      if (
+        listing.fault === 'violation' &&
+        (listing.state === 'rejected' || listing.state === 'removed')
+      ) {
+        throw listingDeleteBlocked();
+      }
       const now = clock();
       const result = await repository.change({
         id,

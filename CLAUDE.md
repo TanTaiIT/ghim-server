@@ -237,6 +237,12 @@ câu cần tiêu đề hay người đăng của tin thì hỏi `listing` qua c�
 `screening` nghe `media.images.deleted` (`{ imageIds }`, phát cùng transaction với ba lượt xoá dòng ảnh của `media`) để
 bỏ dấu ảnh — ảnh đã xoá hẳn không còn là ứng viên trùng (change `fix-audit-trust-media-low`).
 
+`trust` phần gậy (change `add-strikes`, hướng dẫn ở `docs/strikes.md`): `strike/` ra gậy trong transaction quyết định của
+`review` (`issueStrike(tx)`), khiếu nại, kênh hỗ trợ, ân xá, quyết gậy nghiêm trọng / xem lại; `calc/strike.calc.ts` thuần (hiệu
+lực, điểm, mốc hết tạm khoá). Mọi thay đổi phát `trust.strike.standing` — `listing` (lý do `strike`, `strike_wave`), `identity`
+(khoá / mở, dấu máy, chặn email), `platform` (treo quyền), `group` (mất vai, thiếu chủ), `review` (việc về gậy, hàng 2) nghe và
+hỏi lại `trust` qua cổng nối muộn. Gậy đi theo dấu băm email: `identity.account.created` / `email_changed` mang `emailHash`.
+
 `review` (change `add-review-queues`, hướng dẫn cho bàn vận hành và app ở `docs/review.md`): `queue/` sinh, gộp, huỷ
 việc theo `listing.state.changed` và sự kiện `group`, `platform`, `identity`; `desk/` hàng chờ, nhận việc, quyết
 định (bàn vận hành `/ops/review`, app `/groups/:groupId/review`); `schedule/` ba job (mỗi phút, mỗi giờ, thứ Hai
@@ -262,7 +268,7 @@ change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-cate
 `harden-production-runtime` → `add-groups` → `add-notification-core` (kéo từ đợt 6, chốt 11/10/2026) — mười change
 này đã archive 10–11/10/2026 · đợt 2
 `add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` (cả hai đã archive 12/10/2026) · đợt 3 `add-screening` (đã archive 13/10/2026) → `add-image-moderation` (khi chọn được dịch vụ kiểm ảnh, tách ra 12/10/2026) · đợt 4 `add-review-queues` (đã archive 15/10/2026) → **sửa lỗi rà soát 15/10/2026 trước mọi tính năng** (`docs/RA-SOAT-15-10-2026.md`; đợt 1 bảo mật = `fix-audit-security`) →
-`add-reports` (đã archive 16/10/2026) · đợt 5 `add-strikes` · đợt 6 `add-messaging` → `add-notifications` · đợt 7
+`add-reports` (đã archive 16/10/2026) · đợt 5 `add-strikes` (đã archive 17/10/2026) · đợt 6 `add-messaging` → `add-notifications` · đợt 7
 `add-data-retention`.
 
 - `add-platform-roles` và `add-categories` cần nhau (quyền staff gắn theo danh mục; danh mục cần staff soạn

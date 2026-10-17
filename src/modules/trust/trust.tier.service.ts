@@ -1,6 +1,7 @@
 import type { ListingFault, ListingState, Prisma } from '@prisma/client';
 
 import { sequentially } from '../../common/utils/sequential.js';
+import { tierStrikeFacts } from './calc/strike.calc.js';
 import { computeTier, factsHash, type TrustTier } from './calc/tier.calc.js';
 import { DAY_MS, HOUR_MS, tierSettings, type TrustServiceDeps } from './trust.shared.js';
 
@@ -42,7 +43,7 @@ const PAGE = 500;
 const CATCH_UP_MS = 48 * HOUR_MS;
 
 export function createTrustTierService(deps: TrustServiceDeps): TrustTierService {
-  const { repository, listings, identity, buyerInterest, config, clock } = deps;
+  const { repository, strikes, listings, identity, buyerInterest, config, clock } = deps;
 
   const recomputeIn = async (tx: Tx, accountId: string): Promise<TrustTier> => {
     const summaries = await identity.accountSummaries([accountId]);
@@ -52,13 +53,21 @@ export function createTrustTierService(deps: TrustServiceDeps): TrustTierService
     if (!account || account.status === 'deleted') return current?.tier ?? 'T0';
     const now = clock();
     const configVersion = config.version();
+    // Gậy đọc trong cùng transaction: lượt ra gậy chen giữa không bị lượt tính này ghi đè (add-strikes).
+    const strikeFacts = tierStrikeFacts(await strikes.listOf(accountId, tx), now);
     const result = computeTier({
       accountCreatedAt: account.createdAt,
       cleanAt: clean.map((fact) => fact.cleanAt),
       now,
       settings: tierSettings(config),
+      strikes: strikeFacts,
     });
-    const hash = factsHash({ accountCreatedAt: account.createdAt, clean, configVersion });
+    const hash = factsHash({
+      accountCreatedAt: account.createdAt,
+      clean,
+      configVersion,
+      strikes: strikeFacts,
+    });
     if (
       current?.factsHash === hash &&
       current.tier === result.tier &&

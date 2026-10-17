@@ -36,6 +36,9 @@ const trust: ListingTrustPort = {
   tierOf: () => Promise.resolve('T1'),
   tierIn: () => Promise.resolve('T1'),
   assertCanSubmit: () => Promise.resolve(),
+  strikePointsIn: () => Promise.resolve(0),
+  strikePointsOf: () => Promise.resolve(0),
+  struckAccounts: () => Promise.resolve(new Set<string>()),
 };
 
 beforeAll(async () => {

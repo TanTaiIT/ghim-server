@@ -5,6 +5,7 @@ import {
   type DevicePostRow,
   hashDeviceId,
   requiredDeviceFlags,
+  sharesDeviceWithStruck,
 } from '../src/modules/identity/calc/device.calc.js';
 
 const NOW = new Date('2026-10-10T09:00:00+07:00');
@@ -25,10 +26,11 @@ const base = (posts: DevicePostRow[], accountId: string): DeviceFlagInput => ({
   slots: 3,
   posts,
   lockedAccounts: [],
+  struckAccounts: [],
   clearances: [],
 });
 
-const MANY = { kind: 'many_accounts_on_device', relatedAccountId: null };
+const MANY = { kind: 'many_accounts_on_device', relatedAccountId: null, relatedStrikeId: null };
 
 describe('requiredDeviceFlags — chỗ trên một máy', () => {
   it('tài khoản thứ ba không bị đánh dấu', () => {
@@ -69,7 +71,7 @@ describe('requiredDeviceFlags — máy của tài khoản bị khoá', () => {
       lockedAccounts: [{ accountId: 'A', lockedAt: daysAgo(5) }],
     };
     expect(requiredDeviceFlags(input)).toEqual([
-      { kind: 'device_of_locked_account', relatedAccountId: 'A' },
+      { kind: 'device_of_locked_account', relatedAccountId: 'A', relatedStrikeId: null },
     ]);
   });
 
@@ -92,8 +94,34 @@ describe('requiredDeviceFlags — máy của tài khoản bị khoá', () => {
     };
     expect(requiredDeviceFlags(input)).toEqual([
       MANY,
-      { kind: 'device_of_locked_account', relatedAccountId: 'A' },
+      { kind: 'device_of_locked_account', relatedAccountId: 'A', relatedStrikeId: null },
     ]);
+  });
+});
+
+describe('requiredDeviceFlags — máy của tài khoản có gậy (add-strikes)', () => {
+  const struckA = { accountId: 'A', strikeId: 's-a', issuedAt: daysAgo(5) };
+
+  it('B đăng tin lần đầu SAU khi A nhận gậy: đánh dấu kèm A và gậy', () => {
+    const input = { ...base([post('A', 30, 10), post('B', 0)], 'B'), struckAccounts: [struckA] };
+    expect(requiredDeviceFlags(input)).toEqual([
+      { kind: 'device_of_struck_account', relatedAccountId: 'A', relatedStrikeId: 's-a' },
+    ]);
+  });
+
+  it('người nhà đã đăng tin từ TRƯỚC lúc A nhận gậy: không đánh dấu, nhưng là dấu hiệu "trùng thiết bị"', () => {
+    const input = {
+      ...base([post('A', 30, 10), post('B', 20, 0)], 'B'),
+      struckAccounts: [struckA],
+    };
+    expect(requiredDeviceFlags(input)).toEqual([]);
+    expect(sharesDeviceWithStruck(input)).toBe(true);
+  });
+
+  it('gậy hết hiệu lực (không còn trong danh sách): B hết bị đánh dấu và hết dấu hiệu', () => {
+    const input = base([post('A', 30, 10), post('B', 0)], 'B');
+    expect(requiredDeviceFlags(input)).toEqual([]);
+    expect(sharesDeviceWithStruck(input)).toBe(false);
   });
 });
 

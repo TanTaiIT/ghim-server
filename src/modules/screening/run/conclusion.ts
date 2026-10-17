@@ -143,6 +143,7 @@ export function createConclusion(shared: ScreeningShared) {
       categoryId: text.categoryId,
       failure,
       alwaysManual: ok?.alwaysManual ?? false,
+      struck: ok?.struck ?? false,
       deviceFlagged: (ok?.deviceFlags.length ?? 0) > 0,
       tier: ok?.tier ?? null,
       placement: text.placement,

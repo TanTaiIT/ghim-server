@@ -4,6 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createStaticRuntimeConfig } from '../src/common/config/runtime-config.js';
+import { createPlatformPrivilegeSource } from '../src/modules/platform/platform.service.js';
 import { TRUST_JOBS } from '../src/modules/trust/trust.jobs.js';
 import { createTrustService, type TrustService } from '../src/modules/trust/trust.service.js';
 import { genericHolds, noBuyerInterest } from '../src/modules/trust/trust.shared.js';
@@ -94,6 +95,8 @@ function trustWith(input: {
 }): TrustService {
   return createTrustService({
     repository: repositories.trust,
+    strikes: repositories.strike,
+    privileges: createPlatformPrivilegeSource(repositories.platform),
     listings: app.modules.listing,
     identity: app.modules.identity,
     buyerInterest: input.buyers ? { hasInquiry: () => Promise.resolve(true) } : noBuyerInterest,
@@ -501,6 +504,8 @@ describe('Theo trạng thái hiện tại và tính lần lượt (fix-audit-scr
           return row;
         },
       },
+      strikes: repositories.strike,
+      privileges: createPlatformPrivilegeSource(repositories.platform),
       listings: app.modules.listing,
       identity: app.modules.identity,
       buyerInterest: noBuyerInterest,

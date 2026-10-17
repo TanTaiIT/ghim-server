@@ -6,6 +6,7 @@ export const SIGNAL_CODES = [
   'gibberish',
   'zero_price_high_value',
   'shared_device_locked',
+  'shared_device_strike',
   'ambiguous_phrase',
   'abnormal_price',
   'off_platform_contact',
@@ -37,6 +38,7 @@ export const INITIAL_WEIGHTS: Readonly<Record<RuleCode, number>> = {
   gibberish: 30,
   zero_price_high_value: 30,
   shared_device_locked: 30,
+  shared_device_strike: 30,
   ambiguous_phrase: 25,
   abnormal_price: 25,
   off_platform_contact: 20,
@@ -52,18 +54,30 @@ export const INITIAL_WEIGHTS: Readonly<Record<RuleCode, number>> = {
 };
 
 /** Dòng `screening_rules` lúc khởi tạo; chế độ do `seedRules` đặt (phiên bản 1 bật, luật thêm về sau chạy thử). */
-export const INITIAL_RULES: readonly { code: RuleCode; kind: 'signal' | 'gate'; weight: number }[] =
-  RULE_CODES.map((code) => ({
-    code,
-    kind: isGate(code) ? 'gate' : 'signal',
-    weight: INITIAL_WEIGHTS[code],
-  }));
+/**
+ * Luật thêm sau phiên bản 1 mặc định chạy thử; `shared_device_strike` (add-strikes) chèn ở chế độ bật vì spec
+ * risk-scoring đòi cộng điểm ngay — luật master thêm tay vẫn chạy thử.
+ */
+const ON_FROM_START: ReadonlySet<RuleCode> = new Set(['shared_device_strike']);
+
+export const INITIAL_RULES: readonly {
+  code: RuleCode;
+  kind: 'signal' | 'gate';
+  weight: number;
+  mode?: 'on';
+}[] = RULE_CODES.map((code) => ({
+  code,
+  kind: isGate(code) ? 'gate' : 'signal',
+  weight: INITIAL_WEIGHTS[code],
+  ...(ON_FROM_START.has(code) ? { mode: 'on' as const } : {}),
+}));
 
 /** Tên luật cho bàn vận hành và hỗ trợ — không bao giờ tới người đăng (TK 13). */
 export const RULE_LABELS: Readonly<Record<RuleCode, string>> = {
   gibberish: 'Chữ như gõ bừa',
   zero_price_high_value: 'Giá 0 ở danh mục giá trị cao',
   shared_device_locked: 'Trùng thiết bị với tài khoản bị khoá',
+  shared_device_strike: 'Trùng thiết bị với tài khoản có gậy',
   ambiguous_phrase: 'Cụm từ cấm mức mơ hồ',
   abnormal_price: 'Giá bất thường',
   off_platform_contact: 'Liên hệ ngoài sàn',
@@ -95,5 +109,6 @@ export const FRAUD_CODES: ReadonlySet<RuleCode> = new Set([
   'ambiguous_phrase',
   'duplicate_image',
   'shared_device_locked',
+  'shared_device_strike',
   'burst',
 ]);

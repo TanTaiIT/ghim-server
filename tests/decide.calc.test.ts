@@ -15,6 +15,7 @@ const run = (
     failure?: 'error' | 'timeout';
     alwaysManual?: boolean;
     deviceFlagged?: boolean;
+    struck?: boolean;
     book?: RuleBook;
   } = {},
 ) =>
@@ -25,6 +26,7 @@ const run = (
     failure: options.failure ?? null,
     alwaysManual: options.alwaysManual ?? false,
     deviceFlagged: options.deviceFlagged ?? false,
+    struck: options.struck ?? false,
     tier: options.tier ?? 'T2',
     placement: options.placement ?? 'marketplace',
   });
@@ -85,6 +87,7 @@ describe('Thứ tự kết luận', () => {
         hits: [],
         alwaysManual: false,
         deviceFlagged: false,
+        struck: false,
         band: 'low',
         tier: null,
         placement: 'members_only',
@@ -203,6 +206,25 @@ describe('Ma trận T2, T3', () => {
   });
 });
 
+describe('Hàng "có gậy" của ma trận (add-strikes)', () => {
+  it('T1 có gậy, dải Thấp: qua hạn chế mà không đặt lý do "máy" — `listing` đặt lý do "gậy"', () => {
+    expect(outcomeOf(SCORE_20, { tier: 'T1', struck: true })).toEqual(LIMITED);
+  });
+
+  it('T1 có gậy, dải Vừa: giữ cho người — cùng tin của T1 không gậy thì qua hạn chế', () => {
+    expect(outcomeOf(SCORE_45, { tier: 'T1', struck: true })).toEqual(HOLD_SCORE);
+    expect(outcomeOf(SCORE_45, { tier: 'T1' })).toEqual(LIMITED_MACHINE);
+  });
+
+  it('T0 có gậy vào nhóm chỉ thành viên, dải Thấp: qua hạn chế, không đầy đủ', () => {
+    expect(outcomeOf([], { tier: 'T0', struck: true, placement: 'members_only' })).toEqual(LIMITED);
+  });
+
+  it('luôn giữ cho người vẫn giữ: dấu thiết bị', () => {
+    expect(outcomeOf([], { tier: 'T1', struck: true, deviceFlagged: true }).outcome).toBe('hold');
+  });
+});
+
 describe('decide trực tiếp', () => {
   it('cổng cứng chạy thử truyền vào không giữ', () => {
     expect(
@@ -211,6 +233,7 @@ describe('decide trực tiếp', () => {
         hits: [{ code: 'price_over_cap', weight: 0, mode: 'trial' }],
         alwaysManual: false,
         deviceFlagged: false,
+        struck: false,
         band: 'low',
         tier: 'T2',
         placement: 'marketplace',

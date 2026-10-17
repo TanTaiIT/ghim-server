@@ -116,3 +116,18 @@ huỷ, MUST NOT ghi gì và nhận lỗi nói rõ việc đã đóng hay đã ch
 
 - **WHEN** staff gửi cùng một quyết định hai lần liền cho một việc mình đang nhận
 - **THEN** một lượt có HTTP 200, lượt kia có HTTP 409 `TASK_CLOSED`, và nhật ký chỉ có một quyết định
+
+### Requirement: Người xử thấy lịch sử gậy của người bán
+
+Người đang nhận một việc về tin SHALL thấy thêm lịch sử gậy của người bán: từng gậy với loại, điều quy định được
+trích, ngày hết hạn, và gậy nào đã bị huỷ (TK 17).
+
+#### Scenario: Người bán đang có gậy
+
+- **WHEN** staff nhận việc về tin của một người bán đang có một gậy thường còn hiệu lực
+- **THEN** staff thấy gậy đó kèm loại, điều quy định được trích và ngày hết hạn
+
+#### Scenario: Gậy đã bị huỷ vì khiếu nại thắng
+
+- **WHEN** staff nhận việc về tin của một người bán có một gậy đã bị huỷ vì khiếu nại thắng
+- **THEN** staff thấy gậy đó được đánh dấu đã huỷ, không tính vào điểm gậy hiện tại

@@ -6,6 +6,7 @@ import { GROUP_EVENTS } from '../group/group.outbox.js';
 import { LISTING_EVENTS } from '../listing/listing.outbox.js';
 import { PLATFORM_EVENTS } from '../platform/platform.outbox.js';
 import { SCREENING_EVENTS } from '../screening/screening.outbox.js';
+import { TRUST_EVENTS } from '../trust/trust.outbox.js';
 import { REVIEW_EVENTS } from './review.outbox.js';
 import type { ReviewService } from './review.service.js';
 
@@ -20,6 +21,8 @@ const groupOnly = z.object({ groupId: z.string() });
 const account = z.object({ accountId: z.string() });
 const ownerChange = z.object({ previousOwnerId: z.string().nullable() });
 const listingIds = z.object({ listingIds: z.array(z.string()) });
+const strikeRef = z.object({ strikeId: z.string() });
+const strikeIssued = strikeRef.extend({ kind: z.string() });
 const reportDecided = z.object({
   verdict: z.enum(['upheld', 'dismissed']),
   subjectKind: z.enum(['listing', 'account']),
@@ -100,4 +103,20 @@ export function registerReviewListeners(dispatcher: OutboxDispatcher, review: Re
     await review.onAccountDeleted(accountId);
     await review.releaseAllClaims(accountId);
   });
+
+  // ── GẬY (add-strikes): việc về gậy mở / đóng theo tình trạng hiện tại của gậy, hỏi lại `trust` (C1) ─────
+  // Gậy thường / nặng vừa ra không có việc nào — chỉ gậy nghiêm trọng mở việc chờ master (spec serious-strikes).
+  on(TRUST_EVENTS.strikeIssued, strikeIssued, ({ strikeId, kind }) =>
+    kind === 'serious' ? review.onStrikeChanged(strikeId) : Promise.resolve(),
+  );
+  for (const type of [
+    TRUST_EVENTS.appealFiled,
+    TRUST_EVENTS.appealClosed,
+    TRUST_EVENTS.strikeReviewDue,
+    TRUST_EVENTS.strikeCancelled,
+    TRUST_EVENTS.strikeDecided,
+    TRUST_EVENTS.strikeExpired,
+  ]) {
+    on(type, strikeRef, ({ strikeId }) => review.onStrikeChanged(strikeId));
+  }
 }

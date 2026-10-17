@@ -26,6 +26,11 @@ export interface ListingTrustPort {
   tierOf(accountId: string): Promise<TrustTier>;
   /** Mức đọc trong transaction đổi tin, sau khoá chung của `trust` — lượt lên mức chen giữa không bị bỏ sót (L7). */
   tierIn(tx: Tx, accountId: string): Promise<TrustTier>;
+  /** Điểm gậy đọc trong transaction lên bảng — lý do hạn chế "gậy" (add-strikes). */
+  strikePointsIn(tx: Tx, accountId: string): Promise<number>;
+  strikePointsOf(accountId: string): Promise<number>;
+  /** Trong các tài khoản, ai đang có gậy hiệu lực — tin hiện lại sau tạm ẩn mang lý do "gậy" (add-strikes). */
+  struckAccounts(accountIds: string[]): Promise<Set<string>>;
   /** Hạn mức, nhịp gửi — trong transaction gửi; ném lỗi của `trust` thì cả lượt quay lui. */
   assertCanSubmit(
     tx: Tx,
@@ -193,6 +198,11 @@ export interface ListingFactsService {
   shownMs(listingId: string, now: Date): Promise<number | null>;
   /** Trạng thái hiện tại của tin (kể cả tin đã xoá mềm) — `trust` đối chiếu cặp mất / có lại tư cách tin sạch. */
   stateOf(listingId: string): Promise<{ state: ListingState; fault: ListingFault | null } | null>;
+  /**
+   * Huỷ gậy nghiêm trọng trả lại số ngày hiển thị đã trôi trong lúc khoá (spec display-period, add-strikes): cộng `ms` vào
+   * hạn của tin đang `live` của người đó, trong transaction quyết định của `trust`.
+   */
+  compensateLockedDays(tx: Tx, input: { accountId: string; ms: number }): Promise<number>;
   ownTexts(input: {
     accountId: string;
     since: Date;

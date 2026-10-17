@@ -108,6 +108,8 @@ export const CONFIG_KEYS = {
   'trust.soldCountsCleanAfterDays': days(2, TRUST, { min: 0 }),
   // Tin sạch theo lối hiển thị: cộng dồn thời gian được thấy (design add-trust-tiers câu 3, 10).
   'trust.cleanShownDays': days(7, TRUST),
+  // T3 đòi không nhận gậy nào trong N ngày gần nhất, kể cả gậy đã hết hạn (TK 21; add-strikes, giá trị khởi đầu).
+  'trust.t3NoStrikeDays': days(90, TRUST, { min: 0 }),
   // Hạn mức T0 / T1 / T2 / T3
   'quota.liveListingsT0': int(10, QUOTA),
   'quota.liveListingsT1': int(20, QUOTA),

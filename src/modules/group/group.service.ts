@@ -29,6 +29,10 @@ export interface GroupSystemService {
   onAccountLocked(accountId: string): Promise<void>;
   /** Chủ cũ được mở khoá trước khi có chủ mới → nhóm trở lại với chủ cũ; khoá do hệ thống thì tự mở. */
   onAccountUnlocked(accountId: string): Promise<void>;
+  /** Chủ nhóm nhận gậy nặng → nhóm thiếu chủ như khi chủ bị khoá (spec group-roles, add-strikes). */
+  onOwnerStruck(accountId: string): Promise<void>;
+  /** Gậy nặng của chủ cũ hết hiệu lực trước khi có chủ mới → nhóm trở lại với chủ cũ, như mở khoá. */
+  onStrikeEnded(accountId: string): Promise<void>;
   /**
    * Tài khoản bị xoá rời mọi nhóm. Chủ nhóm không tự xoá được, trừ khi lượt xoá chen với lượt nhận làm chủ — nhóm đó
    * thiếu chủ như khi chủ bị khoá (rà soát L3).
@@ -106,6 +110,22 @@ export function createGroupService(deps: GroupServiceDeps): GroupService {
       await sequentially(moderatingOwnerless, (group) => reevaluateOwnerless(group.id, accountId));
     },
 
+    async onOwnerStruck(accountId) {
+      // Lượt ra gậy được xử lại sau khi gậy đã hết: không làm nhóm thiếu chủ với chủ đang bình thường.
+      if (!((await deps.trust?.hasSevereStrike(accountId)) ?? false)) return;
+      const at = clock();
+      const { owned } = await repository.groupsAffectedByLock(accountId);
+      await sequentially(owned, (group) => loseOwner(group.id, accountId, at));
+    },
+
+    async onStrikeEnded(accountId) {
+      if ((await statusOf(accountId)) !== 'active') return;
+      if ((await deps.trust?.hasSevereStrike(accountId)) ?? false) return;
+      await sequentially(await repository.groupsAwaitingOwner(accountId), async (group) => {
+        await repository.restoreOwner({ groupId: group.id, at: clock() });
+      });
+    },
+
     async onAccountUnlocked(accountId) {
       // Lượt mở khoá được xử lại khi chủ lại đang bị khoá (hay đã xoá): không trả nhóm cho chủ đó.
       if ((await statusOf(accountId)) !== 'active') return;
@@ -149,7 +169,8 @@ export function createGroupService(deps: GroupServiceDeps): GroupService {
       const ownerActive =
         owner !== null &&
         group.state !== 'ownerless' &&
-        (await statusOf(owner.accountId)) === 'active';
+        (await statusOf(owner.accountId)) === 'active' &&
+        !((await deps.trust?.hasSevereStrike(owner.accountId)) ?? false);
       return {
         moderationAllowed: ALLOWS_MODERATION.has(group.state),
         ownerId: ownerActive ? owner.accountId : null,

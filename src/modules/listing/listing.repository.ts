@@ -118,6 +118,8 @@ export interface ListingRepository {
   newId(): Promise<string>;
   /** Người đăng của các tin khớp điều kiện — bên nghe hỏi `group` một lần cho cả nhóm thay vì từng dòng. */
   ownersWhere(where: Prisma.ListingWhereInput): Promise<string[]>;
+  /** Cộng `ms` vào hạn của tin đang hiện của người này — trả ngày đã trôi trong lúc khoá (add-strikes). */
+  extendLiveExpiry(tx: Tx, accountId: string, ms: number): Promise<number>;
   /** Nhóm gỡ huy hiệu: chặn gắn lại huy hiệu nhóm đó cho tin này (cam kết 23). */
   blockBadge(
     tx: Tx,
@@ -369,6 +371,10 @@ export function createListingRepository(prisma: PrismaClient): ListingRepository
       if (!row) throw new Error('Postgres không sinh được mã');
       return row.id;
     },
+
+    extendLiveExpiry: (tx, accountId, ms) =>
+      tx.$executeRaw`UPDATE listings SET expires_at = expires_at + make_interval(secs => ${Math.round(ms / 1000)})
+        WHERE owner_id = ${accountId}::uuid AND state = 'live' AND deleted_at IS NULL AND expires_at IS NOT NULL`,
 
     async ownersWhere(where) {
       const rows = await prisma.listing.findMany({

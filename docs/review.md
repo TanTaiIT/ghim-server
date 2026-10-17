@@ -5,17 +5,18 @@ Máy duyệt chỉ giữ, hạn chế hay cho qua tin; mọi quyết định c�
 staff và master; app Ghim phục vụ điều hành viên và chủ nhóm xử việc của nhóm.
 
 Hợp đồng đầy đủ: `openspec/specs/review/`; thiết kế ở `openspec/changes/archive/2026-10-15-add-review-queues/design.md`
-và, cho báo cáo, `openspec/changes/archive/2026-10-16-add-reports/design.md`. Luật nghiệp vụ ở TK 16, TK 17, TK 23.
+và, cho báo cáo, `openspec/changes/archive/2026-10-16-add-reports/design.md`; gậy, khiếu nại ở `docs/strikes.md`. Luật nghiệp vụ ở TK 16, TK 17, TK 23.
 
 ## Hàng và hạn xử
 
-| Hàng | Lý do (`reasons`)                               | Hạn xử | Quá hạn thì                         |
-| ---- | ----------------------------------------------- | ------ | ----------------------------------- |
-| 0    | `machine_hold` — máy giữ tin                    | 24 giờ | chuyển master; tin vẫn chờ duyệt    |
-| 1    | `report`, `report_severe` — báo cáo             | 72 giờ | chuyển master; tạm ẩn giữ nguyên    |
-| 3    | `machine_restricted` — máy hạn chế              | 72 giờ | chuyển master; tin vẫn hiện hạn chế |
-| 4    | `group_escalation` — nhóm chuyển lên            | 72 giờ | chuyển master                       |
-| 5    | `sample_risk`, `sample_reviewer` — mẫu hậu kiểm | 7 ngày | tự huỷ, đếm "bỏ sót"; tin không đổi |
+| Hàng | Lý do (`reasons`)                                            | Hạn xử | Quá hạn thì                                                                          |
+| ---- | ------------------------------------------------------------ | ------ | ------------------------------------------------------------------------------------ |
+| 0    | `machine_hold` — máy giữ tin                                 | 24 giờ | chuyển master; tin vẫn chờ duyệt                                                     |
+| 1    | `report`, `report_severe` — báo cáo                          | 72 giờ | chuyển master; tạm ẩn giữ nguyên                                                     |
+| 2    | `appeal`, `serious_strike`, `permanent_review` — việc về gậy | 7 ngày | khiếu nại gậy thường tự thắng; gậy nặng chuyển master; gậy nghiêm trọng vốn ở master |
+| 3    | `machine_restricted` — máy hạn chế                           | 72 giờ | chuyển master; tin vẫn hiện hạn chế                                                  |
+| 4    | `group_escalation` — nhóm chuyển lên                         | 72 giờ | chuyển master                                                                        |
+| 5    | `sample_risk`, `sample_reviewer` — mẫu hậu kiểm              | 7 ngày | tự huỷ, đếm "bỏ sót"; tin không đổi                                                  |
 
 Một việc gộp nhiều lý do thì nằm ở hàng nhỏ nhất và giữ hạn sớm nhất — hạn không bao giờ kéo dài. Quá hạn **không bao
 giờ** tự mở hay tự gỡ tin. Việc ở hàng master quá 72 giờ thì master được nhắc (N40), nhắc lại mỗi ngày.
@@ -29,6 +30,9 @@ nhóm duyệt, và ở hàng 5; việc còn lại đi staff của danh mục r�
 việc rơi xuống bậc kế tiếp. Báo cáo loại thường (`report`) về tin trong nhóm đi chuỗi nhóm; có lượt lừa đảo / hàng cấm
 (`report_severe`) thì luôn về staff danh mục, điều hành nhóm không thấy. Việc về **một người** (`subjectKind:
 "account"`, `listingId: null`) đi `safety_staff` (staff có việc `user_reports`) → `master`.
+Việc về **một gậy** (`subjectKind: "strike"`, `strikeId`) đi `category_staff` của danh mục gậy → `master`; gậy không có danh
+mục (master ra, từ báo cáo về người) và gậy nghiêm trọng đi thẳng master; người ra gậy, người nhận và máy của họ không
+thấy — với master ra gậy nghiêm trọng, chỉ master kia thấy (`docs/strikes.md`).
 Master xử được mọi việc. Việc ngoài phạm vi trả `404 NOT_FOUND` như việc không tồn tại.
 
 ## Bàn vận hành — `/api/v1/ops/review` (staff có danh mục hay việc an toàn, master; cần lớp thứ hai)
@@ -84,6 +88,8 @@ việc của nhóm ở bậc của mình. `POST /listings/{listingId}/detach` g�
 { "outcome": "keep", "report": { "verdict": "dismissed" } }
 { "outcome": "mistake", "reasonTemplateId": "…", "report": { "verdict": "upheld" } }
 { "outcome": "keep", "report": { "verdict": "upheld", "banFromGroup": true } }
+{ "outcome": "violation", "strike": { "kind": "normal", "ruleArticleId": "…" } }
+{ "outcome": "keep", "appeal": { "verdict": "won" } }
 ```
 
 - `pass` — tin máy giữ lên bảng (bắt buộc `machineJudgment`: `machine_right` / `machine_overreach`); tin đang hiện giữ
@@ -93,34 +99,37 @@ việc của nhóm ở bậc của mình. `POST /listings/{listingId}/detach` g�
 - `detach` — chỉ tin trong nhóm, chỉ điều hành, chủ nhóm, master. Kèm `platformViolation: true` thì bắt buộc `note` và
   sinh việc hàng 4 cho staff; tin rời nhóm ngay.
 - `dismiss` — staff, master bác việc hàng 4; tin vẫn ngoài nhóm như nhóm đã quyết.
+- `violation` — như `mistake` nhưng vì vi phạm: bắt buộc `strike { kind, ruleArticleId }`, người đăng nhận gậy ngay, tin không
+  sửa / xoá được; cũng là nút "xác nhận" việc hàng 4. Chỉ staff danh mục, master. Báo cáo đúng (`keep` hay `violation`)
+  cũng kèm được `strike`. Việc về gậy quyết bằng `appeal` / `serious` / `permanent` — `docs/strikes.md`.
 - Việc có lý do báo cáo **bắt buộc** `report.verdict` (`upheld` đúng / `dismissed` bác) — đóng mọi lượt báo đã gộp,
   cộng / trừ điểm từng người báo, gỡ cờ tạm ẩn. `keep` = không đổi tin (bắt buộc với tin người đăng đã xoá và với việc
   về một người). Báo cáo đúng kèm `mistake` (gỡ tin — staff danh mục, master), `detach` (quản trị nhóm, master),
   `banFromGroup` (quản trị nhóm, master; không cấm được chủ nhóm), `lockAccount` (chỉ master). Cấm, khoá áp vài giây
   sau quyết định (qua outbox).
 
-Kết quả trả `{ decisionId, outcome, listingState, reportVerdict }` với `outcome` thật (`reject` hay `remove` thay cho
-`mistake`); `listingState: null` với việc về một người.
+Kết quả trả `{ decisionId, outcome, listingState, reportVerdict, strikeId }` với `outcome` thật (`reject` hay `remove` thay
+cho `mistake` / `violation`); `listingState: null` với việc về một người hay về gậy; `strikeId` = gậy vừa ra hay vừa quyết.
 
 ## Mã lỗi
 
-| HTTP | `code`                | Khi nào — app làm gì                                                         |
-| ---- | --------------------- | ---------------------------------------------------------------------------- |
-| 400  | `VALIDATION_ERROR`    | Thiếu nhận định máy, thiếu hay dùng lý do mẫu đã tắt, chuyển lên thiếu lý do |
-| 403  | `FORBIDDEN`           | Không còn vai trên phạm vi lúc quyết; staff chọn gỡ khỏi nhóm; tin của mình  |
-| 404  | `NOT_FOUND`           | Việc không có, hay ngoài phạm vi — bỏ khỏi danh sách                         |
-| 409  | `TASK_CLAIMED`        | Người khác đang giữ — tải lại hàng chờ                                       |
-| 409  | `TASK_NOT_CLAIMED`    | Chưa nhận hay đã quá 10 phút — nhận lại rồi quyết                            |
-| 409  | `TASK_CLOSED`         | Việc đã có quyết định hay đã huỷ (tin sửa, rút, nhóm đóng, mẫu quá hạn)      |
-| 409  | `TASK_REASSIGNED`     | Việc đã chuyển master hay đổi người xử — bỏ khỏi danh sách                   |
-| 409  | `LISTING_CHANGED`     | Người đăng vừa sửa tin — tải lại bối cảnh, nhận lại rồi quyết                |
-| 409  | `OUTCOME_NOT_ALLOWED` | Kết quả không hợp với việc (gỡ khỏi nhóm tin sàn, bác việc không chuyển lên) |
-| 409  | `TASK_OPEN`           | Gỡ thẳng / gỡ khỏi nhóm thẳng tin đang có việc mở — xử qua việc đó           |
-| 409  | `INVALID_TRANSITION`  | Khôi phục tin không bị gỡ                                                    |
-| 400  | `CANNOT_REPORT_SELF`  | Báo cáo chính mình hay tin của mình                                          |
-| 403  | `EMAIL_NOT_VERIFIED`  | Báo cáo khi chưa xác nhận email                                              |
-| 403  | `REPORTING_SUSPENDED` | Đang mất quyền báo cáo — `details.reportAgainAt`                             |
-| 429  | `REPORT_RATE_LIMITED` | Quá 10 báo cáo trong 60 phút — `details.retryAt`                             |
+| HTTP | `code`                | Khi nào — app làm gì                                                                                                               |
+| ---- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| 400  | `VALIDATION_ERROR`    | Thiếu nhận định máy, thiếu hay dùng lý do mẫu đã tắt, chuyển lên thiếu lý do; vi phạm thiếu điều trích; nút không khớp việc về gậy |
+| 403  | `FORBIDDEN`           | Không còn vai trên phạm vi lúc quyết; staff chọn gỡ khỏi nhóm; tin của mình; điều hành nhóm ra gậy; người ra gậy xét gậy mình      |
+| 404  | `NOT_FOUND`           | Việc không có, hay ngoài phạm vi — bỏ khỏi danh sách                                                                               |
+| 409  | `TASK_CLAIMED`        | Người khác đang giữ — tải lại hàng chờ                                                                                             |
+| 409  | `TASK_NOT_CLAIMED`    | Chưa nhận hay đã quá 10 phút — nhận lại rồi quyết                                                                                  |
+| 409  | `TASK_CLOSED`         | Việc đã có quyết định hay đã huỷ (tin sửa, rút, nhóm đóng, mẫu quá hạn)                                                            |
+| 409  | `TASK_REASSIGNED`     | Việc đã chuyển master hay đổi người xử — bỏ khỏi danh sách                                                                         |
+| 409  | `LISTING_CHANGED`     | Người đăng vừa sửa tin — tải lại bối cảnh, nhận lại rồi quyết                                                                      |
+| 409  | `OUTCOME_NOT_ALLOWED` | Kết quả không hợp với việc (gỡ khỏi nhóm tin sàn, bác việc không chuyển lên)                                                       |
+| 409  | `TASK_OPEN`           | Gỡ thẳng / gỡ khỏi nhóm thẳng tin đang có việc mở — xử qua việc đó                                                                 |
+| 409  | `INVALID_TRANSITION`  | Khôi phục tin không bị gỡ                                                                                                          |
+| 400  | `CANNOT_REPORT_SELF`  | Báo cáo chính mình hay tin của mình                                                                                                |
+| 403  | `EMAIL_NOT_VERIFIED`  | Báo cáo khi chưa xác nhận email                                                                                                    |
+| 403  | `REPORTING_SUSPENDED` | Đang mất quyền báo cáo — `details.reportAgainAt`                                                                                   |
+| 429  | `REPORT_RATE_LIMITED` | Quá 10 báo cáo trong 60 phút — `details.retryAt`                                                                                   |
 
 ## Thông báo cho master
 

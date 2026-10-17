@@ -3,13 +3,16 @@ import { ForbiddenError, NotFoundError } from '../../../common/errors/app-error.
 import { type PaginationQuery, toPage, toSkipTake } from '../../../common/schemas/pagination.js';
 import { sequentially } from '../../../common/utils/sequential.js';
 import { RELATED_REPORTS } from '../calc/report.calc.js';
-import { canHandle, type Route } from '../calc/route.calc.js';
+import type { Route } from '../calc/route.calc.js';
 import { REPORT_REASONS } from '../calc/task.calc.js';
+import type { StrikeDetailDto } from '../../trust/strike/strike.schema.js';
 import { toRelated } from '../report/report.service.js';
 import type { ReviewTask } from '../review.repository.js';
 import type { ClaimResultDto, QueueQuery, TaskDetailDto, TaskItemDto } from '../review.schema.js';
 import {
+  mayHandle,
   type ReviewShared,
+  subjectOf,
   type Surface,
   taskClaimed,
   taskClosed,
@@ -75,19 +78,23 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
     tasks: readonly { task: ReviewTask; route: Route }[],
     accountId: string,
   ): Promise<TaskItemDto[]> => {
+    const strikes = await strikeMap(tasks.flatMap(({ task }) => task.strikeId ?? []));
+    const subjectAccount = (task: ReviewTask): string | null =>
+      task.accountId ?? (task.strikeId ? (strikes.get(task.strikeId)?.accountId ?? null) : null);
     const [titles, names] = await Promise.all([
       listings.titles(tasks.flatMap(({ task }) => task.listingId ?? [])),
-      nameMap(tasks.flatMap(({ task }) => task.accountId ?? [])),
+      nameMap(tasks.flatMap(({ task }) => subjectAccount(task) ?? [])),
     ]);
     const now = clock();
     return tasks.map(({ task, route }) => ({
       id: task.id,
-      subjectKind: task.accountId === null ? ('listing' as const) : ('account' as const),
+      subjectKind: subjectOf(task),
       listingId: task.listingId,
       accountId: task.accountId,
+      strikeId: task.strikeId,
       title: task.listingId
         ? (titles.get(task.listingId) ?? null)
-        : (names.get(task.accountId ?? '') ?? null),
+        : (names.get(subjectAccount(task) ?? '') ?? null),
       queue: task.queue,
       reasons: task.reasons,
       dueAt: task.dueAt.toISOString(),
@@ -144,7 +151,21 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
         return new ForbiddenError('Việc cần một người khác người đã chuyển lên');
       }
     }
+    // Việc về gậy: người ra gậy, người nhận và máy của họ có quyền trên phạm vi, chỉ bị luật hai người chặn (spec appeals).
+    if (
+      task.strikeId &&
+      (wouldHandle || viewer.isMaster) &&
+      task.excludedIds.includes(viewer.accountId)
+    ) {
+      return new ForbiddenError('Việc về gậy cần một người khác người ra gậy hay người nhận gậy');
+    }
     return taskNotFound();
+  };
+
+  /** Hồ sơ gậy của các việc về gậy trong một trang — tên người nhận làm tiêu đề việc (add-strikes). */
+  const strikeMap = async (ids: string[]): Promise<Map<string, StrikeDetailDto>> => {
+    const found = await Promise.all([...new Set(ids)].map((id) => trust.strikeDetail(id)));
+    return new Map(found.flatMap((strike) => (strike ? [[strike.id, strike] as const] : [])));
   };
 
   const nameMap = async (ids: string[]): Promise<Map<string, string | null>> => {
@@ -159,10 +180,11 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
     viewerId: string,
   ): Promise<TaskDetailDto> => {
     const accountId = task.accountId ?? '';
-    const [[item], tier, cleanListings, sharedDevices, related] = await Promise.all([
+    const [[item], tier, cleanListings, strikes, sharedDevices, related] = await Promise.all([
       items([{ task, route }], viewerId),
       trust.tierOf(accountId),
       trust.cleanCount(accountId),
+      trust.strikesOf(accountId),
       sharedDevicesOf(accountId),
       reports.related({ listingId: null, accountId, limit: RELATED_REPORTS }),
     ]);
@@ -173,7 +195,13 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
       listing: null,
       listingDeleted: false,
       machine: null,
-      seller: { accountId, displayName: names.get(accountId) ?? null, tier, cleanListings },
+      seller: {
+        accountId,
+        displayName: names.get(accountId) ?? null,
+        tier,
+        cleanListings,
+        strikes,
+      },
       duplicates: [],
       sharedDeviceAccounts: sharedDevices.map((id) => ({
         accountId: id,
@@ -181,6 +209,54 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
       })),
       escalation: null,
       reports: related.map(toRelated),
+      strike: null,
+    };
+  };
+
+  /** Việc về một gậy (add-strikes): hồ sơ gậy (điều trích, lời khiếu nại, nhận xét), người nhận, tin đi kèm nếu còn. */
+  const strikeDetail = async (
+    task: ReviewTask,
+    route: Route,
+    viewerId: string,
+  ): Promise<TaskDetailDto> => {
+    const strike = await trust.strikeDetail(task.strikeId ?? '');
+    if (!strike) throw taskNotFound();
+    const { accountId, listingId } = strike;
+    const [[item], tier, cleanListings, strikes, sharedDevices, related, listing, subject] =
+      await Promise.all([
+        items([{ task, route }], viewerId),
+        trust.tierOf(accountId),
+        trust.cleanCount(accountId),
+        trust.strikesOf(accountId),
+        sharedDevicesOf(accountId),
+        reports.related({ listingId, accountId, limit: RELATED_REPORTS }),
+        listingId ? listings.forReviewer(listingId) : Promise.resolve(null),
+        listingId
+          ? listings.reviewSubject(listingId, { includeDeleted: true })
+          : Promise.resolve(null),
+      ]);
+    if (!item) throw taskNotFound();
+    const names = await nameMap([accountId, ...sharedDevices]);
+    return {
+      ...item,
+      listing,
+      listingDeleted: subject?.deleted ?? false,
+      machine: null,
+      seller: {
+        accountId,
+        displayName: names.get(accountId) ?? null,
+        tier,
+        cleanListings,
+        strikes,
+      },
+      duplicates: [],
+      sharedDeviceAccounts: sharedDevices.map((id) => ({
+        accountId: id,
+        displayName: names.get(id) ?? null,
+      })),
+      escalation: null,
+      reports: related.map(toRelated),
+      strike,
     };
   };
 
@@ -188,7 +264,7 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
     const [summary] = [...(await identity.accountSummaries([accountId])).values()];
     const isMaster = summary?.role === 'master' && summary.status === 'active';
     const route = (await routesFor([task]))(task);
-    if (canHandle(route, accountId, isMaster)) return false;
+    if (mayHandle(task, route, accountId, isMaster)) return false;
     return repository.releaseClaim(task.id, accountId);
   };
 
@@ -208,7 +284,7 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
       const routeOf = await routesFor(tasks);
       const routed = tasks
         .map((task) => ({ task, route: routeOf(task) }))
-        .filter(({ route }) => viewer.isMaster || route.handlers.includes(actor.accountId))
+        .filter(({ task, route }) => mayHandle(task, route, actor.accountId, viewer.isMaster))
         .filter(({ task }) => query.queue === undefined || task.queue === query.queue)
         .filter(({ route }) => !query.atMaster || route.level === 'master');
       return paged(routed, actor.accountId, query);
@@ -235,6 +311,7 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
       const found = await locateTask(actor, taskId, surface);
       if (!found?.allowed) throw found ? await refused(found.task, found.viewer) : taskNotFound();
       const { task, route } = found;
+      if (task.strikeId) return strikeDetail(task, route, actor.accountId);
       if (!task.listingId) return accountDetail(task, route, actor.accountId);
       const { listingId } = task;
       const [listing, subject] = await Promise.all([
@@ -243,12 +320,13 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
       ]);
       if (!listing) throw taskNotFound();
       const ownerId = listing.ownerId;
-      const [[item], machine, tier, cleanListings, matches, sharedDevices, related] =
+      const [[item], machine, tier, cleanListings, strikes, matches, sharedDevices, related] =
         await Promise.all([
           items([{ task, route }], actor.accountId),
           screening.runOf(listingId),
           trust.tierOf(ownerId),
           trust.cleanCount(ownerId),
+          trust.strikesOf(ownerId),
           screening.duplicateMatches(listingId),
           sharedDevicesOf(ownerId),
           reports.related({ listingId, accountId: ownerId, limit: RELATED_REPORTS }),
@@ -270,6 +348,7 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
           displayName: names.get(ownerId) ?? null,
           tier,
           cleanListings,
+          strikes,
         },
         duplicates: matches.map((match) => {
           const owner = owners.get(match.matchImageId);
@@ -288,6 +367,7 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
             ? { by: task.escalatedBy, note: task.escalationNote }
             : null,
         reports: related.map(toRelated),
+        strike: null,
       };
     },
 

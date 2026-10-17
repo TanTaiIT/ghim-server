@@ -22,9 +22,11 @@ const SETTINGS: TierSettings = {
   minDays: { T1: 7, T2: 30, T3: 90 },
   minClean: { T1: 1, T2: 5, T3: 20 },
   maxCleanPer7Days: 3,
+  noStrikeDaysForT3: 90,
 };
+const NO_STRIKES = { active: false, lastIssuedAt: null };
 const tierAt = (n: number, cleanAt: Date[], settings = SETTINGS) =>
-  computeTier({ accountCreatedAt: DAY_ONE, cleanAt, now: day(n), settings });
+  computeTier({ accountCreatedAt: DAY_ONE, cleanAt, now: day(n), settings, strikes: NO_STRIKES });
 /** `count` tin sạch rải ba tin mỗi tuần từ ngày `from` — đủ để không tin nào phải dời. */
 const spread = (count: number, from = 2) =>
   Array.from({ length: count }, (_, i) => day(from + Math.floor(i / 3) * 7 + (i % 3), 1));
@@ -78,8 +80,13 @@ describe('Tối đa 3 tin sạch trong 7 ngày cuốn chiếu, tin vượt đư�
     const four = cleanOn(10, 10, 10, 10);
     expect(tierAt(16, four).countedClean).toBe(3);
     expect(
-      computeTier({ accountCreatedAt: DAY_ONE, cleanAt: four, now: day(17, 1), settings: SETTINGS })
-        .countedClean,
+      computeTier({
+        accountCreatedAt: DAY_ONE,
+        cleanAt: four,
+        now: day(17, 1),
+        settings: SETTINGS,
+        strikes: NO_STRIKES,
+      }).countedClean,
     ).toBe(4);
   });
 
@@ -118,10 +125,38 @@ describe('Tính lại từ dữ kiện, hai lần ra cùng kết quả', () => {
       { listingId: 'a', cleanAt: day(8, 1) },
       { listingId: 'b', cleanAt: day(9, 1) },
     ];
-    const base = { accountCreatedAt: DAY_ONE, clean, configVersion: 3 };
+    const base = { accountCreatedAt: DAY_ONE, clean, configVersion: 3, strikes: NO_STRIKES };
     expect(factsHash(base)).toBe(factsHash({ ...base, clean: clean.toReversed() }));
     expect(factsHash(base)).not.toBe(factsHash({ ...base, configVersion: 4 }));
     expect(factsHash(base)).not.toBe(factsHash({ ...base, clean: clean.slice(1) }));
+  });
+});
+
+describe('Gậy và mức (add-strikes)', () => {
+  const eligible = { accountCreatedAt: DAY_ONE, cleanAt: spread(20), settings: SETTINGS };
+
+  it('đang có gậy: trần T1 dù đủ điều kiện T3', () => {
+    const strikes = { active: true, lastIssuedAt: day(95) };
+    expect(computeTier({ ...eligible, now: day(100), strikes }).tier).toBe('T1');
+  });
+
+  it('gậy đã hết hạn nhưng ra trong 90 ngày: T2; tròn 90 ngày: T3', () => {
+    const strikes = { active: false, lastIssuedAt: day(30) };
+    expect(computeTier({ ...eligible, now: day(100), strikes }).tier).toBe('T2');
+    expect(computeTier({ ...eligible, now: day(121), strikes }).tier).toBe('T3');
+  });
+
+  it('T0 có gậy vẫn T0', () => {
+    const strikes = { active: true, lastIssuedAt: day(1) };
+    expect(
+      computeTier({
+        accountCreatedAt: DAY_ONE,
+        cleanAt: [],
+        now: day(2),
+        settings: SETTINGS,
+        strikes,
+      }).tier,
+    ).toBe('T0');
   });
 });
 

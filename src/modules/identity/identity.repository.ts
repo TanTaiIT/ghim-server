@@ -190,7 +190,10 @@ export type NewClearance = Pick<
 export type NewFlag = Pick<
   AccountFlag,
   'accountId' | 'kind' | 'deviceHash' | 'relatedAccountId' | 'lookupCode'
->;
+> & {
+  /** Chỉ đánh dấu "dùng máy của tài khoản có gậy" (add-strikes) — gậy hết hiệu lực thì đóng theo. */
+  relatedStrikeId?: string | null;
+};
 
 export interface FlagChanges {
   create: NewFlag[];
@@ -332,6 +335,8 @@ export interface IdentityRepository {
   findOpenFlags(accountId: string): Promise<AccountFlag[]>;
   findFlagByLookupCode(lookupCode: string): Promise<AccountFlag | null>;
   applyFlagChanges(input: FlagChanges): Promise<void>;
+  /** Gậy hết hiệu lực: đóng mọi đánh dấu "dùng máy của tài khoản có gậy" trỏ tới nó, mỗi cái một `flag_cleared` (add-strikes). */
+  clearFlagsByStrike(strikeId: string, at: Date, reason: string): Promise<number>;
 
   /** Trong các miền đưa vào, miền nào đang bị chặn (không tính bia mộ). */
   findBlockedDomains(domains: string[]): Promise<string[]>;
@@ -676,6 +681,26 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
     findOpenFlags: (accountId) =>
       prisma.accountFlag.findMany({ where: { accountId, clearedAt: null } }),
     findFlagByLookupCode: (lookupCode) => prisma.accountFlag.findUnique({ where: { lookupCode } }),
+    clearFlagsByStrike: (strikeId, at, reason) =>
+      prisma.$transaction(async (tx) => {
+        const open = await tx.accountFlag.findMany({
+          where: { kind: 'device_of_struck_account', relatedStrikeId: strikeId, clearedAt: null },
+        });
+        if (open.length === 0) return 0;
+        await tx.accountFlag.updateMany({
+          where: { id: { in: open.map((flag) => flag.id) } },
+          data: { clearedAt: at, clearedBy: null, clearedReason: reason },
+        });
+        await appendEvents(
+          tx,
+          open.map((flag) => ({
+            type: 'identity.device.flag_cleared' as const,
+            payload: { accountId: flag.accountId, kind: flag.kind },
+          })),
+        );
+        return open.length;
+      }),
+
     applyFlagChanges: ({ create, clear, at, events, audit }) =>
       prisma.$transaction(async (tx) => {
         if (create.length > 0) {

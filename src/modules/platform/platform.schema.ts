@@ -8,6 +8,8 @@ export const STAFF_PERMISSION_STATUSES = ['active', 'suspended'] as const;
 
 /** Lý do treo do hệ thống đặt khi `identity` khoá tài khoản; master trả lại thì xoá. */
 export const SUSPENDED_REASON_LOCKED = 'tài khoản bị khoá';
+/** Treo vì nhận gậy (add-strikes): gậy bị huỷ thì trả tự động, gậy hết hạn thì master trả (TK 5, 20). */
+export const SUSPENDED_REASON_STRIKE = 'đang có gậy';
 
 /** Nhật ký và bảng con số không có "ai" khi hệ thống tự nạp: id rỗng thay cho một tài khoản. */
 export const SYSTEM_ACTOR_ID = '00000000-0000-0000-0000-000000000000';

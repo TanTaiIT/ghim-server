@@ -64,6 +64,11 @@ export interface ListingSystemService {
    */
   confirmLive(input: { listingId: string; version: number; after?: AfterWrite }): Promise<Listing>;
   expireDue(): Promise<number>;
+  /**
+   * Gậy đi kèm tin bị huỷ (khiếu nại thắng, ân xá): tin bị từ chối / gỡ vì vi phạm trở lại hiển thị với số ngày còn lại
+   * (spec appeals, display-period). Tin đã đổi khác đi thì thôi — chạy lại vô hại.
+   */
+  restoreAfterStrike(listingId: string): Promise<boolean>;
   remindExpiring(): Promise<number>;
   removeBadgeByGroup(actor: Actor, groupId: string, listingId: string): Promise<void>;
   /** Cổng `ImageOwnership` cho `media`: tải ảnh cho tin của mình, chưa xoá. */
@@ -84,12 +89,19 @@ function restrictionsGoingLive(
   locked: Listing,
   tier: TrustTier,
   machine: boolean | null,
+  strikePoints: number,
 ): ListingRestriction[] {
   const base =
     machine === null
       ? locked.restrictions
       : withRestriction(locked.restrictions, 'machine', machine);
-  return withRestriction(base, 'new_account', tier === 'T0' && isPublicPlacement(locked.placement));
+  const newAccount = withRestriction(
+    base,
+    'new_account',
+    tier === 'T0' && isPublicPlacement(locked.placement),
+  );
+  // Lên bảng khi người bán đang có gậy: hạn chế "gậy" tới khi điểm về 0 (spec listing/visibility, add-strikes).
+  return withRestriction(newAccount, 'strike', strikePoints > 0 || base.includes('strike'));
 }
 
 /**
@@ -98,7 +110,13 @@ function restrictionsGoingLive(
  */
 type Columns =
   | ((locked: Listing) => Prisma.ListingUncheckedUpdateInput)
-  | { live: (locked: Listing, tier: TrustTier) => Prisma.ListingUncheckedUpdateInput };
+  | {
+      live: (
+        locked: Listing,
+        tier: TrustTier,
+        strikePoints: number,
+      ) => Prisma.ListingUncheckedUpdateInput;
+    };
 
 export function createListingSystemService(shared: ListingShared): ListingSystemService {
   const { repository, groups, trust, config, clock, explainMiss } = shared;
@@ -125,6 +143,7 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
   ) => {
     const now = clock();
     let tier: TrustTier = 'T0';
+    let strikePoints = 0;
     return repository.change({
       id: input.listingId,
       states: input.states ?? LISTING_STATES,
@@ -135,6 +154,7 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
         : {
             before: async (tx: Tx, locked: Listing) => {
               tier = await trust.tierIn(tx, locked.ownerId);
+              strikePoints = await trust.strikePointsIn(tx, locked.ownerId);
             },
           }),
       data: (locked) => {
@@ -150,7 +170,9 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
             settings(),
             rankAt,
           ),
-          ...(typeof columns === 'function' ? columns(locked) : columns.live(locked, tier)),
+          ...(typeof columns === 'function'
+            ? columns(locked)
+            : columns.live(locked, tier, strikePoints)),
         };
       },
       after: input.after,
@@ -176,8 +198,8 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
       const passed = await decide(
         { ...input, arrow: 'pass' },
         {
-          live: (locked, tier) => ({
-            restrictions: restrictionsGoingLive(locked, tier, result.restrictMachine),
+          live: (locked, tier, points) => ({
+            restrictions: restrictionsGoingLive(locked, tier, result.restrictMachine, points),
           }),
         },
         ranked?.firstLiveAt ?? null,
@@ -214,10 +236,10 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
         fault
           ? () => fault
           : {
-              live: (locked, tier) => ({
+              live: (locked, tier, points) => ({
                 fault: null,
                 faultReason: null,
-                restrictions: restrictionsGoingLive(locked, tier, machine),
+                restrictions: restrictionsGoingLive(locked, tier, machine, points),
               }),
             },
       );
@@ -235,6 +257,23 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
         after,
       });
       return confirmed?.after ?? explainMiss(listingId, version);
+    },
+
+    async restoreAfterStrike(listingId) {
+      const row = await repository.findById(listingId);
+      if (!row || row.deletedAt !== null || row.fault !== 'violation') return false;
+      if (row.state !== 'rejected' && row.state !== 'removed') return false;
+      const restored = await decide(
+        { listingId, version: row.version, arrow: 'appealWin', side: 'appeal' },
+        {
+          live: (locked, tier, points) => ({
+            fault: null,
+            faultReason: null,
+            restrictions: restrictionsGoingLive(locked, tier, null, points),
+          }),
+        },
+      );
+      return restored !== null;
     },
 
     expireDue() {

@@ -14,6 +14,9 @@ export const QUEUE_OF: Readonly<Record<ReviewReason, Queue>> = {
   sample_reviewer: 5,
   report: 1,
   report_severe: 1,
+  appeal: 2,
+  serious_strike: 2,
+  permanent_review: 2,
 };
 
 export const SAMPLE_REASONS: ReadonlySet<ReviewReason> = new Set([
@@ -49,6 +52,7 @@ export interface Deadlines {
   groupEscalationHours: number;
   sampleDays: number;
   reportHours: number;
+  appealDays: number;
 }
 
 /** Hạn xử của một lý do tính từ lúc lý do vào hàng (TK 16, bảng con số "Hàng chờ"). */
@@ -61,6 +65,9 @@ export function deadlineOf(reason: ReviewReason, from: Date, deadlines: Deadline
     sample_reviewer: deadlines.sampleDays * DAY_MS,
     report: deadlines.reportHours * HOUR_MS,
     report_severe: deadlines.reportHours * HOUR_MS,
+    appeal: deadlines.appealDays * DAY_MS,
+    serious_strike: deadlines.appealDays * DAY_MS,
+    permanent_review: deadlines.appealDays * DAY_MS,
   };
   return new Date(from.getTime() + span[reason]);
 }

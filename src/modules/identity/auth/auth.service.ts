@@ -40,6 +40,8 @@ export function createIdentityAuthService(
 ): IdentityAuthService {
   const { repository, config, clock, hashKey, googleVerifier } = deps;
   const {
+    assertNotBanned,
+    accountCreated,
     isPrivileged,
     idleExpiry,
     passwordIssue,
@@ -66,6 +68,7 @@ export function createIdentityAuthService(
 
       const emailNormalized = normalizeEmail(email);
       if (await claimEmail(emailNormalized, now)) throw emailTaken();
+      await assertNotBanned(emailNormalized);
 
       const account = await repository.createAccount({
         email: email.trim(),
@@ -76,6 +79,12 @@ export function createIdentityAuthService(
         status: 'pending_verification',
         displayName: displayName.trim(),
         at: now,
+      });
+      await repository.applyAccountChange({
+        accountId: account.id,
+        patch: {},
+        at: now,
+        events: [accountCreated(account)],
       });
       await issueAndSendCode(account, 'email_verify', account.email, now);
       return { accountId: account.id };
@@ -225,6 +234,7 @@ export function createIdentityAuthService(
           if (!google.emailVerified)
             throw invalidCredentials('Email Google này chưa được xác thực');
           await assertNotDisposable(google.email);
+          await assertNotBanned(emailNormalized);
           account = await repository.createAccount({
             email: google.email,
             emailNormalized,
@@ -242,7 +252,10 @@ export function createIdentityAuthService(
             accountId: account.id,
             patch: {},
             at: now,
-            events: [{ type: 'identity.account.verified', payload: { accountId: account.id } }],
+            events: [
+              accountCreated(account),
+              { type: 'identity.account.verified', payload: { accountId: account.id } },
+            ],
           });
         }
       }

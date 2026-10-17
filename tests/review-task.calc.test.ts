@@ -20,6 +20,7 @@ const DEADLINES: Deadlines = {
   groupEscalationHours: 72,
   sampleDays: 7,
   reportHours: 72,
+  appealDays: 7,
 };
 const at = (iso: string) => new Date(iso);
 const plusHours = (date: Date, hours: number) => new Date(date.getTime() + hours * HOUR_MS);

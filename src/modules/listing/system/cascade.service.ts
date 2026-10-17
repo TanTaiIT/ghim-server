@@ -53,6 +53,11 @@ export interface ListingCascadeService {
   onBadgeRightsChanged(groupId: string, accountId: string | null): Promise<number>;
   /** Gỡ "tài khoản mới" khi mức hiện tại đã khác T0 — lượt lên mức tới trễ sau một lượt tụt không gỡ nhầm. */
   onTierRaised(accountId: string): Promise<number>;
+  /**
+   * Điểm gậy của người bán vừa đổi (add-strikes, spec listing/visibility): từ 2 điểm mọi tin đang hiện mang `strike_wave`,
+   * dưới 2 gỡ; về 0 gỡ cả `strike`. Đọc điểm hiện tại sau khi khoá lô — chạy lại vô hại.
+   */
+  onStrikeStandingChanged(accountId: string): Promise<number>;
 }
 
 interface HideNotice {
@@ -164,12 +169,29 @@ export function createListingCascadeService(shared: ListingShared): ListingCasca
     groupId: string | null = null,
   ) => {
     const now = clock();
-    return repository.applyBatch<HideEvent | null>({
+    return repository.applyBatch<{ event: HideEvent | null; struck: Set<string> }>({
       where: { ...where, deletedAt: null },
       at: now,
-      prepare: decide,
-      compute: (rows, event) => (event ? rows.flatMap((row) => hidden(row, event, now) ?? []) : []),
-      events: (changed, event) => (event ? hideEvents(event, changed, groupId) : []),
+      // Tin hiện lại khi người bán đang có gậy mang lý do "gậy" (spec listing/visibility, add-strikes).
+      prepare: async () => ({
+        event: await decide(),
+        struck: await trust.struckAccounts(
+          await repository.ownersWhere({ ...where, deletedAt: null }),
+        ),
+      }),
+      compute: (rows, { event, struck }) =>
+        event
+          ? rows.flatMap((row) => {
+              const next = hidden(row, event, now);
+              if (!next) return [];
+              const reshown =
+                row.hideReasons.length > 0 && next.hideReasons.length === 0 && row.state === 'live';
+              return reshown && struck.has(row.ownerId)
+                ? [{ ...next, restrictions: withRestriction(next.restrictions, 'strike', true) }]
+                : [next];
+            })
+          : [],
+      events: (changed, { event }) => (event ? hideEvents(event, changed, groupId) : []),
     });
   };
 
@@ -352,6 +374,23 @@ export function createListingCascadeService(shared: ListingShared): ListingCasca
               cause: 'rights',
             }),
           ),
+      });
+    },
+
+    onStrikeStandingChanged(accountId) {
+      return repository.applyBatch<number>({
+        where: { ownerId: accountId, deletedAt: null, state: 'live' },
+        at: clock(),
+        prepare: () => trust.strikePointsOf(accountId),
+        compute: (rows, points) =>
+          rows.flatMap((row) => {
+            const wave = withRestriction(row.restrictions, 'strike_wave', points >= 2);
+            const next = points === 0 ? withRestriction(wave, 'strike', false) : wave;
+            const same =
+              next.length === row.restrictions.length &&
+              next.every((item) => row.restrictions.includes(item));
+            return same ? [] : [{ ...row, restrictions: next }];
+          }),
       });
     },
 

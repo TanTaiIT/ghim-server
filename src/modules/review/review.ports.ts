@@ -30,7 +30,19 @@ export type ReviewIdentityPort = Pick<
   IdentityService,
   'sharedDeviceAccounts' | 'masterIds' | 'accountSummaries' | 'deviceToken' | 'lockFromReport'
 >;
-export type ReviewTrustPort = Pick<TrustService, 'tierOf' | 'cleanCount' | 'voidByReport'>;
+export type ReviewTrustPort = Pick<
+  TrustService,
+  | 'tierOf'
+  | 'cleanCount'
+  | 'voidByReport'
+  | 'issueStrike'
+  | 'decideAppeal'
+  | 'decideSerious'
+  | 'decidePermanentReview'
+  | 'strikesOf'
+  | 'strikeDetail'
+  | 'ruleArticle'
+>;
 export type ReviewGroupPort = Pick<
   GroupService,
   'reviewersOf' | 'isMember' | 'isBanned' | 'banFromReport'

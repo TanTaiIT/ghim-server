@@ -29,6 +29,8 @@ export interface DeviceFlagInput {
   posts: DevicePostRow[];
   /** Tài khoản ĐANG bị khoá từng đăng tin trên máy này, kèm lúc khoá. */
   lockedAccounts: LockedAccountRow[];
+  /** Gậy đang hiệu lực của tài khoản từng đăng tin trên máy này (add-strikes). */
+  struckAccounts: StruckAccountRow[];
   /** Miễn trừ hỗ trợ đã cấp trên máy này. */
   clearances: ClearanceRow[];
 }
@@ -46,9 +48,28 @@ export function withSubmission(
   ];
 }
 
+export interface StruckAccountRow {
+  accountId: string;
+  strikeId: string;
+  issuedAt: Date;
+}
+
 export type RequiredFlag =
-  | { kind: Extract<AccountFlagKind, 'many_accounts_on_device'>; relatedAccountId: null }
-  | { kind: Extract<AccountFlagKind, 'device_of_locked_account'>; relatedAccountId: string };
+  | {
+      kind: Extract<AccountFlagKind, 'many_accounts_on_device'>;
+      relatedAccountId: null;
+      relatedStrikeId: null;
+    }
+  | {
+      kind: Extract<AccountFlagKind, 'device_of_locked_account'>;
+      relatedAccountId: string;
+      relatedStrikeId: null;
+    }
+  | {
+      kind: Extract<AccountFlagKind, 'device_of_struck_account'>;
+      relatedAccountId: string;
+      relatedStrikeId: string;
+    };
 
 const DAY_MS = 86_400_000;
 
@@ -67,7 +88,8 @@ export function hashDeviceId(deviceId: string, key: string): string {
  * còn đè lên chủ mới, nhưng một tài khoản khác bị khoá SAU đó vẫn bị tính.
  */
 export function requiredDeviceFlags(input: DeviceFlagInput): RequiredFlag[] {
-  const { accountId, now, windowDays, slots, posts, lockedAccounts, clearances } = input;
+  const { accountId, now, windowDays, slots, posts, lockedAccounts, struckAccounts, clearances } =
+    input;
   const own = posts.find((post) => post.accountId === accountId);
   if (!own) return [];
 
@@ -84,7 +106,7 @@ export function requiredDeviceFlags(input: DeviceFlagInput): RequiredFlag[] {
         a.accountId.localeCompare(b.accountId),
     );
   if (contenders.findIndex((post) => post.accountId === accountId) >= slots) {
-    flags.push({ kind: 'many_accounts_on_device', relatedAccountId: null });
+    flags.push({ kind: 'many_accounts_on_device', relatedAccountId: null, relatedStrikeId: null });
   }
 
   for (const locked of lockedAccounts) {
@@ -92,7 +114,24 @@ export function requiredDeviceFlags(input: DeviceFlagInput): RequiredFlag[] {
     // Đã đăng tin trước lúc khoá = người nhà dùng chung máy, không phải tài khoản lập để né khoá.
     if (own.firstPostedAt <= locked.lockedAt) continue;
     if (clearedAt && locked.lockedAt < clearedAt) continue;
-    flags.push({ kind: 'device_of_locked_account', relatedAccountId: locked.accountId });
+    flags.push({
+      kind: 'device_of_locked_account',
+      relatedAccountId: locked.accountId,
+      relatedStrikeId: null,
+    });
+  }
+  // Đăng tin lần đầu trên máy SAU khi một tài khoản cùng máy nhận gậy (spec device-registry, add-strikes); người đã
+  // đăng từ trước là người nhà. Một đánh dấu là đủ — gậy nào ra sớm nhất mà vẫn sau lần đăng đầu.
+  const struck = struckAccounts
+    .filter((row) => row.accountId !== accountId && own.firstPostedAt > row.issuedAt)
+    .filter((row) => !(clearedAt && row.issuedAt < clearedAt))
+    .toSorted((a, b) => a.issuedAt.getTime() - b.issuedAt.getTime())[0];
+  if (struck) {
+    flags.push({
+      kind: 'device_of_struck_account',
+      relatedAccountId: struck.accountId,
+      relatedStrikeId: struck.strikeId,
+    });
   }
 
   return flags;
@@ -103,7 +142,21 @@ export function requiredDeviceFlags(input: DeviceFlagInput): RequiredFlag[] {
  * cùng máy bị khoá — người nhà, phần bù của `device_of_locked_account` — và lượt đăng gần nhất trên máy còn trong cửa
  * sổ (câu 16). `posts` là dòng trước lượt đang xét: lượt đang gửi không tự làm mới cửa sổ.
  */
-export function sharesDeviceWithLocked(input: Omit<DeviceFlagInput, 'slots'>): boolean {
+/** Đã đăng trên máy TRƯỚC lúc một tài khoản cùng máy nhận gậy còn hiệu lực — dấu hiệu 30 điểm, không luôn giữ (add-strikes). */
+export function sharesDeviceWithStruck(
+  input: Pick<DeviceFlagInput, 'accountId' | 'now' | 'windowDays' | 'posts' | 'struckAccounts'>,
+): boolean {
+  const { accountId, now, windowDays, posts, struckAccounts } = input;
+  const own = posts.find((post) => post.accountId === accountId);
+  if (!own || own.lastPostedAt.getTime() < now.getTime() - windowDays * DAY_MS) return false;
+  return struckAccounts.some(
+    (row) => row.accountId !== accountId && own.firstPostedAt <= row.issuedAt,
+  );
+}
+
+export function sharesDeviceWithLocked(
+  input: Omit<DeviceFlagInput, 'slots' | 'struckAccounts'>,
+): boolean {
   const { accountId, now, windowDays, posts, lockedAccounts, clearances } = input;
   const own = posts.find((post) => post.accountId === accountId);
   if (!own || own.lastPostedAt.getTime() < now.getTime() - windowDays * DAY_MS) return false;

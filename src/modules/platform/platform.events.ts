@@ -16,6 +16,17 @@ export function registerPlatformListeners(
     if (typeof accountId !== 'string') throw new Error('identity.account.locked thiếu accountId');
     await platform.suspendStaffForLock(accountId);
   });
+  // Gậy (add-strikes): có gậy thì treo; gậy bị huỷ thì trả nếu không còn gậy nào.
+  dispatcher.register('trust.strike.issued', async (payload) => {
+    const { accountId } = payload;
+    if (typeof accountId !== 'string') throw new Error('trust.strike.issued thiếu accountId');
+    await platform.suspendStaffForStrike(accountId);
+  });
+  dispatcher.register('trust.strike.cancelled', async (payload) => {
+    const { accountId } = payload;
+    if (typeof accountId !== 'string') throw new Error('trust.strike.cancelled thiếu accountId');
+    await platform.restoreStaffAfterStrikeCancelled(accountId);
+  });
   dispatcher.register('identity.account.deleted', async (payload) => {
     const { accountId } = payload;
     if (typeof accountId !== 'string') throw new Error('identity.account.deleted thiếu accountId');

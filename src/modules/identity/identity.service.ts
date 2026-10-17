@@ -41,6 +41,20 @@ export interface IdentityServiceDeps {
   images?: ProfileImages;
   /** `screening` nối muộn; CLI không có — CLI không hiện tên cho ai. */
   names?: NameScreen;
+  /** `trust` nối muộn (add-strikes): email bị chặn vì khoá vĩnh viễn, gậy chặn tự xoá, gậy đang khoá tài khoản. */
+  strikes?: StrikeGate;
+}
+
+export interface StrikeGate {
+  isEmailBanned(emailHash: string): Promise<boolean>;
+  /** Gậy nặng hay nghiêm trọng đang hiệu lực — không tự xoá được tài khoản (spec account-deletion). */
+  blocksDeletion(accountId: string): Promise<boolean>;
+  /** Gậy nghiêm trọng đang khoá tài khoản — mở khoá thường bị chặn (chốt 17/10/2026). */
+  seriousLockOf(accountId: string): Promise<{ strikeId: string } | null>;
+  /** Gậy đang hiệu lực của các tài khoản trên một máy — đánh dấu "dùng máy của tài khoản có gậy". */
+  activeStrikesOf(
+    accountIds: string[],
+  ): Promise<Map<string, { strikeId: string; issuedAt: Date }[]>>;
 }
 
 export interface ProfileImageOwner {
@@ -92,6 +106,8 @@ export interface DeviceFlags {
   kinds: AccountFlagKind[];
   /** Đã đăng trên máy này trước lúc một tài khoản cùng máy bị khoá — dấu hiệu chấm điểm, không luôn giữ. */
   sharedWithLocked: boolean;
+  /** Đã đăng trên máy này trước lúc một tài khoản cùng máy nhận gậy còn hiệu lực (add-strikes) — dấu hiệu 30 điểm. */
+  sharedWithStruck: boolean;
 }
 
 /** Thứ module khác cần về một tài khoản — không email, không dấu băm. */
@@ -242,6 +258,22 @@ export interface IdentityService extends ActorResolver {
    * Tài khoản đã khoá, đã xoá hay là master thì thôi — bên nghe chạy lại vô hại.
    */
   lockFromReport(input: { accountId: string; by: string; reason: string }): Promise<void>;
+  /** Gậy nghiêm trọng khoá tài khoản ngay (add-strikes); lý do = điều đã trích — người bị khoá đọc được lúc đăng nhập. */
+  lockFromStrike(input: {
+    accountId: string;
+    by: string;
+    reason: string;
+    strikeId: string;
+  }): Promise<void>;
+  /** Master quyết hạ / huỷ gậy nghiêm trọng, hay gỡ khoá vĩnh viễn: mở khoá nếu đang khoá. */
+  unlockFromStrike(input: { accountId: string; by: string }): Promise<void>;
+  /** Gậy hết hiệu lực: đóng đánh dấu "dùng máy của tài khoản có gậy" trỏ tới nó. */
+  clearStruckFlags(strikeId: string): Promise<number>;
+  /** Dấu băm email kể cả của tài khoản đã xoá còn trong thời gian giữ — gậy đi theo email (add-strikes). */
+  emailHashIncludingDeleted(accountId: string): Promise<string | null>;
+  /** Kênh hỗ trợ của gậy nghiêm trọng: mã về email đã đăng ký; tiêu mã khi nộp khiếu nại. */
+  requestLockedAppealCode(accountId: string): Promise<void>;
+  consumeLockedAppealCode(accountId: string, code: string): Promise<boolean>;
   unlockAccount(actor: Actor, accountId: string): Promise<void>;
   deleteMyAccount(actor: Actor): Promise<void>;
   requestDeletion(input: { email: string; password: string }): Promise<void>;

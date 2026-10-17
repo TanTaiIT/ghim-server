@@ -18,6 +18,7 @@ export function createTrustModule(deps: TrustServiceDeps): {
       },
       listeners: (dispatcher) => registerTrustListeners(dispatcher, service),
       jobs: (jobs) => registerTrustJobs(jobs, service),
+      startup: () => service.ensureRuleArticles(),
     },
   };
 }
