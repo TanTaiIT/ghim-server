@@ -10,7 +10,8 @@ import {
   UnauthorizedError,
 } from '../../common/errors/app-error.js';
 import { formatDateVN, formatTimeVN } from '../../common/time/time.js';
-import { domainSuffixes } from './calc/email.calc.js';
+import type { OutboxEventInput } from '../../common/outbox/outbox.js';
+import { domainSuffixes, hashEmail } from './calc/email.calc.js';
 import { IDENTITY_JOBS, type SendMailJob } from './identity.jobs.js';
 import type {
   Account,
@@ -209,6 +210,11 @@ export const assertDisplayNameAllowed = (displayName: string): void => {
   }
 };
 
+const accountCreated = (account: Pick<Account, 'id' | 'emailHash'>): OutboxEventInput => ({
+  type: 'identity.account.created',
+  payload: { accountId: account.id, emailHash: account.emailHash },
+});
+
 /**
  * Phần dùng chung của ba mặt service `identity` (khách, người đã đăng nhập, bàn vận hành): phát và
  * so mã, mở phiên, luật "mỗi email một tài khoản", tra người đang gọi. Tách khỏi `identity.service.ts`
@@ -387,6 +393,14 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
     return null;
   };
 
+  /** Email của tài khoản bị khoá vĩnh viễn vì gậy nghiêm trọng bị chặn đăng ký tới khi gỡ khoá (add-strikes). */
+  const assertNotBanned = async (emailNormalized: string): Promise<void> => {
+    if (await deps.strikes?.isEmailBanned(hashEmail(emailNormalized, hashKey))) {
+      throw new ForbiddenError('Email này không đăng ký được', 'EMAIL_BANNED');
+    }
+  };
+
+  /** `trust` nghe để kế thừa gậy theo dấu băm email — cùng transaction với dòng tài khoản (add-strikes). */
   const assertNotDisposable = async (email: string): Promise<void> => {
     if (await isDisposableEmail(email)) {
       throw new BadRequestError(
@@ -405,6 +419,13 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
     if (account.status === 'locked') {
       throw new ConflictError(
         `Tài khoản đang bị khoá (${account.lockedReason ?? 'liên hệ hỗ trợ'}) nên chưa xoá được`,
+        'ACCOUNT_DELETE_BLOCKED',
+      );
+    }
+    // Gậy nặng, nghiêm trọng còn hiệu lực chặn tự xoá; gậy thường thì không — nó đi theo email (spec account-deletion).
+    if (await deps.strikes?.blocksDeletion(account.id)) {
+      throw new ConflictError(
+        'Bạn đang có gậy nặng — hết gậy rồi mới xoá được tài khoản',
         'ACCOUNT_DELETE_BLOCKED',
       );
     }
@@ -442,6 +463,8 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
   };
 
   return {
+    assertNotBanned,
+    accountCreated,
     isPrivileged,
     idleExpiry,
     passwordIssue,

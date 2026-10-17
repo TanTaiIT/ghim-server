@@ -4,6 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createStaticRuntimeConfig } from '../src/common/config/runtime-config.js';
+import { createPlatformPrivilegeSource } from '../src/modules/platform/platform.service.js';
 import { createTrustService } from '../src/modules/trust/trust.service.js';
 import { noBuyerInterest } from '../src/modules/trust/trust.shared.js';
 import { prisma } from './db-helpers.js';
@@ -173,6 +174,8 @@ describe('Câu cho tin chờ duyệt do screening cấp (cổng HoldExplanation)
     };
     const trust = createTrustService({
       repository: repositories.trust,
+      strikes: repositories.strike,
+      privileges: createPlatformPrivilegeSource(repositories.platform),
       listings: app.modules.listing,
       identity: app.modules.identity,
       buyerInterest: noBuyerInterest,

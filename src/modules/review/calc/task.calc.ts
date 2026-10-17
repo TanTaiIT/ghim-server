@@ -12,12 +12,20 @@ export const QUEUE_OF: Readonly<Record<ReviewReason, Queue>> = {
   group_escalation: 4,
   sample_risk: 5,
   sample_reviewer: 5,
+  report: 1,
+  report_severe: 1,
+  appeal: 2,
+  serious_strike: 2,
+  permanent_review: 2,
 };
 
 export const SAMPLE_REASONS: ReadonlySet<ReviewReason> = new Set([
   'sample_risk',
   'sample_reviewer',
 ]);
+
+/** Lý do báo cáo: chỉ quyết định của người đóng được (cam kết 25) — huỷ việc vì xoá, rút, đóng nhóm vẫn giữ chúng. */
+export const REPORT_REASONS: ReadonlySet<ReviewReason> = new Set(['report', 'report_severe']);
 
 export function queueOf(reasons: readonly ReviewReason[]): Queue {
   if (reasons.length === 0) throw new Error('Việc không có lý do nào');
@@ -43,6 +51,8 @@ export interface Deadlines {
   machineRestrictionHours: number;
   groupEscalationHours: number;
   sampleDays: number;
+  reportHours: number;
+  appealDays: number;
 }
 
 /** Hạn xử của một lý do tính từ lúc lý do vào hàng (TK 16, bảng con số "Hàng chờ"). */
@@ -53,6 +63,11 @@ export function deadlineOf(reason: ReviewReason, from: Date, deadlines: Deadline
     group_escalation: deadlines.groupEscalationHours * HOUR_MS,
     sample_risk: deadlines.sampleDays * DAY_MS,
     sample_reviewer: deadlines.sampleDays * DAY_MS,
+    report: deadlines.reportHours * HOUR_MS,
+    report_severe: deadlines.reportHours * HOUR_MS,
+    appeal: deadlines.appealDays * DAY_MS,
+    serious_strike: deadlines.appealDays * DAY_MS,
+    permanent_review: deadlines.appealDays * DAY_MS,
   };
   return new Date(from.getTime() + span[reason]);
 }

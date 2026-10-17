@@ -87,6 +87,21 @@ export function registerListingListeners(
     ({ groupId, accountId }) => listing.onBadgeRightsChanged(groupId, accountId),
   );
 
+  // ── GẬY ──
+  // Bên phát ở `trust` (add-strikes): đối chiếu theo điểm hiện tại; gậy đi kèm tin bị huỷ thì tin trở lại hiển thị.
+  on('trust.strike.standing', account, ({ accountId }) =>
+    listing.onStrikeStandingChanged(accountId),
+  );
+  on('trust.strike.cancelled', z.object({ listingId: z.string().nullable() }), ({ listingId }) =>
+    listingId ? listing.restoreAfterStrike(listingId) : Promise.resolve(false),
+  );
+
+  // ── BÁO CÁO ──
+  // Bên phát ở `review` (add-reports): báo cáo tự ẩn tin, hay vừa có quyết định — chiều lấy từ `review` lúc xử.
+  on('review.report.hide_changed', z.object({ listingId: z.string() }), ({ listingId }) =>
+    listing.onReportHideChanged(listingId),
+  );
+
   // ── DANH MỤC, MỨC TIN CẬY ──────────────────────────────────────────────────────────────────────
   on(
     'category.status.changed',

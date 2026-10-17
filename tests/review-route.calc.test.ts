@@ -25,7 +25,9 @@ const school: GroupReviewers = {
 };
 
 const input = (overrides: Partial<RouteInput> = {}): RouteInput => ({
+  subject: 'listing',
   queue: 0,
+  reasons: [],
   placement: 'marketplace',
   groupId: null,
   unitId: null,
@@ -34,6 +36,7 @@ const input = (overrides: Partial<RouteInput> = {}): RouteInput => ({
   excluded: new Set(),
   group: null,
   categoryStaff: ['staff-phone', 'staff-phone-2'],
+  safetyStaff: ['staff-safety'],
   masters: ['master'],
   ...overrides,
 });

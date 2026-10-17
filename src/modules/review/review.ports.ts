@@ -23,14 +23,33 @@ export type ReviewListingPort = Pick<
   | 'confirmLive'
   | 'detachByGroup'
   | 'lockForReview'
+  | 'reportTarget'
 >;
 export type ReviewScreeningPort = Pick<ScreeningService, 'runOf' | 'duplicateMatches'>;
 export type ReviewIdentityPort = Pick<
   IdentityService,
-  'sharedDeviceAccounts' | 'masterIds' | 'accountSummaries'
+  'sharedDeviceAccounts' | 'masterIds' | 'accountSummaries' | 'deviceToken' | 'lockFromReport'
 >;
-export type ReviewTrustPort = Pick<TrustService, 'tierOf' | 'cleanCount'>;
-export type ReviewGroupPort = Pick<GroupService, 'reviewersOf' | 'isMember' | 'isBanned'>;
-export type ReviewPlatformPort = Pick<PlatformService, 'activeStaffByCategory'>;
+export type ReviewTrustPort = Pick<
+  TrustService,
+  | 'tierOf'
+  | 'cleanCount'
+  | 'voidByReport'
+  | 'issueStrike'
+  | 'decideAppeal'
+  | 'decideSerious'
+  | 'decidePermanentReview'
+  | 'strikesOf'
+  | 'strikeDetail'
+  | 'ruleArticle'
+>;
+export type ReviewGroupPort = Pick<
+  GroupService,
+  'reviewersOf' | 'isMember' | 'isBanned' | 'banFromReport'
+>;
+export type ReviewPlatformPort = Pick<
+  PlatformService,
+  'activeStaffByCategory' | 'activeStaffWithScope'
+>;
 export type ReviewCategoryPort = Pick<CategoryService, 'settingsOf'>;
 export type ReviewMediaPort = Pick<MediaService, 'ownersOf'>;

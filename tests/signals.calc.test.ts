@@ -52,6 +52,7 @@ const facts = (overrides: Partial<TextFacts> = {}): TextFacts => ({
   recentOwn: [],
   heldCount: 0,
   sharedDeviceLocked: false,
+  sharedDeviceStruck: false,
   ...overrides,
 });
 const codes = (input: Partial<TextFacts>) =>
@@ -266,6 +267,10 @@ describe('Gom dấu hiệu của chữ', () => {
 
   it('dùng chung máy với tài khoản đang khoá: trúng dấu hiệu, không luôn giữ', () => {
     expect(codes({ sharedDeviceLocked: true })).toEqual(['shared_device_locked']);
+  });
+
+  it('đã đăng trên máy trước lúc tài khoản cùng máy nhận gậy: trúng dấu hiệu 30 điểm, một lần (add-strikes)', () => {
+    expect(codes({ sharedDeviceStruck: true })).toEqual(['shared_device_strike']);
   });
 
   it('tài khoản 2 ngày tuổi ghi số Zalo trong mô tả: tài khoản mới + liên hệ ngoài sàn', () => {

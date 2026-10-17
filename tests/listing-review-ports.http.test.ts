@@ -178,7 +178,7 @@ describe('Gỡ khỏi nhóm — detachByGroup', () => {
 });
 
 describe('Cổng đọc cho review', () => {
-  it('reviewSubject, forReviewer: dữ kiện và nội dung tin; tin đã xoá thì null', async () => {
+  it('reviewSubject, forReviewer: dữ kiện và nội dung tin; tin đã xoá chỉ còn bản lưu cho báo cáo', async () => {
     const user = await newUser(app);
     const live = await liveListingOf(app, user);
     expect(await listing().reviewSubject(live.id)).toMatchObject({
@@ -192,7 +192,12 @@ describe('Cổng đọc cho review', () => {
     expect(await listing().forReviewer(live.id)).toMatchObject({ id: live.id, title: live.title });
     await prisma.listing.update({ where: { id: live.id }, data: { deletedAt: new Date() } });
     expect(await listing().reviewSubject(live.id)).toBeNull();
-    expect(await listing().forReviewer(live.id)).toBeNull();
+    // Báo cáo về tin đã xoá vẫn xử trên bản lưu (add-reports).
+    expect(await listing().reviewSubject(live.id, { includeDeleted: true })).toMatchObject({
+      id: live.id,
+      deleted: true,
+    });
+    expect(await listing().forReviewer(live.id)).toMatchObject({ id: live.id, title: live.title });
   });
 
   it('pendingInGroup: chỉ tin chờ duyệt của đúng người trong đúng nhóm', async () => {

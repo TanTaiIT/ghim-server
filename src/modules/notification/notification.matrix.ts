@@ -49,7 +49,10 @@ export interface MatrixResult {
 
 /** Những gì ma trận cần hỏi module khác — `group` và `identity` trả lời qua cổng, không đọc bảng của họ. */
 export interface MatrixContext {
-  group(groupId: string): Promise<{ id: string; name: string } | null>;
+  /** `state` để dòng ma trận về trạng thái nhóm chỉ viết khi câu còn đúng (fix-stale-group-notices). */
+  group(groupId: string): Promise<{ id: string; name: string; state: string } | null>;
+  isMember(groupId: string, accountId: string): Promise<boolean>;
+  isBanned(groupId: string, accountId: string): Promise<boolean>;
   managers(groupId: string): Promise<string[]>;
   moderators(groupId: string): Promise<string[]>;
   owner(groupId: string): Promise<string | null>;
@@ -121,6 +124,10 @@ const groupsChanged = (recipients: string[], groupId: string): Hint => ({
  * Ma trận N1–N30 (design `add-notification-core` mục 1). Mỗi sự kiện `group.*` một hàm: ai nhận, câu gì, có nhắc
  * không. Luật chung: không báo người tự làm; quyết định của nhóm ký "Quản trị nhóm", không nêu tên ai; câu không
  * chứa lý do khoá hay cấm; nhóm thiếu chủ không nói chủ bị khoá. Sự kiện không có ở đây thì không báo ai.
+ *
+ * Dòng về trạng thái nhóm hay tư cách một người (N3, N6, N10–N14, N26–N28) chỉ viết khi câu còn đúng lúc viết: bộ
+ * phát có thể xử lại sự kiện cũ sau sự kiện mới hơn, và thông báo đã ghi thì không rút lại được
+ * (fix-stale-group-notices). Báo hiệu realtime vẫn gửi — nó chỉ bảo app tải lại.
  */
 export const GROUP_MATRIX: Record<string, Handler> = {
   // N1, N2
@@ -175,6 +182,8 @@ export const GROUP_MATRIX: Record<string, Handler> = {
     if (!group || !newOwner) return empty();
     const previous = str(payload, 'previousOwnerId');
     const cause = str(payload, 'cause');
+    const hints = [groupsChanged([newOwner, ...(previous ? [previous] : [])], group.id)];
+    if ((await ctx.owner(group.id)) !== newOwner) return { ...empty(), hints };
     const newName = (await ctx.names([newOwner])).get(newOwner) ?? 'Người nhận';
     const drafts: NoticeDraft[] = [];
     if (previous && previous !== newOwner) {
@@ -209,17 +218,13 @@ export const GROUP_MATRIX: Record<string, Handler> = {
         personal: false,
       });
     }
-    return {
-      ...empty(),
-      drafts,
-      hints: [groupsChanged([newOwner, ...(previous ? [previous] : [])], group.id)],
-    };
+    return { ...empty(), drafts, hints };
   },
 
   // N10
   async 'group.ownerless.started'(payload, ctx) {
     const group = await ctx.group(str(payload, 'groupId') ?? '');
-    if (!group) return empty();
+    if (group?.state !== 'ownerless') return empty();
     const moderators = await ctx.moderators(group.id);
     if (moderators.length === 0) return empty();
     return {
@@ -244,7 +249,7 @@ export const GROUP_MATRIX: Record<string, Handler> = {
   async 'group.ownerless.resolved'(payload, ctx) {
     if (str(payload, 'outcome') !== 'owner_returned') return empty();
     const group = await ctx.group(str(payload, 'groupId') ?? '');
-    if (!group) return empty();
+    if (!group || group.state === 'ownerless') return empty();
     const owner = await ctx.owner(group.id);
     const drafts: NoticeDraft[] = [];
     if (owner) {
@@ -278,7 +283,7 @@ export const GROUP_MATRIX: Record<string, Handler> = {
   // N13
   async 'group.state.locked'(payload, ctx) {
     const group = await ctx.group(str(payload, 'groupId') ?? '');
-    if (!group) return empty();
+    if (group?.state !== 'locked') return empty();
     const cause = str(payload, 'cause');
     const reason = str(payload, 'reason');
     const detail =
@@ -316,7 +321,7 @@ export const GROUP_MATRIX: Record<string, Handler> = {
   // N14
   async 'group.state.unlocked'(payload, ctx) {
     const group = await ctx.group(str(payload, 'groupId') ?? '');
-    if (!group) return empty();
+    if (!group || group.state === 'locked' || group.state === 'closed') return empty();
     return {
       ...empty(),
       fanOuts: [
@@ -589,7 +594,11 @@ export const GROUP_MATRIX: Record<string, Handler> = {
     if (!group || !member) return empty();
     const reason = str(payload, 'reason');
     const hints = [groupsChanged([member], group.id)];
-    if (reason === 'removed') {
+    if ((reason !== 'removed' && reason !== 'banned') || (await ctx.isMember(group.id, member))) {
+      return { ...empty(), hints };
+    }
+    // Đã được gỡ cấm trước khi lượt cấm được báo: chỉ còn đúng nửa "không còn là thành viên".
+    if (reason === 'removed' || !(await ctx.isBanned(group.id, member))) {
       return {
         ...empty(),
         hints,
@@ -604,22 +613,19 @@ export const GROUP_MATRIX: Record<string, Handler> = {
         ],
       };
     }
-    if (reason === 'banned') {
-      return {
-        ...empty(),
-        hints,
-        drafts: [
-          personal(
-            member,
-            group,
-            'group.member.banned',
-            `Bạn không còn là thành viên «${group.name}» và không vào lại nhóm này được.`,
-            { alertable: true },
-          ),
-        ],
-      };
-    }
-    return { ...empty(), hints };
+    return {
+      ...empty(),
+      hints,
+      drafts: [
+        personal(
+          member,
+          group,
+          'group.member.banned',
+          `Bạn không còn là thành viên «${group.name}» và không vào lại nhóm này được.`,
+          { alertable: true },
+        ),
+      ],
+    };
   },
 
   // Vào nhóm không báo ai (nhóm đông thì thành tiếng ồn), chỉ báo hiệu cho chính người vào.
@@ -633,7 +639,7 @@ export const GROUP_MATRIX: Record<string, Handler> = {
   async 'group.ban.lifted'(payload, ctx) {
     const group = await ctx.group(str(payload, 'groupId') ?? '');
     const person = str(payload, 'accountId');
-    if (!group || !person) return empty();
+    if (!group || !person || (await ctx.isBanned(group.id, person))) return empty();
     return {
       ...empty(),
       drafts: [

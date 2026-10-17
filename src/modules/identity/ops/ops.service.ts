@@ -11,6 +11,8 @@ import {
   hashDeviceId,
   requiredDeviceFlags,
   sharesDeviceWithLocked,
+  sharesDeviceWithStruck,
+  type StruckAccountRow,
   withSubmission,
 } from '../calc/device.calc.js';
 import { generateLookupCode, normalizeLookupCode } from '../../../common/crypto/lookup-code.js';
@@ -32,6 +34,13 @@ import {
 export type IdentityOpsService = Pick<
   IdentityService,
   | 'lockAccount'
+  | 'lockFromReport'
+  | 'lockFromStrike'
+  | 'unlockFromStrike'
+  | 'clearStruckFlags'
+  | 'emailHashIncludingDeleted'
+  | 'requestLockedAppealCode'
+  | 'consumeLockedAppealCode'
   | 'unlockAccount'
   | 'recordListingSubmission'
   | 'deviceFlagsFor'
@@ -68,7 +77,20 @@ export function createIdentityOpsService(
   shared: IdentityShared,
 ): IdentityOpsService {
   const { repository, config, clock, hashKey } = deps;
-  const { passwordIssue, claimEmail } = shared;
+  const { passwordIssue, claimEmail, assertResendAllowed, issueAndSendCode, matchLiveCode } =
+    shared;
+
+  /** Gậy đang hiệu lực của các tài khoản trên một máy — `trust` nối muộn; chưa nối thì không ai có gậy. */
+  const struckOn = async (accountIds: string[]): Promise<StruckAccountRow[]> => {
+    const active = (await deps.strikes?.activeStrikesOf([...new Set(accountIds)])) ?? new Map();
+    return [...active].flatMap(([accountId, rows]) =>
+      rows.map((row: { strikeId: string; issuedAt: Date }) => ({
+        accountId,
+        strikeId: row.strikeId,
+        issuedAt: row.issuedAt,
+      })),
+    );
+  };
 
   return {
     // ── KHOÁ / MỞ KHOÁ / XOÁ ────────────────────────────────────────────────────────────────────
@@ -102,10 +124,108 @@ export function createIdentityOpsService(
       deps.sessionsRevoked?.account(accountId);
     },
 
+    async lockFromReport({ accountId, by, reason }) {
+      const target = await repository.findAccountById(accountId);
+      if (!target || target.status === 'deleted' || target.status === 'locked') return;
+      if (target.role === 'master') return;
+      const locked = await repository.lockAccount({
+        accountId,
+        reason,
+        lockedBy: by,
+        at: clock(),
+        events: [{ type: 'identity.account.locked', payload: { accountId, reason, lockedBy: by } }],
+        audit: {
+          actorId: by,
+          actorRole: 'master',
+          action: 'identity.account.lock',
+          targetType: 'account',
+          targetId: accountId,
+          reason,
+          details: { cause: 'report' },
+        },
+      });
+      if (locked) deps.sessionsRevoked?.account(accountId);
+    },
+
+    async lockFromStrike({ accountId, by, reason, strikeId }) {
+      const target = await repository.findAccountById(accountId);
+      if (!target || target.status === 'deleted' || target.status === 'locked') return;
+      if (target.role === 'master') return;
+      const locked = await repository.lockAccount({
+        accountId,
+        reason,
+        lockedBy: by,
+        at: clock(),
+        events: [{ type: 'identity.account.locked', payload: { accountId, reason, lockedBy: by } }],
+        audit: {
+          actorId: by,
+          actorRole: 'master',
+          action: 'identity.account.lock',
+          targetType: 'account',
+          targetId: accountId,
+          reason,
+          details: { cause: 'strike', strikeId },
+        },
+      });
+      if (locked) deps.sessionsRevoked?.account(accountId);
+    },
+
+    async unlockFromStrike({ accountId, by }) {
+      const target = await repository.findAccountById(accountId);
+      if (!target || target.status !== 'locked') return;
+      await repository.unlockAccount({
+        accountId,
+        unlockedBy: by,
+        at: clock(),
+        events: [{ type: 'identity.account.unlocked', payload: { accountId, unlockedBy: by } }],
+        audit: {
+          actorId: by,
+          actorRole: 'master',
+          action: 'identity.account.unlock',
+          targetType: 'account',
+          targetId: accountId,
+          details: { cause: 'strike' },
+        },
+      });
+    },
+
+    clearStruckFlags: (strikeId) =>
+      repository.clearFlagsByStrike(strikeId, clock(), FLAG_CLEARED_REASONS.strikeEnded),
+
+    async emailHashIncludingDeleted(accountId) {
+      return (await repository.findAccountById(accountId))?.emailHash ?? null;
+    },
+
+    async requestLockedAppealCode(accountId) {
+      const account = await repository.findAccountById(accountId);
+      if (!account || account.status === 'deleted') return;
+      const now = clock();
+      await assertResendAllowed(account.id, 'locked_appeal', now);
+      await issueAndSendCode(account, 'locked_appeal', account.email, now);
+    },
+
+    async consumeLockedAppealCode(accountId, code) {
+      const now = clock();
+      try {
+        const live = await matchLiveCode(accountId, 'locked_appeal', code, now);
+        await repository.updateCode(live.id, { consumedAt: now });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+
     async unlockAccount(actor, accountId) {
       const target = await repository.findAccountById(accountId);
       if (!target || target.status === 'deleted') throw new NotFoundError('Không có tài khoản này');
       if (target.status !== 'locked') throw new ConflictError('Tài khoản không bị khoá');
+      // Khoá vì gậy nghiêm trọng chỉ mở bằng quyết định về gậy đó (chốt 17/10/2026).
+      if (await deps.strikes?.seriousLockOf(accountId)) {
+        throw new ConflictError(
+          'Tài khoản đang khoá vì gậy nghiêm trọng — quyết gậy đó mới mở khoá được',
+          'LOCKED_BY_STRIKE',
+        );
+      }
       const unlocked = await repository.unlockAccount({
         accountId,
         unlockedBy: actor.accountId,
@@ -148,6 +268,7 @@ export function createIdentityOpsService(
           slots: config.get('identity.deviceSlots'),
           posts,
           lockedAccounts,
+          struckAccounts: await struckOn(posts.map((post) => post.accountId)),
           clearances,
         }),
       );
@@ -159,6 +280,7 @@ export function createIdentityOpsService(
           kind: flag.kind,
           deviceHash,
           relatedAccountId: flag.relatedAccountId,
+          relatedStrikeId: flag.relatedStrikeId,
           lookupCode: generateLookupCode(),
         }));
       const toClear = openHere.filter((flag) => !required.some((item) => item.kind === flag.kind));
@@ -199,6 +321,7 @@ export function createIdentityOpsService(
         repository.findOpenFlags(accountId),
       ]);
       const windowDays = config.get('identity.deviceWindowDays');
+      const struckAccounts = await struckOn(posts.map((post) => post.accountId));
       const required = requiredDeviceFlags({
         accountId,
         now: at,
@@ -206,6 +329,7 @@ export function createIdentityOpsService(
         slots: config.get('identity.deviceSlots'),
         posts: withSubmission(posts, accountId, at),
         lockedAccounts,
+        struckAccounts,
         clearances,
       });
       // Máy này: lượt tính lại sau lượt gửi sẽ ra đúng tập vừa tính. Máy khác: đánh dấu còn mở tới khi hỗ trợ gỡ.
@@ -219,6 +343,13 @@ export function createIdentityOpsService(
           posts,
           lockedAccounts,
           clearances,
+        }),
+        sharedWithStruck: sharesDeviceWithStruck({
+          accountId,
+          now: at,
+          windowDays,
+          posts,
+          struckAccounts,
         }),
       };
     },

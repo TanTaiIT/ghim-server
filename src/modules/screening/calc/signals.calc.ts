@@ -212,6 +212,8 @@ export interface TextFacts {
   heldCount: number;
   /** `identity.deviceFlagsFor`: dùng chung máy với tài khoản đang khoá mà không thuộc diện luôn giữ (câu 16, 20). */
   sharedDeviceLocked: boolean;
+  /** Đã đăng trên máy trước lúc một tài khoản cùng máy nhận gậy còn hiệu lực — một lần dù máy có mấy người có gậy. */
+  sharedDeviceStruck: boolean;
 }
 
 export interface SignalLimits {
@@ -252,6 +254,7 @@ export function collectHits(facts: TextFacts, limits: SignalLimits): TextHits {
     'zero_price_high_value',
   );
   add(facts.sharedDeviceLocked, 'shared_device_locked');
+  add(facts.sharedDeviceStruck, 'shared_device_strike');
   add(
     isAbnormalPrice(price, category.priceRange, limits.abnormalPriceMinSamples),
     'abnormal_price',

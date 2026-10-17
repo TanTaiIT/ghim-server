@@ -130,7 +130,12 @@ describe('Mũi tên của người đăng', () => {
     const fixed = await patch(app, owner, removed, { title: 'Đã sửa cho đúng' });
     expect(fixed.statusCode, fixed.body).toBe(200);
     expect(fixed.json().data).toMatchObject({ state: 'checking', fault: null });
-    await expectNoArrow(banned.id, () => patch(app, owner, banned, { title: 'Sửa lách' }));
+    // Tin vi phạm là hồ sơ của gậy: mã riêng để app chỉ đường khiếu nại (add-strikes).
+    const before = await row(banned.id);
+    const dodged = await patch(app, owner, banned, { title: 'Sửa lách' });
+    expect(dodged.statusCode).toBe(409);
+    expect(codeOf(dodged)).toBe('LISTING_UNDER_VIOLATION');
+    expect(await row(banned.id)).toEqual(before);
   });
 
   it('người khác đánh dấu đã bán tin đang hiển thị: 403, tin vẫn hiển thị', async () => {
@@ -461,7 +466,10 @@ describe('Nơi đăng khi sửa', () => {
       identity: app.modules.identity,
       trust: createInterimTrust('T1'),
       screening: interimScreening,
-      openWork: { blocksPlacement: () => Promise.resolve(true) },
+      openWork: {
+        blocksPlacement: () => Promise.resolve(true),
+        reportHidden: () => Promise.resolve(false),
+      },
       config: createStaticRuntimeConfig({}),
       clock: () => now,
     });

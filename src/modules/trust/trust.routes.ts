@@ -3,6 +3,7 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { actorOf } from '../../common/auth/actor.js';
 import { errorResponse, ok, toOk } from '../../common/schemas/response.js';
 import { trustDashboardSchema } from './trust.schema.js';
+import { strikeRoutes } from './strike/strike.routes.js';
 import type { TrustService } from './trust.service.js';
 
 export interface TrustRoutesOptions {
@@ -22,4 +23,5 @@ export const trustRoutes: FastifyPluginAsyncZod<TrustRoutesOptions> = async (app
     },
     handler: async (request) => toOk(await trust.dashboard(actorOf(request))),
   });
+  await app.register(strikeRoutes, { trust });
 };

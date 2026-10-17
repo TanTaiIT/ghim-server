@@ -16,7 +16,7 @@ import { REVIEW_EVENTS, reviewEvent } from '../review.outbox.js';
 import type { ReviewShared } from '../review.shared.js';
 
 export interface ReviewScheduleService {
-  /** Mỗi phút: chuyển master việc quá hạn, huỷ mẫu hậu kiểm quá hạn, dọn nhận việc hết giờ. */
+  /** Mỗi phút: chuyển master việc quá hạn, huỷ mẫu hậu kiểm quá hạn, khiếu nại gậy thường quá hạn tự thắng, dọn nhận việc hết giờ. */
   everyMinute(): Promise<{ escalated: number; expired: number; claimsCleared: number }>;
   /** Mỗi giờ: lấy mẫu theo rủi ro, nhắc master việc nằm ở hàng master lâu, cảnh báo nhiều việc sắp chạm hạn. */
   everyHour(): Promise<{ considered: number; sampled: number; reminded: number; warned: boolean }>;
@@ -116,6 +116,23 @@ export function createScheduleService(
     return true;
   };
 
+  /**
+   * Khiếu nại gậy thường quá hạn xét tự thắng, đúng hệ quả như người xét chấp nhận (spec appeals); gậy nặng chuyển
+   * master như mọi việc, gậy nghiêm trọng vốn ở master. Đóng việc chỉ khi nó còn đúng là việc đang mở của gậy.
+   */
+  const appealAutoWin = async (task: ReviewTask, now: Date): Promise<boolean> => {
+    const { strikeId } = task;
+    if (!strikeId || !task.reasons.includes('appeal')) return false;
+    const strike = await trust.strikeDetail(strikeId);
+    if (strike?.kind !== 'normal' || strike.appeal?.status !== 'pending') return false;
+    return repository.withOpenStrikeTask(strikeId, async (tx, open) => {
+      if (open?.id !== task.id) return false;
+      await trust.decideAppeal(tx, { strikeId, verdict: 'won', by: null, at: now });
+      await repository.closeTask(tx, open.id, 'expired', now);
+      return true;
+    });
+  };
+
   return {
     async everyMinute() {
       const now = clock();
@@ -125,13 +142,18 @@ export function createScheduleService(
       const routeOf = await routesFor(overdue);
       await sequentially(overdue, async (task) => {
         const action = overdueAction(task, now);
+        if (action === 'escalate' && (await appealAutoWin(task, now))) {
+          expired.push(task.id);
+          return;
+        }
         // Việc đã ở bậc master (danh mục chưa có staff) thì không chuyển: thời gian ở hàng master — mốc nhắc — vẫn tính
         // từ lúc sinh việc. Danh mục có staff sau đó thì lượt kế tiếp chuyển việc như thường.
         const atMaster = routeOf(task).level === 'master';
         if (action === 'escalate' && !atMaster && (await repository.escalateTask(task.id, now))) {
           escalated.push(task.id);
         }
-        if (action === 'expire') {
+        // Chỉ việc về tin có lý do mẫu — việc về người không bao giờ tự huỷ.
+        if (action === 'expire' && task.listingId) {
           // Mẫu không ai xử kịp: huỷ, đếm "bỏ sót"; tin không đổi (spec review/post-review).
           await queue.dropReasons(task.listingId, SAMPLES, 'expired');
           expired.push(task.id);

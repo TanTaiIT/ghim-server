@@ -65,7 +65,7 @@ export function createRunService(
     configVersion: number,
   ): Promise<TextResult> => {
     const daysAgo = (days: number) => new Date(now.getTime() - days * DAY_MS);
-    const [tier, summaries, device, category, keywords, recentOwn, submissions, heldCount] =
+    const [tier, summaries, device, category, keywords, recentOwn, submissions, heldCount, points] =
       await Promise.all([
         trust.tierOf(input.accountId),
         identity.accountSummaries([input.accountId]),
@@ -83,6 +83,7 @@ export function createRunService(
           daysAgo(config.get('screening.heldManyDays')),
           HELD_MANY_CAUSES,
         ),
+        trust.strikePointsOf(input.accountId),
       ]);
     const guessedId = guessCategory(input.title, keywords, input.categoryId);
     const text = `${input.title}\n${input.description ?? ''}`;
@@ -101,6 +102,7 @@ export function createRunService(
         recentOwn,
         heldCount,
         sharedDeviceLocked: device.sharedWithLocked,
+        sharedDeviceStruck: device.sharedWithStruck,
       },
       signalLimits(config),
     );
@@ -113,6 +115,7 @@ export function createRunService(
       tier,
       hits: collected.hits,
       alwaysManual: collected.alwaysManual,
+      struck: points > 0,
       deviceFlags: device.kinds,
       rankAsListingId: collected.rankAsListingId,
       bands: bandThresholds(config),

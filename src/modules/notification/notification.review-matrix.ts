@@ -3,6 +3,7 @@ import { type ListingDecidedOutcome, REVIEW_EVENTS } from '../review/review.outb
 import {
   empty,
   type Handler,
+  ids,
   type MatrixContext,
   type MatrixResult,
   type NoticeDraft,
@@ -91,6 +92,38 @@ export const REVIEW_MATRIX: Record<string, Handler> = {
       data: { listingId, groupId },
       groupId,
       alertable: true,
+      personal: true,
+    };
+    return { ...empty(), drafts: [notice] };
+  },
+
+  // N46 — người báo được báo kết quả (add-reports): mỗi người một dòng, không nêu hệ quả, không nêu ai khác đã báo.
+  async [REVIEW_EVENTS.reportDecided](payload: Payload, ctx: MatrixContext) {
+    const verdict = str(payload, 'verdict');
+    const reporters = ids(payload, 'reporterIds');
+    const reportId = str(payload, 'reportId');
+    if ((verdict !== 'upheld' && verdict !== 'dismissed') || reporters.length === 0) return empty();
+    const listingId = str(payload, 'listingId');
+    const title = listingId ? (await ctx.listingTitles([listingId])).get(listingId) : undefined;
+    const about =
+      str(payload, 'subjectKind') === 'account'
+        ? 'một người dùng'
+        : title
+          ? `tin «${title}»`
+          : 'một tin';
+    const body =
+      verdict === 'upheld'
+        ? `Báo cáo của bạn về ${about} đã được xác nhận có vi phạm. Cảm ơn bạn đã báo.`
+        : `Báo cáo của bạn về ${about} đã được xem xét: không thấy vi phạm.`;
+    const notice: NoticeDraft = {
+      recipients: reporters,
+      category: 'your_reports',
+      type: 'review.report.decided',
+      title: 'Kết quả báo cáo',
+      body,
+      data: { reportId },
+      groupId: null,
+      alertable: false,
       personal: true,
     };
     return { ...empty(), drafts: [notice] };

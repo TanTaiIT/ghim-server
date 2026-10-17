@@ -245,7 +245,13 @@ export function createIdentityAccountService(
         },
         revokeSessions: { reason: 'email_changed', exceptId: actor.sessionId },
         at: now,
-        events: [],
+        // Gậy đang hiệu lực theo cả email mới (add-strikes, spec email-change).
+        events: [
+          {
+            type: 'identity.account.email_changed',
+            payload: { accountId: account.id, emailHash: hashEmail(emailNormalized, hashKey) },
+          },
+        ],
       });
       assertConsumed(applied);
       deps.sessionsRevoked?.account(account.id);

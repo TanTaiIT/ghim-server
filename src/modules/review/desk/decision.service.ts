@@ -1,11 +1,14 @@
 import type {
   Listing,
+  ListingFault,
   ListingState,
+  ReportVerdict,
   ReviewActorRole,
   ReviewDecision,
   ReviewOutcome,
   ReviewReasonTemplate,
   ReviewTask,
+  TrustTier,
 } from '@prisma/client';
 
 import type { Actor } from '../../../common/auth/actor.js';
@@ -16,8 +19,14 @@ import {
   ForbiddenError,
   NotFoundError,
 } from '../../../common/errors/app-error.js';
+import { sequentially } from '../../../common/utils/sequential.js';
 import type { ReviewSubject } from '../../listing/listing.ports.js';
+import type { RuleArticleDto } from '../../trust/strike/strike.schema.js';
+import type { IssueStrikeInput } from '../../trust/strike/strike.service.js';
+import { scoreDelta, suspendedUntilAfter } from '../calc/report.calc.js';
 import { sampled } from '../calc/sampling.calc.js';
+import { REPORT_REASONS } from '../calc/task.calc.js';
+import type { ReportSubject } from '../report/report.repository.js';
 import type { ReviewQueueService } from '../queue/queue.service.js';
 import { type ListingDecidedOutcome, REVIEW_EVENTS, reviewEvent } from '../review.outbox.js';
 import type { Tx } from '../review.repository.js';
@@ -111,6 +120,7 @@ const decidedEvents = (input: {
   role: ReviewActorRole;
   groupId: string | null;
   reason: string | null;
+  fault: ListingFault;
 }): OutboxEventInput[] => {
   const outcome = noticeOutcome(input.outcome, input.subject.state);
   if (!outcome) return [];
@@ -121,7 +131,7 @@ const decidedEvents = (input: {
       listingId: input.subject.id,
       ownerId: input.subject.ownerId,
       outcome,
-      fault: faulted ? 'mistake' : null,
+      fault: faulted ? input.fault : null,
       reason: faulted ? input.reason : null,
       groupId: GROUP_ROLES.has(input.role) ? input.groupId : null,
     }),
@@ -144,9 +154,21 @@ const asListingChanged = (error: unknown): never => {
 const invalid = (message: string): BadRequestError =>
   new BadRequestError(message, 'VALIDATION_ERROR');
 
-/** Kết quả thật của lượt quyết: `mistake` thành từ chối hay gỡ theo trạng thái tin. */
-const outcomeOf = (body: DecisionBody, subject: ReviewSubject): ReviewOutcome => {
-  if (body.outcome !== 'mistake') return body.outcome;
+/** Trần T1 khi nhận gậy là tất định (spec trust-tiers): nhật ký ghi mức sau quyết định, không chờ bên nghe tính lại. */
+const capT1 = (tier: TrustTier): TrustTier => (tier === 'T0' ? 'T0' : 'T1');
+
+const STRIKE_PROMPT = {
+  appeal: 'Khiếu nại: chọn chấp nhận hay bác',
+  serious: 'Gậy nghiêm trọng: chọn khoá vĩnh viễn, hạ thành gậy nặng hay huỷ',
+  permanent: 'Xem lại khoá vĩnh viễn: chọn giữ tiếp hay gỡ khoá',
+} as const;
+
+/** `violation` của enum chỉ là nút bấm: nhật ký ghi `reject` / `remove` với `severity = violation` (add-strikes). */
+type ListingOutcome = Exclude<ReviewOutcome, 'violation'>;
+
+/** Kết quả thật của lượt quyết: `mistake` / `violation` thành từ chối hay gỡ theo trạng thái tin. */
+const outcomeOf = (body: DecisionBody, subject: ReviewSubject): ListingOutcome => {
+  if (body.outcome !== 'mistake' && body.outcome !== 'violation') return body.outcome;
   if (subject.state === 'pending') return 'reject';
   if (subject.state === 'live') return 'remove';
   throw outcomeNotAllowed('Tin không ở trạng thái từ chối hay gỡ được');
@@ -161,17 +183,21 @@ export function createDecisionService(
   shared: ReviewShared,
   queue: ReviewQueueService,
 ): ReviewDecisionService {
-  const { repository, listings, screening, trust, groups, config, clock, random } = shared;
+  const { repository, reports, listings, screening, trust, groups, config, clock, random } = shared;
+  const { reportRules } = shared;
   const { viewerOf, locateTask, withSharedDevices } = shared;
 
   /** Vai trên phạm vi của việc, đọc lại lúc quyết — mất vai thì 403 dù việc còn trong tay (spec review/decisions). */
   const roleOn = async (
     actor: Actor,
     surface: Surface,
-    categoryId: string | null,
+    task: Pick<ReviewTask, 'categoryId' | 'accountId'>,
     viewer: Viewer,
   ): Promise<ReviewActorRole | null> => {
+    const { categoryId } = task;
     if (viewer.isMaster) return 'master';
+    // Việc về một người: staff được giao việc an toàn (add-reports).
+    if (task.accountId) return viewer.scopes.has('user_reports') ? 'staff' : null;
     if (surface.kind === 'ops') {
       return categoryId !== null && viewer.categoryIds.has(categoryId) ? 'staff' : null;
     }
@@ -186,6 +212,34 @@ export function createDecisionService(
     return template;
   };
 
+  /**
+   * Gậy chỉ kèm quyết định vi phạm hay báo cáo đúng; điều trích phải đang dùng (spec decisions "Thiếu điều trích" →
+   * 400). Câu trích là lý do người đăng thấy trên tin.
+   */
+  const articleFor = async (
+    body: DecisionBody,
+    verdict: ReportVerdict | null,
+  ): Promise<RuleArticleDto | null> => {
+    if (!body.strike) return null;
+    if (body.outcome !== 'violation' && verdict !== 'upheld') {
+      throw invalid('Gậy chỉ kèm quyết định vi phạm hay báo cáo đúng');
+    }
+    const article = await trust.ruleArticle(body.strike.ruleArticleId);
+    if (!article?.active) throw invalid('Chọn một điều đang dùng trong quy định sàn');
+    return article;
+  };
+
+  /** Ra gậy trong transaction quyết định — `trust` ghi, nhật ký trỏ về gậy (spec decisions "ghi hậu quả thật"). */
+  const issueStrike = async (
+    tx: Tx,
+    decisionId: string,
+    input: Omit<IssueStrikeInput, 'decisionId'>,
+  ): Promise<string> => {
+    const issued = await trust.issueStrike(tx, { ...input, decisionId });
+    await repository.linkIssuedStrike(tx, decisionId, issued.id);
+    return issued.id;
+  };
+
   /** Ảnh chụp cho nhật ký: kết quả máy trước đó và mức tin cậy của người đăng — đọc trước transaction. */
   const snapshot = async (subject: ReviewSubject) => {
     const [run, tier] = await Promise.all([
@@ -197,9 +251,10 @@ export function createDecisionService(
 
   /** Đổi tin theo kết quả; `after` chạy trong transaction đó. Không đổi tin (bác) thì vẫn một transaction riêng. */
   const applyToListing = async (
-    outcome: ReviewOutcome,
+    outcome: ListingOutcome,
     subject: ReviewSubject,
     version: number,
+    fault: ListingFault,
     faultReason: string | null,
     groupId: string | null,
     after: (tx: Tx, listing: Listing | null) => Promise<void>,
@@ -220,7 +275,7 @@ export function createDecisionService(
       case 'reject':
       case 'remove':
         await listings
-          .review({ ...base, arrow: outcome, fault: 'mistake', faultReason })
+          .review({ ...base, arrow: outcome, fault, faultReason })
           .catch(asListingChanged);
         return;
       case 'restore':
@@ -231,6 +286,7 @@ export function createDecisionService(
         await listings.detachByGroup({ ...base, groupId }).catch(asListingChanged);
         return;
       case 'dismiss':
+      case 'keep':
         await repository.inTransaction((tx) => after(tx, null));
         return;
     }
@@ -309,6 +365,7 @@ export function createDecisionService(
       outcome,
       subject,
       subject.version,
+      'mistake',
       template?.text ?? null,
       subject.groupId,
       async (tx, row) => {
@@ -337,6 +394,7 @@ export function createDecisionService(
             role,
             groupId: subject.groupId,
             reason: template?.text ?? null,
+            fault: 'mistake',
           }),
         );
         if (outcome === 'restore' && row) {
@@ -354,7 +412,256 @@ export function createDecisionService(
       },
     );
     if (!written.decision) throw new Error('Quyết định không được ghi');
-    return { decisionId: written.decision.id, outcome, listingState: state };
+    return {
+      decisionId: written.decision.id,
+      outcome,
+      listingState: state,
+      reportVerdict: null,
+      strikeId: null,
+    };
+  };
+
+  /**
+   * Đóng báo cáo trong transaction của quyết định (design add-reports mục 7, 8): cộng / trừ điểm từng người báo, phát
+   * sự kiện cho người báo (N46) và cho hệ quả; báo cáo đã tự ẩn tin thì `listing` gỡ cờ.
+   */
+  const closeReport = async (
+    tx: Tx,
+    input: {
+      reportId: string;
+      verdict: ReportVerdict;
+      decisionId: string;
+      actor: Actor;
+      banGroupId: string | null;
+      lockAccount: boolean;
+      at: Date;
+    },
+  ): Promise<void> => {
+    const { verdict, at } = input;
+    const closed = await reports.close(tx, {
+      id: input.reportId,
+      verdict,
+      decisionId: input.decisionId,
+      at,
+    });
+    if (!closed) throw taskClosed();
+    const rules = reportRules();
+    await sequentially(closed.entries, async ({ reporterId }) => {
+      const score = await reports.adjustScore(tx, reporterId, scoreDelta(verdict));
+      const until = suspendedUntilAfter(verdict, score, at, rules);
+      if (until) await reports.suspend(tx, reporterId, until);
+    });
+    await repository.emitIn(tx, [
+      reviewEvent(REVIEW_EVENTS.reportDecided, {
+        reportId: closed.id,
+        verdict,
+        subjectKind: closed.subjectKind,
+        listingId: closed.listingId,
+        accountId: closed.accountId,
+        reporterIds: closed.entries.map((entry) => entry.reporterId),
+        banGroupId: input.banGroupId,
+        lockAccount: input.lockAccount,
+        by: input.actor.accountId,
+        byMaster: input.actor.role === 'master',
+      }),
+      ...(closed.autoHiddenAt && closed.listingId
+        ? [reviewEvent(REVIEW_EVENTS.reportHideChanged, { listingId: closed.listingId })]
+        : []),
+    ]);
+  };
+
+  /**
+   * Hệ quả ngoài tin của báo cáo đúng, kiểm quyền trước mọi lượt ghi (spec review/reports "Hệ quả khi báo cáo đúng"):
+   * cấm khỏi nhóm — quản trị nhóm, master, tin trong nhóm, người đăng không phải chủ nhóm; khoá tài khoản — master.
+   */
+  const consequencesOf = async (
+    body: DecisionBody,
+    role: ReviewActorRole,
+    scope: { groupId: string | null; inGroup: boolean; ownerId: string },
+  ): Promise<{ banGroupId: string | null; lockAccount: boolean }> => {
+    const report = body.report;
+    if (!report) return { banGroupId: null, lockAccount: false };
+    const wants = report.banFromGroup === true || report.lockAccount === true;
+    if (wants && report.verdict !== 'upheld') {
+      throw outcomeNotAllowed('Chỉ báo cáo đúng mới kèm cấm khỏi nhóm hay khoá tài khoản');
+    }
+    if (report.lockAccount && role !== 'master') {
+      throw new ForbiddenError('Chỉ master khoá được tài khoản');
+    }
+    if (!report.banFromGroup) return { banGroupId: null, lockAccount: report.lockAccount === true };
+    if (role === 'staff')
+      throw new ForbiddenError('Cấm khỏi nhóm là việc của quản trị nhóm hay master');
+    if (!scope.inGroup || !scope.groupId) throw outcomeNotAllowed('Tin không ở trong nhóm nào');
+    const reviewers = await groups.reviewersOf(scope.groupId);
+    if (reviewers?.ownerId === scope.ownerId) throw outcomeNotAllowed('Không cấm được chủ nhóm');
+    return { banGroupId: scope.groupId, lockAccount: report.lockAccount === true };
+  };
+
+  /** Quyết định về một người (báo cáo về người — add-reports): "đúng" hay "bác", không có tin nào để đổi. */
+  const decideAboutPerson = async (
+    actor: Actor,
+    task: ReviewTask,
+    role: ReviewActorRole,
+    body: DecisionBody,
+  ): Promise<DecisionResultDto> => {
+    const accountId = task.accountId ?? '';
+    const verdict = body.report?.verdict;
+    if (!verdict) throw invalid('Việc có báo cáo: chọn báo cáo đúng hay bác');
+    if (body.outcome !== 'keep') {
+      throw outcomeNotAllowed('Báo cáo về một người chỉ quyết đúng hay bác, không đổi tin nào');
+    }
+    if (body.report?.banFromGroup)
+      throw outcomeNotAllowed('Báo cáo về một người không gắn nhóm nào');
+    const article = await articleFor(body, verdict);
+    const { lockAccount } = await consequencesOf(body, role, {
+      groupId: null,
+      inGroup: false,
+      ownerId: accountId,
+    });
+    const tier = await trust.tierOf(accountId);
+    const now = clock();
+    let issuedStrikeId: string | null = null;
+    const decision = await repository.inTransaction(async (tx) => {
+      const closed = await repository.closeDecided(tx, {
+        id: task.id,
+        actorId: actor.accountId,
+        claimedVersion: null,
+        escalatedAt: task.escalatedAt,
+        now: clock(),
+      });
+      if (!closed) throw await whyNotClosed(tx, task);
+      const subject: ReportSubject = { kind: 'account', accountId };
+      const report = await reports.lockOpenIn(tx, subject);
+      const written = await repository.insertDecision(tx, {
+        taskId: task.id,
+        accountId,
+        actorId: actor.accountId,
+        actorRole: role,
+        outcome: 'keep',
+        reasonText: article?.text ?? null,
+        note: body.note ?? null,
+        taskReasons: task.reasons,
+        queue: task.queue,
+        posterTierAfter: body.strike ? capT1(tier) : tier,
+        reportId: report?.id ?? null,
+        reportVerdict: report ? verdict : null,
+        decidedAt: now,
+      });
+      if (report) {
+        await closeReport(tx, {
+          reportId: report.id,
+          verdict,
+          decisionId: written.id,
+          actor,
+          banGroupId: null,
+          lockAccount,
+          at: now,
+        });
+      }
+      // Gậy từ báo cáo về người: master xét khiếu nại (spec appeals) — kể cả khi tài khoản đã tự xoá, gậy đi theo email.
+      if (body.strike) {
+        issuedStrikeId = await issueStrike(tx, written.id, {
+          accountId,
+          kind: body.strike.kind,
+          ruleArticleId: body.strike.ruleArticleId,
+          issuedBy: actor.accountId,
+          issuedByRole: role,
+          categoryId: null,
+          fromReport: true,
+          listingId: null,
+        });
+      }
+      return written;
+    });
+    return {
+      decisionId: decision.id,
+      outcome: 'keep',
+      listingState: null,
+      reportVerdict: verdict,
+      strikeId: issuedStrikeId,
+    };
+  };
+
+  /**
+   * Quyết định về một gậy (add-strikes): khiếu nại gậy thường / nặng (staff danh mục của gậy, master); gậy nghiêm trọng
+   * và xem lại khoá vĩnh viễn (chỉ master, khác người ra gậy). Nút phải khớp tình trạng gậy lúc quyết; `trust` ghi
+   * trong cùng transaction với nhật ký và việc đóng.
+   */
+  const decideAboutStrike = async (
+    actor: Actor,
+    task: ReviewTask,
+    role: ReviewActorRole,
+    body: DecisionBody,
+  ): Promise<DecisionResultDto> => {
+    const strikeId = task.strikeId ?? '';
+    const strike = await trust.strikeDetail(strikeId);
+    if (!strike) throw taskClosed();
+    if (body.outcome !== 'keep' || body.report || body.strike) {
+      throw outcomeNotAllowed(
+        'Việc về gậy chỉ quyết khiếu nại, gậy nghiêm trọng hay xem lại khoá vĩnh viễn',
+      );
+    }
+    const expected =
+      strike.kind === 'serious' && strike.status === 'active'
+        ? 'serious'
+        : strike.status === 'permanent'
+          ? 'permanent'
+          : 'appeal';
+    const given = (['appeal', 'serious', 'permanent'] as const).filter((key) => body[key]);
+    if (given.length !== 1 || given[0] !== expected) throw invalid(STRIKE_PROMPT[expected]);
+    if (expected !== 'appeal' && role !== 'master') {
+      throw new ForbiddenError('Chỉ master quyết gậy nghiêm trọng');
+    }
+    // Master xem lại gậy thường / nặng do mình ra (spec appeals); gậy nghiêm trọng thì master kia quyết.
+    if (strike.issuedBy === actor.accountId && (expected !== 'appeal' || role !== 'master')) {
+      throw new ForbiddenError('Người ra gậy không tự quyết gậy đó');
+    }
+    if (expected === 'appeal' && strike.appeal?.status !== 'pending') throw taskClosed();
+    const tier = await trust.tierOf(strike.accountId);
+    const now = clock();
+    const decision = await repository.inTransaction(async (tx) => {
+      const closed = await repository.closeDecided(tx, {
+        id: task.id,
+        actorId: actor.accountId,
+        claimedVersion: null,
+        escalatedAt: task.escalatedAt,
+        now,
+      });
+      if (!closed) throw await whyNotClosed(tx, task);
+      const written = await repository.insertDecision(tx, {
+        taskId: task.id,
+        strikeId,
+        actorId: actor.accountId,
+        actorRole: role,
+        outcome: 'keep',
+        note: body.note ?? null,
+        taskReasons: task.reasons,
+        queue: task.queue,
+        posterTierAfter: tier,
+        decidedAt: now,
+      });
+      const by = actor.accountId;
+      if (body.appeal) {
+        await trust.decideAppeal(tx, { strikeId, verdict: body.appeal.verdict, by, at: now });
+      } else if (body.serious) {
+        await trust.decideSerious(tx, { strikeId, decision: body.serious.decision, by, at: now });
+      } else if (body.permanent) {
+        await trust.decidePermanentReview(tx, {
+          strikeId,
+          decision: body.permanent.decision,
+          by,
+          at: now,
+        });
+      }
+      return written;
+    });
+    return {
+      decisionId: decision.id,
+      outcome: 'keep',
+      listingState: null,
+      reportVerdict: null,
+      strikeId,
+    };
   };
 
   return {
@@ -363,8 +670,12 @@ export function createDecisionService(
       if (!found) throw taskNotFound();
       const { task, viewer, allowed } = found;
       if (task.status !== 'open') throw taskClosed();
-      const role = await roleOn(actor, surface, task.categoryId, viewer);
+      const role = await roleOn(actor, surface, task, viewer);
       if (!role) throw new ForbiddenError();
+      // Việc về gậy: người ra gậy, người nhận và máy của họ có vai trên phạm vi, chỉ bị luật hai người chặn (spec appeals).
+      if (task.strikeId && task.excludedIds.includes(actor.accountId)) {
+        throw new ForbiddenError('Việc về gậy cần một người khác người ra gậy hay người nhận gậy');
+      }
       // Việc đã chuyển chỗ (chuyển master xoá người giữ) nói đúng chuyện trước khi nói "chưa nhận" (L11).
       if (!allowed) throw taskReassigned();
       const now = clock();
@@ -375,11 +686,32 @@ export function createDecisionService(
       ) {
         throw taskNotClaimed();
       }
-      const subject = await listings.reviewSubject(task.listingId);
+      if (task.strikeId) return decideAboutStrike(actor, task, role, body);
+      const { listingId } = task;
+      if (!listingId) return decideAboutPerson(actor, task, role, body);
+      // Bản lưu của tin đã xoá vẫn quyết được báo cáo về nó (add-reports).
+      const subject = await listings.reviewSubject(listingId, { includeDeleted: true });
       if (!subject) throw taskClosed();
       if (subject.version !== task.claimedVersion) throw listingChanged();
 
+      const reported = task.reasons.some((reason) => REPORT_REASONS.has(reason));
+      const verdict = body.report?.verdict ?? null;
+      if (reported && !verdict) throw invalid('Việc có báo cáo: chọn báo cáo đúng hay bác');
+      if (!reported && body.report) throw invalid('Việc này không có báo cáo nào để quyết');
+      if (body.outcome === 'keep' && !reported) {
+        throw outcomeNotAllowed('Giữ nguyên tin chỉ dùng cho việc có báo cáo');
+      }
+      if (subject.deleted && body.outcome !== 'keep') {
+        throw outcomeNotAllowed(
+          'Người đăng đã xoá tin — chỉ quyết được báo cáo, không đổi được tin',
+        );
+      }
       const outcome = outcomeOf(body, subject);
+      const fault: ListingFault = body.outcome === 'violation' ? 'violation' : 'mistake';
+      // Gậy chỉ từ staff danh mục, master (spec strikes) — điều hành nhóm có nút gỡ khỏi nhóm, không có nút vi phạm.
+      if ((fault === 'violation' || body.strike) && GROUP_ROLES.has(role)) {
+        throw new ForbiddenError('Điều hành nhóm không ra gậy được');
+      }
       const machineHeld = task.reasons.some((reason) => MACHINE_REASONS.has(reason));
       const escalated = task.reasons.includes('group_escalation');
       const inGroup = task.groupId !== null && task.placement !== 'marketplace';
@@ -391,15 +723,31 @@ export function createDecisionService(
         throw outcomeNotAllowed('Chỉ bác được việc nhóm chuyển lên');
       }
       if (outcome === 'pass' && escalated && !machineHeld) {
-        throw outcomeNotAllowed('Việc nhóm chuyển lên chỉ bác được, hoặc gỡ vì sai sót');
+        throw outcomeNotAllowed('Việc nhóm chuyển lên chỉ bác được, hoặc gỡ vì sai sót / vi phạm');
       }
       if (outcome === 'pass' && task.reasons.includes('machine_hold') && !body.machineJudgment) {
         throw invalid('Cho đạt tin máy giữ thì chọn "máy đúng" hay "máy quá tay"');
       }
+      if (outcome === 'keep' && task.reasons.includes('machine_hold')) {
+        throw outcomeNotAllowed('Tin đang chờ duyệt — cho đạt hay từ chối');
+      }
+      if (verdict === 'upheld' && outcome === 'pass') {
+        throw outcomeNotAllowed('Báo cáo đúng thì không cho đạt tin');
+      }
+      // Gỡ tin vì báo cáo là của staff danh mục, master; quản trị nhóm gỡ khỏi nhóm (TK 23).
+      if (reported && outcome === 'remove' && (role === 'owner' || role === 'moderator')) {
+        throw new ForbiddenError();
+      }
+      const consequences = await consequencesOf(body, role, {
+        groupId: task.groupId,
+        inGroup,
+        ownerId: subject.ownerId,
+      });
+      const faulted = outcome === 'reject' || outcome === 'remove';
       const template =
-        outcome === 'reject' || outcome === 'remove'
-          ? await activeTemplate(body.reasonTemplateId)
-          : null;
+        faulted && fault === 'mistake' ? await activeTemplate(body.reasonTemplateId) : null;
+      const article = await articleFor(body, verdict);
+      const faultReason = template?.text ?? article?.text ?? null;
       const facts = await snapshot(subject);
       // Mẫu hậu kiểm người duyệt: người cho đạt điều máy giữ hay hạn chế, trừ master (nguyên tắc 3, chốt 15/10/2026).
       const sampleReviewer =
@@ -415,11 +763,13 @@ export function createDecisionService(
 
       const written: { decision?: ReviewDecision } = {};
       let state = subject.state;
+      let issuedStrikeId: string | null = null;
       await applyToListing(
         outcome,
         subject,
         task.claimedVersion,
-        template?.text ?? null,
+        fault,
+        faultReason,
         task.groupId,
         async (tx, row) => {
           state = row?.state ?? state;
@@ -435,7 +785,7 @@ export function createDecisionService(
           if (outcome === 'pass' && subject.state === 'pending' && row) {
             await repository.addSampleCandidate(
               {
-                listingId: task.listingId,
+                listingId,
                 listingVersion: row.version,
                 at: now,
                 approvedBy: actor.accountId,
@@ -443,15 +793,18 @@ export function createDecisionService(
               tx,
             );
           }
+          const report = verdict
+            ? await reports.lockOpenIn(tx, { kind: 'listing', listingId })
+            : null;
           written.decision = await repository.insertDecision(tx, {
             taskId: task.id,
-            listingId: task.listingId,
+            listingId,
             actorId: actor.accountId,
             actorRole: role,
             outcome,
-            severity: outcome === 'reject' || outcome === 'remove' ? 'mistake' : null,
+            severity: faulted ? fault : null,
             reasonTemplateId: template?.id ?? null,
-            reasonText: template?.text ?? null,
+            reasonText: faultReason,
             note: body.note ?? null,
             machineJudgment: outcome === 'pass' ? (body.machineJudgment ?? null) : null,
             machineOutcome: facts.machineOutcome,
@@ -459,10 +812,34 @@ export function createDecisionService(
             taskReasons: task.reasons,
             queue: task.queue,
             listingStateAfter: state,
-            posterTierAfter: facts.tier,
+            posterTierAfter: body.strike ? capT1(facts.tier) : facts.tier,
             overturnsDecisionId: overturns,
+            reportId: report?.id ?? null,
+            reportVerdict: report ? verdict : null,
             decidedAt: now,
           });
+          if (report && verdict) {
+            await closeReport(tx, {
+              reportId: report.id,
+              verdict,
+              decisionId: written.decision.id,
+              actor,
+              ...consequences,
+              at: now,
+            });
+          }
+          if (body.strike) {
+            issuedStrikeId = await issueStrike(tx, written.decision.id, {
+              accountId: subject.ownerId,
+              kind: body.strike.kind,
+              ruleArticleId: body.strike.ruleArticleId,
+              issuedBy: actor.accountId,
+              issuedByRole: role,
+              categoryId: subject.categoryId,
+              fromReport: false,
+              listingId,
+            });
+          }
           await repository.emitIn(
             tx,
             decidedEvents({
@@ -471,11 +848,12 @@ export function createDecisionService(
               outcome,
               role,
               groupId: task.groupId,
-              reason: template?.text ?? null,
+              reason: faultReason,
+              fault,
             }),
           );
           if (sampleReviewer) {
-            await queue.addReason(task.listingId, {
+            await queue.addReason(listingId, {
               reason: 'sample_reviewer',
               alsoExclude: [actor.accountId],
               sampledDecisionId: written.decision.id,
@@ -483,7 +861,7 @@ export function createDecisionService(
             });
           }
           if (outcome === 'detach' && body.platformViolation && body.note) {
-            await escalate(tx, task.listingId, actor, body.note);
+            await escalate(tx, listingId, actor, body.note);
           }
         },
       ).catch(async (error: unknown) => {
@@ -495,7 +873,13 @@ export function createDecisionService(
         throw error;
       });
       if (!written.decision) throw new Error('Quyết định không được ghi');
-      return { decisionId: written.decision.id, outcome, listingState: state };
+      return {
+        decisionId: written.decision.id,
+        outcome,
+        listingState: state,
+        reportVerdict: verdict,
+        strikeId: issuedStrikeId,
+      };
     },
 
     async removeDirectly(actor, listingId, { reasonTemplateId }) {

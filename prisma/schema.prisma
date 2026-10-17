@@ -47,6 +47,8 @@ enum CodePurpose {
   email_verify
   password_reset
   email_change
+  /// Người bị khoá vì gậy nghiêm trọng chứng minh sở hữu email để khiếu nại qua kênh hỗ trợ (add-strikes).
+  locked_appeal
 
   @@map("code_purpose")
 }
@@ -69,6 +71,8 @@ enum SessionRevokeReason {
 enum AccountFlagKind {
   many_accounts_on_device
   device_of_locked_account
+  /// Đăng tin lần đầu trên máy sau khi một tài khoản cùng máy nhận gậy (add-strikes) — hết khi gậy hết hiệu lực.
+  device_of_struck_account
 
   @@map("account_flag_kind")
 }
@@ -150,6 +154,7 @@ model Account {
   listingSubmissions ListingSubmission[]
   trustCleanListings TrustCleanListing[]
   trustTier          TrustTierResult?
+  strikes            Strike[]
   trustTierChanges   TrustTierChange[]
   screeningRuns      ScreeningRun[]
   screeningCooldown  ScreeningCooldown?
@@ -259,6 +264,8 @@ model AccountFlag {
   /// Tài khoản bị khoá mà đánh dấu `device_of_locked_account` nói tới; uuid trần vì chỉ để tra
   /// cứu, không FK — tài khoản kia bị xoá hẳn thì đánh dấu vẫn còn đọc được.
   relatedAccountId String?         @map("related_account_id") @db.Uuid
+  /// Gậy mà đánh dấu `device_of_struck_account` nói tới — gậy hết hiệu lực thì đánh dấu đóng (add-strikes).
+  relatedStrikeId  String?         @map("related_strike_id") @db.Uuid
   /// 8 ký tự Crockford base32 từ 5 byte ngẫu nhiên: không mang thông tin gì về loại, tài khoản
   /// hay thiết bị — người dùng chỉ đưa mã này cho hỗ trợ.
   lookupCode       String          @unique @map("lookup_code")
@@ -1024,6 +1031,8 @@ enum ListingHideReason {
   group_closed
   group_privatized
   detached_by_group
+  /// Nhiều người đáng tin cùng báo (add-reports): chỉ quyết định của người xử gỡ được.
+  reported
 
   @@map("listing_hide_reason")
 }
@@ -1032,7 +1041,10 @@ enum ListingHideReason {
 enum ListingRestriction {
   machine
   new_account
+  /// Lên bảng khi người bán đang có gậy — gỡ khi điểm gậy về 0 (add-strikes).
   strike
+  /// Điểm gậy chạm 2: mọi tin đang hiện bị hạn chế — gỡ khi điểm về dưới 2 (add-strikes).
+  strike_wave
 
   @@map("listing_restriction")
 }
@@ -1583,14 +1595,20 @@ model CategoryKeyword {
 
 // ── REVIEW: ENUM ─────────────────────────────────────────────────────────────────────────────────
 
-/// Lý do một việc có mặt trong hàng chờ; số hàng của việc = số nhỏ nhất trong các lý do (TK 16). `report` (hàng 1),
-/// `appeal` (hàng 2) do add-reports, add-strikes thêm.
+/// Lý do một việc có mặt trong hàng chờ; số hàng của việc = số nhỏ nhất trong các lý do (TK 16). `appeal` (hàng 2) do
+/// add-strikes thêm. `report_severe` = báo cáo có lượt lừa đảo / hàng cấm — luôn về staff (TK 23).
 enum ReviewReason {
   machine_hold
   machine_restricted
   group_escalation
   sample_risk
   sample_reviewer
+  report
+  report_severe
+  /// Hàng 2 (add-strikes): khiếu nại gậy thường / nặng; gậy nghiêm trọng chờ master; khoá vĩnh viễn tới kỳ xem lại.
+  appeal
+  serious_strike
+  permanent_review
 
   @@map("review_reason")
 }
@@ -1614,6 +1632,8 @@ enum ReviewCloseCause {
   listing_deleted
   member_left
   group_closed
+  /// Việc về gậy đóng vì gậy đã đổi ở đường khác: ân xá, hết hạn, quyết qua việc khác (add-strikes).
+  strike_closed
 
   @@map("review_close_cause")
 }
@@ -1626,6 +1646,10 @@ enum ReviewOutcome {
   detach
   dismiss
   restore
+  /// Quyết định về báo cáo không đổi tin (add-reports).
+  keep
+  /// Từ chối / gỡ vì vi phạm kèm gậy (add-strikes) — tin thành `rejected` / `removed` với `fault = violation`.
+  violation
 
   @@map("review_outcome")
 }
@@ -1662,11 +1686,18 @@ enum ReviewActorRole {
 /// (migration init_review):
 ///   review_tasks_reasons_check: status <> 'open' OR COALESCE(cardinality(reasons), 0) > 0
 ///   review_tasks_queue_check:   queue BETWEEN 0 AND 5
-///   review_tasks_claim_check:   (claimed_by IS NULL) = (claim_expires_at IS NULL) AND (claimed_by IS NULL) = (claimed_version IS NULL)
+///   review_tasks_claim_check:   (claimed_by IS NULL) = (claim_expires_at IS NULL) AND (claimed_by IS NOT NULL OR claimed_version IS NULL)
+///                               AND (claimed_by IS NULL OR listing_id IS NULL OR claimed_version IS NOT NULL)
 ///   review_tasks_closed_check:  (status = 'open') = (closed_at IS NULL) AND (status = 'open') = (close_cause IS NULL)
+///   review_tasks_subject_check: đúng một trong listing_id / account_id / strike_id — việc về một tin, một người
+///                               (add-reports) hay một gậy (add-strikes)
 model ReviewTask {
   id                String            @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  listingId         String            @map("listing_id") @db.Uuid
+  listingId         String?           @map("listing_id") @db.Uuid
+  /// Việc về một người (báo cáo về người — add-reports).
+  accountId         String?           @map("account_id") @db.Uuid
+  /// Việc về một gậy (add-strikes): khiếu nại, gậy nghiêm trọng chờ master, xem lại khoá vĩnh viễn.
+  strikeId          String?           @map("strike_id") @db.Uuid
   status            ReviewTaskStatus  @default(open)
   reasons           ReviewReason[]
   queue             Int               @db.SmallInt
@@ -1693,10 +1724,13 @@ model ReviewTask {
   createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  listing Listing? @relation(fields: [listingId], references: [id], onDelete: Cascade)
 
   /// Một tin, một việc đang mở (TK 16) — hai lối sinh việc cùng lúc vẫn ra một việc.
   @@unique([listingId], where: raw("status = 'open'"), map: "review_tasks_open_listing_key")
+  /// Một người, một việc đang mở — như với tin.
+  @@unique([accountId], where: raw("status = 'open'"), map: "review_tasks_open_account_key")
+  @@unique([strikeId], where: raw("status = 'open'"), map: "review_tasks_open_strike_key")
   @@index([categoryId], where: raw("status = 'open'"), map: "review_tasks_open_category_idx")
   @@index([groupId], where: raw("status = 'open'"), map: "review_tasks_open_group_idx")
   @@index([dueAt], where: raw("status = 'open'"), map: "review_tasks_open_due_idx")
@@ -1708,10 +1742,19 @@ model ReviewTask {
 /// riêng (add-data-retention). CHECK tay (migration init_review):
 ///   review_decisions_severity_check: (outcome IN ('reject', 'remove')) = (severity IS NOT NULL)
 ///   review_decisions_judgment_check: machine_judgment IS NULL OR outcome = 'pass'
+///   review_decisions_subject_check:  đúng một trong listing_id / account_id / strike_id,
+///                                    và (listing_id IS NULL) = (listing_state_after IS NULL) (add-reports, add-strikes)
+///   review_decisions_report_check:   (report_id IS NULL) = (report_verdict IS NULL)
 model ReviewDecision {
   id                  String                 @id @default(dbgenerated("uuidv7()")) @db.Uuid
   taskId              String?                @map("task_id") @db.Uuid
-  listingId           String                 @map("listing_id") @db.Uuid
+  listingId           String?                @map("listing_id") @db.Uuid
+  /// Quyết định về một người (việc về người).
+  accountId           String?                @map("account_id") @db.Uuid
+  /// Quyết định về một gậy: khiếu nại, gậy nghiêm trọng, xem lại khoá vĩnh viễn (add-strikes).
+  strikeId            String?                @map("strike_id") @db.Uuid
+  /// Gậy quyết định này ra — nhật ký ghi hậu quả thật (add-strikes).
+  issuedStrikeId      String?                @map("issued_strike_id") @db.Uuid
   actorId             String                 @map("actor_id") @db.Uuid
   actorRole           ReviewActorRole        @map("actor_role")
   outcome             ReviewOutcome
@@ -1724,10 +1767,13 @@ model ReviewDecision {
   machineHits         String[]               @default([]) @map("machine_hits")
   taskReasons         ReviewReason[]         @default([]) @map("task_reasons")
   queue               Int?                   @db.SmallInt
-  listingStateAfter   ListingState           @map("listing_state_after")
+  listingStateAfter   ListingState?          @map("listing_state_after")
   posterTierAfter     TrustTier?             @map("poster_tier_after")
   /// Quyết định "đạt" mà lần hậu kiểm này lật (gỡ tin hay gỡ khỏi nhóm).
   overturnsDecisionId String?                @map("overturns_decision_id") @db.Uuid
+  /// Báo cáo quyết định này đóng, và kết quả của nó (add-reports).
+  reportId            String?                @map("report_id") @db.Uuid
+  reportVerdict       ReportVerdict?         @map("report_verdict")
   decidedAt           DateTime               @map("decided_at") @db.Timestamptz(3)
 
   @@index([actorId, decidedAt])
@@ -1761,4 +1807,250 @@ model ReviewSampleCandidate {
 
   @@id([listingId, listingVersion])
   @@map("review_sample_candidates")
+}
+
+// ── REVIEW: BÁO CÁO (add-reports) ────────────────────────────────────────────────────────────────
+
+/// Năm loại báo cáo cố định để thống kê được (TK 23).
+enum ReportCategory {
+  fraud
+  misinformation
+  harassment
+  prohibited
+  other
+
+  @@map("report_category")
+}
+
+enum ReportSubjectKind {
+  listing
+  account
+
+  @@map("report_subject_kind")
+}
+
+enum ReportStatus {
+  open
+  upheld
+  dismissed
+
+  @@map("report_status")
+}
+
+enum ReportVerdict {
+  upheld
+  dismissed
+
+  @@map("report_verdict")
+}
+
+/// Một báo cáo về một đối tượng — mọi lượt báo trong lúc nó mở gộp vào đây (TK 23). Không khoá ngoại sang tin hay tài
+/// khoản: báo cáo sống qua lượt xoá của chủ, xử trên bản lưu (cam kết 25). CHECK tay (migration add_reports):
+///   reports_subject_check: (subject_kind = 'listing') = (listing_id IS NOT NULL)
+///   reports_decided_check: (status = 'open') = (decided_at IS NULL)
+model Report {
+  id           String            @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  subjectKind  ReportSubjectKind @map("subject_kind")
+  listingId    String?           @map("listing_id") @db.Uuid
+  /// Người bị báo; với báo cáo về tin là người đăng tin.
+  accountId    String            @map("account_id") @db.Uuid
+  status       ReportStatus      @default(open)
+  /// Có ít nhất một lượt lừa đảo hay hàng cấm — luật của hai loại đó thắng khi gộp.
+  severe       Boolean           @default(false)
+  /// Mọi lượt báo đều của người có điểm báo cáo dưới mức bình thường — xếp cuối hàng.
+  lowPriority  Boolean           @default(false) @map("low_priority")
+  /// Lúc tin bị tạm ẩn vì nhiều người báo; null = chưa.
+  autoHiddenAt DateTime?         @map("auto_hidden_at") @db.Timestamptz(3)
+  decisionId   String?           @map("decision_id") @db.Uuid
+  decidedAt    DateTime?         @map("decided_at") @db.Timestamptz(3)
+  createdAt    DateTime          @map("created_at") @db.Timestamptz(3)
+
+  entries ReportEntry[]
+
+  @@unique([listingId], where: raw("status = 'open'"), map: "reports_open_listing_key")
+  @@unique([accountId], where: raw("status = 'open' AND subject_kind = 'account'"), map: "reports_open_account_key")
+  @@index([accountId, createdAt])
+  @@index([listingId, createdAt])
+  @@map("reports")
+}
+
+/// Một lượt báo: một người một lượt trong một báo cáo. `counts_for_hide` chụp lúc báo — có dấu máy, mức đủ, điểm bình
+/// thường (TK 23).
+model ReportEntry {
+  id            String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  reportId      String         @map("report_id") @db.Uuid
+  reporterId    String         @map("reporter_id") @db.Uuid
+  category      ReportCategory
+  deviceHash    String?        @map("device_hash")
+  countsForHide Boolean        @map("counts_for_hide")
+  createdAt     DateTime       @map("created_at") @db.Timestamptz(3)
+
+  report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, reporterId])
+  @@index([reporterId, createdAt])
+  @@map("report_entries")
+}
+
+/// Điểm tin cậy báo cáo (TK 23): bác −1, đúng +1. Không phải án phạt — không module nào khác đọc.
+model ReporterScore {
+  accountId      String    @id @map("account_id") @db.Uuid
+  score          Int       @default(0)
+  /// Mất quyền báo cáo tới lúc này (điểm xuống dưới mức mất quyền).
+  suspendedUntil DateTime? @map("suspended_until") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("reporter_scores")
+}
+
+// ── TRUST: GẬY (add-strikes) ─────────────────────────────────────────────────────────────────────
+
+enum StrikeKind {
+  normal
+  severe
+  serious
+
+  @@map("strike_kind")
+}
+
+/// `permanent` / `lifted` chỉ với gậy nghiêm trọng (TK 22).
+enum StrikeStatus {
+  active
+  expired
+  cancelled
+  permanent
+  lifted
+
+  @@map("strike_status")
+}
+
+enum StrikeCancelCause {
+  appeal
+  amnesty
+  serious_cancel
+
+  @@map("strike_cancel_cause")
+}
+
+enum SeriousDecision {
+  permanent
+  downgrade
+  cancel
+
+  @@map("serious_decision")
+}
+
+enum AppealChannel {
+  app
+  support
+
+  @@map("appeal_channel")
+}
+
+enum AppealStatus {
+  pending
+  won
+  lost
+  closed
+
+  @@map("appeal_status")
+}
+
+/// Quy định sàn để trích khi ra gậy (TK 21, cam kết 9) — master soạn; gậy giữ bản trích lúc ra.
+model RuleArticle {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  code      String   @unique
+  title     String
+  text      String
+  active    Boolean  @default(true)
+  sort      Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  strikes Strike[]
+
+  @@map("rule_articles")
+}
+
+/// Một gậy (TK 21, 22). Chỉ `trust` ghi. Không khoá ngoại sang tin, quyết định, người ra: gậy sống lâu hơn chúng.
+/// `email_hashes` = dấu băm email của tài khoản lúc ra gậy, thêm dấu mới khi đổi email — tài khoản lập lại bằng một
+/// trong các email đó kế thừa gậy còn hiệu lực. CHECK tay (migration add_strikes):
+///   strikes_expiry_check:    (kind = 'serious') = (expires_at IS NULL) với gậy chưa hạ — ghi dưới dạng
+///                            kind <> 'serious' OR expires_at IS NULL
+///   strikes_cancel_check:    (status = 'cancelled') = (cancelled_at IS NOT NULL) AND (status = 'cancelled') = (cancel_cause IS NOT NULL)
+///   strikes_permanent_check: status NOT IN ('permanent', 'lifted') OR serious_decision = 'permanent'
+///   strikes_lifted_check:    (status = 'lifted') = (lifted_at IS NOT NULL)
+model Strike {
+  id                String             @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  accountId         String             @map("account_id") @db.Uuid
+  kind              StrikeKind
+  status            StrikeStatus       @default(active)
+  points            Int
+  ruleArticleId     String             @map("rule_article_id") @db.Uuid
+  ruleText          String             @map("rule_text")
+  issuedBy          String             @map("issued_by") @db.Uuid
+  issuedByRole      ReviewActorRole    @map("issued_by_role")
+  /// Danh mục của tin — staff khác của danh mục xét khiếu nại; null = chỉ master (gậy do master ra, báo cáo về người).
+  categoryId        String?            @map("category_id") @db.Uuid
+  fromReport        Boolean            @default(false) @map("from_report")
+  listingId         String?            @map("listing_id") @db.Uuid
+  decisionId        String?            @map("decision_id") @db.Uuid
+  emailHashes       String[]           @default([]) @map("email_hashes")
+  inheritedFromId   String?            @map("inherited_from_id") @db.Uuid
+  issuedAt          DateTime           @map("issued_at") @db.Timestamptz(3)
+  expiresAt         DateTime?          @map("expires_at") @db.Timestamptz(3)
+  cancelledAt       DateTime?          @map("cancelled_at") @db.Timestamptz(3)
+  cancelCause       StrikeCancelCause? @map("cancel_cause")
+  cancelledBy       String?            @map("cancelled_by") @db.Uuid
+  seriousDecision   SeriousDecision?   @map("serious_decision")
+  seriousDecidedAt  DateTime?          @map("serious_decided_at") @db.Timestamptz(3)
+  seriousDecidedBy  String?            @map("serious_decided_by") @db.Uuid
+  /// Kỳ xem lại kế tiếp của khoá vĩnh viễn (mỗi `strike.permanentReviewYears`).
+  permanentReviewAt DateTime?          @map("permanent_review_at") @db.Timestamptz(3)
+  liftedAt          DateTime?          @map("lifted_at") @db.Timestamptz(3)
+  liftedBy          String?            @map("lifted_by") @db.Uuid
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  account  Account         @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  article  RuleArticle     @relation(fields: [ruleArticleId], references: [id])
+  appeal   StrikeAppeal?
+  comments StrikeComment[]
+
+  @@index([accountId, status])
+  @@index([status, expiresAt], where: raw("status = 'active'"), map: "strikes_active_expiry_idx")
+  @@index([permanentReviewAt], where: raw("status = 'permanent'"), map: "strikes_permanent_review_idx")
+  @@index([emailHashes], type: Gin)
+  @@map("strikes")
+}
+
+/// Khiếu nại một gậy — mỗi gậy đúng một lần (TK 22). `decided_by` null khi tự thắng vì quá hạn xét.
+model StrikeAppeal {
+  id        String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  strikeId  String        @unique @map("strike_id") @db.Uuid
+  accountId String        @map("account_id") @db.Uuid
+  channel   AppealChannel
+  statement String
+  status    AppealStatus  @default(pending)
+  filedAt   DateTime      @map("filed_at") @db.Timestamptz(3)
+  decidedAt DateTime?     @map("decided_at") @db.Timestamptz(3)
+  decidedBy String?       @map("decided_by") @db.Uuid
+
+  strike Strike @relation(fields: [strikeId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@map("strike_appeals")
+}
+
+/// Nhận xét của staff trên hồ sơ gậy nghiêm trọng đang chờ master (TK 22).
+model StrikeComment {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  strikeId  String   @map("strike_id") @db.Uuid
+  authorId  String   @map("author_id") @db.Uuid
+  body      String
+  createdAt DateTime @map("created_at") @db.Timestamptz(3)
+
+  strike Strike @relation(fields: [strikeId], references: [id], onDelete: Cascade)
+
+  @@index([strikeId, createdAt])
+  @@map("strike_comments")
 }

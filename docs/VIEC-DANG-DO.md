@@ -1,6 +1,6 @@
 # Việc đang dở — calendar-ghim
 
-> Cập nhật 16/10/2026, sau khi archive `fix-audit-trust-media-low` (rà soát 15/10/2026 xong cả 48 mục). Một chỗ để nhìn lại những gì đã
+> Cập nhật 17/10/2026, sau khi archive `add-strikes` (rà soát 15/10/2026 xong cả 48 mục). Một chỗ để nhìn lại những gì đã
 > bắt đầu, đã hoãn, hay đang chờ quyết. Làm xong việc nào thì **xoá dòng đó** (git giữ lịch sử); có việc mới bị gác lại
 > thì thêm vào đúng mục. Mỗi dòng ghi **nguồn** để mở ra đọc chi tiết — file này chỉ tóm tắt, không thay TK, change hay
 > spec.
@@ -42,9 +42,14 @@ mục code lệch spec thì sửa kèm test.
 - đợt 4 phần 3 — `fix-audit-trust-media-low` (L7 đọc mức trong transaction, L9 T3 còn tin sạch chưa tính thì tính lại, L10
   sự kiện mới `media.images.deleted` → `screening` dọn dấu ảnh; L13 chuyển vào proposal `add-data-retention`).
 
-**Làm tiếp:** mở PR `add-listings` → `main` để CI chạy test HTTP / DB của `fix-audit-group` và cả đợt 4 (chưa chạy trên
-CI; ba migration mới `group_invitations_blind`, `account_status_before_lock`, `group_announcement_unit_fk` đã chạy trên Neon
-dev, production cần `pnpm db:deploy`). Rồi các câu thông báo cũ N10–N14, N26–N28, rồi `add-reports`.
+CI đã chạy hết qua PR #3, #5, #6 (16/10/2026, xanh). Production còn cần `pnpm db:deploy:prod` cho ba migration
+`group_invitations_blind`, `account_status_before_lock`, `group_announcement_unit_fk` trước khi bật bản mới.
+
+Phần hoãn cuối của rà soát — thông báo nhóm theo trạng thái hiện tại (N3, N6, N10–N14, N26–N28) — xong ở
+`fix-stale-group-notices` (16/10/2026). `add-reports` xong cùng ngày (người dùng giao tech lead chốt 14 câu hỏi mở —
+design mục 11; migration `add_reports_enums`, `add_reports` — production cần `pnpm db:deploy:prod`). `add-strikes` xong
+17/10/2026 (tech lead chốt 14 câu hỏi mở — design mục 12; migration `add_strikes_enums`, `add_strikes`,
+`add_strikes_close_cause` — production cần `pnpm db:deploy:prod`; hướng dẫn `docs/strikes.md`). **Làm tiếp:** `add-messaging`.
 
 ## 1. Đang chờ quyết hoặc chờ duyệt
 
@@ -65,13 +70,13 @@ Nguồn: CLAUDE.md mục **Thứ tự change**, `openspec/changes/`. Mỗi chang
 mở** trong proposal trước khi `/opsx:apply`. Cột ghi chú kể cả phần `add-review-queues` cố ý để lại cho change sau
 (proposal của nó, mục "Không làm").
 
-| Đợt | Change                 | Điều kiện / ghi chú                                                                                                                                                          |
-| --- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 3   | `add-image-moderation` | Chờ chọn dịch vụ kiểm ảnh (mục 1) và rà soát pháp lý nếu gửi ảnh ra ngoài (TK 29 còn mở số 3)                                                                                |
-| 4   | `add-reports`          | Sau khi sửa xong lỗi rà soát (mục 0). Thêm hàng 1 (lý do `report`) vào hàng chờ; điểm báo cáo và báo cáo liên quan trong màn xử việc                                         |
-| 5   | `add-strikes`          | Kết quả "vi phạm" (gậy) cho người duyệt; xác nhận việc hàng 4 kèm gậy; hàng 2 khiếu nại (lý do `appeal`, hạn 7 ngày); lịch sử gậy của người bán trong màn xử việc và nhật ký |
-| 6   | `add-messaging`        | Rồi `add-notifications`: đẩy lên điện thoại khi app sẵn sàng. Báo người đăng kết quả duyệt tin đã làm ở `notify-listing-decisions` (archive 16/10/2026)                      |
-| 7   | `add-data-retention`   | Xoá hẳn tin và ảnh theo hạn lưu (TK 25). Tới lúc đó tin xoá mềm vẫn giữ ảnh trong kho                                                                                        |
+| Đợt | Change                 | Điều kiện / ghi chú                                                                                                                                                        |
+| --- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3   | `add-image-moderation` | Chờ chọn dịch vụ kiểm ảnh (mục 1) và rà soát pháp lý nếu gửi ảnh ra ngoài (TK 29 còn mở số 3)                                                                              |
+| 4 ✔ | `add-reports`          | Archive 16/10/2026. Còn để cho change sau: báo cáo đúng kèm gậy (`add-strikes`), báo cáo từ hội thoại (`add-messaging`), giữ bằng chứng quá hạn lưu (`add-data-retention`) |
+| 5 ✔ | `add-strikes`          | Archive 17/10/2026. Còn để cho change sau: thông báo khi nhận gậy / có kết quả khiếu nại (`add-notifications`), hạn lưu hồ sơ gậy (`add-data-retention`)                   |
+| 6   | `add-messaging`        | Rồi `add-notifications`: đẩy lên điện thoại khi app sẵn sàng. Báo người đăng kết quả duyệt tin đã làm ở `notify-listing-decisions` (archive 16/10/2026)                    |
+| 7   | `add-data-retention`   | Xoá hẳn tin và ảnh theo hạn lưu (TK 25). Tới lúc đó tin xoá mềm vẫn giữ ảnh trong kho                                                                                      |
 
 ## 3. Chuyển kho ảnh Cloudinary → Cloudflare R2
 
@@ -152,8 +157,9 @@ Không phải việc dở — ghi để lần sau khỏi dò lại.
   `khoi.*@example.com`, 2 tin, 2 ảnh trên Neon / Cloudinary dev. Lượt 16/10/2026: ~52 s — tải ảnh lên Cloudinary ~1,7 s,
   máy quyết 7–13 s sau khi gửi, việc vào hàng chờ ~10 s sau đó (bộ phát outbox quét mỗi 10 s).
 - Kiểm tra chạy được ở đây: `typecheck`, `lint`, `format:check`, `test:unit`, `spec:validate`, `build`, `db:drift`
-  (chỉ đọc, so Neon dev với schema). Test cần Postgres + RustFS chỉ chạy trên CI, và CI chỉ chạy khi có pull request
-  (hoặc push lên `main`, `develop`).
+  (chỉ đọc, so Neon dev với schema). Test cần Postgres + RustFS: máy có Docker Desktop nhưng không tự bật — bật app
+  rồi `docker compose up -d --wait postgres-test storage-test`, sau đó `pnpm run check` chạy đủ (16/10/2026). CI chỉ
+  chạy khi có pull request (hoặc push lên `main`, `develop`).
 - Đọc kết quả CI khi máy không có `gh`: repo công khai nên API đọc không cần đăng nhập —
   `api.github.com/repos/TanTaiIT/ghim-server/actions/runs?branch=<nhánh>` (lượt chạy), `/actions/runs/<id>/jobs` (job),
   `/check-runs/<id job>/annotations` (test hỏng). Mỗi bước hiện tối đa 10 lỗi; trần 60 lượt gọi mỗi giờ. Log đầy đủ

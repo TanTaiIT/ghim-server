@@ -15,6 +15,7 @@ import {
   type NameScreen,
   type ProfileImages,
   type SessionRevocationListener,
+  type StrikeGate,
 } from './identity.service.js';
 
 export interface IdentityModuleDeps {
@@ -32,6 +33,8 @@ export interface IdentityModuleDeps {
   sessionsRevoked?: SessionRevocationListener;
   images?: ProfileImages;
   names?: NameScreen;
+  /** `trust` nối muộn (add-strikes); CLI không có. */
+  strikes?: StrikeGate;
 }
 
 export function createIdentityModule(deps: IdentityModuleDeps): {
@@ -60,6 +63,37 @@ export function createIdentityModule(deps: IdentityModuleDeps): {
           }
           await service.recordListingSubmission(ownerId, deviceHash, new Date(at));
         });
+        // Gậy (add-strikes): nghiêm trọng thì khoá ngay; master hạ / huỷ / gỡ thì mở khoá; hết hiệu lực thì đóng
+        // đánh dấu máy. Tên sự kiện viết thẳng: `trust` phụ thuộc `identity`, import ngược lại thành vòng.
+        dispatcher.register('trust.strike.issued', async (payload) => {
+          const { accountId, kind, issuedBy, ruleText, strikeId } = payload;
+          if (kind !== 'serious') return;
+          if (
+            typeof accountId !== 'string' ||
+            typeof issuedBy !== 'string' ||
+            typeof ruleText !== 'string' ||
+            typeof strikeId !== 'string'
+          ) {
+            throw new Error('trust.strike.issued thiếu accountId / issuedBy / ruleText / strikeId');
+          }
+          await service.lockFromStrike({ accountId, by: issuedBy, reason: ruleText, strikeId });
+        });
+        dispatcher.register('trust.strike.decided', async (payload) => {
+          const { accountId, decision, by } = payload;
+          if (typeof accountId !== 'string' || typeof by !== 'string') {
+            throw new Error('trust.strike.decided thiếu accountId / by');
+          }
+          if (decision === 'downgrade' || decision === 'cancel' || decision === 'lifted') {
+            await service.unlockFromStrike({ accountId, by });
+          }
+        });
+        for (const type of ['trust.strike.expired', 'trust.strike.cancelled'] as const) {
+          dispatcher.register(type, async (payload) => {
+            const { strikeId } = payload;
+            if (typeof strikeId !== 'string') throw new Error(`${type} thiếu strikeId`);
+            await service.clearStruckFlags(strikeId);
+          });
+        }
       },
       // Bảng rỗng = lần chạy đầu: không có danh sách thì lượt đăng ký đầu tiên bằng email tạm sẽ lọt.
       startup: async () => {

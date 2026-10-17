@@ -67,3 +67,44 @@ hằng tháng dọn.
 
 - **WHEN** người dùng bỏ một ảnh khỏi nháp và lưu lại, rồi lượt đối chiếu hằng tháng chạy
 - **THEN** ảnh đó bị xoá khỏi kho
+
+### Requirement: Tin đang bị báo cáo vẫn xoá được, báo cáo vẫn được xử
+
+Người đăng SHALL xoá được tin đang có báo cáo mở. Việc xoá MUST NOT đóng báo cáo: báo cáo vẫn mở và người xử
+SHALL xử nó trên bản lưu nội dung tin lúc xoá (TK 19, TK 23).
+
+#### Scenario: Xoá tin đang bị báo cáo
+
+- **WHEN** người đăng xoá một tin sàn đang có báo cáo mở
+- **THEN** việc xoá thành công, người khác mở tin nhận HTTP 404 `NOT_FOUND`, và báo cáo vẫn mở trong hàng chờ
+
+#### Scenario: Người xử xem bản lưu
+
+- **WHEN** staff nhận việc báo cáo về tin đã bị người đăng xoá
+- **THEN** staff thấy tiêu đề, mô tả, giá và ảnh của tin như lúc bị xoá
+
+#### Scenario: Xử báo cáo về tin đã xoá
+
+- **WHEN** staff bác báo cáo về một tin đã bị người đăng xoá
+- **THEN** báo cáo đóng với kết quả "bác" và mỗi người báo được báo kết quả đó
+
+### Requirement: Tin bị từ chối hay gỡ vì vi phạm không tự xoá được
+
+Người đăng MUST NOT tự xoá tin đang bị từ chối hay bị gỡ vì vi phạm — tin đó là hồ sơ của gậy. Khi khiếu nại
+thắng hoặc gậy được ân xá, tin trở lại hiển thị và SHALL xoá được như mọi tin. Tin bị từ chối hay bị gỡ vì sai
+sót vẫn SHALL xoá được.
+
+#### Scenario: Xoá tin bị gỡ vì vi phạm
+
+- **WHEN** người đăng xoá một tin đang bị gỡ vì vi phạm
+- **THEN** response có HTTP 409 `LISTING_DELETE_BLOCKED` kèm lý do "tin bị gỡ vì vi phạm" và tin không đổi
+
+#### Scenario: Xoá sau khi khiếu nại thắng
+
+- **WHEN** tin trở lại hiển thị vì khiếu nại thắng và người đăng xoá nó
+- **THEN** tin bị xoá như mọi tin
+
+#### Scenario: Xoá tin bị từ chối vì sai sót
+
+- **WHEN** người đăng xoá một tin bị từ chối vì sai sót
+- **THEN** tin bị xoá

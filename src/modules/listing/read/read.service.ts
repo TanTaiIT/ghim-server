@@ -5,7 +5,7 @@ import { NotFoundError } from '../../../common/errors/app-error.js';
 import { type CursorKey, toCursorPage } from '../../../common/schemas/cursor.js';
 import { fold } from '../../../common/text/fold.js';
 import { isDetached, placementsHiddenOnLeave } from '../calc/hide.calc.js';
-import type { GroupLeave, ReviewSubject } from '../listing.ports.js';
+import type { GroupLeave, ReportTarget, ReviewSubject } from '../listing.ports.js';
 import type { FeedQuery, ListingDto, OwnListingDto } from '../listing.schema.js';
 import { type ListingShared, listingNotFound } from '../listing.shared.js';
 import { canView, type ListSurface, visibleWhere } from '../calc/visibility.calc.js';
@@ -39,10 +39,18 @@ export interface ListingReadService {
   ): Promise<CursorPage<OwnListingDto>>;
   /** Cổng cho `notification`: tiêu đề tin theo mã, để câu thông báo nêu đúng món đồ. */
   titles(ids: string[]): Promise<Map<string, string>>;
-  /** Cổng cho `review`: dữ kiện để định tuyến việc và kiểm quyết định; tin đã xoá thì `null`. */
-  reviewSubject(id: string): Promise<ReviewSubject | null>;
-  /** Cổng cho `review`: tin như người đăng thấy — người xử cần thấy đủ nội dung, kể cả tin chưa hiện (TK 17). */
+  /**
+   * Cổng cho `review`: dữ kiện để định tuyến việc và kiểm quyết định; tin đã xoá thì `null`, trừ khi hỏi kèm
+   * `includeDeleted` — báo cáo về tin đã xoá vẫn được nhận, được quyết trên bản lưu (add-reports).
+   */
+  reviewSubject(id: string, options?: { includeDeleted?: boolean }): Promise<ReviewSubject | null>;
+  /**
+   * Cổng cho `review`: tin như người đăng thấy — người xử cần thấy đủ nội dung, kể cả tin chưa hiện (TK 17), và bản lưu
+   * của tin đã xoá còn báo cáo mở (add-reports).
+   */
   forReviewer(id: string): Promise<OwnListingDto | null>;
+  /** Cổng cho `review`: tin người này đang thấy được để báo cáo; không thấy (hay không có) thì `null` (add-reports). */
+  reportTarget(actor: Actor, id: string): Promise<ReportTarget | null>;
   /**
    * Cổng cho `review`: tin chờ duyệt của một người trong một nhóm — vào lại nhóm thì sinh lại việc (chốt 15/10/2026).
    * Có `leave` thì chỉ tin lượt rời đó làm ẩn: tin "nhóm công khai" ở lại làm tin người ngoài vẫn giữ việc (C8).
@@ -189,9 +197,9 @@ export function createListingReadService(shared: ListingShared): ListingReadServ
       return new Map(rows.flatMap((row) => (row.title ? [[row.id, row.title] as const] : [])));
     },
 
-    async reviewSubject(id) {
+    async reviewSubject(id, options = {}) {
       const row = await repository.findById(id);
-      if (!row || row.deletedAt !== null) return null;
+      if (!row || (row.deletedAt !== null && !options.includeDeleted)) return null;
       return {
         id: row.id,
         ownerId: row.ownerId,
@@ -204,12 +212,28 @@ export function createListingReadService(shared: ListingShared): ListingReadServ
         restrictions: row.restrictions,
         detached: isDetached(row.hideReasons),
         hideReasons: row.hideReasons,
+        deleted: row.deletedAt !== null,
       };
     },
 
     async forReviewer(id) {
       const row = await repository.findById(id);
-      return row && row.deletedAt === null ? toOwnDto(row, clock()) : null;
+      return row ? toOwnDto(row, clock()) : null;
+    },
+
+    async reportTarget(actor, id) {
+      const row = await repository.findById(id);
+      if (!row || row.deletedAt !== null) return null;
+      // Người đăng "thấy" tin của mình để nhận lỗi "không tự báo cáo mình" thay vì 404.
+      const viewer = await viewerFor(actor, row.groupId);
+      if (row.ownerId !== actor.accountId && !canView(row, viewer, 'link')) return null;
+      return {
+        id: row.id,
+        ownerId: row.ownerId,
+        state: row.state,
+        placement: row.placement,
+        visible: row.state === 'live' && row.hideReasons.length === 0,
+      };
     },
 
     async reviewBacklog() {

@@ -13,10 +13,12 @@ import {
   earliest,
   QUEUE_OF,
   queueOf,
+  REPORT_REASONS,
   SAMPLE_REASONS,
   withoutReasons,
   withReasons,
 } from '../calc/task.calc.js';
+import type { StrikeDetailDto } from '../../trust/strike/strike.schema.js';
 import type { Tx } from '../review.repository.js';
 import type { ReviewShared } from '../review.shared.js';
 
@@ -29,6 +31,15 @@ export interface AddReason {
   /** Trong transaction của bên gọi — quyết định của người mở việc mới cùng lượt ghi. */
   tx?: Tx;
   expect?: ListingExpect;
+}
+
+export interface AddStrikeReason {
+  reason: Extract<ReviewReason, 'appeal' | 'serious_strike' | 'permanent_review'>;
+  /** Danh mục của gậy — staff khác của danh mục xét; `null` → bậc staff rỗng → master (spec appeals). */
+  categoryId: string | null;
+  /** Người nhận gậy, người ra gậy — và máy của cả hai. */
+  exclude: readonly string[];
+  tx?: Tx;
 }
 
 /**
@@ -49,6 +60,18 @@ export interface StateChange {
 
 export interface ReviewQueueService {
   addReason(listingId: string, input: AddReason): Promise<void>;
+  /** Việc về một người (báo cáo về người — add-reports): như `addReason`, không có tin. */
+  addAccountReason(
+    accountId: string,
+    input: Pick<AddReason, 'reason' | 'alsoExclude' | 'tx'>,
+  ): Promise<void>;
+  /** Việc về một gậy (add-strikes): khiếu nại, gậy nghiêm trọng chờ master, xem lại khoá vĩnh viễn — hàng 2. */
+  addStrikeReason(strikeId: string, input: AddStrikeReason): Promise<void>;
+  /**
+   * Bên nghe mọi sự kiện gậy: đối chiếu việc về gậy với tình trạng gậy lúc nghe (C1) — còn chờ thì mở / gộp, không
+   * còn gì chờ (ân xá, hết hạn, đã quyết qua việc khác) thì đóng việc còn mở.
+   */
+  onStrikeChanged(strikeId: string): Promise<void>;
   dropReasons(
     listingId: string,
     reasons: readonly ReviewReason[],
@@ -105,11 +128,35 @@ const scopeOf = (subject: ReviewSubject) => ({
 });
 
 /**
+ * Việc gậy đang chờ: gậy nghiêm trọng chưa quyết chờ master; khoá vĩnh viễn tới kỳ xem lại; khiếu nại chờ xét của gậy
+ * còn hiệu lực (khiếu nại gậy nghiêm trọng chỉ thêm lời vào việc đang chờ master — design mục 12, câu 3). Gậy do
+ * master ra thì master tự xem lại (spec appeals) nên người ra không bị loại; gậy nghiêm trọng thì master kia quyết.
+ */
+const pendingOf = (strike: StrikeDetailDto, now: Date): AddStrikeReason | null => {
+  const exclude = [strike.accountId, strike.issuedBy];
+  if (strike.kind === 'serious' && strike.status === 'active') {
+    return { reason: 'serious_strike', categoryId: null, exclude };
+  }
+  if (strike.status === 'permanent') {
+    const due = strike.permanentReviewAt !== null && new Date(strike.permanentReviewAt) <= now;
+    return due
+      ? { reason: 'permanent_review', categoryId: null, exclude: [strike.accountId] }
+      : null;
+  }
+  if (strike.appeal?.status !== 'pending' || !strike.inForce) return null;
+  return {
+    reason: 'appeal',
+    categoryId: strike.categoryId,
+    exclude: strike.issuedByRole === 'master' ? [strike.accountId] : exclude,
+  };
+};
+
+/**
  * Việc sinh, gộp, huỷ theo chuyện xảy ra với tin (design add-review-queues mục 3, 7): một tin một việc mở; gộp thêm lý
  * do và lấy hạn sớm nhất; bỏ lý do không kéo dài hạn; hết lý do thì huỷ.
  */
 export function createQueueService(shared: ReviewShared): ReviewQueueService {
-  const { repository, listings, groups, clock, deadlines, withSharedDevices } = shared;
+  const { repository, listings, groups, trust, clock, deadlines, withSharedDevices } = shared;
 
   /**
    * Mọi lượt ghi việc khoá dòng tin trước rồi mới tới việc — cùng thứ tự với lượt đổi tin chạy hook `after`. Lượt ghi
@@ -198,13 +245,91 @@ export function createQueueService(shared: ReviewShared): ReviewQueueService {
     });
   };
 
+  /**
+   * Huỷ việc vì chuyện xảy ra với tin (xoá, rút, đã bán, hết hạn, chủ tin xoá tài khoản). Lý do báo cáo ở lại: báo cáo
+   * chỉ đóng bằng quyết định của người, xử trên bản lưu (cam kết 25, add-reports).
+   */
   const cancel = (
     listingId: string,
     cause: ReviewCloseCause,
     expect?: ListingExpect,
   ): Promise<void> =>
     onOpenTask(listingId, async (tx, open, listing) => {
-      if (open && matches(listing, expect)) await repository.closeTask(tx, open.id, cause, clock());
+      if (!open || !matches(listing, expect)) return;
+      const kept = open.reasons.filter((reason) => REPORT_REASONS.has(reason));
+      if (kept.length === 0) {
+        await repository.closeTask(tx, open.id, cause, clock());
+        return;
+      }
+      if (kept.length < open.reasons.length) {
+        await repository.updateTask(tx, open.id, { reasons: kept, queue: queueOf(kept) });
+      }
+    });
+
+  const addAccountReason: ReviewQueueService['addAccountReason'] = async (accountId, input) => {
+    const excluded = await withSharedDevices([accountId, ...(input.alsoExclude ?? [])]);
+    const now = clock();
+    const due = deadlineOf(input.reason, now, deadlines());
+    await repository.withOpenAccountTask(
+      accountId,
+      async (tx, open) => {
+        if (!open) {
+          await repository.insertTask(tx, {
+            accountId,
+            reasons: [input.reason],
+            createdAt: now,
+            queue: QUEUE_OF[input.reason],
+            dueAt: due,
+            excludedIds: excluded,
+          });
+          return;
+        }
+        const reasons = withReasons(open.reasons, [input.reason]);
+        await repository.updateTask(tx, open.id, {
+          reasons,
+          queue: queueOf(reasons),
+          dueAt: earliest(open.dueAt, due),
+          excludedIds: [...new Set([...open.excludedIds, ...excluded])],
+        });
+      },
+      input.tx,
+    );
+  };
+
+  const addStrikeReason: ReviewQueueService['addStrikeReason'] = async (strikeId, input) => {
+    const excluded = await withSharedDevices(input.exclude);
+    const now = clock();
+    const due = deadlineOf(input.reason, now, deadlines());
+    await repository.withOpenStrikeTask(
+      strikeId,
+      async (tx, open) => {
+        if (!open) {
+          await repository.insertTask(tx, {
+            strikeId,
+            categoryId: input.categoryId,
+            reasons: [input.reason],
+            createdAt: now,
+            queue: QUEUE_OF[input.reason],
+            dueAt: due,
+            excludedIds: excluded,
+          });
+          return;
+        }
+        const reasons = withReasons(open.reasons, [input.reason]);
+        await repository.updateTask(tx, open.id, {
+          reasons,
+          queue: queueOf(reasons),
+          dueAt: earliest(open.dueAt, due),
+          excludedIds: [...new Set([...open.excludedIds, ...excluded])],
+        });
+      },
+      input.tx,
+    );
+  };
+
+  const closeStrikeTask = (strikeId: string, cause: ReviewCloseCause): Promise<void> =>
+    repository.withOpenStrikeTask(strikeId, async (tx, open) => {
+      if (open) await repository.closeTask(tx, open.id, cause, clock());
     });
 
   /** Việc mở của tin lấy lại phạm vi (danh mục, nhóm, đơn vị) từ tin hiện tại. */
@@ -225,7 +350,16 @@ export function createQueueService(shared: ReviewShared): ReviewQueueService {
 
   return {
     addReason,
+    addAccountReason,
+    addStrikeReason,
     dropReasons,
+
+    async onStrikeChanged(strikeId) {
+      const strike = await trust.strikeDetail(strikeId);
+      const pending = strike ? pendingOf(strike, clock()) : null;
+      if (pending) await addStrikeReason(strikeId, pending);
+      else await closeStrikeTask(strikeId, 'strike_closed');
+    },
 
     async onStateChanged(change) {
       const { listingId } = change;
@@ -327,25 +461,28 @@ export function createQueueService(shared: ReviewShared): ReviewQueueService {
     async onAccountDeleted(accountId) {
       // Người đăng luôn nằm trong danh sách loại trừ của việc về tin của mình.
       const tasks = await repository.openTasksExcluding(accountId);
-      await sequentially(tasks, async (task) => {
-        const subject = await listings.reviewSubject(task.listingId);
-        if (subject?.ownerId === accountId) await cancel(task.listingId, 'listing_deleted');
+      await sequentially(tasks, async ({ listingId }) => {
+        // Việc về chính người đó (báo cáo về người) ở lại — xử trên bản lưu (add-reports).
+        if (!listingId) return;
+        const subject = await listings.reviewSubject(listingId);
+        if (subject?.ownerId === accountId) await cancel(listingId, 'listing_deleted');
       });
     },
 
     async onUnitChanged(groupId, accountId) {
       const tasks = await repository.openTasksInGroup(groupId);
-      await sequentially(tasks, async (task) => {
-        const subject = await listings.reviewSubject(task.listingId);
-        if (subject?.ownerId === accountId) await rescope(task.listingId);
+      await sequentially(tasks, async ({ listingId }) => {
+        if (!listingId) return;
+        const subject = await listings.reviewSubject(listingId);
+        if (subject?.ownerId === accountId) await rescope(listingId);
       });
     },
 
     async onGroupClosed(groupId) {
       const tasks = await repository.openTasksInGroup(groupId);
-      await sequentially(tasks, (task) =>
-        dropReasons(task.listingId, CLOSED_GROUP_REASONS, 'group_closed'),
-      );
+      await sequentially(tasks, async ({ listingId }) => {
+        if (listingId) await dropReasons(listingId, CLOSED_GROUP_REASONS, 'group_closed');
+      });
     },
 
     async backfill() {

@@ -3,6 +3,7 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { reviewGroupRoutes } from './desk/group.routes.js';
 import { reviewOpsRoutes } from './desk/ops.routes.js';
 import type { ReviewService } from './review.service.js';
+import { reportRoutes } from './report/report.routes.js';
 import { reviewStatsRoutes } from './stats/stats.routes.js';
 
 export interface ReviewRoutesOptions {
@@ -14,4 +15,5 @@ export const reviewRoutes: FastifyPluginAsyncZod<ReviewRoutesOptions> = async (a
   await app.register(reviewOpsRoutes, { review });
   await app.register(reviewGroupRoutes, { review });
   await app.register(reviewStatsRoutes, { review });
+  await app.register(reportRoutes, { review });
 };

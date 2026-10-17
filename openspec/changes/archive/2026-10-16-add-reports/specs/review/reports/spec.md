@@ -7,8 +7,8 @@ bằng quyết định của người (TK 23, cam kết 25).
 
 ### Requirement: Gửi báo cáo
 
-Người dùng đã đăng nhập SHALL báo cáo được một tin mình đang xem được hoặc một người, chọn đúng một trong năm
-loại cố định: lừa đảo, sai thông tin, quấy rối, hàng cấm, khác.
+Người dùng đã đăng nhập và đã xác nhận email SHALL báo cáo được một tin mình đang xem được hoặc một người, chọn đúng
+một trong năm loại cố định: lừa đảo, sai thông tin, quấy rối, hàng cấm, khác.
 
 #### Scenario: Báo cáo một tin sàn
 
@@ -35,6 +35,11 @@ loại cố định: lừa đảo, sai thông tin, quấy rối, hàng cấm, kh
 
 - **WHEN** một người không phải thành viên báo cáo một tin "chỉ thành viên" của nhóm
 - **THEN** response có HTTP 404 `NOT_FOUND`
+
+#### Scenario: Email chưa xác nhận
+
+- **WHEN** người dùng chưa xác nhận email báo cáo một tin sàn
+- **THEN** response có HTTP 403 `EMAIL_NOT_VERIFIED` và không báo cáo nào được tạo
 
 ### Requirement: Tài khoản master không gửi báo cáo
 
@@ -94,7 +99,7 @@ cáo đang mở, chỉ tăng số người báo; một người báo lại cùng
 #### Scenario: Cùng một người báo lại
 
 - **WHEN** người đã báo một tin báo lại tin đó trong lúc báo cáo còn mở
-- **THEN** số người báo của báo cáo không đổi
+- **THEN** response có HTTP 200 và số người báo của báo cáo không đổi
 
 #### Scenario: Báo sau khi báo cáo cũ đã đóng
 
@@ -152,6 +157,16 @@ Master thấy mọi báo cáo.
 - **WHEN** người bị báo cáo là một staff được giao việc an toàn
 - **THEN** báo cáo không hiện trong hàng của người đó mà hiện cho staff việc an toàn khác, không còn ai thì
   cho master
+
+### Requirement: Người báo không xử báo cáo mình đã gửi
+
+Người đã gửi một lượt báo, và tài khoản dùng chung máy với họ, MUST NOT xử báo cáo đó; báo cáo đi cho người kế tiếp
+trong chuỗi chuyển tiếp (chốt 16/10/2026).
+
+#### Scenario: Staff báo một tin thuộc danh mục mình
+
+- **WHEN** staff được giao danh mục của một tin sàn báo cáo tin đó bằng tài khoản của mình
+- **THEN** báo cáo không hiện trong hàng của staff đó mà hiện cho staff khác cùng danh mục, không còn ai thì cho master
 
 ### Requirement: Báo cáo quá hạn chuyển master
 
@@ -241,6 +256,12 @@ cùng trạng thái, kết quả. Người báo MUST NOT thấy danh tính nhữ
 - **WHEN** một trong 3 người báo xem báo cáo của mình
 - **THEN** response không chứa danh tính hai người báo còn lại
 
+#### Scenario: Thông báo kết quả
+
+- **WHEN** người xử xác nhận đúng một báo cáo có 2 người báo
+- **THEN** mỗi người báo có một thông báo trong hộp thư, nhóm "báo cáo của bạn", nói báo cáo có vi phạm — không nêu hệ
+  quả
+
 ### Requirement: Người bị báo cáo không biết ai báo
 
 Mọi response gửi cho người bị báo cáo hay người đăng tin bị báo cáo MUST NOT chứa danh tính người báo.
@@ -252,8 +273,8 @@ Mọi response gửi cho người bị báo cáo hay người đăng tin bị b�
 
 ### Requirement: Người xử thấy báo cáo liên quan
 
-Người đang nhận một việc về một tin hay một người SHALL thấy các báo cáo về tin đó và về người đăng: loại, số
-người báo và thời điểm từng lượt báo.
+Người đang nhận một việc về một tin hay một người SHALL thấy các báo cáo về tin đó và về người đăng, kể cả báo cáo đã
+đóng: loại, số người báo, thời điểm từng lượt báo và kết quả. Người xử MUST NOT thấy danh tính người báo.
 
 #### Scenario: Việc về tin đang bị báo nhiều lần
 

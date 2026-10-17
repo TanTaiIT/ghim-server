@@ -6,10 +6,19 @@ import { paginationQuerySchema } from '../../common/schemas/pagination.js';
  * Tuple khai lại enum của schema.prisma cho tầng HTTP và hàm thuần (CLAUDE.md luật 5): hàm thuần
  * không import Prisma, còn Zod cần tuple để sinh OpenAPI. Đổi enum thì đổi đây.
  */
-export const ACCOUNT_FLAG_KINDS = ['many_accounts_on_device', 'device_of_locked_account'] as const;
+export const ACCOUNT_FLAG_KINDS = [
+  'many_accounts_on_device',
+  'device_of_locked_account',
+  'device_of_struck_account',
+] as const;
 export type AccountFlagKind = (typeof ACCOUNT_FLAG_KINDS)[number];
 
-export const CODE_PURPOSES = ['email_verify', 'password_reset', 'email_change'] as const;
+export const CODE_PURPOSES = [
+  'email_verify',
+  'password_reset',
+  'email_change',
+  'locked_appeal',
+] as const;
 export type CodePurpose = (typeof CODE_PURPOSES)[number];
 
 export const DISPOSABLE_DOMAIN_SOURCES = ['seed', 'manual'] as const;
@@ -18,6 +27,7 @@ export const DISPOSABLE_DOMAIN_SOURCES = ['seed', 'manual'] as const;
 export const FLAG_CLEARED_REASONS = {
   unlocked: 'Tài khoản liên quan đã được mở khoá',
   recomputed: 'Không còn thoả điều kiện ở lượt gửi tin mới',
+  strikeEnded: 'Gậy của tài khoản liên quan đã hết hiệu lực',
 } as const;
 
 /**

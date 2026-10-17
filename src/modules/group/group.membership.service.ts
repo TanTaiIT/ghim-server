@@ -69,6 +69,16 @@ export interface GroupMembershipService {
   ): Promise<MemberDto>;
   removeMember(actor: Actor, groupId: string, accountId: string): Promise<void>;
   ban(actor: Actor, groupId: string, accountId: string): Promise<void>;
+  /**
+   * Hệ quả "cấm khỏi nhóm" của báo cáo đúng (add-reports): quyền đã kiểm lúc quyết, ở đây chỉ áp. Nhóm không còn cho
+   * điều hành, người đó là chủ nhóm hay đã bị cấm thì thôi — bên nghe chạy lại vô hại.
+   */
+  banFromReport(input: {
+    groupId: string;
+    accountId: string;
+    by: string;
+    byMaster: boolean;
+  }): Promise<void>;
   unban(actor: Actor, groupId: string, accountId: string): Promise<void>;
   listJoinRequests(actor: Actor, groupId: string, page: PageQuery): Promise<Page<JoinRequestDto>>;
   decideJoinRequest(actor: Actor, requestId: string, approve: boolean): Promise<JoinRequestDto>;
@@ -540,6 +550,34 @@ export function createGroupMembershipService(
       });
       if (result === 'owner') throw forbidden('Không xử được chủ nhóm');
       if (target?.role === 'moderator' && ctx.group.state === 'ownerless') {
+        await reevaluateOwnerless(groupId);
+      }
+    },
+
+    async banFromReport({ groupId, accountId, by, byMaster }) {
+      const group = await repository.findGroup(groupId);
+      if (!group || !ALLOWS_MODERATION.has(group.state)) return;
+      if (await repository.isBanned(groupId, accountId)) return;
+      const target = await repository.findMember(groupId, accountId);
+      const result = await repository.removeMember({
+        groupId,
+        accountId,
+        reason: 'banned',
+        by,
+        at: clock(),
+        // Như `masterAudit`: nhật ký chỉ ghi khi người quyết là master.
+        audit: byMaster
+          ? {
+              actorId: by,
+              actorRole: 'master',
+              action: 'group.member.ban',
+              targetType: 'group',
+              targetId: groupId,
+              details: { accountId, cause: 'report' },
+            }
+          : undefined,
+      });
+      if (result !== 'owner' && target?.role === 'moderator' && group.state === 'ownerless') {
         await reevaluateOwnerless(groupId);
       }
     },

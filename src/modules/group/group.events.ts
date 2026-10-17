@@ -22,4 +22,19 @@ export function registerGroupListeners(dispatcher: OutboxDispatcher, group: Grou
   dispatcher.register('identity.account.deleted', (payload) =>
     group.onAccountDeleted(accountIdOf('identity.account.deleted', payload)),
   );
+  // Gậy nặng (add-strikes): chủ nhóm mất vai → thiếu chủ; gậy hết hiệu lực → trả chủ. Bên nghe hỏi lại `trust`.
+  dispatcher.register('trust.strike.issued', (payload) =>
+    payload.kind === 'severe'
+      ? group.onOwnerStruck(accountIdOf('trust.strike.issued', payload))
+      : Promise.resolve(),
+  );
+  dispatcher.register('trust.strike.expired', (payload) =>
+    group.onStrikeEnded(accountIdOf('trust.strike.expired', payload)),
+  );
+  dispatcher.register('trust.strike.cancelled', (payload) =>
+    group.onStrikeEnded(accountIdOf('trust.strike.cancelled', payload)),
+  );
+  dispatcher.register('trust.strike.decided', (payload) =>
+    group.onStrikeEnded(accountIdOf('trust.strike.decided', payload)),
+  );
 }

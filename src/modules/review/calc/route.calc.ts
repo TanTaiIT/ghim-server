@@ -1,10 +1,16 @@
-import type { GroupReview, ListingPlacement } from '@prisma/client';
+import type { GroupReview, ListingPlacement, ReviewReason } from '@prisma/client';
 
 import type { Queue } from './task.calc.js';
 
 /** Bậc đang giữ việc — chuỗi chuyển tiếp TK 16, đi từ trái sang phải khi bậc trước không còn ai xử được. */
+/** `safety_staff` = staff được giao việc an toàn (scope `user_reports`) — chỉ việc về một người (add-reports). */
 export type RouteLevel =
-  'unit_moderators' | 'group_moderators' | 'group_owner' | 'category_staff' | 'master';
+  | 'unit_moderators'
+  | 'group_moderators'
+  | 'group_owner'
+  | 'category_staff'
+  | 'safety_staff'
+  | 'master';
 
 export interface GroupReviewers {
   /** Nhóm đang cho điều hành (đang hoạt động, thiếu chủ, đang chuyển riêng tư) — không thì bỏ qua cả bậc nhóm. */
@@ -15,7 +21,13 @@ export interface GroupReviewers {
 }
 
 export interface RouteInput {
+  /**
+   * Việc về một người (`account`) không có phạm vi tin: staff việc an toàn rồi master. Việc về gậy (`strike`): staff
+   * danh mục của gậy rồi master — gậy không có danh mục (master ra, từ báo cáo về người) đi thẳng master (add-strikes).
+   */
+  subject: 'listing' | 'account' | 'strike';
   queue: Queue;
+  reasons: readonly ReviewReason[];
   placement: ListingPlacement | null;
   groupId: string | null;
   unitId: string | null;
@@ -26,6 +38,7 @@ export interface RouteInput {
   excluded: ReadonlySet<string>;
   group: GroupReviewers | null;
   categoryStaff: readonly string[];
+  safetyStaff: readonly string[];
   masters: readonly string[];
 }
 
@@ -35,12 +48,18 @@ export interface Route {
 }
 
 /**
- * Việc về tin nhóm đi theo chuỗi của nhóm khi: là mẫu hậu kiểm (hàng 5), hay là việc máy giữ (hàng 0) mà danh mục để
- * nhóm duyệt. Hàng 3, 4 và tin sàn luôn về staff danh mục (TK 16, spec review/queues).
+ * Việc về tin nhóm đi theo chuỗi của nhóm khi: là mẫu hậu kiểm (hàng 5), là việc máy giữ (hàng 0) mà danh mục để
+ * nhóm duyệt, hay là báo cáo loại thường (hàng 1). Báo cáo lừa đảo, hàng cấm luôn về staff — điều hành nhóm không
+ * thấy (TK 23); hàng 3, 4 và tin sàn luôn về staff danh mục (TK 16, spec review/queues).
  */
 function groupScoped(input: RouteInput): boolean {
   if (!input.groupId || input.placement === 'marketplace') return false;
-  return input.queue === 5 || (input.queue === 0 && input.groupReview === 'group');
+  if (input.reasons.includes('report_severe')) return false;
+  return (
+    input.queue === 5 ||
+    (input.queue === 0 && input.groupReview === 'group') ||
+    (input.queue === 1 && input.reasons.includes('report'))
+  );
 }
 
 /**
@@ -67,7 +86,12 @@ export function routeOf(input: RouteInput): Route {
     ]);
     levels.push(['group_owner', keep(ownerId ? [ownerId] : [])]);
   }
-  if (!input.escalated) levels.push(['category_staff', keep(input.categoryStaff)]);
+  if (!input.escalated && input.subject === 'account') {
+    levels.push(['safety_staff', keep(input.safetyStaff)]);
+  }
+  if (!input.escalated && input.subject !== 'account') {
+    levels.push(['category_staff', keep(input.categoryStaff)]);
+  }
 
   const found = levels.find(([, handlers]) => handlers.length > 0);
   return found

@@ -1,12 +1,14 @@
 import type { GroupReview } from '@prisma/client';
 
 import type { Actor } from '../../common/auth/actor.js';
-import type { PrivilegeSource } from '../../common/auth/privilege-source.js';
+import type { OpsScope, PrivilegeSource } from '../../common/auth/privilege-source.js';
 import type { RuntimeConfig } from '../../common/config/runtime-config.js';
 import { ConflictError, NotFoundError } from '../../common/errors/app-error.js';
 import type { Jobs } from '../../lib/jobs.js';
 import { canHandle, type Route, routeOf } from './calc/route.calc.js';
+import type { ReportRules } from './calc/report.calc.js';
 import { type Deadlines, queueOf } from './calc/task.calc.js';
+import type { ReportRepository } from './report/report.repository.js';
 import type {
   ReviewCategoryPort,
   ReviewGroupPort,
@@ -23,6 +25,7 @@ const DAY_MS = 86_400_000;
 
 export interface ReviewServiceDeps {
   repository: ReviewRepository;
+  reports: ReportRepository;
   listings: ReviewListingPort;
   screening: ReviewScreeningPort;
   identity: ReviewIdentityPort;
@@ -75,6 +78,18 @@ export function createReviewShared(deps: ReviewServiceDeps) {
     machineRestrictionHours: config.get('review.machineRestrictionHours'),
     groupEscalationHours: config.get('review.groupEscalationHours'),
     sampleDays: config.get('review.sampleDays'),
+    reportHours: config.get('review.reportHours'),
+    appealDays: config.get('review.appealDays'),
+  });
+
+  const reportRules = (): ReportRules => ({
+    autoHideReporters: config.get('report.autoHideReporters'),
+    autoHideDevices: config.get('report.autoHideDevices'),
+    autoHideMinTier: config.get('report.autoHideMinTier'),
+    autoHideWindowHours: config.get('report.autoHideWindowHours'),
+    scoreIgnoreBelowMinus: config.get('report.scoreIgnoreAutoHideBelowMinus'),
+    scoreLoseRightBelowMinus: config.get('report.scoreLoseRightBelowMinus'),
+    loseRightDays: config.get('report.loseRightDays'),
   });
 
   /**
@@ -102,7 +117,8 @@ export function createReviewShared(deps: ReviewServiceDeps) {
   const routesFor = async (tasks: readonly ReviewTask[]): Promise<(task: ReviewTask) => Route> => {
     const categoryIds = [...new Set(tasks.flatMap((task) => task.categoryId ?? []))];
     const groupIds = [...new Set(tasks.flatMap((task) => task.groupId ?? []))];
-    const [staff, masters, settings, reviewers] = await Promise.all([
+    const aboutPeople = tasks.some((task) => task.accountId !== null);
+    const [staff, masters, settings, reviewers, safety] = await Promise.all([
       deps.platform.activeStaffByCategory(categoryIds),
       identity.masterIds(),
       Promise.all(
@@ -111,12 +127,15 @@ export function createReviewShared(deps: ReviewServiceDeps) {
         ),
       ),
       Promise.all(groupIds.map(async (id) => [id, await deps.groups.reviewersOf(id)] as const)),
+      aboutPeople ? deps.platform.activeStaffWithScope('user_reports') : Promise.resolve([]),
     ]);
     const groupReview = new Map<string, GroupReview>(settings);
     const groups = new Map(reviewers);
     return (task) =>
       routeOf({
+        subject: subjectOf(task),
         queue: queueOf(task.reasons),
+        reasons: task.reasons,
         placement: task.placement,
         groupId: task.groupId,
         unitId: task.unitId,
@@ -125,6 +144,7 @@ export function createReviewShared(deps: ReviewServiceDeps) {
         excluded: new Set(task.excludedIds),
         group: (task.groupId && groups.get(task.groupId)) || null,
         categoryStaff: (task.categoryId && staff.get(task.categoryId)) || [],
+        safetyStaff: safety,
         masters,
       });
   };
@@ -132,13 +152,20 @@ export function createReviewShared(deps: ReviewServiceDeps) {
   /** Người hỏi trên bàn vận hành: master, hay danh mục staff đang hoạt động (đọc lại mỗi lượt, không tin token). */
   const viewerOf = async (actor: Actor): Promise<Viewer> => {
     if (actor.role === 'master') {
-      return { accountId: actor.accountId, isMaster: true, categoryIds: new Set() };
+      return {
+        accountId: actor.accountId,
+        isMaster: true,
+        categoryIds: new Set(),
+        scopes: new Set(),
+      };
     }
     const grant = await deps.privileges.staffGrant(actor.accountId);
+    const active = grant?.status === 'active';
     return {
       accountId: actor.accountId,
       isMaster: false,
-      categoryIds: new Set(grant?.status === 'active' ? grant.categoryIds : []),
+      categoryIds: new Set(active ? grant.categoryIds : []),
+      scopes: new Set(active ? grant.scopes : []),
     };
   };
 
@@ -151,15 +178,26 @@ export function createReviewShared(deps: ReviewServiceDeps) {
     const viewer: Viewer =
       surface.kind === 'ops'
         ? await viewerOf(actor)
-        : { accountId: actor.accountId, isMaster: false, categoryIds: new Set() };
+        : {
+            accountId: actor.accountId,
+            isMaster: false,
+            categoryIds: new Set(),
+            scopes: new Set(),
+          };
     const route = (await routesFor([task]))(task);
-    return { task, viewer, route, allowed: canHandle(route, actor.accountId, viewer.isMaster) };
+    return {
+      task,
+      viewer,
+      route,
+      allowed: mayHandle(task, route, actor.accountId, viewer.isMaster),
+    };
   };
 
   return {
     ...deps,
     random: deps.random ?? (() => Math.random() * 100),
     deadlines,
+    reportRules,
     withSharedDevices,
     sharedDevicesOf,
     routesFor,
@@ -167,6 +205,25 @@ export function createReviewShared(deps: ReviewServiceDeps) {
     locateTask,
   };
 }
+
+/** Chủ thể của việc — CHECK của bảng bảo đảm đúng một trong ba (add-reports, add-strikes). */
+export const subjectOf = (
+  task: Pick<ReviewTask, 'listingId' | 'accountId' | 'strikeId'>,
+): 'listing' | 'account' | 'strike' =>
+  task.strikeId ? 'strike' : task.accountId ? 'account' : 'listing';
+
+/**
+ * Master xử mọi việc kể cả việc có mình trong danh sách loại trừ (spec review/queues) — trừ việc về gậy: master ra gậy
+ * nghiêm trọng không tự quyết, việc đó mở với người ra gậy trong danh sách loại trừ (spec serious-strikes).
+ */
+export const mayHandle = (
+  task: Pick<ReviewTask, 'strikeId' | 'excludedIds'>,
+  route: Route,
+  accountId: string,
+  isMaster: boolean,
+): boolean =>
+  canHandle(route, accountId, isMaster) &&
+  !(isMaster && task.strikeId !== null && task.excludedIds.includes(accountId));
 
 /** Bàn vận hành (staff, master) hay app của nhóm (điều hành viên, chủ nhóm) — việc ngoài nhóm đang xem là 404. */
 export type Surface = { kind: 'ops' } | { kind: 'group'; groupId: string };
@@ -176,6 +233,8 @@ export interface Viewer {
   isMaster: boolean;
   /** Danh mục staff đang hoạt động; master thì rỗng — master xử mọi việc. */
   categoryIds: ReadonlySet<string>;
+  /** Việc ở bàn vận hành của staff đang hoạt động — `user_reports` xử báo cáo về một người. */
+  scopes: ReadonlySet<OpsScope>;
 }
 
 export type ReviewShared = ReturnType<typeof createReviewShared>;

@@ -2,11 +2,17 @@ import type { Actor } from '../../../common/auth/actor.js';
 import { ForbiddenError, NotFoundError } from '../../../common/errors/app-error.js';
 import { type PaginationQuery, toPage, toSkipTake } from '../../../common/schemas/pagination.js';
 import { sequentially } from '../../../common/utils/sequential.js';
-import { canHandle, type Route } from '../calc/route.calc.js';
+import { RELATED_REPORTS } from '../calc/report.calc.js';
+import type { Route } from '../calc/route.calc.js';
+import { REPORT_REASONS } from '../calc/task.calc.js';
+import type { StrikeDetailDto } from '../../trust/strike/strike.schema.js';
+import { toRelated } from '../report/report.service.js';
 import type { ReviewTask } from '../review.repository.js';
 import type { ClaimResultDto, QueueQuery, TaskDetailDto, TaskItemDto } from '../review.schema.js';
 import {
+  mayHandle,
   type ReviewShared,
+  subjectOf,
   type Surface,
   taskClaimed,
   taskClosed,
@@ -54,19 +60,41 @@ export interface ReviewDeskService {
 }
 
 export function createDeskService(shared: ReviewShared): ReviewDeskService {
-  const { repository, listings, screening, identity, trust, media, groups, config, clock } = shared;
+  const {
+    repository,
+    reports,
+    listings,
+    screening,
+    identity,
+    trust,
+    media,
+    groups,
+    config,
+    clock,
+  } = shared;
   const { routesFor, viewerOf, sharedDevicesOf, withSharedDevices, locateTask } = shared;
 
   const items = async (
     tasks: readonly { task: ReviewTask; route: Route }[],
     accountId: string,
   ): Promise<TaskItemDto[]> => {
-    const titles = await listings.titles(tasks.map(({ task }) => task.listingId));
+    const strikes = await strikeMap(tasks.flatMap(({ task }) => task.strikeId ?? []));
+    const subjectAccount = (task: ReviewTask): string | null =>
+      task.accountId ?? (task.strikeId ? (strikes.get(task.strikeId)?.accountId ?? null) : null);
+    const [titles, names] = await Promise.all([
+      listings.titles(tasks.flatMap(({ task }) => task.listingId ?? [])),
+      nameMap(tasks.flatMap(({ task }) => subjectAccount(task) ?? [])),
+    ]);
     const now = clock();
     return tasks.map(({ task, route }) => ({
       id: task.id,
+      subjectKind: subjectOf(task),
       listingId: task.listingId,
-      title: titles.get(task.listingId) ?? null,
+      accountId: task.accountId,
+      strikeId: task.strikeId,
+      title: task.listingId
+        ? (titles.get(task.listingId) ?? null)
+        : (names.get(subjectAccount(task) ?? '') ?? null),
       queue: task.queue,
       reasons: task.reasons,
       dueAt: task.dueAt.toISOString(),
@@ -78,13 +106,37 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
     }));
   };
 
+  /**
+   * Việc chỉ còn lý do báo cáo mà mọi lượt báo đều của người điểm báo cáo thấp xếp sau mọi việc khác (TK 23) — giữ thứ
+   * tự hạn trong mỗi phần.
+   */
+  const lowPriorityLast = async (
+    routed: { task: ReviewTask; route: Route }[],
+  ): Promise<{ task: ReviewTask; route: Route }[]> => {
+    const reportOnly = routed.filter(({ task }) =>
+      task.reasons.every((reason) => REPORT_REASONS.has(reason)),
+    );
+    if (reportOnly.length === 0) return routed;
+    const low = await reports.lowPriorityOpen({
+      listingIds: reportOnly.flatMap(({ task }) => task.listingId ?? []),
+      accountIds: reportOnly.flatMap(({ task }) => task.accountId ?? []),
+    });
+    const isLow = ({ task }: { task: ReviewTask }) =>
+      reportOnly.some((entry) => entry.task.id === task.id) &&
+      (task.listingId
+        ? low.listingIds.has(task.listingId)
+        : low.accountIds.has(task.accountId ?? ''));
+    return [...routed.filter((entry) => !isLow(entry)), ...routed.filter(isLow)];
+  };
+
   const paged = async (
     routed: { task: ReviewTask; route: Route }[],
     accountId: string,
     query: PaginationQuery,
   ): Promise<Page<TaskItemDto>> => {
     const { skip, take } = toSkipTake(query);
-    return toPage(await items(routed.slice(skip, skip + take), accountId), routed.length, query);
+    const ordered = await lowPriorityLast(routed);
+    return toPage(await items(ordered.slice(skip, skip + take), accountId), routed.length, query);
   };
 
   /**
@@ -99,7 +151,21 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
         return new ForbiddenError('Việc cần một người khác người đã chuyển lên');
       }
     }
+    // Việc về gậy: người ra gậy, người nhận và máy của họ có quyền trên phạm vi, chỉ bị luật hai người chặn (spec appeals).
+    if (
+      task.strikeId &&
+      (wouldHandle || viewer.isMaster) &&
+      task.excludedIds.includes(viewer.accountId)
+    ) {
+      return new ForbiddenError('Việc về gậy cần một người khác người ra gậy hay người nhận gậy');
+    }
     return taskNotFound();
+  };
+
+  /** Hồ sơ gậy của các việc về gậy trong một trang — tên người nhận làm tiêu đề việc (add-strikes). */
+  const strikeMap = async (ids: string[]): Promise<Map<string, StrikeDetailDto>> => {
+    const found = await Promise.all([...new Set(ids)].map((id) => trust.strikeDetail(id)));
+    return new Map(found.flatMap((strike) => (strike ? [[strike.id, strike] as const] : [])));
   };
 
   const nameMap = async (ids: string[]): Promise<Map<string, string | null>> => {
@@ -107,25 +173,118 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
     return new Map([...summaries].map(([id, summary]) => [id, summary.displayName]));
   };
 
+  /** Việc về một người: hồ sơ, mức, tin sạch, tài khoản dùng chung máy, báo cáo về người đó (add-reports). */
+  const accountDetail = async (
+    task: ReviewTask,
+    route: Route,
+    viewerId: string,
+  ): Promise<TaskDetailDto> => {
+    const accountId = task.accountId ?? '';
+    const [[item], tier, cleanListings, strikes, sharedDevices, related] = await Promise.all([
+      items([{ task, route }], viewerId),
+      trust.tierOf(accountId),
+      trust.cleanCount(accountId),
+      trust.strikesOf(accountId),
+      sharedDevicesOf(accountId),
+      reports.related({ listingId: null, accountId, limit: RELATED_REPORTS }),
+    ]);
+    if (!item) throw taskNotFound();
+    const names = await nameMap([accountId, ...sharedDevices]);
+    return {
+      ...item,
+      listing: null,
+      listingDeleted: false,
+      machine: null,
+      seller: {
+        accountId,
+        displayName: names.get(accountId) ?? null,
+        tier,
+        cleanListings,
+        strikes,
+      },
+      duplicates: [],
+      sharedDeviceAccounts: sharedDevices.map((id) => ({
+        accountId: id,
+        displayName: names.get(id) ?? null,
+      })),
+      escalation: null,
+      reports: related.map(toRelated),
+      strike: null,
+    };
+  };
+
+  /** Việc về một gậy (add-strikes): hồ sơ gậy (điều trích, lời khiếu nại, nhận xét), người nhận, tin đi kèm nếu còn. */
+  const strikeDetail = async (
+    task: ReviewTask,
+    route: Route,
+    viewerId: string,
+  ): Promise<TaskDetailDto> => {
+    const strike = await trust.strikeDetail(task.strikeId ?? '');
+    if (!strike) throw taskNotFound();
+    const { accountId, listingId } = strike;
+    const [[item], tier, cleanListings, strikes, sharedDevices, related, listing, subject] =
+      await Promise.all([
+        items([{ task, route }], viewerId),
+        trust.tierOf(accountId),
+        trust.cleanCount(accountId),
+        trust.strikesOf(accountId),
+        sharedDevicesOf(accountId),
+        reports.related({ listingId, accountId, limit: RELATED_REPORTS }),
+        listingId ? listings.forReviewer(listingId) : Promise.resolve(null),
+        listingId
+          ? listings.reviewSubject(listingId, { includeDeleted: true })
+          : Promise.resolve(null),
+      ]);
+    if (!item) throw taskNotFound();
+    const names = await nameMap([accountId, ...sharedDevices]);
+    return {
+      ...item,
+      listing,
+      listingDeleted: subject?.deleted ?? false,
+      machine: null,
+      seller: {
+        accountId,
+        displayName: names.get(accountId) ?? null,
+        tier,
+        cleanListings,
+        strikes,
+      },
+      duplicates: [],
+      sharedDeviceAccounts: sharedDevices.map((id) => ({
+        accountId: id,
+        displayName: names.get(id) ?? null,
+      })),
+      escalation: null,
+      reports: related.map(toRelated),
+      strike,
+    };
+  };
+
   const recheck = async (task: ReviewTask, accountId: string): Promise<boolean> => {
     const [summary] = [...(await identity.accountSummaries([accountId])).values()];
     const isMaster = summary?.role === 'master' && summary.status === 'active';
     const route = (await routesFor([task]))(task);
-    if (canHandle(route, accountId, isMaster)) return false;
+    if (mayHandle(task, route, accountId, isMaster)) return false;
     return repository.releaseClaim(task.id, accountId);
   };
 
   return {
     async opsQueue(actor, query) {
       const viewer = await viewerOf(actor);
-      if (!viewer.isMaster && viewer.categoryIds.size === 0) throw new ForbiddenError();
+      const safety = viewer.scopes.has('user_reports');
+      if (!viewer.isMaster && viewer.categoryIds.size === 0 && !safety) throw new ForbiddenError();
       const tasks = await repository.openTasks(
-        viewer.isMaster ? {} : { categoryIds: [...viewer.categoryIds] },
+        viewer.isMaster
+          ? {}
+          : {
+              ...(viewer.categoryIds.size > 0 ? { categoryIds: [...viewer.categoryIds] } : {}),
+              accountTasks: safety,
+            },
       );
       const routeOf = await routesFor(tasks);
       const routed = tasks
         .map((task) => ({ task, route: routeOf(task) }))
-        .filter(({ route }) => viewer.isMaster || route.handlers.includes(actor.accountId))
+        .filter(({ task, route }) => mayHandle(task, route, actor.accountId, viewer.isMaster))
         .filter(({ task }) => query.queue === undefined || task.queue === query.queue)
         .filter(({ route }) => !query.atMaster || route.level === 'master');
       return paged(routed, actor.accountId, query);
@@ -152,17 +311,26 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
       const found = await locateTask(actor, taskId, surface);
       if (!found?.allowed) throw found ? await refused(found.task, found.viewer) : taskNotFound();
       const { task, route } = found;
-      const listing = await listings.forReviewer(task.listingId);
+      if (task.strikeId) return strikeDetail(task, route, actor.accountId);
+      if (!task.listingId) return accountDetail(task, route, actor.accountId);
+      const { listingId } = task;
+      const [listing, subject] = await Promise.all([
+        listings.forReviewer(listingId),
+        listings.reviewSubject(listingId, { includeDeleted: true }),
+      ]);
       if (!listing) throw taskNotFound();
       const ownerId = listing.ownerId;
-      const [[item], machine, tier, cleanListings, matches, sharedDevices] = await Promise.all([
-        items([{ task, route }], actor.accountId),
-        screening.runOf(task.listingId),
-        trust.tierOf(ownerId),
-        trust.cleanCount(ownerId),
-        screening.duplicateMatches(task.listingId),
-        sharedDevicesOf(ownerId),
-      ]);
+      const [[item], machine, tier, cleanListings, strikes, matches, sharedDevices, related] =
+        await Promise.all([
+          items([{ task, route }], actor.accountId),
+          screening.runOf(listingId),
+          trust.tierOf(ownerId),
+          trust.cleanCount(ownerId),
+          trust.strikesOf(ownerId),
+          screening.duplicateMatches(listingId),
+          sharedDevicesOf(ownerId),
+          reports.related({ listingId, accountId: ownerId, limit: RELATED_REPORTS }),
+        ]);
       const owners = await media.ownersOf(matches.map((match) => match.matchImageId));
       const names = await nameMap([
         ownerId,
@@ -173,12 +341,14 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
       return {
         ...item,
         listing,
+        listingDeleted: subject?.deleted ?? false,
         machine,
         seller: {
           accountId: ownerId,
           displayName: names.get(ownerId) ?? null,
           tier,
           cleanListings,
+          strikes,
         },
         duplicates: matches.map((match) => {
           const owner = owners.get(match.matchImageId);
@@ -196,6 +366,8 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
           task.escalatedBy && task.escalationNote
             ? { by: task.escalatedBy, note: task.escalationNote }
             : null,
+        reports: related.map(toRelated),
+        strike: null,
       };
     },
 
@@ -204,8 +376,15 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
       if (!found) throw taskNotFound();
       if (found.task.status !== 'open') throw taskClosed();
       if (!found.allowed) throw await refused(found.task, found.viewer);
-      const subject = await listings.reviewSubject(found.task.listingId);
-      if (!subject) throw taskClosed();
+      // Việc về tin: giữ phiên bản tin đang thấy — kể cả bản lưu của tin đã xoá còn báo cáo (add-reports).
+      let listingVersion: number | null = null;
+      if (found.task.listingId) {
+        const subject = await listings.reviewSubject(found.task.listingId, {
+          includeDeleted: true,
+        });
+        if (!subject) throw taskClosed();
+        listingVersion = subject.version;
+      }
       const now = clock();
       const expiresAt = new Date(now.getTime() + config.get('review.claimMinutes') * MINUTE_MS);
       const won = await repository.claim({
@@ -213,7 +392,7 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
         accountId: actor.accountId,
         now,
         expiresAt,
-        listingVersion: subject.version,
+        listingVersion,
       });
       if (!won) {
         const fresh = await repository.findTask(taskId);
@@ -222,7 +401,7 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
       return {
         taskId,
         claimExpiresAt: expiresAt.toISOString(),
-        listingVersion: subject.version,
+        listingVersion,
       };
     },
 

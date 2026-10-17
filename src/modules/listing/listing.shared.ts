@@ -59,6 +59,18 @@ export const invalidTransition = (
 export const versionConflict = (): ConflictError =>
   new ConflictError('Tin vừa được sửa ở nơi khác — tải lại rồi thử lại', 'CONFLICT');
 /** Tin đã rời nhóm hẳn chỉ chuyển lên sàn chung hay xoá được (spec editing) — mọi đường ghi khác dùng chung câu này. */
+/** Tin bị từ chối / gỡ vì vi phạm là hồ sơ của gậy: không sửa gửi lại, không tự xoá (TK 17, add-strikes). */
+export const listingUnderViolation = (): ConflictError =>
+  new ConflictError(
+    'Tin bị xử vì vi phạm — chỉ khiếu nại được, không sửa để gửi lại',
+    'LISTING_UNDER_VIOLATION',
+  );
+export const listingDeleteBlocked = (): ConflictError =>
+  new ConflictError(
+    'Tin bị gỡ vì vi phạm là hồ sơ của gậy — chưa xoá được',
+    'LISTING_DELETE_BLOCKED',
+  );
+
 export const listingDetached = (): ConflictError =>
   new ConflictError(
     'Tin đã rời nhóm hẳn — chỉ chuyển lên sàn chung hoặc xoá được',
@@ -96,7 +108,12 @@ export const clockSettings = (config: RuntimeConfig): ClockSettings => ({
   renewExtendDays: config.get('listing.renewExtendDays'),
 });
 
-const RESTRICTION_ORDER: readonly ListingRestriction[] = ['machine', 'new_account', 'strike'];
+const RESTRICTION_ORDER: readonly ListingRestriction[] = [
+  'machine',
+  'new_account',
+  'strike',
+  'strike_wave',
+];
 
 /** Đặt hay gỡ một lý do hạn chế, giữ thứ tự cố định để chạy lại ra cùng một mảng. */
 export function withRestriction(

@@ -1,10 +1,11 @@
 import type { ListingSubmissionKind, ListingState, Prisma } from '@prisma/client';
 
-import { ConflictError, TooManyRequestsError } from '../../common/errors/app-error.js';
-import { formatTimeVN } from '../../common/time/time.js';
+import { AppError, ConflictError, TooManyRequestsError } from '../../common/errors/app-error.js';
+import { formatDateVN, formatTimeVN } from '../../common/time/time.js';
+import { standingOf } from './calc/strike.calc.js';
 import { liveEffect, quotaDecision } from './calc/quota.calc.js';
 import type { TrustTier } from './calc/tier.calc.js';
-import { HOUR_MS, quotaSettings, type TrustServiceDeps } from './trust.shared.js';
+import { HOUR_MS, quotaSettings, strikeRules, type TrustServiceDeps } from './trust.shared.js';
 
 type Tx = Prisma.TransactionClient;
 
@@ -24,6 +25,14 @@ export interface TrustQuotaService {
   assertCanSubmit(tx: Tx, input: SubmissionQuotaInput): Promise<void>;
 }
 
+/** Từ ngưỡng điểm gậy: không gửi tin mới, không gia hạn, không chuyển lên sàn; sửa tin đang có vẫn qua (TK 21). */
+const LOCKED_KINDS: ReadonlySet<ListingSubmissionKind> = new Set([
+  'submit',
+  'renew_early',
+  'renew_expired',
+  'move',
+]);
+
 /** Ba cách giải phóng chỗ — app dựng nút theo mã; "chờ tin được duyệt" không phải một cách (câu 8). */
 const HOW_TO_FREE = ['mark_sold', 'delete', 'withdraw_pending'] as const;
 
@@ -31,13 +40,28 @@ export function createTrustQuotaService(
   deps: TrustServiceDeps,
   tierOf: (accountId: string) => Promise<TrustTier>,
 ): TrustQuotaService {
-  const { listings, config, clock } = deps;
+  const { listings, strikes, config, clock } = deps;
 
   return {
     async assertCanSubmit(tx, input) {
       // Hai lượt gửi song song của một người xếp hàng ở đây rồi mới đếm: không có chuyện cùng thấy 9 rồi cùng thành 11.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`trust-submit:${input.accountId}`}, 0))`;
       const now = clock();
+      if (LOCKED_KINDS.has(input.kind)) {
+        const standing = standingOf(
+          await strikes.listOf(input.accountId, tx),
+          now,
+          strikeRules(config),
+        );
+        if (standing.postingLockedUntil) {
+          throw new AppError(
+            403,
+            'POSTING_LOCKED',
+            `Bạn đang tạm khoá đăng tin vì điểm gậy — gửi lại được từ ${formatDateVN(standing.postingLockedUntil)}`,
+            { until: standing.postingLockedUntil.toISOString() },
+          );
+        }
+      }
       const tier = await tierOf(input.accountId);
       const settings = quotaSettings(config, tier);
       const facts = await listings.quotaFacts(tx, {

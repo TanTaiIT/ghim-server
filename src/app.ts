@@ -66,6 +66,10 @@ import {
   createReviewRepository,
   type ReviewRepository,
 } from './modules/review/review.repository.js';
+import {
+  createReportRepository,
+  type ReportRepository,
+} from './modules/review/report/report.repository.js';
 import type { ReviewService } from './modules/review/review.service.js';
 import { sharpHasher } from './modules/screening/run/image-hash.js';
 import { createScreeningModule } from './modules/screening/screening.module.js';
@@ -75,6 +79,10 @@ import {
 } from './modules/screening/screening.repository.js';
 import type { ScreeningService } from './modules/screening/screening.service.js';
 import { createTrustModule } from './modules/trust/trust.module.js';
+import {
+  createStrikeRepository,
+  type StrikeRepository,
+} from './modules/trust/strike/strike.repository.js';
 import { createTrustRepository, type TrustRepository } from './modules/trust/trust.repository.js';
 import type { TrustService } from './modules/trust/trust.service.js';
 import { noBuyerInterest } from './modules/trust/trust.shared.js';
@@ -125,8 +133,10 @@ export interface Repositories {
   media: MediaRepository;
   listing: ListingRepository;
   trust: TrustRepository;
+  strike: StrikeRepository;
   screening: ScreeningRepository;
   review: ReviewRepository;
+  report: ReportRepository;
 }
 
 declare module 'fastify' {
@@ -215,8 +225,10 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     media: overrides.repositories?.media ?? createMediaRepository(prisma),
     listing: overrides.repositories?.listing ?? createListingRepository(prisma),
     trust: overrides.repositories?.trust ?? createTrustRepository(prisma),
+    strike: overrides.repositories?.strike ?? createStrikeRepository(prisma),
     screening: overrides.repositories?.screening ?? createScreeningRepository(prisma),
     review: overrides.repositories?.review ?? createReviewRepository(prisma),
+    report: overrides.repositories?.report ?? createReportRepository(prisma),
   };
   const { config, versioned } = await resolveConfig(overrides.config, repositories.platform);
   const deps: AppDeps = {
@@ -241,10 +253,14 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
   // `trust` dựng sau `listing` (hỏi dữ kiện tin qua cổng của nó), mà `listing` và `group` hỏi mức, hạn mức của
   // `trust`: hai chiều nối muộn, như trên (design add-trust-tiers mục 1).
   let trustService: TrustService | null = null;
+  const lateTrust = (): TrustService => trustService ?? notBuilt('trust');
   const trust: ListingTrustPort = overrides.trust ?? {
-    tierOf: (accountId) => trustService?.tierOf(accountId) ?? notBuilt('trust'),
-    tierIn: (tx, accountId) => trustService?.tierIn(tx, accountId) ?? notBuilt('trust'),
-    assertCanSubmit: (tx, input) => trustService?.assertCanSubmit(tx, input) ?? notBuilt('trust'),
+    tierOf: (accountId) => lateTrust().tierOf(accountId),
+    tierIn: (tx, accountId) => lateTrust().tierIn(tx, accountId),
+    assertCanSubmit: (tx, input) => lateTrust().assertCanSubmit(tx, input),
+    strikePointsIn: (tx, accountId) => lateTrust().strikePointsIn(tx, accountId),
+    strikePointsOf: (accountId) => lateTrust().strikePointsOf(accountId),
+    struckAccounts: (accountIds) => lateTrust().struckAccounts(accountIds),
   };
   // `screening` dựng sau `listing` và `trust` (hỏi dữ kiện tin và mức qua cổng của chúng), mà `listing` gọi máy duyệt
   // trong lượt gửi, `identity` lọc tên, `trust` lấy câu cho tin chờ duyệt: ba chiều nối muộn (design add-screening mục 12).
@@ -296,6 +312,15 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     names: {
       hidden: (names) => screeningService?.hiddenNames(names) ?? notBuilt('screening'),
     },
+    // Gậy (add-strikes): `trust` dựng sau, nối muộn — chỉ được hỏi khi có request.
+    strikes: {
+      isEmailBanned: (hash) => lateTrust().isEmailBanned(hash),
+      blocksDeletion: async (accountId) =>
+        (await lateTrust().hasSevereStrike(accountId)) ||
+        (await lateTrust().seriousLockOf(accountId)) !== null,
+      seriousLockOf: (accountId) => lateTrust().seriousLockOf(accountId),
+      activeStrikesOf: (accountIds) => lateTrust().activeStrikesOf(accountIds),
+    },
     repository: repositories.identity,
     secrets: createSecretBox(env.SECRETS_ENCRYPTION_KEY),
     hashKey: env.IDENTITY_HASH_KEY,
@@ -307,6 +332,9 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     identity: identity.service,
     categories: category.service,
     clock: deps.clock,
+    strikes: {
+      hasActiveStrike: async (accountId) => (await lateTrust().standingOf(accountId)).active,
+    },
     ...(versioned ? { runtimeConfig: versioned } : {}),
   });
   const group = createGroupModule({
@@ -314,7 +342,10 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     identity: identity.service,
     config: deps.config,
     clock: deps.clock,
-    trust: { tierOf: (accountId) => trust.tierOf(accountId) },
+    trust: {
+      tierOf: (accountId) => trust.tierOf(accountId),
+      hasSevereStrike: (accountId) => lateTrust().hasSevereStrike(accountId),
+    },
     publicListings: {
       countInGroup: (tx, groupId) =>
         listingService?.countGroupPublic(tx, groupId) ?? notBuilt('listing'),
@@ -332,6 +363,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     openWork: {
       blocksPlacement: (listingId) =>
         reviewService?.blocksPlacement(listingId) ?? notBuilt('review'),
+      reportHidden: (listingId) => reviewService?.reportHidden(listingId) ?? notBuilt('review'),
     },
     config: deps.config,
     clock: deps.clock,
@@ -339,6 +371,8 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
   listingService = listing.service;
   const trustModule = createTrustModule({
     repository: repositories.trust,
+    strikes: repositories.strike,
+    privileges: deps.privilegeSource,
     listings: listing.service,
     identity: identity.service,
     buyerInterest: noBuyerInterest,
@@ -356,7 +390,10 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     categories: category.service,
     identity: identity.service,
     media: media.service,
-    trust: { tierOf: (accountId) => trust.tierOf(accountId) },
+    trust: {
+      tierOf: (accountId) => trust.tierOf(accountId),
+      strikePointsOf: (accountId) => trust.strikePointsOf(accountId),
+    },
     hasher: sharpHasher,
     jobs: deps.jobs,
     config: deps.config,
@@ -365,12 +402,22 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
   screeningService = screeningModule.service;
   const review = createReviewModule({
     repository: repositories.review,
+    reports: repositories.report,
     listings: listing.service,
     screening: screeningModule.service,
     identity: identity.service,
     trust: {
       tierOf: (accountId) => trust.tierOf(accountId),
       cleanCount: (accountId) => trustModule.service.cleanCount(accountId),
+      voidByReport: (listingId, accountId) =>
+        trustModule.service.voidByReport(listingId, accountId),
+      issueStrike: (tx, input) => trustModule.service.issueStrike(tx, input),
+      decideAppeal: (tx, input) => trustModule.service.decideAppeal(tx, input),
+      decideSerious: (tx, input) => trustModule.service.decideSerious(tx, input),
+      decidePermanentReview: (tx, input) => trustModule.service.decidePermanentReview(tx, input),
+      strikesOf: (accountId) => trustModule.service.strikesOf(accountId),
+      strikeDetail: (strikeId) => trustModule.service.strikeDetail(strikeId),
+      ruleArticle: (id) => trustModule.service.ruleArticle(id),
     },
     groups: group.service,
     platform: platform.service,
@@ -394,6 +441,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
       announcementBody: (id) => group.service.announcementBody(id),
       countPendingRequests: (groupId) => group.service.countPendingRequests(groupId),
       isMember: (groupId, accountId) => group.service.isMember(groupId, accountId),
+      isBanned: (groupId, accountId) => group.service.isBanned(groupId, accountId),
     },
     identity: identity.service,
     listings: listing.service,

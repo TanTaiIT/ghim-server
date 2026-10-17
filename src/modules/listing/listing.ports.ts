@@ -26,6 +26,11 @@ export interface ListingTrustPort {
   tierOf(accountId: string): Promise<TrustTier>;
   /** Mức đọc trong transaction đổi tin, sau khoá chung của `trust` — lượt lên mức chen giữa không bị bỏ sót (L7). */
   tierIn(tx: Tx, accountId: string): Promise<TrustTier>;
+  /** Điểm gậy đọc trong transaction lên bảng — lý do hạn chế "gậy" (add-strikes). */
+  strikePointsIn(tx: Tx, accountId: string): Promise<number>;
+  strikePointsOf(accountId: string): Promise<number>;
+  /** Trong các tài khoản, ai đang có gậy hiệu lực — tin hiện lại sau tạm ẩn mang lý do "gậy" (add-strikes). */
+  struckAccounts(accountIds: string[]): Promise<Set<string>>;
   /** Hạn mức, nhịp gửi — trong transaction gửi; ném lỗi của `trust` thì cả lượt quay lui. */
   assertCanSubmit(
     tx: Tx,
@@ -84,6 +89,8 @@ export interface ListingScreeningPort {
 /** Việc đang chờ của người duyệt, báo cáo, hậu kiểm khoá nơi đăng (cam kết 19) — `review` cài (`blocksPlacement`). */
 export interface OpenWork {
   blocksPlacement(listingId: string): Promise<boolean>;
+  /** Tin đang có báo cáo mở đã tự ẩn vì nhiều người báo (add-reports) — bên nghe đối chiếu cờ `reported` theo đây. */
+  reportHidden(listingId: string): Promise<boolean>;
 }
 
 export type ListingGroupPort = Pick<
@@ -127,6 +134,18 @@ export interface ReviewSubject {
   detached: boolean;
   /** Lý do tạm ẩn: tin đang ẩn không bị lấy mẫu, tin của tài khoản đã xoá không sinh việc (fix-audit-review, T7). */
   hideReasons: ListingHideReason[];
+  /** Người đăng đã xoá tin — chỉ có khi hỏi kèm `includeDeleted`: báo cáo xử trên bản lưu (add-reports). */
+  deleted: boolean;
+}
+
+/** Tin người báo cáo đang nhắm tới, khi người đó thấy được nó (add-reports). */
+export interface ReportTarget {
+  id: string;
+  ownerId: string;
+  state: ListingState;
+  placement: ListingPlacement | null;
+  /** Đang hiện với người khác: chỉ tin sàn chung đang hiện mới tự ẩn khi nhiều người báo. */
+  visible: boolean;
 }
 
 /** Dòng tin `review` đang giữ khoá trong lượt ghi việc: phiên bản và trạng thái tại lúc đó (fix-audit-review, T5). */
@@ -179,6 +198,11 @@ export interface ListingFactsService {
   shownMs(listingId: string, now: Date): Promise<number | null>;
   /** Trạng thái hiện tại của tin (kể cả tin đã xoá mềm) — `trust` đối chiếu cặp mất / có lại tư cách tin sạch. */
   stateOf(listingId: string): Promise<{ state: ListingState; fault: ListingFault | null } | null>;
+  /**
+   * Huỷ gậy nghiêm trọng trả lại số ngày hiển thị đã trôi trong lúc khoá (spec display-period, add-strikes): cộng `ms` vào
+   * hạn của tin đang `live` của người đó, trong transaction quyết định của `trust`.
+   */
+  compensateLockedDays(tx: Tx, input: { accountId: string; ms: number }): Promise<number>;
   ownTexts(input: {
     accountId: string;
     since: Date;

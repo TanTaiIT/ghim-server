@@ -36,6 +36,8 @@ export interface PublicListingCounter {
 /** Mức tin cậy của `trust` — nhận vai chủ nhóm / điều hành viên cần T1 trở lên (TK 5, spec group-roles). */
 export interface GroupTrustPort {
   tierOf(accountId: string): Promise<'T0' | 'T1' | 'T2' | 'T3'>;
+  /** Gậy nặng đang hiệu lực làm tạm mất vai chủ nhóm / điều hành viên (spec group-roles, add-strikes). */
+  hasSevereStrike(accountId: string): Promise<boolean>;
 }
 
 export interface GroupServiceDeps {
@@ -53,6 +55,8 @@ export interface GroupContext {
   group: Group;
   member: GroupMember | null;
   isMaster: boolean;
+  /** Có vai nhưng đang có gậy nặng: mọi thao tác của vai bị từ chối (add-strikes). */
+  roleSuspended: boolean;
 }
 
 export const groupStateConflict = (
@@ -62,20 +66,29 @@ export const groupStateConflict = (
 export const forbidden = (message = 'Bạn không có quyền làm việc này trong nhóm'): ForbiddenError =>
   new ForbiddenError(message);
 
-export const isOwner = (ctx: GroupContext): boolean => ctx.member?.role === 'owner';
-export const isModerator = (ctx: GroupContext): boolean => ctx.member?.role === 'moderator';
+export const isOwner = (ctx: GroupContext): boolean =>
+  ctx.member?.role === 'owner' && !ctx.roleSuspended;
+export const isModerator = (ctx: GroupContext): boolean =>
+  ctx.member?.role === 'moderator' && !ctx.roleSuspended;
+
+/** Chủ nhóm, điều hành viên đang có gậy nặng: nói đúng chuyện thay vì 403 chung (spec group-roles). */
+const roleSuspended = (): ForbiddenError =>
+  new ForbiddenError('Bạn đang tạm mất vai trong nhóm vì có gậy nặng', 'GROUP_ROLE_SUSPENDED');
 export const isWholeModerator = (ctx: GroupContext): boolean =>
   isModerator(ctx) && ctx.member?.moderatorUnitId === null;
 
 /** Quyền riêng của chủ nhóm: cài đặt, chế độ, đơn vị, mã, vai, đóng nhóm. */
 const requireOwner = (ctx: GroupContext): void => {
-  if (!ctx.isMaster && !isOwner(ctx)) throw forbidden('Chỉ chủ nhóm làm được việc này');
+  if (ctx.isMaster || isOwner(ctx)) return;
+  if (ctx.roleSuspended && ctx.member?.role === 'owner') throw roleSuspended();
+  throw forbidden('Chỉ chủ nhóm làm được việc này');
 };
 
 /** Việc hằng ngày: chủ nhóm, điều hành viên (cả nhóm, hoặc đơn vị con khi `allowUnit`), master. */
 const requireManager = (ctx: GroupContext, allowUnit: boolean): void => {
   if (ctx.isMaster || isOwner(ctx) || isWholeModerator(ctx)) return;
   if (allowUnit && isModerator(ctx)) return;
+  if (ctx.roleSuspended && ctx.member && ctx.member.role !== 'member') throw roleSuspended();
   throw forbidden();
 };
 
@@ -86,6 +99,7 @@ const requireManager = (ctx: GroupContext, allowUnit: boolean): void => {
 const requireCanManageMember = (ctx: GroupContext, target: GroupMember | null): void => {
   if (target?.role === 'owner') throw forbidden('Không xử được chủ nhóm');
   if (ctx.isMaster || isOwner(ctx)) return;
+  if (ctx.roleSuspended && ctx.member && ctx.member.role !== 'member') throw roleSuspended();
   if (!isModerator(ctx)) throw forbidden();
   if (target && target.role !== 'member')
     throw forbidden('Điều hành viên không xử điều hành viên khác');
@@ -184,7 +198,11 @@ export function createGroupShared(deps: GroupServiceDeps) {
     if (isMaster) requireSecondFactor(actor);
     const group = await loadGroup(groupId);
     const member = isMaster ? null : await repository.findMember(groupId, actor.accountId);
-    return { actor, group, member, isMaster };
+    const suspended =
+      member !== null &&
+      member.role !== 'member' &&
+      ((await deps.trust?.hasSevereStrike(actor.accountId)) ?? false);
+    return { actor, group, member, isMaster, roleSuspended: suspended };
   };
 
   /** Tài khoản nhận được vai (chủ, điều hành viên); không có thì 404, không đủ điều kiện thì 409 kèm lý do. */
@@ -219,8 +237,19 @@ export function createGroupShared(deps: GroupServiceDeps) {
       (row) => row.accountId !== exclude,
     );
     const summaries = await identity.accountSummaries(moderators.map((row) => row.accountId));
+    // Điều hành viên đang có gậy nặng tạm mất vai (add-strikes).
+    const suspended = new Set(
+      (
+        await Promise.all(
+          moderators.map(async (row) =>
+            ((await deps.trust?.hasSevereStrike(row.accountId)) ?? false) ? [row.accountId] : [],
+          ),
+        )
+      ).flat(),
+    );
     return moderators
       .filter((row) => summaries.get(row.accountId)?.status === 'active')
+      .filter((row) => !suspended.has(row.accountId))
       .map((row) => ({
         accountId: row.accountId,
         moderatorUnitId: row.moderatorUnitId,

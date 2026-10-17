@@ -17,7 +17,11 @@ import type {
   PlatformRepository,
   StaffPermissionRow,
 } from './platform.repository.js';
-import { SUSPENDED_REASON_LOCKED, SYSTEM_ACTOR_ID } from './platform.schema.js';
+import {
+  SUSPENDED_REASON_LOCKED,
+  SUSPENDED_REASON_STRIKE,
+  SYSTEM_ACTOR_ID,
+} from './platform.schema.js';
 
 /** `identity` trả lời "tài khoản này đang ra sao" — đủ để quyết có gắn quyền được không. */
 export interface AccountStateReader {
@@ -36,6 +40,8 @@ export interface PlatformServiceDeps {
   clock: () => Date;
   /** Nạp lại bảng ngay khi chính tiến trình này ghi phiên bản mới — có hiệu lực từ lượt tính kế tiếp. */
   runtimeConfig?: Pick<VersionedRuntimeConfig, 'load'>;
+  /** `trust` nối muộn (add-strikes): còn gậy hiệu lực không — trả quyền sau khi gậy bị huỷ. */
+  strikes?: { hasActiveStrike(accountId: string): Promise<boolean> };
 }
 
 export interface StaffGrant {
@@ -92,11 +98,17 @@ export interface PlatformService {
   restoreStaff(actor: Actor, accountId: string): Promise<StaffPermissionDto>;
   /** Bên nghe `identity.account.locked`; idempotent. */
   suspendStaffForLock(accountId: string): Promise<void>;
+  /** Bên nghe `trust.strike.issued`: có gậy thì treo ngay, kể cả gậy thường (spec staff-permissions, add-strikes). */
+  suspendStaffForStrike(accountId: string): Promise<void>;
+  /** Bên nghe `trust.strike.cancelled`: gậy bị huỷ coi như chưa có — quyền treo vì gậy trả lại khi không còn gậy nào. */
+  restoreStaffAfterStrikeCancelled(accountId: string): Promise<void>;
   /** Bên nghe `identity.account.deleted`: thu hẳn, kể cả quyền đang treo; idempotent. */
   revokeStaffForDeletion(accountId: string): Promise<void>;
   listStaff(categoryId?: string): Promise<StaffPermissionDto[]>;
   /** Cổng cho `review`: staff đang hoạt động của từng danh mục — người xử việc của danh mục đó (TK 16). */
   activeStaffByCategory(categoryIds: string[]): Promise<Map<string, string[]>>;
+  /** Staff đang hoạt động mang một việc ở bàn vận hành — `review` hỏi người xử báo cáo về một người (add-reports). */
+  activeStaffWithScope(scope: OpsScope): Promise<string[]>;
 
   /**
    * Chạy lúc khởi động: bảng rỗng → phiên bản 1 từ sổ đăng ký; phiên bản hiện hành thiếu khoá nào
@@ -158,7 +170,7 @@ const ineligible = (reason: string): ConflictError =>
   new ConflictError(`Không gắn quyền staff được: ${reason}`, 'STAFF_PERMISSION_INELIGIBLE');
 
 export function createPlatformService(deps: PlatformServiceDeps): PlatformService {
-  const { repository, identity, categories, clock } = deps;
+  const { repository, identity, categories, clock, strikes } = deps;
 
   /** Luật chung cho gắn và trả lại: tài khoản thật, là người dùng, đang hoạt động (đã xác nhận email, không khoá). */
   const assertEligible = async (accountId: string): Promise<void> => {
@@ -234,11 +246,36 @@ export function createPlatformService(deps: PlatformServiceDeps): PlatformServic
       await repository.suspendStaff({ accountId, reason: SUSPENDED_REASON_LOCKED, at: clock() });
     },
 
+    async suspendStaffForStrike(accountId) {
+      if (!(await strikes?.hasActiveStrike(accountId))) return;
+      await repository.suspendStaff({ accountId, reason: SUSPENDED_REASON_STRIKE, at: clock() });
+    },
+
+    async restoreStaffAfterStrikeCancelled(accountId) {
+      const row = await repository.findStaff(accountId);
+      if (row?.status !== 'suspended' || row.suspendedReason !== SUSPENDED_REASON_STRIKE) return;
+      if (await strikes?.hasActiveStrike(accountId)) return;
+      if ((await identity.accountState(accountId))?.status !== 'active') return;
+      await repository.restoreStaff({
+        accountId,
+        at: clock(),
+        audit: {
+          actorId: SYSTEM_ACTOR_ID,
+          actorRole: 'master',
+          action: 'platform.staff.restore',
+          targetType: 'account',
+          targetId: accountId,
+          details: { cause: 'strike_cancelled' },
+        },
+      });
+    },
+
     async revokeStaffForDeletion(accountId) {
       await repository.removeStaff(accountId);
     },
 
     activeStaffByCategory: (categoryIds) => repository.activeStaffByCategory(categoryIds),
+    activeStaffWithScope: (scope) => repository.activeStaffWithScope(scope),
 
     async listStaff(categoryId) {
       const rows = await repository.listStaff(categoryId === undefined ? {} : { categoryId });

@@ -12,6 +12,9 @@ export const createInterimTrust = (tier: TrustTier): ListingTrustPort => ({
   tierOf: () => Promise.resolve(tier),
   tierIn: () => Promise.resolve(tier),
   assertCanSubmit: () => Promise.resolve(),
+  strikePointsIn: () => Promise.resolve(0),
+  strikePointsOf: () => Promise.resolve(0),
+  struckAccounts: () => Promise.resolve(new Set<string>()),
 });
 
 /** Không thời gian chờ, không chấm, không ghi lượt chấm: máy thật giữ tin chờ kết quả ảnh, còn test tự quyết lúc máy cho qua. */

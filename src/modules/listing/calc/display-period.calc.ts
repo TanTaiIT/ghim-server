@@ -30,6 +30,8 @@ export const STOPS_CLOCK: ReadonlySet<ListingHideReason> = new Set([
   'group_privatized',
   'detached_by_group',
   'account_deleted',
+  // Tạm ẩn vì nhiều người báo chờ người xử: bác thì hiện lại không mất ngày (add-reports, TK 23).
+  'reported',
 ]);
 
 /** Quyết định của người duyệt dừng ngày như một lý do ngoài người đăng (design D4). */

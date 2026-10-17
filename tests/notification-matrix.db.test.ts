@@ -54,6 +54,64 @@ beforeAll(async () => {
 
 afterAll(() => app.close());
 
+/*
+ * Dòng về trạng thái nhóm hay tư cách chỉ viết khi câu còn đúng (fix-stale-group-notices): các hàm dưới dựng đúng
+ * trạng thái câu nói tới, trả hàm đưa nhóm về như cũ — mọi dòng dùng chung một nhóm.
+ */
+type Restore = () => Promise<void>;
+const setRole = (accountId: string, role: 'owner' | 'member') =>
+  prisma.groupMember.update({
+    where: { groupId_accountId: { groupId: group.groupId, accountId } },
+    data: { role, roleSince: role === 'owner' ? new Date() : null },
+  });
+async function memberIsOwner(): Promise<Restore> {
+  await setRole(group.owner.id, 'member');
+  await setRole(member.id, 'owner');
+  return async () => {
+    await setRole(member.id, 'member');
+    await setRole(group.owner.id, 'owner');
+  };
+}
+const activeAgain: Restore = async () => {
+  await prisma.group.update({
+    where: { id: group.groupId },
+    data: {
+      state: 'active',
+      lockedAt: null,
+      lockCause: null,
+      lockedReason: null,
+      ownerlessSince: null,
+    },
+  });
+};
+async function lockedGroup(): Promise<Restore> {
+  await prisma.group.update({
+    where: { id: group.groupId },
+    data: { state: 'locked', lockedAt: new Date(), lockCause: 'master', lockedReason: REASON },
+  });
+  return activeAgain;
+}
+async function ownerlessGroup(): Promise<Restore> {
+  await prisma.group.update({
+    where: { id: group.groupId },
+    data: { state: 'ownerless', ownerlessSince: new Date() },
+  });
+  return activeAgain;
+}
+async function outsiderBanned(): Promise<Restore> {
+  await prisma.groupBan.create({
+    data: {
+      groupId: group.groupId,
+      accountId: outsider.id,
+      bannedBy: group.owner.id,
+      bannedAt: new Date(),
+    },
+  });
+  return async () => {
+    await prisma.groupBan.deleteMany({ where: { groupId: group.groupId, accountId: outsider.id } });
+  };
+}
+
 /** Phát một sự kiện với mã mới cho bên nghe thật, trả các dòng nó ghi. */
 async function emit(type: string, payload: Record<string, unknown>) {
   const id = randomUUID();
@@ -73,6 +131,8 @@ interface Row {
   payload: () => Record<string, unknown>;
   /** Người nhận → loại thông báo và cờ nhắc. Người không có ở đây thì không được nhận gì. */
   expect: Partial<Record<Who, { type: string; alert: boolean }>>;
+  /** Dựng trạng thái câu của dòng nói tới; trả hàm đưa nhóm về như cũ. */
+  arrange?: () => Promise<Restore>;
 }
 
 const ROWS: Row[] = [
@@ -97,6 +157,7 @@ const ROWS: Row[] = [
     n: 'N3',
     event: 'group.owner.changed',
     payload: () => ({ newOwnerId: member.id, previousOwnerId: group.owner.id, cause: 'transfer' }),
+    arrange: memberIsOwner,
     expect: {
       owner: { type: 'group.owner.changed', alert: true },
       moderator: { type: 'group.owner.changed', alert: false },
@@ -118,10 +179,11 @@ const ROWS: Row[] = [
     n: 'N6',
     event: 'group.owner.changed',
     payload: () => ({
-      newOwnerId: outsider.id,
+      newOwnerId: member.id,
       previousOwnerId: group.owner.id,
       cause: 'assignment',
     }),
+    arrange: memberIsOwner,
     expect: {
       owner: { type: 'group.owner.changed', alert: true },
       moderator: { type: 'group.owner.changed', alert: false },
@@ -149,6 +211,7 @@ const ROWS: Row[] = [
     n: 'N10',
     event: 'group.ownerless.started',
     payload: () => ({}),
+    arrange: ownerlessGroup,
     expect: { moderator: { type: 'group.ownerless.started', alert: true } },
   },
   {
@@ -164,10 +227,11 @@ const ROWS: Row[] = [
     n: 'N12',
     event: 'group.owner.changed',
     payload: () => ({
-      newOwnerId: outsider.id,
+      newOwnerId: member.id,
       previousOwnerId: group.owner.id,
       cause: 'ownerless_confirmed',
     }),
+    arrange: memberIsOwner,
     expect: {
       owner: { type: 'group.owner.changed', alert: false },
       moderator: { type: 'group.owner.changed', alert: false },
@@ -177,6 +241,7 @@ const ROWS: Row[] = [
     n: 'N13',
     event: 'group.state.locked',
     payload: () => ({ cause: 'master', reason: REASON }),
+    arrange: lockedGroup,
     expect: {
       owner: { type: 'group.state.locked', alert: true },
       moderator: { type: 'group.state.locked', alert: true },
@@ -276,14 +341,15 @@ const ROWS: Row[] = [
   {
     n: 'N26',
     event: 'group.member.left',
-    payload: () => ({ accountId: member.id, reason: 'removed' }),
-    expect: { member: { type: 'group.member.removed', alert: true } },
+    payload: () => ({ accountId: outsider.id, reason: 'removed' }),
+    expect: { outsider: { type: 'group.member.removed', alert: true } },
   },
   {
     n: 'N27',
     event: 'group.member.left',
-    payload: () => ({ accountId: member.id, reason: 'banned' }),
-    expect: { member: { type: 'group.member.banned', alert: true } },
+    payload: () => ({ accountId: outsider.id, reason: 'banned' }),
+    arrange: outsiderBanned,
+    expect: { outsider: { type: 'group.member.banned', alert: true } },
   },
   {
     n: 'N28',
@@ -307,7 +373,8 @@ const ROWS: Row[] = [
 
 describe('ma trận N1–N30', () => {
   it.each(ROWS)('$n $event: đúng người, đúng loại, đúng cờ nhắc', async (row) => {
-    const rows = await emit(row.event, row.payload());
+    const restore = await row.arrange?.();
+    const rows = await emit(row.event, row.payload()).finally(() => restore?.());
     const got = Object.fromEntries(
       rows.map((notice) => [notice.recipientId, { type: notice.type, alert: notice.alert }]),
     );
@@ -354,5 +421,75 @@ describe('ma trận N1–N30', () => {
       unitId,
     });
     expect(appointed?.body).toContain(UNIT);
+  });
+});
+
+describe('Theo trạng thái hiện tại của nhóm (fix-stale-group-notices)', () => {
+  /** Sự kiện cũ tới khi trạng thái đã đi tiếp: không ai nhận gì. */
+  const STALE: {
+    n: string;
+    event: string;
+    payload: () => Record<string, unknown>;
+    arrange?: () => Promise<Restore>;
+  }[] = [
+    {
+      n: 'N3 — chủ đã là người khác',
+      event: 'group.owner.changed',
+      payload: () => ({
+        newOwnerId: member.id,
+        previousOwnerId: group.owner.id,
+        cause: 'transfer',
+      }),
+    },
+    { n: 'N10 — nhóm đã có chủ', event: 'group.ownerless.started', payload: () => ({}) },
+    {
+      n: 'N11 — nhóm lại thiếu chủ',
+      event: 'group.ownerless.resolved',
+      payload: () => ({ outcome: 'owner_returned' }),
+      arrange: ownerlessGroup,
+    },
+    {
+      n: 'N13 — nhóm đã mở khoá',
+      event: 'group.state.locked',
+      payload: () => ({ cause: 'master', reason: REASON }),
+    },
+    {
+      n: 'N14 — nhóm lại bị khoá',
+      event: 'group.state.unlocked',
+      payload: () => ({ cause: 'master' }),
+      arrange: lockedGroup,
+    },
+    {
+      n: 'N26 — người đó đã vào lại',
+      event: 'group.member.left',
+      payload: () => ({ accountId: member.id, reason: 'removed' }),
+    },
+    {
+      n: 'N27 — người đó đã vào lại',
+      event: 'group.member.left',
+      payload: () => ({ accountId: member.id, reason: 'banned' }),
+    },
+    {
+      n: 'N28 — người đó lại bị cấm',
+      event: 'group.ban.lifted',
+      payload: () => ({ accountId: outsider.id }),
+      arrange: outsiderBanned,
+    },
+  ];
+
+  it.each(STALE)('$n: không ai nhận gì', async (row) => {
+    const restore = await row.arrange?.();
+    const rows = await emit(row.event, row.payload()).finally(() => restore?.());
+    expect(rows).toEqual([]);
+  });
+
+  it('N27 khi người đó đã được gỡ cấm: nhận câu "không còn là thành viên", không có câu "không vào lại được"', async () => {
+    const [notice, ...rest] = await emit('group.member.left', {
+      accountId: outsider.id,
+      reason: 'banned',
+    });
+    expect(rest).toEqual([]);
+    expect(notice).toMatchObject({ recipientId: outsider.id, type: 'group.member.removed' });
+    expect(notice?.body).not.toContain('không vào lại');
   });
 });

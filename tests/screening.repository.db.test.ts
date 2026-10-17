@@ -14,10 +14,10 @@ beforeEach(truncateAll);
 afterAll(() => prisma.$disconnect());
 
 describe('khởi tạo luật lúc khởi động', () => {
-  it('bảng rỗng: 12 dấu hiệu và 3 cổng cứng bật đúng trọng số TK 14, cùng phiên bản luật 1', async () => {
-    expect(await repository.seedRules(INITIAL_RULES, NOW)).toEqual({ version: 1, added: 15 });
+  it('bảng rỗng: 13 dấu hiệu và 3 cổng cứng bật đúng trọng số TK 14, cùng phiên bản luật 1', async () => {
+    expect(await repository.seedRules(INITIAL_RULES, NOW)).toEqual({ version: 1, added: 16 });
     const rows = await prisma.screeningRule.findMany();
-    expect(rows).toHaveLength(15);
+    expect(rows).toHaveLength(16);
     expect(rows.every((row) => row.mode === 'on')).toBe(true);
     expect(
       rows
@@ -37,7 +37,7 @@ describe('khởi tạo luật lúc khởi động', () => {
     );
     expect(book.rules.get('gibberish')).toEqual({ weight: 30, mode: 'on' });
     expect(book.rules.get('new_account')).toEqual({ weight: 10, mode: 'on' });
-    expect(book.rules.size).toBe(15);
+    expect(book.rules.size).toBe(16);
     const version = await prisma.screeningRuleVersion.findUniqueOrThrow({ where: { version: 1 } });
     expect(version).toMatchObject({ createdBy: null, createdAt: NOW });
   });
@@ -54,9 +54,9 @@ describe('khởi tạo luật lúc khởi động', () => {
       repository.seedRules(INITIAL_RULES, NOW),
       repository.seedRules(INITIAL_RULES, NOW),
     ]);
-    expect(results.filter((result) => result !== null)).toEqual([{ version: 1, added: 15 }]);
+    expect(results.filter((result) => result !== null)).toEqual([{ version: 1, added: 16 }]);
     expect(await prisma.screeningRuleVersion.count()).toBe(1);
-    expect(await prisma.screeningRule.count()).toBe(15);
+    expect(await prisma.screeningRule.count()).toBe(16);
   });
 
   it('luật đưa vào sau phiên bản 1 bắt đầu ở chạy thử, luật cũ giữ nguyên', async () => {

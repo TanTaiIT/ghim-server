@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { LISTING_RESTRICTIONS } from '../listing/listing.schema.js';
+import { strikeSchema } from './strike/strike.schema.js';
 
 /** Tuple của enum `trust_tier` — đổi enum thì đổi luôn ở đây (CLAUDE.md luật 5). */
 export const TRUST_TIER_VALUES = ['T0', 'T1', 'T2', 'T3'] as const;
@@ -30,6 +31,11 @@ export const trustDashboardSchema = z.object({
   }),
   /** Đang trong thời gian chờ vì dò cổng cứng: mốc được gửi tin mới lại — không nêu cổng nào. */
   cooldownUntil: iso.nullable(),
+  /** Gậy đang hiệu lực và lịch sử (add-strikes, spec seller-dashboard). */
+  strikes: z.array(strikeSchema),
+  strikePoints: z.number().int(),
+  /** Đang tạm khoá đăng tin: ngày điểm gậy về dưới ngưỡng. */
+  postingLockedUntil: iso.nullable(),
   restricted: z.array(
     z.object({
       id: z.uuid(),

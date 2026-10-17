@@ -14,6 +14,14 @@ export interface TierSettings {
   minDays: Record<Exclude<TrustTier, 'T0'>, number>;
   minClean: Record<Exclude<TrustTier, 'T0'>, number>;
   maxCleanPer7Days: number;
+  /** T3 đòi không nhận gậy nào trong N ngày gần nhất, kể cả gậy đã hết hạn (spec trust-tiers, add-strikes). */
+  noStrikeDaysForT3: number;
+}
+
+/** Dữ kiện gậy cho mức (add-strikes): gậy bị huỷ coi như chưa có nên không nằm trong `lastIssuedAt`. */
+export interface TierStrikeFacts {
+  active: boolean;
+  lastIssuedAt: Date | null;
 }
 
 export interface TierResult {
@@ -50,20 +58,30 @@ export function countingTimes(cleanAt: readonly Date[], max: number): Date[] {
   return counted.map((time) => new Date(time));
 }
 
-/** Mức cao nhất đủ cả tuổi lẫn tin sạch được tính (TK 20). Điều kiện gậy thêm vào đây ở `add-strikes`. */
+/**
+ * Mức cao nhất đủ cả tuổi lẫn tin sạch được tính (TK 20); có gậy đang hiệu lực thì trần T1, T3 đòi không gậy nào ra
+ * trong `noStrikeDaysForT3` (TK 21, spec trust-tiers).
+ */
 export function computeTier(input: {
   accountCreatedAt: Date;
   cleanAt: readonly Date[];
   now: Date;
   settings: TierSettings;
+  strikes: TierStrikeFacts;
 }): TierResult {
-  const { accountCreatedAt, cleanAt, now, settings } = input;
+  const { accountCreatedAt, cleanAt, now, settings, strikes } = input;
   const age = ageDays(accountCreatedAt, now);
   const countedClean = countingTimes(cleanAt, settings.maxCleanPer7Days).filter(
     (time) => time.getTime() <= now.getTime(),
   ).length;
+  const struckRecently =
+    strikes.lastIssuedAt !== null &&
+    now.getTime() - strikes.lastIssuedAt.getTime() < settings.noStrikeDaysForT3 * DAY_MS;
   const reaches = (tier: Exclude<TrustTier, 'T0'>) =>
-    age >= settings.minDays[tier] && countedClean >= settings.minClean[tier];
+    age >= settings.minDays[tier] &&
+    countedClean >= settings.minClean[tier] &&
+    !(tier === 'T3' && struckRecently) &&
+    !(strikes.active && tier !== 'T1');
   const tier = (['T3', 'T2', 'T1'] as const).find(reaches) ?? 'T0';
   return { tier, countedClean, next: nextStep(tier, age, countedClean, settings) };
 }
@@ -93,11 +111,20 @@ export function factsHash(input: {
   accountCreatedAt: Date;
   clean: readonly { listingId: string; cleanAt: Date }[];
   configVersion: number;
+  strikes: TierStrikeFacts;
 }): string {
   const clean = input.clean
     .map(({ listingId, cleanAt }) => `${listingId}@${cleanAt.toISOString()}`)
     .toSorted();
   return createHash('sha256')
-    .update(JSON.stringify([input.accountCreatedAt.toISOString(), input.configVersion, clean]))
+    .update(
+      JSON.stringify([
+        input.accountCreatedAt.toISOString(),
+        input.configVersion,
+        clean,
+        input.strikes.active,
+        input.strikes.lastIssuedAt?.toISOString() ?? null,
+      ]),
+    )
     .digest('hex');
 }

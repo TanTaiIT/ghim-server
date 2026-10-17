@@ -10,6 +10,22 @@ import type {
  */
 export const TRUST_EVENTS = {
   tierChanged: 'trust.tier.changed',
+  /**
+   * Gậy (add-strikes). `strike.standing` phát sau MỌI thay đổi (ra, hết hạn, huỷ, hạ, kế thừa) — bên nghe hỏi lại
+   * `trust` rồi đối chiếu, không tin payload (C1). `strike.issued` kèm `kind`: `serious` → `identity` khoá, `review` mở
+   * việc.
+   */
+  strikeIssued: 'trust.strike.issued',
+  strikeExpired: 'trust.strike.expired',
+  strikeCancelled: 'trust.strike.cancelled',
+  /** Master quyết gậy nghiêm trọng (`permanent` / `downgrade` / `cancel`) hay gỡ khoá vĩnh viễn (`lifted`). */
+  strikeDecided: 'trust.strike.decided',
+  strikeStanding: 'trust.strike.standing',
+  /** Khoá vĩnh viễn tới kỳ xem lại 2 năm — `review` mở việc cho master. */
+  strikeReviewDue: 'trust.strike.review_due',
+  appealFiled: 'trust.appeal.filed',
+  /** Khiếu nại đóng không qua người xét (ân xá, gậy được quyết đường khác) — `review` đóng việc. */
+  appealClosed: 'trust.appeal.closed',
 } as const satisfies Record<string, OutboxEventType>;
 
 export const trustEvent = (

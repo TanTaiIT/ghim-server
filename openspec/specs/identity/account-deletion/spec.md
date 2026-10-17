@@ -80,3 +80,60 @@ khoản cũ vẫn ở trạng thái đã xoá (chốt 15/10/2026).
 
 - **WHEN** người dùng Google đã xoá tài khoản quá 90 ngày đăng nhập lại bằng Google
 - **THEN** một tài khoản mới đã xác nhận được tạo và tài khoản cũ vẫn ở trạng thái đã xoá
+
+### Requirement: Có báo cáo đang mở vẫn tự xoá được tài khoản, báo cáo vẫn được xử
+
+Người đang bị báo cáo, hoặc có tin đang bị báo cáo, SHALL tự xoá được tài khoản nếu không vướng điều kiện chặn
+nào khác — giữ người dùng lại trái ý họ là sai (TK 7, cam kết 13). Việc xoá MUST NOT đóng báo cáo: trong 90 ngày
+tài khoản ẩn, người xử SHALL xử báo cáo trên bản lưu của tin và hồ sơ, và kết quả "đúng" vẫn áp hệ quả như khi
+tài khoản còn (TK 23).
+
+#### Scenario: Tin của mình đang bị báo cáo
+
+- **WHEN** người dùng có một tin đang có báo cáo mở, không vướng điều kiện chặn nào khác, xoá tài khoản
+- **THEN** tài khoản được xoá và báo cáo về tin đó vẫn mở trong hàng chờ
+
+#### Scenario: Chính mình đang bị báo cáo
+
+- **WHEN** người dùng đang bị báo cáo loại "quấy rối", báo cáo chưa đóng, xoá tài khoản
+- **THEN** tài khoản được xoá và báo cáo vẫn mở trong hàng của staff được giao việc an toàn
+
+#### Scenario: Người xử xem bản lưu
+
+- **WHEN** staff nhận việc báo cáo về một tin của tài khoản đã xoá 20 ngày trước
+- **THEN** staff thấy tiêu đề, mô tả, giá, ảnh của tin và hồ sơ người đăng như lúc tài khoản bị xoá
+
+#### Scenario: Xử đúng sau khi tài khoản đã xoá
+
+- **WHEN** staff được giao danh mục xác nhận đúng báo cáo về tin của một tài khoản đã xoá 30 ngày trước
+- **THEN** báo cáo đóng với kết quả "đúng" và mỗi người báo được báo kết quả đó
+
+#### Scenario: Vẫn vướng điều kiện chặn khác
+
+- **WHEN** người dùng đang bị báo cáo và đang là chủ nhóm xoá tài khoản
+- **THEN** response có HTTP 409 `ACCOUNT_DELETE_BLOCKED` kèm lý do "đang là chủ nhóm", không nêu báo cáo
+
+### Requirement: Tài khoản có gậy nặng hoặc gậy nghiêm trọng không tự xoá được
+
+Tài khoản đang có gậy nặng hoặc gậy nghiêm trọng còn hiệu lực MUST NOT tự xoá được. Gậy thường SHALL không chặn
+việc xoá, vì nó đi theo email.
+
+#### Scenario: Xoá khi có gậy nặng
+
+- **WHEN** người dùng đang có một gậy nặng còn hiệu lực xoá tài khoản
+- **THEN** response có HTTP 409 `ACCOUNT_DELETE_BLOCKED` kèm lý do "đang có gậy nặng"
+
+#### Scenario: Chỉ có gậy thường
+
+- **WHEN** người dùng chỉ có gậy thường còn hiệu lực, không vướng điều kiện chặn nào khác, xoá tài khoản
+- **THEN** tài khoản bị xoá
+
+#### Scenario: Gậy nặng đã hết hạn
+
+- **WHEN** gậy nặng duy nhất của người dùng đã hết hạn và người đó xoá tài khoản
+- **THEN** tài khoản bị xoá
+
+#### Scenario: Gậy nghiêm trọng đã hạ thành gậy nặng
+
+- **WHEN** master hạ gậy nghiêm trọng của một người thành gậy nặng, mở khoá tài khoản, rồi người đó xoá tài khoản
+- **THEN** response có HTTP 409 `ACCOUNT_DELETE_BLOCKED` kèm lý do "đang có gậy nặng"

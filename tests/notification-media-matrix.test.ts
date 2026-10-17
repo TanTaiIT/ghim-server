@@ -17,6 +17,8 @@ const contextWith = (
   targets: Record<string, { ownerId: string; title: string | null }>,
 ): MatrixContext => ({
   group: unused,
+  isMember: unused,
+  isBanned: unused,
   managers: unused,
   moderators: unused,
   owner: unused,

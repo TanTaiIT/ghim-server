@@ -35,6 +35,11 @@ export function renderCodeMail(purpose: CodePurpose, code: string, ttlMinutes: n
         subject: `${code} là mã đặt lại mật khẩu Ghim`,
         text: `Chào bạn,\n\nNhập mã sau vào app Ghim để đặt lại mật khẩu: ${code}\n\n${expiry} Sau khi đặt lại, mọi thiết bị sẽ phải đăng nhập lại.\n\nGhim`,
       };
+    case 'locked_appeal':
+      return {
+        subject: `${code} là mã để khiếu nại việc khoá tài khoản Ghim`,
+        text: `Chào bạn,\n\nNhập mã sau vào kênh hỗ trợ của Ghim để xem lý do khoá và gửi khiếu nại: ${code}\n\n${expiry}\n\nGhim`,
+      };
     case 'email_change':
       return {
         subject: `${code} là mã xác nhận email mới cho Ghim`,
