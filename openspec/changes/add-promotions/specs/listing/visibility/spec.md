@@ -32,7 +32,7 @@ trí này, mới trước. Sửa, gia hạn, chuyển trạng thái MUST NOT đ�
 Response của một tin SHALL có hạn nổi bật (`featuredUntil`): trống khi tin không có gói nổi bật, là lúc hết hạn khi gói
 `featured` đang chạy.
 
-#### Scenario: Không có gói
+#### Scenario: Chưa có gói nổi bật
 
 - **WHEN** ai đó mở một tin chưa từng mua gói nổi bật
 - **THEN** response có `featuredUntil` là null
