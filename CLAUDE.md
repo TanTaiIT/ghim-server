@@ -258,7 +258,13 @@ muộn: `trust.buyerInterest.hasInquiry` (tin sạch lối "đã bán"), `review
 `messages_one_pending_offer` — một đề nghị đang chờ mỗi hội thoại), chỉ người mua gửi, người bán trả lời bằng ghi có điều kiện sau khi
 khoá hội thoại; phát `messaging.offer.answered` → `message:updated` cho người mua và dòng thông báo cùng khoá gộp của hội thoại.
 DTO hội thoại đọc thẻ tin qua `listing.conversationCards` (giá, thương lượng, trạng thái, ảnh bìa — tin bị gỡ không có ảnh) và ảnh
-đại diện qua `identity.avatarUrls`.
+đại diện qua `identity.avatarUrls`. Hội thoại với một đội (change `add-team-conversations`): cột `kind` (`listing` / `support` / `group`), CHECK
+`conversations_kind_check`, partial unique một hội thoại hỗ trợ mỗi người và một hội thoại mỗi người + nhóm; phía đội đi cột
+"seller" (`seller_read_at` = đã đọc chung), `team_pending_since` là khoá hàng hỗ trợ. Ai trong đội tính lúc gọi qua
+`ownedBy` (`messaging.shared.ts`): quản trị nhóm qua `group.conversationTeam` (dựng trên `reviewersOf` — trừ vai treo), staff hỗ
+trợ chỉ qua `/ops/support/*` (`messaging.ops.routes.ts`, `support.service.ts`). `messaging.message.sent` mang `recipientIds` +
+`kind` (bên nghe đọc cả `recipientId` dạng cũ); tin hỗ trợ báo `support:pending` tới `platform.activeStaffWithScope('support')`.
+`ops` dọn nhóm đóng thì xoá luôn hội thoại với quản trị của nhóm, trừ hội thoại giữ làm bằng chứng.
 
 `listing` vị trí trên bảng tin (change `prepare-promotions`): `listings.rank_at` là cột xếp hạng của bốn index bảng tin và
 con trỏ trang, đặt cùng `first_live_at` trong `nextClock` (tin trùng của mình kế thừa qua `rankAsListingId`) — chỉ gói

@@ -404,7 +404,7 @@ describe('Hội thoại cho biết tin và người kia', () => {
       state: 'live',
       cover: { id: listing.imageIds[0] },
     });
-    expect(conversation.listing.cover?.url).toEqual(expect.any(String));
+    expect(conversation.listing?.cover?.url).toEqual(expect.any(String));
   });
 
   it('người bán có ảnh đại diện: danh sách hội thoại của người mua kèm ảnh', async () => {

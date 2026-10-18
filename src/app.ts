@@ -463,6 +463,8 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     trust: { tierOf: (accountId) => trust.tierOf(accountId) },
     screening: screeningModule.service,
     review: review.service,
+    groups: group.service,
+    platform: platform.service,
     realtime,
     config: deps.config,
     clock: deps.clock,

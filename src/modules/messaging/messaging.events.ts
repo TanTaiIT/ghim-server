@@ -2,13 +2,20 @@ import { z } from 'zod';
 
 import type { OutboxDispatcher } from '../../common/outbox/dispatcher.js';
 import { MESSAGING_EVENTS } from './messaging.outbox.js';
+import { CONVERSATION_KINDS } from './messaging.schema.js';
 import type { MessagingService } from './messaging.service.js';
 
 const account = z.object({ accountId: z.string() });
+/**
+ * `recipientIds` + `kind` từ add-team-conversations; sự kiện phát trước đó (còn nằm trong outbox lúc triển khai) chỉ có
+ * `recipientId` của hội thoại về tin.
+ */
 const messageSent = z.object({
   conversationId: z.string(),
   messageId: z.string(),
-  recipientId: z.string(),
+  recipientId: z.string().optional(),
+  recipientIds: z.array(z.string()).optional(),
+  kind: z.enum(CONVERSATION_KINDS).optional(),
 });
 const offerAnswered = z.object({
   conversationId: z.string(),
@@ -34,9 +41,14 @@ export function registerMessagingListeners(
   dispatcher.register('identity.account.deleted', async (payload) => {
     await messaging.onAccountDeleted(parse(account, 'identity.account.deleted', payload).accountId);
   });
-  dispatcher.register(MESSAGING_EVENTS.messageSent, (payload) => {
-    messaging.signalMessage(parse(messageSent, MESSAGING_EVENTS.messageSent, payload));
-    return Promise.resolve();
+  dispatcher.register(MESSAGING_EVENTS.messageSent, async (payload) => {
+    const sent = parse(messageSent, MESSAGING_EVENTS.messageSent, payload);
+    await messaging.signalMessage({
+      conversationId: sent.conversationId,
+      messageId: sent.messageId,
+      recipientIds: sent.recipientIds ?? (sent.recipientId ? [sent.recipientId] : []),
+      kind: sent.kind ?? 'listing',
+    });
   });
   dispatcher.register(MESSAGING_EVENTS.offerAnswered, (payload) => {
     messaging.signalMessageUpdated(parse(offerAnswered, MESSAGING_EVENTS.offerAnswered, payload));

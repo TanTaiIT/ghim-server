@@ -131,6 +131,12 @@ dùng, với tên và ảnh đại diện như hội thoại về tin.
 - **WHEN** người dùng xem hội thoại hỗ trợ của mình
 - **THEN** bên kia là "Hỗ trợ Ghim", không kèm mã tài khoản nào
 
+#### Scenario: Báo cáo từ hội thoại với một đội
+
+- **WHEN** người dùng báo cáo từ hội thoại của mình với Hỗ trợ Ghim hay với quản trị một nhóm
+- **THEN** response có HTTP 409 `CONVERSATION_NOT_REPORTABLE` và không báo cáo nào được tạo — bên kia là cả đội, chưa
+  có đối tượng nào để báo
+
 #### Scenario: Quản trị xem hội thoại
 
 - **WHEN** chủ nhóm xem hội thoại của một người dùng với quản trị nhóm mình

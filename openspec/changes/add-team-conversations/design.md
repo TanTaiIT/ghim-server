@@ -9,8 +9,9 @@
   `(listing_id, buyer_id)`; cột "phía tôi" (`*_read_at`, `*_hidden_at`) chọn theo vai mua / bán qua `sideOf` /
   `otherOf` (`messaging.shared.ts`). FK sang tin đã bỏ ở `add-data-retention` — `messaging` không FK sang bảng của module
   khác.
-- `group` đã có cổng cho bên ngoài: `managerIds` (chủ nhóm + điều hành viên đang giữ vai), `isBanned`, `findGroup`,
-  `reviewersOf`; dọn nhóm đóng quá hạn qua `purgeDue` / `purgeClosed` của `ops`.
+- `group` đã có cổng cho bên ngoài: `managerIds` (chủ nhóm + điều hành viên cả nhóm, **không** lọc vai treo),
+  `reviewersOf` (chủ nhóm và mọi điều hành viên đang dùng được — tài khoản hoạt động, không gậy nặng), `isBanned`,
+  `findGroup`, `findGroups`; dọn nhóm đóng quá hạn qua `purgeDue` / `purgeClosed` của `ops`.
 - Quyền staff theo phạm vi `OPS_SCOPES = ['support', 'user_reports', 'id_verification']`, preHandler
   `requireOps('support')`, treo quyền khi khoá / có gậy đã có (`platform/staff-permissions`).
 - Thông báo tin nhắn (N47) gộp theo khoá `conversation:<id>`, người nhận là một tài khoản (`recipientId`).
@@ -50,7 +51,9 @@
    nhất biết nghĩa này — trả `'buyer'` cho người dùng, `'seller'` cho người trong đội.
 
 2. **Ai là người trong đội — tính lúc gọi, qua cổng.** `messaging` không giữ danh sách đội:
-   - hội thoại `group`: `group.managerIds(groupId)` chứa người gọi (cổng đã trả vai đang giữ, không gồm vai treo);
+   - hội thoại `group`: cổng mới `group.conversationTeam(groupId)` chứa người gọi. Lúc apply: `managerIds` không lọc
+     vai treo và bỏ điều hành viên đơn vị, nên cổng mới dựng trên `reviewersOf` — cùng luật "ai đang giữ vai" với
+     người xử việc của nhóm (chủ nhóm, mọi điều hành viên, trừ tài khoản khoá hay có gậy nặng);
    - hội thoại `support`: chỉ qua route `/ops/support/*` với `requireOps('support')`; route của app không bao giờ coi
      staff là người trong đội hỗ trợ — đúng spec "Staff đi qua app" (404).
 
@@ -62,7 +65,7 @@
    "đã đăng nhập, đã xác nhận email" của route nhắn tin, cùng `assertCanMessage` (master 403). Nhóm: `findGroup` (không
    có → 404), xem được hồ sơ (theo luật của `GET /groups/{groupId}` — người ngoài nhóm riêng tư vẫn thấy tên), trạng
    thái `active` / `going_private` / `ownerless` (khác → `409 GROUP_NOT_ACTIVE`), `isBanned` → `403 GROUP_BANNED`,
-   người gọi thuộc `managerIds` → `403 CANNOT_MESSAGE_OWN_GROUP`. Insert bắt `unique_violation` của partial unique thì
+   người gọi thuộc `conversationTeam` → `403 CANNOT_MESSAGE_OWN_GROUP`. Insert bắt `unique_violation` của partial unique thì
    đọc lại dòng đã có (hai lượt mở cùng lúc ra một) — không khoá người mở, vì không có hạn mức để giữ đúng. Không đếm vào
    `countOpenedSince` (đếm lọc `kind = 'listing'`).
 4. **Gửi tin trong hội thoại với đội** — cùng `send` hiện có, khác ba chỗ: không xét chặn (`messaging/blocking`); bên
@@ -87,20 +90,23 @@ FORBIDDEN` (cam kết 1); hội thoại của chính mình vẫn hiện trong h�
    nhật ký thao tác như thao tác ops khác — mã hội thoại và mã tin nhắn, không chứa nội dung (cam kết 31).
 7. **Sự kiện, thông báo, realtime**:
    - `messaging.message.sent` mang thêm `kind` và `recipientIds` (thay `recipientId` đơn): hội thoại về tin = một người;
-     người dùng → quản trị nhóm = `managerIds` lúc gửi trừ người gửi; đội → người dùng = người dùng; người dùng → hỗ trợ
+     người dùng → quản trị nhóm = `conversationTeam` lúc gửi trừ người gửi; đội → người dùng = người dùng; người dùng → hỗ trợ
      = rỗng (staff không nhận hộp thư). Payload cũ còn trong outbox lúc triển khai: bên nghe đọc `recipientId` khi không
      có `recipientIds`.
    - `notification`: nhóm `support` cho tin của Hỗ trợ Ghim, `messages` cho phần còn lại; tiêu đề là tên đội phía người
      dùng, "«tên nhóm» · tên người dùng" phía quản trị; khoá gộp vẫn `conversation:<id>` theo từng người nhận.
    - Realtime: `message:new` tới mọi người nhận ở trên; `support:pending { count }` tới mọi tài khoản đang mang quyền
-     `support` sau mỗi lượt đổi `team_pending_since` của hội thoại hỗ trợ. Danh sách người nhận cần cổng mới của
-     `platform` (`PrivilegeSource` hiện chỉ hỏi được từng tài khoản): `activeScopeHolders('support')` — chỉ quyền đang
-     `active`, quyền treo không nhận. Đếm là `COUNT(*)` trên partial index — rẻ ở cỡ hàng hỗ trợ.
+     `support` sau mỗi tin của hội thoại hỗ trợ. Danh sách người nhận: cổng `platform.activeStaffWithScope('support')`
+     (lúc apply: đã có sẵn, `review` dùng cho `user_reports`) — chỉ quyền đang `active`, quyền treo không nhận. Đếm là `COUNT(*)` trên partial index — rẻ ở cỡ hàng hỗ trợ.
    - Nhóm bị dọn (`group` purge closed): bên nghe xoá hội thoại `group` của nhóm đó cùng tin nhắn — trừ hội thoại đang
      dính báo cáo / gậy / khiếu nại mở (luật giữ bằng chứng hiện có, cam kết 31).
 8. **Hạn lưu**: điều kiện xoá hẳn hiện có (cả hai bên đã xoá, hoặc 1 năm không ai nhắn) giữ nguyên. Với hội thoại với
    đội, `seller_hidden_at` luôn NULL nên chỉ nhánh "1 năm không ai nhắn" áp — đúng ý "đội giữ lịch sử" mà không phải
    thêm luật.
+
+9. **Báo cáo từ hội thoại với một đội** (thêm lúc apply): `POST /me/conversations/{id}/reports` của hội thoại với một
+   đội → `409 CONVERSATION_NOT_REPORTABLE` — báo cáo nhắm một tin hay một tài khoản, bên kia là cả đội thì chưa có
+   đối tượng (proposal, Cố ý chưa làm). Bản ghi cho người xử (`transcripts`) chỉ dựng cho hội thoại về tin.
 
 ## Risks / Trade-offs
 
@@ -109,7 +115,7 @@ FORBIDDEN` (cam kết 1); hội thoại của chính mình vẫn hiện trong h�
   thấy người viết từng tin (mã người gửi giữ trong DB). Báo cáo từ hội thoại với đội là change sau (proposal).
 - [Quản trị một nhóm lớn bị dồn tin] → Gộp theo hội thoại, tắt tiếng nhóm "tin nhắn" được; chưa có hạn mức riêng — thêm
   con số khi có dữ liệu thật (cam kết 33).
-- [`sideOf` thành async, gọi `group` ở mỗi lượt] → Một truy vấn `managerIds` mỗi lượt gọi hội thoại `group`; hội thoại
+- [`sideOf` thành async, gọi `group` ở mỗi lượt] → Một lượt `conversationTeam` mỗi lượt gọi hội thoại `group`; hội thoại
   về tin không đổi đường đi. Danh sách hội thoại gọi `managedGroupIds` một lần mỗi trang.
 - [Đổi `recipientId` thành `recipientIds` trong payload outbox] → Bên nghe đọc cả hai dạng trong một bản phát hành;
   test với payload dạng cũ.

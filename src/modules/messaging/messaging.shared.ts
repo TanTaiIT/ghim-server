@@ -1,4 +1,4 @@
-import type { Conversation } from '@prisma/client';
+import type { Conversation, GroupState } from '@prisma/client';
 
 import type { Actor } from '../../common/auth/actor.js';
 import type { RuntimeConfig } from '../../common/config/runtime-config.js';
@@ -11,8 +11,10 @@ import {
 } from '../../common/errors/app-error.js';
 import type { Realtime } from '../../common/realtime/realtime.js';
 import { formatTimeVN } from '../../common/time/time.js';
+import type { GroupService } from '../group/group.service.js';
 import type { IdentityService } from '../identity/identity.service.js';
 import type { ListingService } from '../listing/listing.service.js';
+import type { PlatformService } from '../platform/platform.service.js';
 import type { ReviewService } from '../review/review.service.js';
 import type { ScreeningService } from '../screening/screening.service.js';
 import type { TrustTier } from '../trust/calc/tier.calc.js';
@@ -35,6 +37,13 @@ export interface MessagingTrustPort {
 export type MessagingScreeningPort = Pick<ScreeningService, 'phraseVerdict'>;
 /** `review` vẫn là nơi duy nhất ghi báo cáo; `messaging` chỉ kiểm tư cách rồi chuyển lượt báo kèm mã hội thoại. */
 export type MessagingReviewPort = Pick<ReviewService, 'submitReport'>;
+/** Hội thoại với quản trị nhóm (add-team-conversations): ai đang trong đội tính lúc gọi, không chép vào hội thoại. */
+export type MessagingGroupPort = Pick<
+  GroupService,
+  'findGroup' | 'bannedAmong' | 'groupsByIds' | 'conversationTeam' | 'managedGroupIds'
+>;
+/** Ai đang mang quyền hỗ trợ — người nhận báo hiệu hàng hỗ trợ (add-team-conversations). */
+export type MessagingPlatformPort = Pick<PlatformService, 'activeStaffWithScope'>;
 
 export interface MessagingServiceDeps {
   repository: MessagingRepository;
@@ -43,6 +52,8 @@ export interface MessagingServiceDeps {
   trust: MessagingTrustPort;
   screening: MessagingScreeningPort;
   review: MessagingReviewPort;
+  groups: MessagingGroupPort;
+  platform: MessagingPlatformPort;
   realtime: Realtime;
   config: RuntimeConfig;
   clock: () => Date;
@@ -50,22 +61,61 @@ export interface MessagingServiceDeps {
 
 // ── VAI TRONG HỘI THOẠI ──────────────────────────────────────────────────────────────────────────
 
+/**
+ * Dòng hội thoại giữ cột "phía tôi" theo vai mua / bán — mọi chỗ đọc chọn cột qua đây (design, Risks). Với hội thoại với
+ * một đội, người dùng là `buyer` và cả đội là `seller` (design add-team-conversations mục 1).
+ */
 export type Side = 'buyer' | 'seller';
 
-/** Dòng hội thoại giữ cột "phía tôi" theo vai mua / bán — mọi chỗ đọc chọn cột qua đây (design, Risks). */
-export const sideOf = (
+/** Bên kia là một tài khoản; hội thoại với một đội nhìn từ phía người dùng thì `null` — bên kia là đội. */
+export const otherOf = (
   row: Pick<Conversation, 'buyerId' | 'sellerId'>,
-  accountId: string,
-): Side | null =>
-  row.buyerId === accountId ? 'buyer' : row.sellerId === accountId ? 'seller' : null;
-
-export const otherOf = (row: Pick<Conversation, 'buyerId' | 'sellerId'>, side: Side): string =>
-  side === 'buyer' ? row.sellerId : row.buyerId;
-
-export const hiddenFor = (
-  row: Pick<Conversation, 'buyerHiddenAt' | 'sellerHiddenAt'>,
   side: Side,
-): boolean => (side === 'buyer' ? row.buyerHiddenAt : row.sellerHiddenAt) !== null;
+): string | null => (side === 'buyer' ? row.sellerId : row.buyerId);
+
+/** Hội thoại với Hỗ trợ Ghim hay với quản trị một nhóm. */
+export const isTeam = (row: Pick<Conversation, 'kind'>): boolean => row.kind !== 'listing';
+
+/**
+ * Phía của người gọi qua app (design add-team-conversations mục 2): cột mua / bán; hội thoại nhóm thì người đang giữ vai
+ * quản trị, không treo, là phía đội. Staff không bao giờ là phía đội hỗ trợ qua app — họ đi bàn vận hành.
+ */
+async function appSideOf(
+  row: Conversation,
+  accountId: string,
+  groups: MessagingGroupPort,
+): Promise<Side | null> {
+  if (row.buyerId === accountId) return 'buyer';
+  if (row.kind === 'listing') return row.sellerId === accountId ? 'seller' : null;
+  if (row.kind === 'group' && row.groupId) {
+    return (await groups.conversationTeam(row.groupId)).includes(accountId) ? 'seller' : null;
+  }
+  return null;
+}
+
+/** Hội thoại của người gọi qua app và phía của họ; người ngoài nhận 404 như không có (spec conversations). */
+export async function ownedBy(
+  deps: Pick<MessagingServiceDeps, 'repository' | 'groups'>,
+  actor: Actor,
+  conversationId: string,
+): Promise<{ row: Conversation; side: Side }> {
+  const row = await deps.repository.find(conversationId);
+  const side = row ? await appSideOf(row, actor.accountId, deps.groups) : null;
+  if (!row || !side) throw conversationNotFound();
+  return { row, side };
+}
+
+// ── ĐỘI ──────────────────────────────────────────────────────────────────────────────────────────
+
+export const SUPPORT_TEAM_NAME = 'Hỗ trợ Ghim';
+/** Như cách nhóm ký quyết định của mình (TK 24) — không nêu tên quản trị nào. */
+export const groupTeamName = (groupName: string): string => `Quản trị nhóm «${groupName}»`;
+/** Nhóm còn người quản trị trả lời: đã đóng, đang tạm khoá hay chờ chủ đầu tiên thì không mở hội thoại mới. */
+export const OPEN_FOR_CONVERSATIONS: ReadonlySet<GroupState> = new Set([
+  'active',
+  'going_private',
+  'ownerless',
+]);
 
 // ── LỖI ──────────────────────────────────────────────────────────────────────────────────────────
 
@@ -97,6 +147,19 @@ export const offerAbovePrice = (): BadRequestError =>
 export const offerNotPending = (): ConflictError =>
   new ConflictError('Lời đề nghị này đã được trả lời hoặc đã có giá mới', 'OFFER_NOT_PENDING');
 export const offerNotFound = (): NotFoundError => new NotFoundError('Không có lời đề nghị này');
+
+export const groupBanned = (): ForbiddenError =>
+  new ForbiddenError('Bạn đang bị cấm khỏi nhóm này', 'GROUP_BANNED');
+export const ownGroup = (): ForbiddenError =>
+  new ForbiddenError('Bạn đang quản trị nhóm này', 'CANNOT_MESSAGE_OWN_GROUP');
+export const groupNotActive = (): ConflictError =>
+  new ConflictError('Nhóm đang không hoạt động — chưa nhắn quản trị được', 'GROUP_NOT_ACTIVE');
+export const groupConversationClosed = (): ConflictError =>
+  new ConflictError('Hội thoại này chỉ còn để đọc', 'CONVERSATION_CLOSED');
+export const teamCannotDelete = (): ForbiddenError =>
+  new ForbiddenError('Hội thoại của đội không xoá được — đội giữ lại lịch sử cho người kế tiếp');
+export const notReportable = (): ConflictError =>
+  new ConflictError('Chưa báo cáo được từ hội thoại này', 'CONVERSATION_NOT_REPORTABLE');
 
 export const newConversationLimit = (cap: number, retryAt: Date): TooManyRequestsError =>
   new TooManyRequestsError(

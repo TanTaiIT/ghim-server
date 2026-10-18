@@ -16,6 +16,7 @@ import {
   conversationReportBodySchema,
   conversationSchema,
   conversationsQuerySchema,
+  groupParamsSchema,
   listingParamsSchema,
   messageBodySchema,
   messageSchema,
@@ -44,7 +45,10 @@ const DECISION_SUMMARY: Record<OfferDecision, string> = {
   declined: 'Người bán từ chối đề nghị giá đang chờ',
 };
 
-/** App Ghim: hội thoại từ một tin, tin nhắn, chặn người, báo cáo từ hội thoại (TK 24). Không có route cho bàn vận hành. */
+/**
+ * App Ghim: hội thoại từ một tin, với Hỗ trợ Ghim, với quản trị một nhóm; tin nhắn, chặn người, báo cáo từ hội thoại
+ * (TK 24). Bàn vận hành hỗ trợ ở `messaging.ops.routes.ts`.
+ */
 export const messagingRoutes: FastifyPluginAsyncZod<MessagingRoutesOptions> = async (
   app,
   { messaging },
@@ -72,6 +76,42 @@ export const messagingRoutes: FastifyPluginAsyncZod<MessagingRoutesOptions> = as
       const { created, conversation } = await messaging.open(
         actorOf(request),
         request.params.listingId,
+      );
+      return reply.status(created ? 201 : 200).send(toOk(conversation));
+    },
+  });
+
+  const opened = { 200: ok(conversationSchema), 201: ok(conversationSchema) };
+
+  app.post('/me/support/conversation', {
+    preHandler: verified,
+    schema: {
+      tags: TAGS,
+      summary:
+        'Mở hội thoại với Hỗ trợ Ghim — 201 lần đầu; 200 hội thoại cũ (kể cả đã xoá phía mình), mỗi người một hội thoại',
+      security: bearer,
+      response: { ...opened, ...errors },
+    },
+    handler: async (request, reply) => {
+      const { created, conversation } = await messaging.openSupport(actorOf(request));
+      return reply.status(created ? 201 : 200).send(toOk(conversation));
+    },
+  });
+
+  app.post('/groups/:groupId/conversation', {
+    preHandler: verified,
+    schema: {
+      tags: TAGS,
+      summary:
+        'Mở hội thoại với quản trị một nhóm — chủ nhóm và điều hành viên cùng thấy, trả lời dưới tên nhóm; 201 mới, 200 đã có',
+      security: bearer,
+      params: groupParamsSchema,
+      response: { ...opened, 409: errorResponse, ...errors },
+    },
+    handler: async (request, reply) => {
+      const { created, conversation } = await messaging.openGroup(
+        actorOf(request),
+        request.params.groupId,
       );
       return reply.status(created ? 201 : 200).send(toOk(conversation));
     },
@@ -230,7 +270,7 @@ export const messagingRoutes: FastifyPluginAsyncZod<MessagingRoutesOptions> = as
     schema: {
       tags: TAGS,
       summary:
-        'Báo cáo bên kia ngay từ hội thoại — 201 lượt báo mới; 200 khi mình đã báo người này trong báo cáo đang mở',
+        'Báo cáo bên kia ngay từ hội thoại về tin — 201 lượt báo mới; 200 khi đã báo người này trong báo cáo đang mở; hội thoại với một đội: 409',
       security: bearer,
       params: conversationParamsSchema,
       headers: deviceHeaders,
@@ -239,6 +279,7 @@ export const messagingRoutes: FastifyPluginAsyncZod<MessagingRoutesOptions> = as
         200: ok(myReportSchema),
         201: ok(myReportSchema),
         400: errorResponse,
+        409: errorResponse,
         429: errorResponse,
         ...errors,
       },

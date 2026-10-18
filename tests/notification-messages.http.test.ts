@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
+import { appendEvents } from '../src/common/outbox/outbox.js';
 import { DEVICE_NOT_REGISTERED } from '../src/common/push/expo-push.js';
 import { interimScreening } from './fakes/listing-ports.fake.js';
 import { createFakeJobs, type FakeJobs } from './fakes/jobs.fake.js';
@@ -87,6 +88,32 @@ describe('Báo tin nhắn mới cho bên nhận', () => {
       body: `${await nameOf(buyer)} gửi 2 tin nhắn mới.`,
       alert: true,
     });
+  });
+
+  // Sự kiện phát trước add-team-conversations còn nằm trong outbox lúc triển khai: chỉ có `recipientId`, không `kind`.
+  it('sự kiện tin nhắn dạng cũ trong outbox vẫn tới đúng người nhận', async () => {
+    const { seller, buyer, conversation } = await talking();
+    const message = await prisma.message.create({
+      data: { conversationId: conversation.id, senderId: buyer.id, body: 'Tin cũ', createdAt: now },
+    });
+    await prisma.$transaction((tx) =>
+      appendEvents(tx, [
+        {
+          type: 'messaging.message.sent',
+          payload: {
+            conversationId: conversation.id,
+            messageId: message.id,
+            listingId: conversation.listing?.id ?? null,
+            senderId: buyer.id,
+            recipientId: seller.id,
+          },
+        },
+      ]),
+    );
+    await deliverAll(app);
+    expect(await inbox(seller)).toEqual([
+      expect.objectContaining({ title: await nameOf(buyer), body: 'Tin cũ' }),
+    ]);
   });
 
   it('tin nhắn bị từ chối vì đã chặn nhau: không ai nhận thông báo, không có sự kiện tin nhắn', async () => {

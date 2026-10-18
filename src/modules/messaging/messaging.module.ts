@@ -1,5 +1,6 @@
 import type { AppModule } from '../../common/module/app-module.js';
 import { registerMessagingListeners } from './messaging.events.js';
+import { messagingOpsRoutes } from './messaging.ops.routes.js';
 import { messagingRoutes } from './messaging.routes.js';
 import {
   createMessagingService,
@@ -18,6 +19,7 @@ export function createMessagingModule(deps: MessagingServiceDeps): {
       name: 'messaging',
       routes: async (app) => {
         await app.register(messagingRoutes, { messaging: service });
+        await app.register(messagingOpsRoutes, { messaging: service });
       },
       listeners: (dispatcher) => registerMessagingListeners(dispatcher, service),
     },

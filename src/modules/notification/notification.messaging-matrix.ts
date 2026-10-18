@@ -1,7 +1,16 @@
 import type { OutboxEventType } from '../../common/outbox/outbox.js';
 import { formatMoneyVN } from '../../common/schemas/money.js';
 import { MESSAGING_EVENTS } from '../messaging/messaging.outbox.js';
-import { empty, type Handler, type MatrixResult, str } from './notification.matrix.js';
+import { groupTeamName, SUPPORT_TEAM_NAME } from '../messaging/messaging.shared.js';
+import type { NotificationCategory } from './notification.schema.js';
+import {
+  empty,
+  type Handler,
+  type MatrixContext,
+  type MatrixResult,
+  type Payload,
+  str,
+} from './notification.matrix.js';
 
 /** Câu nhắc chỉ chứa đầu tin nhắn — màn hình khoá ai cũng đọc được (TK 24). */
 const PREVIEW_LENGTH = 100;
@@ -10,29 +19,33 @@ const preview = (body: string): string => {
   return line.length > PREVIEW_LENGTH ? `${line.slice(0, PREVIEW_LENGTH - 1)}…` : line;
 };
 
+const FALLBACK_NAME = 'Người dùng Ghim';
+
 /**
- * N47 — tin nhắn mới cho bên nhận (TK 24, add-notifications): một dòng chưa đọc mỗi hội thoại (gộp theo hội thoại) nhưng
- * nhắc mỗi tin; người gửi không có trong người nhận. Nội dung tin nhắn đọc qua cổng của `messaging` (TK 30). Tin bị chặn
- * hay bị cụm cấm không có sự kiện nên không có thông báo.
- */
-/**
- * Một dòng nhóm "tin nhắn" gộp theo hội thoại cho người nhận — tin nhắn, đề nghị giá và câu trả lời đề nghị chung một
- * khoá, nên một hội thoại vẫn chỉ một dòng chưa đọc (add-price-offers, design mục 5).
+ * Một dòng gộp theo hội thoại cho mỗi người nhận — tin nhắn, đề nghị giá và câu trả lời đề nghị chung một khoá, nên một
+ * hội thoại vẫn chỉ một dòng chưa đọc (add-price-offers, design mục 5).
  */
 function conversationNotice(
-  payload: Record<string, unknown>,
-  input: { recipient: string; conversationId: string; messageId: string; type: string },
-  senderName: string,
+  payload: Payload,
+  input: {
+    recipients: string[];
+    conversationId: string;
+    messageId: string;
+    type: string;
+    category: NotificationCategory;
+  },
+  title: string,
   body: string,
 ): MatrixResult {
+  if (input.recipients.length === 0) return empty();
   return {
     ...empty(),
     drafts: [
       {
-        recipients: [input.recipient],
-        category: 'messages',
+        recipients: input.recipients,
+        category: input.category,
         type: input.type,
-        title: senderName,
+        title,
         body,
         data: {
           conversationId: input.conversationId,
@@ -44,7 +57,7 @@ function conversationNotice(
         personal: true,
         collapse: {
           key: `conversation:${input.conversationId}`,
-          render: (count) => `${senderName} gửi ${count} tin nhắn mới.`,
+          render: (count) => `${title} gửi ${count} tin nhắn mới.`,
           alertEvery: true,
         },
       },
@@ -52,25 +65,57 @@ function conversationNotice(
   };
 }
 
+/** `recipientIds` từ add-team-conversations; sự kiện cũ còn trong outbox chỉ có `recipientId`. */
+const recipientsOf = (payload: Payload): string[] => {
+  const many = payload.recipientIds;
+  if (Array.isArray(many)) return many.filter((id): id is string => typeof id === 'string');
+  const one = str(payload, 'recipientId');
+  return one ? [one] : [];
+};
+
+/**
+ * Tiêu đề và nhóm thông báo theo phía gửi (spec notification/inbox, add-team-conversations): người dùng nhận tin của
+ * đội ký tên đội, không tên người trong đội; quản trị nhận tin của người dùng thấy cả tên nhóm.
+ */
+async function signatureOf(
+  message: NonNullable<Awaited<ReturnType<MatrixContext['messagePreview']>>>,
+  ctx: MatrixContext,
+): Promise<{ title: string; category: NotificationCategory }> {
+  const { kind, groupId, buyerId } = message.conversation;
+  const fromTeam = kind !== 'listing' && message.senderId !== buyerId;
+  if (kind === 'support' && fromTeam) return { title: SUPPORT_TEAM_NAME, category: 'support' };
+  const senderName = (await ctx.names([message.senderId])).get(message.senderId) ?? FALLBACK_NAME;
+  if (kind !== 'group' || !groupId) return { title: senderName, category: 'messages' };
+  const groupName = (await ctx.group(groupId))?.name ?? '';
+  return {
+    title: fromTeam ? groupTeamName(groupName) : `${groupName} · ${senderName}`,
+    category: 'messages',
+  };
+}
+
 const ANSWER_VERB: Record<string, string> = { accepted: 'chấp nhận', declined: 'từ chối' };
 
+/**
+ * N47 — tin nhắn mới cho bên nhận (TK 24, add-notifications): một dòng chưa đọc mỗi hội thoại (gộp theo hội thoại) nhưng
+ * nhắc mỗi tin; người gửi không có trong người nhận. Nội dung tin nhắn đọc qua cổng của `messaging` (TK 30). Tin bị chặn
+ * hay bị cụm cấm không có sự kiện nên không có thông báo.
+ */
 export const MESSAGING_MATRIX: Record<string, Handler> = {
   async [MESSAGING_EVENTS.messageSent](payload, ctx) {
-    const recipient = str(payload, 'recipientId');
+    const recipients = recipientsOf(payload);
     const messageId = str(payload, 'messageId');
     const conversationId = str(payload, 'conversationId');
-    if (!recipient || !messageId || !conversationId) return empty();
+    if (recipients.length === 0 || !messageId || !conversationId) return empty();
     const message = await ctx.messagePreview(messageId);
     if (!message) return empty();
-    const senderName =
-      (await ctx.names([message.senderId])).get(message.senderId) ?? 'Người dùng Ghim';
+    const { title, category } = await signatureOf(message, ctx);
     const body = message.offer
       ? `Trả giá ${formatMoneyVN(message.offer.amount)}`
       : preview(message.body);
     return conversationNotice(
       payload,
-      { recipient, conversationId, messageId, type: 'messaging.message.received' },
-      senderName,
+      { recipients, conversationId, messageId, type: 'messaging.message.received', category },
+      title,
       body,
     );
   },
@@ -85,10 +130,16 @@ export const MESSAGING_MATRIX: Record<string, Handler> = {
     if (!buyer || !seller || !messageId || !conversationId || !verb) return empty();
     const message = await ctx.messagePreview(messageId);
     if (!message?.offer) return empty();
-    const sellerName = (await ctx.names([seller])).get(seller) ?? 'Người dùng Ghim';
+    const sellerName = (await ctx.names([seller])).get(seller) ?? FALLBACK_NAME;
     return conversationNotice(
       payload,
-      { recipient: buyer, conversationId, messageId, type: 'messaging.offer.answered' },
+      {
+        recipients: [buyer],
+        conversationId,
+        messageId,
+        type: 'messaging.offer.answered',
+        category: 'messages',
+      },
       sellerName,
       `Đã ${verb} giá ${formatMoneyVN(message.offer.amount)}`,
     );

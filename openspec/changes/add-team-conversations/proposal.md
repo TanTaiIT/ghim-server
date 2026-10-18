@@ -67,9 +67,8 @@ mới), **31** (hội thoại với đội theo hạn lưu của hội thoại).
 ## Impact
 
 - **Code**: module `messaging` (loại hội thoại, mở hội thoại với đội, quyền đọc / gửi của người trong đội, DTO, route
-  bàn vận hành), cổng sang `group` (quản trị hiện tại, cấm, trạng thái nhóm — đã có `managerIds`, `isBanned`,
-  `findGroup`; thêm `managedGroupIds`) và `platform` (thêm `activeScopeHolders` — ai đang mang quyền `support`), bảng
-  câu thông báo tin nhắn, realtime.
+  bàn vận hành), cổng sang `group` (thêm `conversationTeam`, `managedGroupIds`, `groupsByIds`, `bannedAmong`) và
+  `platform` (`activeStaffWithScope` — ai đang mang quyền `support`), bảng câu thông báo tin nhắn, realtime.
 - **API**: `POST /me/support/conversation`, `POST /groups/{groupId}/conversation`; `GET /ops/support/conversations`,
   `GET /ops/support/conversations/{id}`, `GET …/{id}/messages`, `POST …/{id}/messages`, `POST …/{id}/read`; hội thoại và
   tin nhắn có thêm trường; `listing` và `counterpart.accountId` của hội thoại, `senderId` của tin nhắn thành nullable.

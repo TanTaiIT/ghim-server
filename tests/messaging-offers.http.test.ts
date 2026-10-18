@@ -102,9 +102,10 @@ describe('Người mua trả giá trong hội thoại về tin', () => {
       kind: 'offer',
       senderId: buyer.id,
       body: '',
+      fromMe: true,
       offer: { amount: 12_000_000, status: 'pending', respondedAt: null },
     });
-    expect(await messagesOf(app, seller, conversation.id)).toEqual([message]);
+    expect(await messagesOf(app, seller, conversation.id)).toEqual([{ ...message, fromMe: false }]);
   });
 
   it('trả đúng giá đăng → 201 đang chờ', async () => {

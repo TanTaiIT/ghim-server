@@ -2117,38 +2117,60 @@ model StrikeComment {
 
 // ── MESSAGING (add-messaging) ────────────────────────────────────────────────────────────────────
 
-/// Hội thoại của một tin và một người mua (TK 24); `messaging` sở hữu. Cột "phía tôi" theo vai mua / bán thay vì bảng
-/// thành viên riêng (design add-messaging, Risks). Không khoá ngoại sang `listings` (bỏ ở add-data-retention): hội thoại
-/// theo hạn lưu riêng, tin bị xoá hẳn thì hội thoại còn và DTO trả tiêu đề null. CHECK tay (migration add_messaging):
+/// Hội thoại (TK 24); `messaging` sở hữu. Ba loại (add-team-conversations): về một tin (người mua ↔ người đăng), với Hỗ
+/// trợ Ghim, với quản trị một nhóm. Cột "phía tôi" theo vai mua / bán thay vì bảng thành viên riêng (design add-messaging,
+/// Risks); với hội thoại với một đội, `buyer_id` là người dùng và phía "seller" là cả đội — `seller_read_at` là đã đọc
+/// chung của đội, `seller_hidden_at` luôn NULL. Không khoá ngoại sang `listings` (bỏ ở add-data-retention) hay `groups`:
+/// hội thoại theo hạn lưu riêng, tin bị xoá hẳn thì hội thoại còn và DTO trả tiêu đề null.
+/// CHECK tay (migration add_messaging, add_team_conversations):
 ///   conversations_parties_check: buyer_id <> seller_id
+///   conversations_kind_check: listing → listing_id, seller_id NOT NULL, group_id, team_pending_since NULL;
+///     support → listing_id, seller_id, group_id NULL; group → group_id NOT NULL, listing_id, seller_id NULL
 model Conversation {
-  id             String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  listingId      String    @map("listing_id") @db.Uuid
-  sellerId       String    @map("seller_id") @db.Uuid
-  buyerId        String    @map("buyer_id") @db.Uuid
-  createdAt      DateTime  @map("created_at") @db.Timestamptz(3)
+  id               String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  kind             ConversationKind @default(listing)
+  listingId        String?          @map("listing_id") @db.Uuid
+  sellerId         String?          @map("seller_id") @db.Uuid
+  groupId          String?          @map("group_id") @db.Uuid
+  buyerId          String           @map("buyer_id") @db.Uuid
+  /// Tin đầu tiên của người dùng mà đội chưa trả lời — khoá sắp xếp của hàng hỗ trợ; đội gửi thì về NULL.
+  teamPendingSince DateTime?        @map("team_pending_since") @db.Timestamptz(3)
+  createdAt        DateTime         @map("created_at") @db.Timestamptz(3)
   /// Khoá con trỏ của danh sách: lúc mở, rồi lúc mỗi tin nhắn.
-  lastActivityAt DateTime  @map("last_activity_at") @db.Timestamptz(3)
-  lastMessageAt  DateTime? @map("last_message_at") @db.Timestamptz(3)
+  lastActivityAt   DateTime         @map("last_activity_at") @db.Timestamptz(3)
+  lastMessageAt    DateTime?        @map("last_message_at") @db.Timestamptz(3)
   /// Tin nhắn đã tới của người mua — dữ kiện "có người nhắn hỏi mua" của tin sạch (TK 20).
-  buyerMessages  Int       @default(0) @map("buyer_messages")
+  buyerMessages    Int              @default(0) @map("buyer_messages")
   /// Xoá hội thoại chỉ ẩn phía mình; bên kia nhắn tiếp thì bỏ ẩn.
-  buyerHiddenAt  DateTime? @map("buyer_hidden_at") @db.Timestamptz(3)
-  sellerHiddenAt DateTime? @map("seller_hidden_at") @db.Timestamptz(3)
-  buyerReadAt    DateTime? @map("buyer_read_at") @db.Timestamptz(3)
-  sellerReadAt   DateTime? @map("seller_read_at") @db.Timestamptz(3)
+  buyerHiddenAt    DateTime?        @map("buyer_hidden_at") @db.Timestamptz(3)
+  sellerHiddenAt   DateTime?        @map("seller_hidden_at") @db.Timestamptz(3)
+  buyerReadAt      DateTime?        @map("buyer_read_at") @db.Timestamptz(3)
+  sellerReadAt     DateTime?        @map("seller_read_at") @db.Timestamptz(3)
 
-  seller    Account                @relation("conversation_seller", fields: [sellerId], references: [id], onDelete: Cascade)
+  seller    Account?               @relation("conversation_seller", fields: [sellerId], references: [id], onDelete: Cascade)
   buyer     Account                @relation("conversation_buyer", fields: [buyerId], references: [id], onDelete: Cascade)
   messages  Message[]
   presences ConversationPresence[]
 
   /// Một tin, một người mua, một hội thoại — hai lượt mở cùng lúc vẫn ra một.
   @@unique([listingId, buyerId])
+  /// Một hội thoại hỗ trợ mỗi người, một hội thoại mỗi người + nhóm (spec support-chat, group-admin-chat).
+  @@unique([buyerId], map: "conversations_one_support", where: raw("kind = 'support'"))
+  @@unique([groupId, buyerId], map: "conversations_one_group", where: raw("kind = 'group'"))
   @@index([buyerId, lastActivityAt])
   @@index([sellerId, lastActivityAt])
   @@index([lastActivityAt], map: "conversations_retention_idx")
+  @@index([teamPendingSince, lastActivityAt], map: "conversations_support_queue", where: raw("kind = 'support'"))
+  @@index([groupId, lastActivityAt], map: "conversations_group_idx", where: raw("kind = 'group'"))
   @@map("conversations")
+}
+
+enum ConversationKind {
+  listing
+  support
+  group
+
+  @@map("conversation_kind")
 }
 
 /// Tin nhắn chữ hoặc đề nghị giá (add-price-offers): đề nghị là một loại tin nhắn để đi chung con trỏ, hạn lưu, bản ghi

@@ -19,12 +19,17 @@ export interface EvidenceHold {
   /** Tin: báo cáo về tin, báo cáo về người đăng (giữ mọi tin của người đó), gậy của tin. */
   heldListings(rows: { id: string; ownerId: string }[]): Promise<Set<string>>;
   /** Hội thoại: gửi kèm báo cáo, báo cáo về tin của nó, về một trong hai bên, gậy của tin của nó. */
+  /** Hội thoại với một đội không có tin hay người bán (add-team-conversations) — chỉ xét người dùng và chính hội thoại. */
   heldConversations(
-    rows: { id: string; listingId: string; buyerId: string; sellerId: string }[],
+    rows: { id: string; listingId: string | null; buyerId: string; sellerId: string | null }[],
   ): Promise<Set<string>>;
   /** Hồ sơ tài khoản đã xoá: báo cáo về người đó hay về tin của người đó. */
   heldAccounts(accountIds: string[]): Promise<Set<string>>;
 }
+
+const present = (ids: (string | null)[]): string[] => [
+  ...new Set(ids.filter((id): id is string => id !== null)),
+];
 
 export function createEvidenceHold(deps: EvidenceHoldDeps): EvidenceHold {
   const { review, trust, config, clock } = deps;
@@ -66,12 +71,12 @@ export function createEvidenceHold(deps: EvidenceHoldDeps): EvidenceHold {
     async heldConversations(rows) {
       if (rows.length === 0) return new Set();
       const at = since();
-      const listingIds = [...new Set(rows.map((row) => row.listingId))];
+      const listingIds = present(rows.map((row) => row.listingId));
       const [reports, struck] = await Promise.all([
         review.reportHolds(
           {
             listingIds,
-            accountIds: [...new Set(rows.flatMap((row) => [row.buyerId, row.sellerId]))],
+            accountIds: present(rows.flatMap((row) => [row.buyerId, row.sellerId])),
             conversationIds: rows.map((row) => row.id),
           },
           at,
@@ -83,10 +88,10 @@ export function createEvidenceHold(deps: EvidenceHoldDeps): EvidenceHold {
           .filter(
             (row) =>
               reports.conversationIds.has(row.id) ||
-              reports.listingIds.has(row.listingId) ||
+              (row.listingId !== null && reports.listingIds.has(row.listingId)) ||
               reports.subjectAccountIds.has(row.buyerId) ||
-              reports.subjectAccountIds.has(row.sellerId) ||
-              struck.has(row.listingId),
+              (row.sellerId !== null && reports.subjectAccountIds.has(row.sellerId)) ||
+              (row.listingId !== null && struck.has(row.listingId)),
           )
           .map((row) => row.id),
       );

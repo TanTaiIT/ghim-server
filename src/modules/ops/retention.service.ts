@@ -59,7 +59,10 @@ export interface RetentionDeps {
     IdentityService,
     'purgeDue' | 'purgeDeletedAccount' | 'purgeDeviceData' | 'pseudonymOf'
   >;
-  messaging: Pick<MessagingService, 'retentionDue' | 'purge'>;
+  messaging: Pick<
+    MessagingService,
+    'retentionDue' | 'purge' | 'groupConversations' | 'deleteConversations'
+  >;
   notification: Pick<NotificationService, 'purgeBefore'>;
   screening: Pick<ScreeningService, 'foldRuns'>;
   trust: Pick<
@@ -196,6 +199,12 @@ export function createRetentionService(deps: RetentionDeps, hold: EvidenceHold):
       await sequentially(ids, async (groupId) => {
         await listings.softDeleteWhere({ groupId });
         await purgeOwnerListings({ kind: 'group', groupId }, pageSize);
+        // Hội thoại với quản trị đi cùng nhóm, trừ hội thoại đang giữ làm bằng chứng (add-team-conversations mục 7).
+        const conversations = await messaging.groupConversations(groupId);
+        const held = await hold.heldConversations(conversations);
+        await messaging.deleteConversations(
+          conversations.filter((row) => !held.has(row.id)).map((row) => row.id),
+        );
         await groups.purgeClosed(groupId);
       });
       return { count: ids.length, done: ids.length < pageSize };

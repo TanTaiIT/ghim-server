@@ -84,6 +84,12 @@ export interface MatrixContext {
     body: string;
     /** Đề nghị giá (add-price-offers): không có chữ, câu nhắc nêu số tiền. */
     offer: { amount: bigint } | null;
+    /** Câu nhắc ký theo phía gửi: tên người, hay tên đội (add-team-conversations). */
+    conversation: {
+      kind: 'listing' | 'support' | 'group';
+      groupId: string | null;
+      buyerId: string;
+    };
   } | null>;
 }
 

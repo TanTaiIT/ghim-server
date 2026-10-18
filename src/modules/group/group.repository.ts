@@ -98,6 +98,8 @@ export interface GroupRepository {
     query: { unitId?: string; after?: string; take: number },
   ): Promise<string[]>;
   isBanned(groupId: string, accountId: string): Promise<boolean>;
+  /** Trong `accountIds`, ai đang bị cấm khỏi nhóm — theo lô cho danh sách hội thoại (add-team-conversations). */
+  bannedAmong(groupId: string, accountIds: string[]): Promise<Set<string>>;
   lastRejectedAt(groupId: string, accountId: string): Promise<Date | null>;
   countPendingRequestsOf(accountId: string, now: Date): Promise<number>;
   findJoinRequest(id: string): Promise<GroupJoinRequest | null>;
@@ -647,6 +649,14 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
         select: { groupId: true },
       });
       return row !== null;
+    },
+    async bannedAmong(groupId, accountIds) {
+      if (accountIds.length === 0) return new Set();
+      const rows = await prisma.groupBan.findMany({
+        where: { groupId, accountId: { in: accountIds } },
+        select: { accountId: true },
+      });
+      return new Set(rows.map((row) => row.accountId));
     },
     async lastRejectedAt(groupId, accountId) {
       const row = await prisma.groupJoinRequest.findFirst({

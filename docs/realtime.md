@@ -55,6 +55,7 @@ Lỗi mạng thì client tự nối lại như thường.
 | `group:pending`        | `{ groupId: string, joinRequests: number }`      | Chỉ quản trị nhóm: số đơn xin vào đang chờ                                                                                                                     |
 | `message:new`          | `{ conversationId: string, messageId: string }`  | Tin nhắn mới trong một hội thoại của bạn (add-messaging) — tải lại hội thoại qua HTTP; chưa có dòng hộp thư (`add-notifications`)                              |
 | `message:updated`      | `{ conversationId: string, messageId: string }`  | Một tin nhắn đã có vừa đổi — người bán vừa trả lời đề nghị giá của bạn (add-price-offers); tải lại tin nhắn đó qua HTTP                                        |
+| `support:pending`      | `{ count: number }`                              | Chỉ staff đang mang quyền "hỗ trợ người dùng": số hội thoại hỗ trợ đang chờ đội trả lời vừa đổi (add-team-conversations) — tải lại hàng hỗ trợ                 |
 
 `Notification` giống hệt một phần tử của `GET /me/notifications`:
 
