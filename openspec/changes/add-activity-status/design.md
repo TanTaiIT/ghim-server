@@ -25,20 +25,23 @@ gọi HTTP; mốc hoạt động đúng tới phút.
    đang mở (`docs/realtime.md`), nên kết nối là tín hiệu đúng nghĩa "đang mở app"; không cần nhịp tim riêng.
 2. **Mốc lần cuối hoạt động là cột của `accounts`** (module `identity` sở hữu): `last_seen_at` TIMESTAMPTZ NULL, ghi khi
    một kết nối mở và khi kết nối **cuối cùng** của tài khoản đóng. Kênh realtime là hạ tầng chung, không ghi bảng của
-   module nào: gateway nhận callback `onPresence(accountId, at)` qua deps, `app.ts` nối vào `identity`. Ghi lúc mở để
+   module nào: gateway nhận callback `onPresence(accountId)` qua deps, `app.ts` nối vào `identity.recordSeen` — thời
+   điểm lấy từ đồng hồ của `identity` (lúc apply: đồng hồ của app, test đẩy được), không từ gateway. Ghi lúc mở để
    tiến trình chết giữa chừng vẫn còn một mốc gần đúng; không ghi ở mỗi request HTTP. Làm tròn tới phút ở DTO, không ở
    cột.
 3. **Công tắc là cột của `accounts`**: `show_activity` BOOLEAN NOT NULL DEFAULT true; sửa qua `PATCH /me
 { showActivity }`, đọc ở `GET /me`. Cổng `identity` cho `messaging`: `activityOf(accountIds)` → `{ showActivity,
-lastSeenAt }` theo lô, gộp vào lượt đọc `accountSummaries` hiện có để không thêm truy vấn.
+lastSeenAt }` theo lô — lúc apply: một truy vấn riêng mỗi trang hội thoại (chỉ khi trang có hội thoại về tin), không
+   gộp vào `accountSummaries`: cổng đó có nhiều module khác dùng, thêm cột cho riêng một bên là nới hợp đồng của cả bọn.
 4. **Luật hiện, tính trong `describe` của `messaging`**: `counterpart.activity = { online, lastActiveAt } | null`, là
    `null` khi hội thoại không phải về tin, `locked`, `gone`, người xem đã tắt, hay người kia đã tắt. Còn lại: `online`
    từ mục 1; `lastActiveAt` = `last_seen_at` làm tròn xuống phút, `null` khi quá `messaging.activityVisibleDays` ngày
    hoặc chưa có. Đang online thì `lastActiveAt` vẫn trả mốc gần nhất — app chỉ đọc nó khi `online = false`.
 5. **Bảng con số**: khoá `messaging.activityVisibleDays` (số nguyên ngày, 1–30, giá trị khởi đầu 7) theo cách các khoá
    khác được thêm (phiên bản mới của bảng con số, khoảng hợp lệ — `platform/config-versions`).
-6. **Xoá tài khoản**: luồng ẩn danh hiện có (`identity/account-deletion`) đặt `last_seen_at` = NULL cùng các trường cá
-   nhân khác; `show_activity` không còn nghĩa nên giữ nguyên.
+6. **Xoá tài khoản**: lượt xoá mềm (`softDeleteAccount`) đặt `last_seen_at` = NULL ngay lúc xoá, và `recordSeen` không
+   ghi tài khoản đã xoá — kết nối của nó bị cắt ngay sau lượt xoá, sự kiện ngắt tới sau thì không được viết lại mốc.
+   `show_activity` không còn nghĩa nên giữ nguyên.
 
 ## Risks / Trade-offs
 

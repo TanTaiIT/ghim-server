@@ -264,7 +264,11 @@ DTO hội thoại đọc thẻ tin qua `listing.conversationCards` (giá, thươ
 `ownedBy` (`messaging.shared.ts`): quản trị nhóm qua `group.conversationTeam` (dựng trên `reviewersOf` — trừ vai treo), staff hỗ
 trợ chỉ qua `/ops/support/*` (`messaging.ops.routes.ts`, `support.service.ts`). `messaging.message.sent` mang `recipientIds` +
 `kind` (bên nghe đọc cả `recipientId` dạng cũ); tin hỗ trợ báo `support:pending` tới `platform.activeStaffWithScope('support')`.
-`ops` dọn nhóm đóng thì xoá luôn hội thoại với quản trị của nhóm, trừ hội thoại giữ làm bằng chứng.
+`ops` dọn nhóm đóng thì xoá luôn hội thoại với quản trị của nhóm, trừ hội thoại giữ làm bằng chứng. Trạng thái hoạt động (change
+`add-activity-status`): "đang hoạt động" = có kết nối realtime (`Realtime.onlineAmong`, trong bộ nhớ một tiến trình); mốc
+`accounts.last_seen_at` do `identity.recordSeen` ghi khi gateway báo `onPresence` (kết nối mở, kết nối cuối cùng đóng), không ghi
+tài khoản đã xoá; `accounts.show_activity` là công tắc hai chiều; chỉ hội thoại về tin, không chặn, không rời mới có
+`counterpart.activity`, mốc làm tròn phút và quá `messaging.activityVisibleDays` thì không hiện.
 
 `listing` vị trí trên bảng tin (change `prepare-promotions`): `listings.rank_at` là cột xếp hạng của bốn index bảng tin và
 con trỏ trang, đặt cùng `first_live_at` trong `nextClock` (tin trùng của mình kế thừa qua `rankAsListingId`) — chỉ gói

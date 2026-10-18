@@ -24,7 +24,7 @@ import type { MessagingRepository } from './messaging.repository.js';
 
 export type MessagingIdentityPort = Pick<
   IdentityService,
-  'accountSummaries' | 'avatarUrls' | 'sharedDeviceAccounts' | 'deviceToken'
+  'accountSummaries' | 'avatarUrls' | 'activityOf' | 'sharedDeviceAccounts' | 'deviceToken'
 >;
 /**
  * `reportTarget` = tin người này thấy được qua đường link, kể cả tin của mình — đúng luật mở hội thoại mới;

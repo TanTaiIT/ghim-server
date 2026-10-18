@@ -30,6 +30,9 @@ const socket = io(API_ORIGIN, {
 
 Không có phòng theo nhóm: vào hay rời nhóm giữa chừng **không** phải nối lại. Server tự tính ai nhận gì.
 
+Kết nối cũng là tín hiệu "đang mở app" của trạng thái hoạt động trong hội thoại (add-activity-status, `docs/messaging.md`):
+nối khi app ra trước, ngắt khi app vào nền — giữ kết nối lúc app nằm nền là để người khác thấy mình "đang hoạt động" sai.
+
 ## Khi nào server cắt kết nối
 
 | Tình huống                                                                                                       | App thấy                                    | App làm                                               |

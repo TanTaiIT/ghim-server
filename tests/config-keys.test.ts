@@ -12,7 +12,7 @@ import { RUNTIME_CONFIG_DEFAULTS } from '../src/common/config/runtime-config.js'
 
 /* Sổ đăng ký là hợp đồng với mọi change sau: đủ nhóm TK 28, mỗi khoá đúng dạng và có giá trị hợp lệ. */
 describe('CONFIG_KEYS', () => {
-  it('phủ đủ 14 nhóm: 13 của bảng TK 28 và hạn lưu (TK 25, add-data-retention)', () => {
+  it('phủ đủ 15 nhóm: 14 của bảng TK 28 (Nhắn tin từ add-activity-status) và hạn lưu (TK 25, add-data-retention)', () => {
     const groups = new Set(Object.values(CONFIG_KEYS).map((spec) => spec.group));
     expect([...groups].toSorted()).toEqual(
       [
@@ -28,6 +28,7 @@ describe('CONFIG_KEYS', () => {
         'Tin đăng',
         'Nhóm',
         'Thông báo',
+        'Nhắn tin',
         'Ảnh',
         'Hạn lưu',
       ].toSorted(),
@@ -89,6 +90,10 @@ describe('khoảng hợp lệ (design fix-audit-security mục 5)', () => {
     ['group.codeLength', 5, false],
     ['group.codeLength', 21, false],
     ['group.announcementMaxLength', 10_001, false],
+    // Lần cuối hoạt động chỉ hiện trong 1–30 ngày (add-activity-status).
+    ['messaging.activityVisibleDays', 0, false],
+    ['messaging.activityVisibleDays', 30, true],
+    ['messaging.activityVisibleDays', 31, false],
     ['media.maxImageBytes', 2_147_483_648, false],
     ['media.uploadGrantMinutes', 10_081, false],
     ['media.viewUrlMinutes', 5041, false],

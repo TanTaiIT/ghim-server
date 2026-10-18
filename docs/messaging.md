@@ -59,6 +59,7 @@ Hội thoại:
     displayName: string | null; // tên đội: "Hỗ trợ Ghim" / "Quản trị nhóm «tên nhóm»"
     avatarUrl: string | null; // null khi chưa đặt ảnh, đã rời, hay bên kia là đội
     gone: boolean; // bên kia đã xoá tài khoản
+    activity: { online: boolean; lastActiveAt: string | null } | null; // mục Trạng thái hoạt động
   };
   lastMessage: Message | null;
   unreadCount: number;
@@ -102,6 +103,19 @@ trong hội thoại về tin (hội thoại với một đội → `409 OFFERS_N
 - Đề nghị tính như một tin nhắn của người mua: hội thoại lên đầu danh sách, tính "có người nhắn hỏi mua" của tin sạch,
   không tính hạn mức hội thoại mới. Câu trả lời không phải tin nhắn mới (số chưa đọc không đổi) — người mua biết qua
   thông báo và `message:updated`.
+
+## Trạng thái hoạt động
+
+Chốt 18/10/2026 (TK 24, change `add-activity-status`). `counterpart.activity` chỉ có ở **hội thoại về tin**, khi không
+có chặn, bên kia chưa rời Ghim, và **cả hai bên** đang bật công tắc — tắt là hai chiều: không ai thấy của mình, mình cũng
+không thấy của ai. Còn lại là `null`; hồ sơ công khai, tin, nhóm, hội thoại với một đội không bao giờ có.
+
+- `online`: bên kia đang có kết nối realtime — app chỉ nối khi đang mở (`docs/realtime.md`), nên là "đang mở app".
+- `lastActiveAt`: lần cuối kết nối mở hay kết nối cuối cùng đóng, làm tròn xuống phút; `null` khi quá
+  `messaging.activityVisibleDays` ngày (giá trị khởi đầu 7) hay chưa từng nối. Đang online thì vẫn có mốc gần nhất —
+  app chỉ đọc khi `online = false`.
+- Công tắc: `GET /me` → `showActivity` (mặc định `true`); `PATCH /me { showActivity }`. Xoá tài khoản xoá luôn mốc.
+- Không đẩy realtime khi bên kia vừa online / vừa thoát: app đọc lại khi mở hội thoại và khi có `message:new`.
 
 ## Hạn mức hội thoại mới
 

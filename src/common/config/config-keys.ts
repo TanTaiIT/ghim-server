@@ -72,6 +72,7 @@ const REPORT = 'Báo cáo';
 const LISTING = 'Tin đăng';
 const GROUP = 'Nhóm';
 const NOTIFICATION = 'Thông báo';
+const MESSAGING = 'Nhắn tin';
 const MEDIA = 'Ảnh';
 const RETENTION = 'Hạn lưu';
 
@@ -207,6 +208,8 @@ export const CONFIG_KEYS = {
   'notification.groupListingsAlertMinutes': minutes(120, NOTIFICATION),
   // N40–N42 báo master: TK 16 "nhắc lại mỗi ngày" — cảnh báo của dòng gộp không bật lại sớm hơn (fix-audit-review, T9).
   'notification.reviewAlertMinutes': minutes(1440, NOTIFICATION),
+  // Nhắn tin — "lần cuối hoạt động" chỉ hiện trong cửa sổ này (add-activity-status): xa hơn là dữ liệu để rình, không giúp chat.
+  'messaging.activityVisibleDays': days(7, MESSAGING, { max: 30 }),
   // Ảnh
   'media.maxImageBytes': int(5_242_880, MEDIA),
   // Chữ ký S3 (SigV4) sống tối đa 7 ngày.

@@ -71,6 +71,7 @@ export type AccountPatch = Partial<
     | 'totpEnabledAt'
     | 'emailChangedAt'
     | 'passwordChangedAt'
+    | 'showActivity'
   >
 >;
 
@@ -238,6 +239,9 @@ export interface IdentityRepository {
   findAccountSummaries(
     ids: string[],
   ): Promise<Pick<Account, 'id' | 'role' | 'status' | 'displayName' | 'createdAt'>[]>;
+  /** Mốc "lần cuối hoạt động" — tài khoản đã xoá không ghi: kết nối của nó đóng ngay sau lượt xoá (add-activity-status). */
+  recordSeen(accountId: string, at: Date): Promise<void>;
+  findActivity(ids: string[]): Promise<Pick<Account, 'id' | 'showActivity' | 'lastSeenAt'>[]>;
   /** Chỉ tài khoản chưa xoá. */
   findAvatarSources(
     ids: string[],
@@ -447,6 +451,19 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
             where: { id: { in: ids } },
             select: { id: true, role: true, status: true, displayName: true, createdAt: true },
           }),
+    async recordSeen(accountId, at) {
+      await prisma.account.updateMany({
+        where: { id: accountId, status: { not: 'deleted' } },
+        data: { lastSeenAt: at },
+      });
+    },
+    findActivity: (ids) =>
+      ids.length === 0
+        ? Promise.resolve([])
+        : prisma.account.findMany({
+            where: { id: { in: ids }, status: { not: 'deleted' } },
+            select: { id: true, showActivity: true, lastSeenAt: true },
+          }),
     findAvatarSources: (ids) =>
       ids.length === 0
         ? Promise.resolve([])
@@ -618,7 +635,8 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
       prisma.$transaction(async (tx) => {
         await tx.account.update({
           where: { id: accountId },
-          data: { status: 'deleted', deletedAt: at },
+          // Mốc hoạt động là dữ liệu cá nhân không còn việc gì để dùng (cam kết 31).
+          data: { status: 'deleted', deletedAt: at, lastSeenAt: null },
         });
         await revokeSessionsIn(tx, { accountId, reason: 'account_deleted', at });
         await appendEvents(tx, events);

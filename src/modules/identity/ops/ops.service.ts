@@ -62,6 +62,8 @@ export type IdentityOpsService = Pick<
   | 'lockAccountStatus'
   | 'accountSummaries'
   | 'avatarUrls'
+  | 'recordSeen'
+  | 'activityOf'
   | 'accountIdByEmail'
   | 'emailHashOf'
   | 'emailHintOf'
@@ -521,6 +523,15 @@ export function createIdentityOpsService(
         rows.map(async (row) => [row.id, await avatarUrlOf(row, deps.images)] as const),
       );
       return new Map(urls.flatMap(([id, url]) => (url ? [[id, url] as const] : [])));
+    },
+
+    recordSeen: (accountId) => repository.recordSeen(accountId, clock()),
+
+    async activityOf(ids) {
+      const rows = await repository.findActivity([...new Set(ids)]);
+      return new Map(
+        rows.map((row) => [row.id, { showActivity: row.showActivity, lastSeenAt: row.lastSeenAt }]),
+      );
     },
 
     async accountIdByEmail(email) {

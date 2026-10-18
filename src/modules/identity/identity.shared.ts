@@ -145,6 +145,7 @@ export function toMe(account: Account, avatarUrl: string | null, nameHidden: boo
   return {
     ...toPublicProfile(account, avatarUrl),
     nameHidden,
+    showActivity: account.showActivity,
     email: account.email,
     emailVerified: account.status === 'active',
     role: account.role,

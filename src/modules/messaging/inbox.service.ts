@@ -122,6 +122,11 @@ const present = <T>(values: (T | null)[]): T[] => [
   ...new Set(values.filter((value): value is T => value !== null)),
 ];
 
+const MINUTE_MS = 60_000;
+/** Làm tròn xuống phút: tới giây là đủ để dò thói quen của một người, mà chat không cần. */
+const toMinute = (at: Date): string =>
+  new Date(Math.floor(at.getTime() / MINUTE_MS) * MINUTE_MS).toISOString();
+
 export function createInboxService(deps: MessagingServiceDeps): {
   service: InboxService;
   /**
@@ -150,7 +155,10 @@ export function createInboxService(deps: MessagingServiceDeps): {
       rows.filter((row) => row.kind === 'listing').map((row) => otherOf(row, sideIn(row))),
     );
     const groupIds = present(rows.map((row) => row.groupId));
-    const [cards, summaries, avatars, last, unread, blocked, groupInfo, bannedBy] =
+    // Trạng thái hoạt động chỉ trong hội thoại về tin, và tắt là hai chiều: người xem cũng phải đang bật.
+    const visibleSince = clock().getTime() - config.get('messaging.activityVisibleDays') * DAY_MS;
+    const online = realtime.onlineAmong(listingOthers);
+    const [cards, summaries, avatars, last, unread, blocked, groupInfo, bannedBy, activity] =
       await Promise.all([
         listings.conversationCards(present(rows.map((row) => row.listingId))),
         identity.accountSummaries(others),
@@ -171,7 +179,20 @@ export function createInboxService(deps: MessagingServiceDeps): {
               ] as const,
           ),
         ).then((entries) => new Map(entries)),
+        listingOthers.length > 0
+          ? identity.activityOf([viewerId, ...listingOthers])
+          : Promise.resolve(new Map<string, { showActivity: boolean; lastSeenAt: Date | null }>()),
       ]);
+    const viewerShows = activity.get(viewerId)?.showActivity ?? false;
+    const activityOf = (other: string): { online: boolean; lastActiveAt: string | null } | null => {
+      const theirs = activity.get(other);
+      if (!viewerShows || !theirs?.showActivity) return null;
+      const seen = theirs.lastSeenAt;
+      return {
+        online: online.has(other),
+        lastActiveAt: seen && seen.getTime() >= visibleSince ? toMinute(seen) : null,
+      };
+    };
     return rows.map((row) => {
       const side = sideIn(row);
       const other = otherOf(row, side);
@@ -212,6 +233,7 @@ export function createInboxService(deps: MessagingServiceDeps): {
                 displayName: gone ? null : (summary?.displayName ?? null),
                 avatarUrl: gone ? null : (avatars.get(other) ?? null),
                 gone,
+                activity: row.kind === 'listing' && !gone && !locked ? activityOf(other) : null,
               }
             : {
                 kind: row.kind === 'support' ? ('support' as const) : ('group_admins' as const),
@@ -220,6 +242,7 @@ export function createInboxService(deps: MessagingServiceDeps): {
                   row.kind === 'support' ? SUPPORT_TEAM_NAME : groupTeamName(group?.name ?? ''),
                 avatarUrl: null,
                 gone: false,
+                activity: null,
               },
         lastMessage: lastMessage ? toMessageDto(lastMessage, viewerOf(row, viewerId, side)) : null,
         unreadCount: unread.get(row.id) ?? 0,

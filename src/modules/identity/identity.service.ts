@@ -141,6 +141,7 @@ export interface MeDto extends PublicProfileDto {
   role: Account['role'];
   twoFactorEnabled: boolean;
   nameHidden: boolean;
+  showActivity: boolean;
 }
 
 export interface FlagDto {
@@ -178,6 +179,7 @@ export interface IdVerificationDto {
 export interface PatchMeInput {
   displayName?: string | undefined;
   phone?: string | null | undefined;
+  showActivity?: boolean | undefined;
 }
 
 export interface RegisterInput {
@@ -349,6 +351,12 @@ export interface IdentityService extends ActorResolver {
   accountSummaries(ids: string[]): Promise<Map<string, AccountSummary>>;
   /** Theo lô: ảnh đại diện đã ký của tài khoản chưa xoá có đặt ảnh — `messaging` vẽ đầu hội thoại (add-price-offers). */
   avatarUrls(ids: string[]): Promise<Map<string, string>>;
+  /** Kênh realtime báo kết nối mở / kết nối cuối đóng: ghi mốc "lần cuối hoạt động" (add-activity-status). */
+  recordSeen(accountId: string): Promise<void>;
+  /** Theo lô cho `messaging`: công tắc và mốc hoạt động của tài khoản chưa xoá. */
+  activityOf(
+    ids: string[],
+  ): Promise<Map<string, { showActivity: boolean; lastSeenAt: Date | null }>>;
   /** Tài khoản chưa xoá mang email này (so sau chuẩn hoá) — lời mời vào nhóm theo email. */
   accountIdByEmail(email: string): Promise<string | null>;
   /** Dấu băm HMAC của email đã chuẩn hoá, cùng khoá với `accounts.email_hash` — danh sách lớp của nhóm. */

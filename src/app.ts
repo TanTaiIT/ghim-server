@@ -309,6 +309,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     emitToUser: (accountId, event, payload) => gateway?.emitToUser(accountId, event, payload),
     disconnectUser: (accountId) => gateway?.disconnectUser(accountId),
     disconnectSession: (sessionId) => gateway?.disconnectSession(sessionId),
+    onlineAmong: (accountIds) => gateway?.onlineAmong(accountIds) ?? new Set(),
   };
   // `media` trước `identity`: ảnh đại diện cần cổng xác nhận ảnh. `media` không hỏi ngược ai — chủ `profile` chính
   // là người tải lên.
@@ -598,6 +599,11 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     verifyToken: (token) => app.jwt.verify<{ sid: string; exp: number }>(token),
     resolveActor: (sessionId) => identity.service.resolveActor(sessionId),
     corsOrigin,
+    onPresence: (accountId) => {
+      identity.service.recordSeen(accountId).catch((error: unknown) => {
+        app.log.warn({ err: error }, 'Không ghi được mốc hoạt động');
+      });
+    },
   });
   gateway = socketGateway;
   // Đóng socket trước khi HTTP server đóng: kết nối websocket còn mở thì `server.close()` chờ mãi.

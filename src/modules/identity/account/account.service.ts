@@ -151,11 +151,12 @@ export function createIdentityAccountService(
       return me(await accountOf(actor));
     },
 
-    async updateMe(actor, { displayName, phone }) {
+    async updateMe(actor, { displayName, phone, showActivity }) {
       if (displayName !== undefined) assertDisplayNameAllowed(displayName);
       const patch = {
         ...(displayName === undefined ? {} : { displayName: displayName.trim() }),
         ...(phone === undefined ? {} : { phone }),
+        ...(showActivity === undefined ? {} : { showActivity }),
       };
       return me(await repository.updateAccount(actor.accountId, patch));
     },

@@ -144,6 +144,8 @@ export const meSchema = publicProfileSchema.extend({
   twoFactorEnabled: z.boolean(),
   /** Tên trúng cụm từ cấm mức chắc: người khác thấy "Người dùng Ghim" — app nhắc đổi tên. */
   nameHidden: z.boolean(),
+  /** Hiện trạng thái hoạt động trong hội thoại; tắt là hai chiều (add-activity-status). */
+  showActivity: z.boolean(),
 });
 
 const phoneNumberSchema = z
@@ -165,6 +167,7 @@ export const patchMeBodySchema = z.object({
   displayName: displayNameSchema.optional(),
   /** `null` để xoá số; bỏ qua để giữ nguyên. */
   phone: phoneNumberSchema.nullable().optional(),
+  showActivity: z.boolean().optional(),
 });
 
 export const emailChangeBodySchema = z.object({

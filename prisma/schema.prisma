@@ -119,6 +119,10 @@ model Account {
   /// phải hỏi `media`.
   avatarImageId     String?        @map("avatar_image_id") @db.Uuid
   avatarFromGoogle  Boolean        @default(false) @map("avatar_from_google")
+  /// Lần cuối hoạt động (add-activity-status): ghi khi một kết nối realtime mở và khi kết nối cuối cùng đóng; xoá khi xoá tài khoản.
+  lastSeenAt        DateTime?      @map("last_seen_at") @db.Timestamptz(3)
+  /// Công tắc hai chiều: tắt thì không ai thấy trạng thái của mình, mình cũng không thấy của ai.
+  showActivity      Boolean        @default(true) @map("show_activity")
   phone             String?
   totpSecretEnc     String?        @map("totp_secret_enc")
   totpEnabledAt     DateTime?      @map("totp_enabled_at") @db.Timestamptz(3)

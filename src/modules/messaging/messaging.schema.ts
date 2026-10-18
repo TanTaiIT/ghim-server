@@ -70,6 +70,11 @@ export const conversationSchema = z.object({
     displayName: z.string().nullable(),
     avatarUrl: z.string().nullable(),
     gone: z.boolean(),
+    /**
+     * Chỉ bên kia của hội thoại về tin, không chặn, không rời, hai bên đều bật (spec messaging/activity-status).
+     * `lastActiveAt` làm tròn xuống phút, `null` khi quá số ngày của bảng con số hay chưa có mốc.
+     */
+    activity: z.object({ online: z.boolean(), lastActiveAt: iso.nullable() }).nullable(),
   }),
   lastMessage: messageSchema.nullable(),
   unreadCount: z.number().int(),
