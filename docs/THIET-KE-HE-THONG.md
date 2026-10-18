@@ -880,7 +880,7 @@ Người xử không bao giờ là người đăng tin bị báo cáo, người 
 
 **Nhắn tin**
 
-- Mỗi hội thoại gắn với **một tin**. Một tin và một người mua thì đúng một hội thoại; bấm lại là mở hội thoại cũ.
+- Ba loại hội thoại (chốt 18/10/2026): **về một tin** — người mua mở từ tin; một tin và một người mua thì đúng một hội thoại, bấm lại là mở hội thoại cũ; **với Hỗ trợ Ghim**; **với quản trị một nhóm**. Hai loại sau là hội thoại **với một đội**, luật riêng ở cuối phần nhắn tin. Các dòng dưới nói về hội thoại về tin, trừ khi ghi khác.
 - Chỉ mở hội thoại **mới** với tin **đang hiển thị** mà mình xem được; tin "chỉ thành viên" thì phải là thành viên. Không nhắn được cho tin của chính mình.
 - **Hội thoại đã mở thì tiếp tục được** dù sau đó tin đã bán, hết hạn, hay một bên rời nhóm.
 - Số **hội thoại mới mỗi ngày** theo mức tin cậy (phần 20) — để tài khoản vừa lập không nhắn hàng loạt.
@@ -889,6 +889,12 @@ Người xử không bao giờ là người đăng tin bị báo cáo, người 
 - **Báo cáo ngay từ hội thoại** khi bị quấy rối hay lừa đảo.
 - **Xoá hội thoại** chỉ ẩn ở phía mình. Hội thoại dính tới báo cáo, gậy hay khiếu nại đang mở thì không bị xoá hẳn, kể cả khi cả hai bên đã xoá.
 - Người không có trong hội thoại nhận "không tìm thấy" — không lộ cả việc hội thoại đó có tồn tại.
+- **Trả giá** (chốt 18/10/2026): với tin đang hiển thị, cho thương lượng, giá trên 0, chỉ **người mua** gửi được một giá — từ 1 đồng tới giá đăng; người bán chấp nhận hoặc từ chối. Mỗi hội thoại chỉ một giá đang chờ: giá mới thay giá cũ. **Chấp nhận chỉ là ghi nhận** giữa hai bên — tin không đổi trạng thái, không bị giữ, giá đăng không đổi, người mua khác vẫn trả giá được. Giá trả tính như một tin nhắn hỏi mua.
+- Đầu hội thoại hiện ảnh bìa, giá của tin và ảnh đại diện người kia; tin bị gỡ vì vi phạm thì không hiện ảnh bìa.
+- **Trạng thái hoạt động** (chốt 18/10/2026): chỉ bên kia của hội thoại về tin thấy người kia đang mở app không, và lần cuối hoạt động trong 7 ngày gần nhất (phần 28), làm tròn tới phút. Không hiện ở hồ sơ, tin, nhóm hay hội thoại với một đội; có chặn thì không hiện. Người dùng tắt được, và **tắt là hai chiều**: không ai thấy của mình, mình cũng không thấy của ai.
+- **Hội thoại với một đội** (chốt 18/10/2026): bên kia là cả đội — ai trong đội cũng đọc và trả lời được, một người đọc là cả đội đã đọc. Người dùng chỉ thấy tên đội, **"Hỗ trợ Ghim"** hay **"Quản trị nhóm «tên nhóm»"**, không biết ai trong đội viết. Không tính vào hội thoại mới mỗi ngày, chặn người không áp vào, chỉ người dùng xoá được ở phía mình; không trả giá.
+  - **Hỗ trợ**: mỗi người dùng một hội thoại. Mọi staff có quyền hỗ trợ người dùng thấy chung một hàng trên bàn vận hành, đang chờ lâu nhất trước; staff không trả lời hội thoại hỗ trợ của chính mình. Tin nhắn của staff không qua bộ lọc cụm từ cấm — staff cần nhắc đúng cụm lừa đảo để cảnh báo người dùng.
+  - **Quản trị nhóm**: mỗi người dùng một hội thoại với mỗi nhóm. Chủ nhóm và mọi điều hành viên đang giữ vai cùng thấy; mất vai là mất quyền vào ngay, người nhận vai sau thấy cả tin cũ. Ai xem được hồ sơ nhóm thì nhắn được, trừ người bị cấm và quản trị của chính nhóm đó. Nhóm đóng thì hội thoại chỉ còn để đọc; người bị cấm thì không gửi tiếp được.
 
 **Thông báo**
 
@@ -1048,6 +1054,7 @@ Master chỉnh dần theo kết quả hậu kiểm, không cần phát hành l�
 | Nhóm                      | Đơn tự huỷ 21 ngày · chờ 7 ngày sau từ chối · 3 đơn chờ mỗi người · lời mời 14 ngày · lời chuyển chủ 14 ngày · mã nhóm 6 ký tự · thiếu chủ tối đa 30 ngày · thông báo của nhóm 5 mỗi ngày, tối đa 1000 ký tự                                                                                                                                                                                                                                                            |
 | Ảnh                       | Mỗi ảnh tối đa 5 MB · quyền tải dùng được 15 phút · 120 lượt xin tải mỗi giờ mỗi tài khoản · ảnh chưa xác nhận xoá sau 48 giờ · đường xem ảnh có hạn 60 phút                                                                                                                                                                                                                                                                                                            |
 | Thông báo                 | Nhắc lại thông báo gộp tối đa mỗi 30 phút · tin mới trong nhóm nhắc tối đa mỗi 2 giờ mỗi nhóm                                                                                                                                                                                                                                                                                                                                                                           |
+| Nhắn tin                  | Lần cuối hoạt động hiện trong 7 ngày (chốt 18/10/2026)                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 ---
 

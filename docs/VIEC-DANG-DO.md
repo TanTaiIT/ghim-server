@@ -84,14 +84,17 @@ Nguồn: CLAUDE.md mục **Thứ tự change**, `openspec/changes/`. Mỗi chang
 mở** trong proposal trước khi `/opsx:apply`. Cột ghi chú kể cả phần `add-review-queues` cố ý để lại cho change sau
 (proposal của nó, mục "Không làm").
 
-| Đợt | Change                 | Điều kiện / ghi chú                                                                                                                                                        |
-| --- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 3   | `add-image-moderation` | Chờ chọn dịch vụ kiểm ảnh (mục 1) và rà soát pháp lý nếu gửi ảnh ra ngoài (TK 29 còn mở số 3)                                                                              |
-| 4 ✔ | `add-reports`          | Archive 16/10/2026. Còn để cho change sau: báo cáo đúng kèm gậy (`add-strikes`), báo cáo từ hội thoại (`add-messaging`), giữ bằng chứng quá hạn lưu (`add-data-retention`) |
-| 5 ✔ | `add-strikes`          | Archive 17/10/2026. Còn để cho change sau: thông báo khi nhận gậy / có kết quả khiếu nại (`add-notifications`), hạn lưu hồ sơ gậy (`add-data-retention`)                   |
-| 6 ✔ | `add-messaging`        | Archive 17/10/2026. Còn để cho change sau: xoá hẳn và tạm giữ hội thoại → `add-data-retention`                                                                             |
-| 6 ✔ | `add-notifications`    | Archive 17/10/2026 (N47 tin nhắn, push Expo gắn phiên, không đẩy hội thoại đang mở). Chưa có app nên chưa có token thật — gửi push thật chưa thử trên máy                  |
-| 7 ✔ | `add-data-retention`   | Archive 17/10/2026. Hạn lưu TK 25, tạm giữ bằng chứng, sổ `job_runs`; khoá vĩnh viễn chỉ ẩn danh hoá sau khi gỡ (design câu 3)                                             |
+| Đợt | Change                   | Điều kiện / ghi chú                                                                                                                                                        |
+| --- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3   | `add-image-moderation`   | Chờ chọn dịch vụ kiểm ảnh (mục 1) và rà soát pháp lý nếu gửi ảnh ra ngoài (TK 29 còn mở số 3)                                                                              |
+| 4 ✔ | `add-reports`            | Archive 16/10/2026. Còn để cho change sau: báo cáo đúng kèm gậy (`add-strikes`), báo cáo từ hội thoại (`add-messaging`), giữ bằng chứng quá hạn lưu (`add-data-retention`) |
+| 5 ✔ | `add-strikes`            | Archive 17/10/2026. Còn để cho change sau: thông báo khi nhận gậy / có kết quả khiếu nại (`add-notifications`), hạn lưu hồ sơ gậy (`add-data-retention`)                   |
+| 6 ✔ | `add-messaging`          | Archive 17/10/2026. Còn để cho change sau: xoá hẳn và tạm giữ hội thoại → `add-data-retention`                                                                             |
+| 6 ✔ | `add-notifications`      | Archive 17/10/2026 (N47 tin nhắn, push Expo gắn phiên, không đẩy hội thoại đang mở). Chưa có app nên chưa có token thật — gửi push thật chưa thử trên máy                  |
+| 7 ✔ | `add-data-retention`     | Archive 17/10/2026. Hạn lưu TK 25, tạm giữ bằng chứng, sổ `job_runs`; khoá vĩnh viễn chỉ ẩn danh hoá sau khi gỡ (design câu 3)                                             |
+| 6   | `add-price-offers`       | Proposal 18/10/2026, chờ duyệt. Người mua trả giá, người bán chấp nhận / từ chối, chấp nhận chỉ ghi nhận; hội thoại có ảnh bìa, giá, ảnh đại diện                          |
+| 6   | `add-team-conversations` | Proposal 18/10/2026, chờ duyệt — sau `add-price-offers`. Hội thoại với Hỗ trợ Ghim (hàng chung trên bàn vận hành) và với quản trị một nhóm; đổi luật TK 24                 |
+| 6   | `add-activity-status`    | Proposal 18/10/2026, chờ duyệt — sau `add-team-conversations`. Chỉ bên kia của hội thoại về tin thấy, tắt hai chiều, lần cuối hoạt động trong 7 ngày (con số đề xuất)      |
 
 ## 3. Chuyển kho ảnh Cloudinary → Cloudflare R2
 
