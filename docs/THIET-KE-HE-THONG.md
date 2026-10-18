@@ -367,7 +367,7 @@ _Master lập, giao chủ, khoá, mở khoá. Chủ nhóm hoặc master đổi c
 
 1. Người đã bị **cấm** khỏi nhóm thì không vào lại được.
 2. Nhóm **mở cửa**: bấm Tham gia là vào ngay.
-3. Nhóm **xét duyệt** hoặc **có mã**: gửi đơn; điều hành viên duyệt thì vào, từ chối thì người xin được báo. Đơn tự huỷ sau **21 ngày**. Bị từ chối thì **7 ngày** sau mới gửi lại; mỗi người tối đa **3 đơn** đang chờ.
+3. Nhóm **xét duyệt** hoặc **có mã**: gửi đơn; điều hành viên duyệt thì vào, từ chối thì người xin được báo. Trong lúc chờ, người xin thấy đơn của mình trên trang nhóm và rút được. Đơn tự huỷ sau **21 ngày**. Bị từ chối thì **7 ngày** sau mới gửi lại; mỗi người tối đa **3 đơn** đang chờ.
 4. Nhóm **chỉ lời mời**: cần lời mời còn hạn (**14 ngày**) hoặc có tên trong danh sách lớp.
 
 Mã nhóm gồm 6 ký tự, đổi được khi bị lộ (chủ nhóm, master). Người xin rút được đơn đang chờ.
