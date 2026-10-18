@@ -59,6 +59,11 @@ Expo Push qua HTTP, làm cả ba phần; migration `add_notifications`; biến m
 `group_invitations_blind` tới `add_data_retention`. **Còn lại:** `add-image-moderation` chờ chọn dịch vụ kiểm ảnh.
 Phía bạn: tạo tài khoản Expo / EAS, khoá FCM + APNs khi app sẵn sàng, điền `EXPO_ACCESS_TOKEN` nếu bật Enhanced Security.
 
+Lượt nối app `ghim-app` (18/10/2026) lộ hai lỗi hợp đồng HTTP, sửa ở `fix-web-api-contract` (archive cùng ngày, không
+migration): CORS mở đủ sáu phương thức — trước chỉ `GET`/`HEAD`/`POST`, nên bản web của app và bàn vận hành bị chặn mọi
+`PATCH`/`PUT`/`DELETE`; năm route đọc tin khai phiên tuỳ chọn trong tài liệu để SDK sinh ra gửi kèm phiên. Phía app:
+sinh lại SDK, gỡ chỗ tự xin Bearer (`VIEWER`).
+
 ## 1. Đang chờ quyết hoặc chờ duyệt
 
 | Việc                                       | Tình trạng                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Bước tiếp                                                                                                                                   |

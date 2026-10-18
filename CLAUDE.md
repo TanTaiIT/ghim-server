@@ -517,7 +517,7 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   `add-reports` (archive 16/10/2026) tạo `review/reports`, `review/report-auto-hide`, `review/reporter-score`; thêm
   "Có báo cáo đang mở vẫn tự xoá được tài khoản" vào `identity/account-deletion`, "Tin đang bị báo cáo vẫn xoá được"
   vào `listing/deletion`, "Đóng nhóm không huỷ báo cáo" vào `group/group-lifecycle`. `fix-web-api-contract`
-  (18/10/2026, từ lượt nối `ghim-app`) thêm "Trình duyệt gọi được mọi phương thức của API" và "Tài liệu khai cách xác
+  (archive 18/10/2026, từ lượt nối `ghim-app`) thêm "Trình duyệt gọi được mọi phương thức của API" và "Tài liệu khai cách xác
   thực của từng route" vào `http/api-contract`: route phiên tuỳ chọn (`authenticateOptional`) khai
   `security: optionalBearer` — thiếu thì SDK sinh từ tài liệu gọi ẩn danh cả khi đã đăng nhập.
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
