@@ -280,7 +280,12 @@ describe('Người ngoài bấm vào huy hiệu nhóm riêng tư chỉ thấy t�
     });
     await settings(group.owner, group.groupId, { showNameOnMarketplace: true });
     const outsider = await newUser(app);
-    const nameOnly = { visibility: 'name_only', id: group.groupId, name: 'Phụ huynh lớp 5B' };
+    const nameOnly = {
+      visibility: 'name_only',
+      id: group.groupId,
+      name: 'Phụ huynh lớp 5B',
+      joinRequest: null,
+    };
 
     const signedIn = await api(app, 'GET', `/groups/${group.groupId}`, outsider.token);
     const guest = await api(app, 'GET', `/groups/${group.groupId}`);

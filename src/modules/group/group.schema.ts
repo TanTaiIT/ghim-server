@@ -152,9 +152,17 @@ export const groupNameOnlySchema = z.object({
   name: z.string(),
 });
 
+/**
+ * Đơn đang chờ của chính người xem: người xin biết đã gửi và rút được (spec membership). Chỉ ở route hồ sơ của người
+ * dùng — hồ sơ trả cho quản trị nhóm và bàn vận hành không có, người đọc ở đó không bao giờ là người xin.
+ */
+const ownJoinRequestSchema = z
+  .object({ id: z.uuid(), createdAt: z.iso.datetime(), expiresAt: z.iso.datetime() })
+  .nullable();
+
 export const groupViewSchema = z.discriminatedUnion('visibility', [
-  groupProfileSchema,
-  groupNameOnlySchema,
+  groupProfileSchema.extend({ joinRequest: ownJoinRequestSchema }),
+  groupNameOnlySchema.extend({ joinRequest: ownJoinRequestSchema }),
 ]);
 
 export const myGroupSchema = groupSummarySchema.extend({ membership: membershipSchema });
