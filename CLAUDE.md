@@ -534,6 +534,8 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   (archive 18/10/2026, từ lượt nối `ghim-app`) thêm "Trình duyệt gọi được mọi phương thức của API" và "Tài liệu khai cách xác
   thực của từng route" vào `http/api-contract`: route phiên tuỳ chọn (`authenticateOptional`) khai
   `security: optionalBearer` — thiếu thì SDK sinh từ tài liệu gọi ẩn danh cả khi đã đăng nhập.
+  `add-join-request-status` (archive 18/10/2026, cũng từ lượt nối `ghim-app`) thêm "Người xin thấy đơn đang chờ của
+  mình" vào `group/membership`: hồ sơ nhóm của người dùng mang `joinRequest`, hồ sơ quản trị và vận hành thì không.
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.
