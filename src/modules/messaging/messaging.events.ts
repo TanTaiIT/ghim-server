@@ -10,6 +10,11 @@ const messageSent = z.object({
   messageId: z.string(),
   recipientId: z.string(),
 });
+const offerAnswered = z.object({
+  conversationId: z.string(),
+  messageId: z.string(),
+  buyerId: z.string(),
+});
 
 /** Payload sai là lỗi của bên phát: ném để sự kiện nằm lại outbox, không âm thầm bỏ qua. */
 function parse<T>(schema: z.ZodType<T>, type: string, payload: Record<string, unknown>): T {
@@ -31,6 +36,10 @@ export function registerMessagingListeners(
   });
   dispatcher.register(MESSAGING_EVENTS.messageSent, (payload) => {
     messaging.signalMessage(parse(messageSent, MESSAGING_EVENTS.messageSent, payload));
+    return Promise.resolve();
+  });
+  dispatcher.register(MESSAGING_EVENTS.offerAnswered, (payload) => {
+    messaging.signalMessageUpdated(parse(offerAnswered, MESSAGING_EVENTS.offerAnswered, payload));
     return Promise.resolve();
   });
 }

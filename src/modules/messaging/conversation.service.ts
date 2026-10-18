@@ -2,10 +2,10 @@ import type { Prisma } from '@prisma/client';
 
 import type { Actor } from '../../common/auth/actor.js';
 import { startOfDayVN } from '../../common/time/time.js';
-import { toMessageDto } from './inbox.service.js';
+import { takesOffers, toMessageDto } from './inbox.service.js';
 import { MESSAGING_EVENTS, messagingEvent } from './messaging.outbox.js';
 import type { Conversation } from './messaging.repository.js';
-import type { ConversationDto, MessageDto } from './messaging.schema.js';
+import type { ConversationDto, MessageDto, OfferDecision } from './messaging.schema.js';
 import {
   assertCanMessage,
   conversationClosed,
@@ -16,8 +16,16 @@ import {
   messagingBlocked,
   type MessagingServiceDeps,
   newConversationLimit,
+  offerAbovePrice,
+  offerBuyerOnly,
+  offerListingNotLive,
+  offerNotFound,
+  offerNotPending,
+  offerSellerOnly,
+  offersNotAccepted,
   otherOf,
   ownListing,
+  type Side,
   sideOf,
   VIEWING_TTL_MS,
 } from './messaging.shared.js';
@@ -29,6 +37,15 @@ export interface ConversationService {
     listingId: string,
   ): Promise<{ created: boolean; conversation: ConversationDto }>;
   send(actor: Actor, conversationId: string, body: string): Promise<MessageDto>;
+  /** Người mua trả giá (spec messaging/price-offers): thay đề nghị đang chờ, tính như tin nhắn của người mua. */
+  offer(actor: Actor, conversationId: string, amount: bigint): Promise<MessageDto>;
+  /** Người bán chấp nhận / từ chối đề nghị đang chờ khi tin còn hiển thị — chấp nhận chỉ ghi nhận, tin không đổi. */
+  answerOffer(
+    actor: Actor,
+    conversationId: string,
+    messageId: string,
+    decision: OfferDecision,
+  ): Promise<MessageDto>;
   markRead(actor: Actor, conversationId: string): Promise<void>;
   /** Xoá hội thoại = ẩn phía mình; bên kia vẫn thấy đủ (spec conversation-deletion). */
   remove(actor: Actor, conversationId: string): Promise<void>;
@@ -79,6 +96,22 @@ export function createConversationService(
     return { row, side };
   };
 
+  /** Luật chung của mọi lượt gửi vào hội thoại — tin chữ, đề nghị, câu trả lời: bên kia còn ở Ghim, không có chặn. */
+  const deliverableTo = async (actor: Actor, row: Conversation, side: Side): Promise<string> => {
+    const other = otherOf(row, side);
+    const summary = (await identity.accountSummaries([other])).get(other);
+    if (!summary || summary.status === 'deleted') throw conversationClosed();
+    if (await repository.blocked(actor.accountId, other)) throw messagingBlocked();
+    return other;
+  };
+
+  /** Tin của hội thoại còn hiển thị với người khác — đề nghị mới và câu trả lời đều cần (spec price-offers). */
+  const liveCard = async (row: Conversation) => {
+    const card = (await listings.conversationCards([row.listingId])).get(row.listingId);
+    if (!card?.visible) throw offerListingNotLive();
+    return card;
+  };
+
   return {
     async open(actor, listingId) {
       assertCanMessage(actor);
@@ -127,10 +160,7 @@ export function createConversationService(
     async send(actor, conversationId, body) {
       assertCanMessage(actor);
       const { row, side } = await owned(actor, conversationId);
-      const other = otherOf(row, side);
-      const summary = (await identity.accountSummaries([other])).get(other);
-      if (!summary || summary.status === 'deleted') throw conversationClosed();
-      if (await repository.blocked(actor.accountId, other)) throw messagingBlocked();
+      const other = await deliverableTo(actor, row, side);
       // Cùng bộ lọc với tin đăng; mức chắc không gửi, mức mơ hồ gửi kèm dấu cho người xử (design mục 4, cam kết 5).
       const verdict = await screening.phraseVerdict(body);
       if (verdict.blocked) throw messageNotAllowed();
@@ -157,6 +187,80 @@ export function createConversationService(
         return written;
       });
       return toMessageDto(message);
+    },
+
+    async offer(actor, conversationId, amount) {
+      assertCanMessage(actor);
+      const { row, side } = await owned(actor, conversationId);
+      if (side !== 'buyer') throw offerBuyerOnly();
+      const seller = await deliverableTo(actor, row, side);
+      const card = await liveCard(row);
+      if (!takesOffers(card)) throw offersNotAccepted();
+      if (card.price !== null && amount > card.price) throw offerAbovePrice();
+      const now = clock();
+      const message = await repository.inTransaction(async (tx) => {
+        if (!(await repository.lock(tx, row.id))) throw conversationNotFound();
+        await repository.supersedePendingOffer(tx, row.id);
+        const written = await repository.insertMessage(tx, {
+          conversationId: row.id,
+          senderId: actor.accountId,
+          body: '',
+          flagged: false,
+          createdAt: now,
+          offerAmount: amount,
+        });
+        // Như tin chữ của người mua: đếm vào "có người nhắn hỏi mua" của tin sạch (TK 20), đưa hội thoại lên đầu.
+        await repository.touch(tx, row.id, { from: 'buyer', at: now });
+        await repository.emitIn(tx, [
+          messagingEvent(MESSAGING_EVENTS.messageSent, {
+            conversationId: row.id,
+            messageId: written.id,
+            listingId: row.listingId,
+            senderId: actor.accountId,
+            recipientId: seller,
+          }),
+        ]);
+        return written;
+      });
+      return toMessageDto(message);
+    },
+
+    async answerOffer(actor, conversationId, messageId, decision) {
+      assertCanMessage(actor);
+      const { row, side } = await owned(actor, conversationId);
+      const target = await repository.findMessage(messageId);
+      if (!target || target.conversationId !== row.id || target.kind !== 'offer') {
+        throw offerNotFound();
+      }
+      if (side !== 'seller') throw offerSellerOnly();
+      const buyer = await deliverableTo(actor, row, side);
+      if (target.offerStatus !== 'pending') throw offerNotPending();
+      await liveCard(row);
+      const now = clock();
+      const answered = await repository.inTransaction(async (tx) => {
+        if (!(await repository.lock(tx, row.id))) throw conversationNotFound();
+        // Ghi có điều kiện sau khoá: lượt trả giá mới vừa thay đề nghị này thì lượt trả lời thua (spec, ca cùng lúc).
+        const updated = await repository.answerOffer(tx, {
+          conversationId: row.id,
+          messageId,
+          status: decision,
+          at: now,
+        });
+        if (!updated) throw offerNotPending();
+        await repository.touchActivity(tx, row.id, now);
+        await repository.emitIn(tx, [
+          messagingEvent(MESSAGING_EVENTS.offerAnswered, {
+            conversationId: row.id,
+            messageId,
+            listingId: row.listingId,
+            sellerId: actor.accountId,
+            buyerId: buyer,
+            status: decision,
+          }),
+        ]);
+        return updated;
+      });
+      return toMessageDto(answered);
     },
 
     async markRead(actor, conversationId) {

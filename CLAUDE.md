@@ -254,7 +254,11 @@ kèm `conversationId` trên lượt báo; hạn mức hội thoại mới mỗi 
 Nam); tin nhắn qua `screening.phraseVerdict`. Phát `messaging.conversation.opened`, `messaging.message.sent` (không mang nội
 dung); tự nghe `message.sent` để báo `message:new` qua realtime và `identity.account.deleted` để ẩn phía người xoá. Cổng ngược nối
 muộn: `trust.buyerInterest.hasInquiry` (tin sạch lối "đã bán"), `review.messaging.transcripts` (bản ghi cho người xử). Chỉ
-`messaging` ghi hội thoại, tin nhắn, chặn.
+`messaging` ghi hội thoại, tin nhắn, chặn. Trả giá (change `add-price-offers`): đề nghị giá là một loại tin nhắn (`kind = 'offer'`, partial unique
+`messages_one_pending_offer` — một đề nghị đang chờ mỗi hội thoại), chỉ người mua gửi, người bán trả lời bằng ghi có điều kiện sau khi
+khoá hội thoại; phát `messaging.offer.answered` → `message:updated` cho người mua và dòng thông báo cùng khoá gộp của hội thoại.
+DTO hội thoại đọc thẻ tin qua `listing.conversationCards` (giá, thương lượng, trạng thái, ảnh bìa — tin bị gỡ không có ảnh) và ảnh
+đại diện qua `identity.avatarUrls`.
 
 `listing` vị trí trên bảng tin (change `prepare-promotions`): `listings.rank_at` là cột xếp hạng của bốn index bảng tin và
 con trỏ trang, đặt cùng `first_live_at` trong `nextClock` (tin trùng của mình kế thừa qua `rankAsListingId`) — chỉ gói

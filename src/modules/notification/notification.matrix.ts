@@ -78,9 +78,13 @@ export interface MatrixContext {
    */
   machineNotice(listingId: string): Promise<MachineNotice | null>;
   /** Nội dung, người gửi của một tin nhắn — `messaging` trả lời; tin không có thì `null` (add-notifications). */
-  messagePreview(
-    messageId: string,
-  ): Promise<{ conversationId: string; senderId: string; body: string } | null>;
+  messagePreview(messageId: string): Promise<{
+    conversationId: string;
+    senderId: string;
+    body: string;
+    /** Đề nghị giá (add-price-offers): không có chữ, câu nhắc nêu số tiền. */
+    offer: { amount: bigint } | null;
+  } | null>;
 }
 
 export type Payload = Record<string, unknown>;

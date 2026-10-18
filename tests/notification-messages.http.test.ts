@@ -55,9 +55,9 @@ async function sendAndDeliver(from: TestUser, conversationId: string, body: stri
   return message;
 }
 
-async function talking() {
+async function talking(overrides: Parameters<typeof liveListing>[2] = {}) {
   const [seller, buyer] = [await newUser(app), await newUser(app)];
-  const listing = await seedListing(liveListing(seller.id, await seedCategory()));
+  const listing = await seedListing(liveListing(seller.id, await seedCategory(), overrides));
   const conversation = await opened(app, buyer, listing.id);
   return { seller, buyer, listing, conversation };
 }
@@ -98,6 +98,67 @@ describe('Báo tin nhắn mới cho bên nhận', () => {
     expect(await outboxEvents()).toHaveLength(before);
     expect(await inbox(seller)).toEqual([]);
     expect(await inbox(buyer)).toEqual([]);
+  });
+});
+
+/** Tin cho thương lượng, và lượt trả giá đã giao sự kiện cho `notification` (add-price-offers). */
+const negotiable = { negotiable: true, price: 12_500_000n };
+const offer = async (buyer: TestUser, conversationId: string, amount: number) => {
+  const res = await api(app, 'POST', `/me/conversations/${conversationId}/offers`, buyer.token, {
+    amount,
+  });
+  if (res.statusCode !== 201) throw new Error(`Trả giá hỏng: ${res.statusCode} ${res.body}`);
+  await deliverAll(app);
+  return (res.json() as { data: { id: string } }).data;
+};
+
+describe('Báo đề nghị giá và câu trả lời', () => {
+  it('người bán được báo đề nghị kèm số tiền; người mua không nhận gì về đề nghị của mình', async () => {
+    const { seller, buyer, conversation } = await talking(negotiable);
+    await offer(buyer, conversation.id, 12_000_000);
+    expect(await inbox(seller)).toEqual([
+      expect.objectContaining({
+        type: 'messaging.message.received',
+        title: await nameOf(buyer),
+        body: 'Trả giá 12.000.000 ₫',
+        data: expect.objectContaining({ conversationId: conversation.id }),
+      }),
+    ]);
+    expect(await inbox(buyer)).toEqual([]);
+  });
+
+  it('người bán chấp nhận: người mua được báo kết quả và số tiền; người bán không tự nhận', async () => {
+    const { seller, buyer, conversation } = await talking(negotiable);
+    const pending = await offer(buyer, conversation.id, 12_000_000);
+    const before = (await inbox(seller)).length;
+    const res = await api(
+      app,
+      'POST',
+      `/me/conversations/${conversation.id}/offers/${pending.id}/accept`,
+      seller.token,
+    );
+    expect(res.statusCode).toBe(200);
+    await deliverAll(app);
+    expect(await inbox(buyer)).toEqual([
+      expect.objectContaining({
+        type: 'messaging.offer.answered',
+        title: await nameOf(seller),
+        body: 'Đã chấp nhận giá 12.000.000 ₫',
+      }),
+    ]);
+    expect(await inbox(seller)).toHaveLength(before);
+  });
+
+  it('đề nghị bị thay không có thông báo riêng: người bán chỉ thấy một dòng gộp, không sự kiện nào cho đề nghị cũ', async () => {
+    const { seller, buyer, conversation } = await talking(negotiable);
+    await offer(buyer, conversation.id, 11_000_000);
+    const before = (await outboxEvents()).length;
+    await offer(buyer, conversation.id, 11_500_000);
+    const events = (await outboxEvents()).slice(before);
+    expect(events.map((event) => event.type)).toEqual(['messaging.message.sent']);
+    const rows = await inbox(seller);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.type).toBe('messaging.message.received');
   });
 });
 

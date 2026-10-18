@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { hashPassword } from '../src/modules/identity/calc/password.calc.js';
 import { interimScreening } from './fakes/listing-ports.fake.js';
+import { prisma } from './db-helpers.js';
 import { api, deliverAll, newUser, type TestUser } from './group-helpers.js';
 import { liveListing, seedCategory, seedListing } from './listing-helpers.js';
 import {
@@ -98,6 +99,10 @@ describe('Xoá hội thoại chỉ ẩn ở phía mình', () => {
 describe('Xoá tài khoản ẩn hội thoại phía người xoá', () => {
   it('người bán xoá tài khoản: người mua vẫn mở và đọc đủ, thấy bên kia đã rời, gửi tiếp → 409 CONVERSATION_CLOSED', async () => {
     const { owner, shopper, conversation } = await talking(await realUser());
+    await prisma.account.update({
+      where: { id: owner.id },
+      data: { avatarFromGoogle: true, googlePictureUrl: 'https://lh3.googleusercontent.com/a/x' },
+    });
     await deleteMe(owner);
     const seen = await conversationOf(app, shopper, conversation.id);
     expect(seen.statusCode).toBe(200);
@@ -106,7 +111,7 @@ describe('Xoá tài khoản ẩn hội thoại phía người xoá', () => {
         seen,
       ),
     ).toMatchObject({
-      counterpart: { gone: true, displayName: null },
+      counterpart: { gone: true, displayName: null, avatarUrl: null },
       canSend: false,
     });
     expect((await messagesOf(app, shopper, conversation.id)).map((row) => row.body)).toEqual([

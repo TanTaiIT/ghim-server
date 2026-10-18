@@ -176,6 +176,21 @@ export interface ReportTarget {
   visible: boolean;
 }
 
+/**
+ * Thẻ tin đầu một hội thoại và dữ kiện của luật trả giá (add-price-offers). Tin đã xoá: chỉ còn `deleted`. Tin bị gỡ không
+ * kèm ảnh bìa — ảnh của tin vi phạm không đi tiếp qua đường hội thoại.
+ */
+export interface ConversationCard {
+  title: string | null;
+  price: bigint | null;
+  negotiable: boolean;
+  state: ListingState;
+  /** Đang hiện với người khác: đang hiển thị và không tạm ẩn. */
+  visible: boolean;
+  deleted: boolean;
+  cover: { id: string; url: string } | null;
+}
+
 /** Dòng tin `review` đang giữ khoá trong lượt ghi việc: phiên bản và trạng thái tại lúc đó (fix-audit-review, T5). */
 export interface ListingLock {
   version: number;

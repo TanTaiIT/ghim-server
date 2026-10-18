@@ -239,6 +239,10 @@ export interface IdentityRepository {
     ids: string[],
   ): Promise<Pick<Account, 'id' | 'role' | 'status' | 'displayName' | 'createdAt'>[]>;
   /** Chỉ tài khoản chưa xoá. */
+  findAvatarSources(
+    ids: string[],
+  ): Promise<Pick<Account, 'id' | 'avatarFromGoogle' | 'googlePictureUrl' | 'avatarImageId'>[]>;
+  /** Chỉ tài khoản chưa xoá. */
   findAccountIdsByEmailHashes(hashes: string[]): Promise<Pick<Account, 'id' | 'emailHash'>[]>;
   findAccountByGoogleSub(googleSub: string): Promise<Account | null>;
   createAccount(data: NewAccount): Promise<Account>;
@@ -442,6 +446,18 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
         : prisma.account.findMany({
             where: { id: { in: ids } },
             select: { id: true, role: true, status: true, displayName: true, createdAt: true },
+          }),
+    findAvatarSources: (ids) =>
+      ids.length === 0
+        ? Promise.resolve([])
+        : prisma.account.findMany({
+            where: { id: { in: ids }, status: { not: 'deleted' } },
+            select: {
+              id: true,
+              avatarFromGoogle: true,
+              googlePictureUrl: true,
+              avatarImageId: true,
+            },
           }),
     findAccountIdsByEmailHashes: (hashes) =>
       hashes.length === 0

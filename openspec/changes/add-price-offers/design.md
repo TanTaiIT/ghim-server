@@ -42,7 +42,8 @@
    mới. Khoá hội thoại đã xếp hàng hai lượt trả giá; partial unique là lớp cuối nếu có đường ghi nào quên khoá (test DB).
    Trả lời cũng khoá hội thoại rồi `UPDATE … WHERE id = $1 AND offer_status = 'pending'` — 0 dòng thì `409
 OFFER_NOT_PENDING`, nên "chấp nhận đúng lúc trả giá mới" chỉ có một kết cục.
-3. **Luật giá đọc từ tin lúc gửi, qua một cổng mới của `listing`: `offerTerms(listingId)`** → trạng thái hiển thị (đang
+3. **Luật giá đọc từ tin lúc gửi, qua cổng `listing.conversationCards` của mục 6** — cùng một cổng cho thẻ hội thoại và
+   cho luật trả giá (lúc apply: một cổng `offerTerms` riêng chỉ lặp lại đúng các trường đó): trạng thái hiển thị (đang
    hiển thị và không tạm ẩn), `negotiable`, `price`. Không chép giá vào hội thoại: người bán sửa giá thì lượt trả giá sau
    so với giá mới. Tin không còn (đã xoá) → `409 LISTING_NOT_LIVE`, cùng mã với đã bán / hết hạn: với người mua cả ba
    đều là "tin không còn bán". Thứ tự kiểm: tư cách (404) → master (403) → vai (`OFFER_BUYER_ONLY`) → bên kia đã rời
@@ -60,7 +61,7 @@ conversationId, messageId }` cho người mua. Đề nghị bị thay không ph�
 6. **DTO**: tin nhắn thêm `kind` và `offer: { amount, status, respondedAt } | null`. Hội thoại thêm `listing.price`,
    `listing.negotiable`, `listing.state`, `listing.cover: { id, url } | null`, `counterpart.avatarUrl`, và cờ
    `canOffer` (= vai người mua ∧ `canSend` ∧ tin đang hiển thị, cho thương lượng, giá > 0). Dữ liệu tin lấy một lượt
-   cho cả trang qua cổng `listing.conversationCards(ids)` (thay `titles`, cùng một lượt đọc); URL ảnh bìa ký như ảnh của
+   cho cả trang qua cổng `listing.conversationCards(ids)` (`messaging` thôi dùng `titles`, cùng một lượt đọc); URL ảnh bìa ký như ảnh của
    tin ở route đọc tin. Tin `removed` không kèm ảnh bìa: ảnh của tin vi phạm không đi tiếp qua đường khác. Ảnh đại diện
    qua cổng `identity` trả URL đã ký theo lô — cùng cách `account.service` đang dựng `avatarUrl` cho hồ sơ.
 7. **Route** (module `messaging`, chung preHandler "đã đăng nhập, đã xác nhận email" của route nhắn tin):
@@ -75,8 +76,8 @@ accept` và `/decline` → `200` tin nhắn. `amount` dùng `priceSchema` (số 
   tài liệu cũ vẫn đọc được tin nhắn chữ.
 - [Giá tin đổi giữa lúc app hiện nút và lúc gửi] → Server so lúc gửi; app nhận `400 OFFER_ABOVE_PRICE` hay `409` và tải
   lại hội thoại.
-- [Đổi cổng `titles` thành `conversationCards`] → `titles` chỉ có `messaging` dùng (kiểm lúc apply); đổi trong cùng
-  change.
+- [Cổng `titles` còn ai dùng] → Kiểm lúc apply: `notification` vẫn dùng `titles` cho câu thông báo, nên giữ nguyên;
+  `messaging` chuyển hẳn sang `conversationCards`.
 
 ## Migration Plan
 

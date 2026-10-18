@@ -2151,20 +2151,48 @@ model Conversation {
   @@map("conversations")
 }
 
+/// Tin nhắn chữ hoặc đề nghị giá (add-price-offers): đề nghị là một loại tin nhắn để đi chung con trỏ, hạn lưu, bản ghi
+/// cho người xử và thông báo (design add-price-offers mục 1). CHECK tay (migration add_price_offers):
+///   messages_kind_check: text → body <> '' và ba cột đề nghị NULL; offer → body = '', offer_amount > 0,
+///     offer_status NOT NULL, offer_responded_at NOT NULL đúng khi đã chấp nhận / từ chối
 model Message {
-  id             String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  conversationId String   @map("conversation_id") @db.Uuid
-  senderId       String   @map("sender_id") @db.Uuid
-  body           String
+  id               String       @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  conversationId   String       @map("conversation_id") @db.Uuid
+  senderId         String       @map("sender_id") @db.Uuid
+  kind             MessageKind  @default(text)
+  /// Đề nghị giá để rỗng: mọi chỗ đọc chữ (bản ghi, bộ lọc, câu thông báo) không phải học nhánh NULL.
+  body             String
   /// Trúng cụm từ cấm mức mơ hồ đang bật — chỉ người xử thấy; mức chắc thì tin nhắn không được lưu (design mục 4).
-  flagged        Boolean  @default(false)
-  createdAt      DateTime @map("created_at") @db.Timestamptz(3)
+  flagged          Boolean      @default(false)
+  /// Đồng, như giá tin.
+  offerAmount      BigInt?      @map("offer_amount")
+  offerStatus      OfferStatus? @map("offer_status")
+  offerRespondedAt DateTime?    @map("offer_responded_at") @db.Timestamptz(3)
+  createdAt        DateTime     @map("created_at") @db.Timestamptz(3)
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       Account      @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
+  /// Mỗi hội thoại tối đa một đề nghị đang chờ (spec messaging/price-offers) — lớp cuối nếu đường ghi nào quên khoá.
+  @@unique([conversationId], map: "messages_one_pending_offer", where: raw("offer_status = 'pending'"))
   @@index([conversationId, createdAt, id])
   @@map("messages")
+}
+
+enum MessageKind {
+  text
+  offer
+
+  @@map("message_kind")
+}
+
+enum OfferStatus {
+  pending
+  accepted
+  declined
+  superseded
+
+  @@map("offer_status")
 }
 
 /// Chặn người (TK 24): một dòng theo chiều người chặn → người bị chặn; "bị chặn" là có dòng theo một trong hai chiều.

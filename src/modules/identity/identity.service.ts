@@ -347,6 +347,8 @@ export interface IdentityService extends ActorResolver {
   lockAccountStatus(tx: Prisma.TransactionClient, accountId: string): Promise<AccountStatus | null>;
   /** Theo lô, bỏ qua mã không có; `group` đếm điều hành viên dùng được, `notification` lấy tên hiển thị. */
   accountSummaries(ids: string[]): Promise<Map<string, AccountSummary>>;
+  /** Theo lô: ảnh đại diện đã ký của tài khoản chưa xoá có đặt ảnh — `messaging` vẽ đầu hội thoại (add-price-offers). */
+  avatarUrls(ids: string[]): Promise<Map<string, string>>;
   /** Tài khoản chưa xoá mang email này (so sau chuẩn hoá) — lời mời vào nhóm theo email. */
   accountIdByEmail(email: string): Promise<string | null>;
   /** Dấu băm HMAC của email đã chuẩn hoá, cùng khoá với `accounts.email_hash` — danh sách lớp của nhóm. */

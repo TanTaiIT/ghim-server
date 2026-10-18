@@ -23,6 +23,7 @@ import {
   SCREENED_DISPLAY_NAME,
 } from '../identity.service.js';
 import {
+  avatarUrlOf,
   toDisposableDomainDto,
   toFlagDto,
   toIdVerificationDto,
@@ -60,6 +61,7 @@ export type IdentityOpsService = Pick<
   | 'accountState'
   | 'lockAccountStatus'
   | 'accountSummaries'
+  | 'avatarUrls'
   | 'accountIdByEmail'
   | 'emailHashOf'
   | 'emailHintOf'
@@ -511,6 +513,14 @@ export function createIdentityOpsService(
           hidden.has(row.displayName) ? { ...row, displayName: SCREENED_DISPLAY_NAME } : row,
         ]),
       );
+    },
+
+    async avatarUrls(ids) {
+      const rows = await repository.findAvatarSources([...new Set(ids)]);
+      const urls = await Promise.all(
+        rows.map(async (row) => [row.id, await avatarUrlOf(row, deps.images)] as const),
+      );
+      return new Map(urls.flatMap(([id, url]) => (url ? [[id, url] as const] : [])));
     },
 
     async accountIdByEmail(email) {

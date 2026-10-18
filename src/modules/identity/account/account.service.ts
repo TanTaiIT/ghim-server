@@ -18,6 +18,7 @@ import {
   SCREENED_DISPLAY_NAME,
 } from '../identity.service.js';
 import {
+  avatarUrlOf as signedAvatarUrl,
   DAY_MS,
   hiddenNames,
   TOTP_ISSUER,
@@ -84,12 +85,8 @@ export function createIdentityAccountService(
     return deps.images;
   };
 
-  /** Ảnh trong kho → đường xem có ký, có hạn; ảnh Google → link Google; không đặt → null. */
-  const avatarUrlOf = async (account: Account): Promise<string | null> => {
-    if (account.avatarFromGoogle) return account.googlePictureUrl;
-    if (account.avatarImageId && deps.images) return deps.images.viewUrl(account.avatarImageId);
-    return null;
-  };
+  const avatarUrlOf = (account: Account): Promise<string | null> =>
+    signedAvatarUrl(account, deps.images);
 
   const nameHidden = async (account: Account): Promise<boolean> =>
     (await hiddenNames(deps, [account.displayName])).has(account.displayName);

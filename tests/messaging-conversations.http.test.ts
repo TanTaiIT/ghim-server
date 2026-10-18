@@ -1,8 +1,11 @@
+import { randomUUID } from 'node:crypto';
+
 import type { FastifyInstance } from 'fastify';
 import { io, type Socket } from 'socket.io-client';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { REALTIME_PATH } from '../src/common/realtime/realtime.js';
+import type { ConversationDto, MessageDto } from '../src/modules/messaging/messaging.schema.js';
 import { startOfDayVN } from '../src/common/time/time.js';
 import { interimScreening } from './fakes/listing-ports.fake.js';
 import { prisma } from './db-helpers.js';
@@ -375,6 +378,81 @@ describe('Người ngoài hội thoại nhận "không tìm thấy"', () => {
   });
 });
 
+/* Thẻ đầu hội thoại (add-price-offers): tin 12.500.000 đồng, cho thương lượng, 3 ảnh. */
+const GOOGLE_PICTURE = 'https://lh3.googleusercontent.com/a/anh-nguoi-ban';
+const card = async (overrides: Parameters<typeof liveListing>[2] = {}) => {
+  const { owner, listing } = await listingOf(undefined, {
+    negotiable: true,
+    price: 12_500_000n,
+    imageIds: [randomUUID(), randomUUID(), randomUUID()],
+    ...overrides,
+  });
+  const buyer = await newUser(app);
+  return { owner, buyer, listing, conversation: await opened(app, buyer, listing.id) };
+};
+const seen = async (user: TestUser, conversationId: string) =>
+  dataOf<ConversationDto>(await conversationOf(app, user, conversationId));
+
+describe('Hội thoại cho biết tin và người kia', () => {
+  it('tin đang hiển thị, thương lượng, 3 ảnh: tiêu đề, giá, cờ, trạng thái, ảnh đầu làm ảnh bìa', async () => {
+    const { listing, conversation } = await card();
+    expect(conversation.listing).toMatchObject({
+      id: listing.id,
+      title: listing.title,
+      price: 12_500_000,
+      negotiable: true,
+      state: 'live',
+      cover: { id: listing.imageIds[0] },
+    });
+    expect(conversation.listing.cover?.url).toEqual(expect.any(String));
+  });
+
+  it('người bán có ảnh đại diện: danh sách hội thoại của người mua kèm ảnh', async () => {
+    const { owner, buyer, conversation } = await card();
+    await prisma.account.update({
+      where: { id: owner.id },
+      data: { avatarFromGoogle: true, googlePictureUrl: GOOGLE_PICTURE },
+    });
+    const item = (await conversationsOf(app, buyer)).find((row) => row.id === conversation.id);
+    expect(item?.counterpart.avatarUrl).toBe(GOOGLE_PICTURE);
+    expect((await seen(owner, conversation.id)).counterpart.avatarUrl).toBeNull();
+  });
+
+  it('tin đã bị xoá: tiêu đề, giá, ảnh bìa để trống, hội thoại vẫn đọc được', async () => {
+    const { buyer, listing, conversation } = await card();
+    await prisma.listing.update({ where: { id: listing.id }, data: { deletedAt: TEST_NOW } });
+    expect((await seen(buyer, conversation.id)).listing).toMatchObject({
+      title: null,
+      price: null,
+      cover: null,
+    });
+  });
+
+  it('tin bị gỡ vì vi phạm: còn tiêu đề và giá, trạng thái bị gỡ, không có ảnh bìa', async () => {
+    const { buyer, listing, conversation } = await card();
+    await prisma.listing.update({ where: { id: listing.id }, data: { state: 'removed' } });
+    expect((await seen(buyer, conversation.id)).listing).toMatchObject({
+      title: listing.title,
+      price: 12_500_000,
+      state: 'removed',
+      cover: null,
+    });
+  });
+
+  it('người mua trả giá được, người bán không; tin đã bán thì người mua không trả giá được nhưng vẫn gửi được', async () => {
+    const { owner, buyer, listing, conversation } = await card();
+    expect(conversation.canOffer).toBe(true);
+    expect((await seen(owner, conversation.id)).canOffer).toBe(false);
+    await prisma.listing.update({ where: { id: listing.id }, data: { state: 'sold' } });
+    expect(await seen(buyer, conversation.id)).toMatchObject({ canOffer: false, canSend: true });
+  });
+
+  it('tin không cho thương lượng: người mua không trả giá được', async () => {
+    const { conversation } = await card({ negotiable: false });
+    expect(conversation.canOffer).toBe(false);
+  });
+});
+
 describe('Báo hiệu realtime', () => {
   it('người nhận đang nối socket nhận `message:new` với mã hội thoại và mã tin nhắn sau khi sự kiện được giao', async () => {
     const { owner, listing } = await listingOf();
@@ -402,5 +480,45 @@ describe('Báo hiệu realtime', () => {
     const message = await sent(app, buyer, conversation.id, 'Alo');
     await deliverAll(app);
     expect(await signal).toEqual({ conversationId: conversation.id, messageId: message.id });
+  });
+
+  it('người bán trả lời đề nghị: người mua đang nối socket nhận `message:updated` của đúng tin nhắn', async () => {
+    const { owner, listing } = await listingOf(undefined, { negotiable: true, price: 12_500_000n });
+    const buyer = await newUser(app);
+    const conversation = await opened(app, buyer, listing.id);
+    const offer = dataOf<MessageDto>(
+      await api(app, 'POST', `/me/conversations/${conversation.id}/offers`, buyer.token, {
+        amount: 12_000_000,
+      }),
+    );
+    await deliverAll(app);
+    const socket = io(baseUrl, {
+      path: REALTIME_PATH,
+      transports: ['websocket'],
+      auth: { token: buyer.token },
+      reconnection: false,
+      forceNew: true,
+    });
+    sockets.push(socket);
+    await new Promise<void>((resolve, reject) => {
+      socket.once('connect', () => resolve());
+      socket.once('connect_error', reject);
+    });
+    const signal = new Promise<{ conversationId: string; messageId: string }>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Không nhận được message:updated')), 3000);
+      socket.once('message:updated', (payload: { conversationId: string; messageId: string }) => {
+        clearTimeout(timer);
+        resolve(payload);
+      });
+    });
+    const answered = await api(
+      app,
+      'POST',
+      `/me/conversations/${conversation.id}/offers/${offer.id}/accept`,
+      owner.token,
+    );
+    expect(answered.statusCode).toBe(200);
+    await deliverAll(app);
+    expect(await signal).toEqual({ conversationId: conversation.id, messageId: offer.id });
   });
 });

@@ -2,6 +2,7 @@ import {
   type AccountBlock,
   type Conversation,
   type Message,
+  type OfferStatus,
   Prisma,
   type PrismaClient,
 } from '@prisma/client';
@@ -42,10 +43,20 @@ export interface MessagingRepository {
       body: string;
       flagged: boolean;
       createdAt: Date;
+      offerAmount?: bigint;
     },
   ): Promise<Message>;
+  /** Đề nghị đang chờ của hội thoại thành "đã thay" — gọi trong `tx` đã khoá hội thoại, trước khi ghi đề nghị mới. */
+  supersedePendingOffer(tx: Tx, conversationId: string): Promise<void>;
+  /** Ghi có điều kiện: chỉ đề nghị đang chờ của đúng hội thoại; `null` = không còn chờ (hay không có). */
+  answerOffer(
+    tx: Tx,
+    input: { conversationId: string; messageId: string; status: OfferStatus; at: Date },
+  ): Promise<Message | null>;
   /** Sau một tin nhắn: mốc hoạt động, số tin của người mua, và bỏ ẩn phía người nhận. */
   touch(tx: Tx, id: string, input: { from: Side; at: Date }): Promise<void>;
+  /** Câu trả lời đề nghị không phải tin mới: chỉ đưa hội thoại lên đầu và bỏ ẩn phía người mua. */
+  touchActivity(tx: Tx, id: string, at: Date): Promise<void>;
   markRead(id: string, side: Side, at: Date): Promise<void>;
   hide(id: string, side: Side, at: Date): Promise<void>;
   unhide(id: string, side: Side): Promise<void>;
@@ -143,7 +154,8 @@ export function createMessagingRepository(prisma: PrismaClient): MessagingReposi
       if (conversationIds.length === 0) return new Map();
       const rows = await prisma.$queryRaw<Message[]>`
         SELECT DISTINCT ON (conversation_id) id, conversation_id AS "conversationId", sender_id AS "senderId",
-          body, flagged, created_at AS "createdAt"
+          kind, body, flagged, offer_amount AS "offerAmount", offer_status AS "offerStatus",
+          offer_responded_at AS "offerRespondedAt", created_at AS "createdAt"
         FROM messages WHERE conversation_id IN (${uuids(conversationIds)})
         ORDER BY conversation_id, created_at DESC, id DESC`;
       return new Map(rows.map((row) => [row.conversationId, row]));
@@ -181,7 +193,28 @@ export function createMessagingRepository(prisma: PrismaClient): MessagingReposi
         take,
       }),
 
-    insertMessage: (tx, data) => tx.message.create({ data }),
+    insertMessage: (tx, { offerAmount, ...data }) =>
+      tx.message.create({
+        data:
+          offerAmount === undefined
+            ? data
+            : { ...data, kind: 'offer', offerAmount, offerStatus: 'pending' },
+      }),
+
+    async supersedePendingOffer(tx, conversationId) {
+      await tx.message.updateMany({
+        where: { conversationId, offerStatus: 'pending' },
+        data: { offerStatus: 'superseded' },
+      });
+    },
+
+    async answerOffer(tx, { conversationId, messageId, status, at }) {
+      const { count } = await tx.message.updateMany({
+        where: { id: messageId, conversationId, offerStatus: 'pending' },
+        data: { offerStatus: status, offerRespondedAt: at },
+      });
+      return count === 0 ? null : tx.message.findUnique({ where: { id: messageId } });
+    },
 
     async touch(tx, id, { from, at }) {
       await tx.conversation.update({
@@ -193,6 +226,13 @@ export function createMessagingRepository(prisma: PrismaClient): MessagingReposi
             ? { buyerMessages: { increment: 1 }, sellerHiddenAt: null }
             : { buyerHiddenAt: null }),
         },
+      });
+    },
+
+    async touchActivity(tx, id, at) {
+      await tx.conversation.update({
+        where: { id },
+        data: { lastActivityAt: at, buyerHiddenAt: null },
       });
     },
 

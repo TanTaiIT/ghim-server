@@ -20,6 +20,10 @@ import {
   messageBodySchema,
   messageSchema,
   messagesQuerySchema,
+  OFFER_DECISIONS,
+  type OfferDecision,
+  offerBodySchema,
+  offerParamsSchema,
 } from './messaging.schema.js';
 import type { MessagingService } from './messaging.service.js';
 
@@ -32,6 +36,13 @@ const bearer = [{ bearerAuth: [] }];
 const errors = { 401: errorResponse, 403: errorResponse, 404: errorResponse };
 /** Mã máy của app: tuỳ chọn, như `/reports` — chỉ dùng cho ngưỡng tạm ẩn của báo cáo. */
 const deviceHeaders = z.object({ 'x-device-id': z.string().trim().max(200).optional() });
+
+const DECISION_PATH: Record<OfferDecision, string> = { accepted: 'accept', declined: 'decline' };
+const DECISION_SUMMARY: Record<OfferDecision, string> = {
+  accepted:
+    'Người bán chấp nhận đề nghị giá đang chờ — chỉ ghi nhận, tin không đổi trạng thái hay giá',
+  declined: 'Người bán từ chối đề nghị giá đang chờ',
+};
 
 /** App Ghim: hội thoại từ một tin, tin nhắn, chặn người, báo cáo từ hội thoại (TK 24). Không có route cho bàn vận hành. */
 export const messagingRoutes: FastifyPluginAsyncZod<MessagingRoutesOptions> = async (
@@ -136,6 +147,53 @@ export const messagingRoutes: FastifyPluginAsyncZod<MessagingRoutesOptions> = as
           ),
         ),
   });
+
+  app.post('/me/conversations/:conversationId/offers', {
+    preHandler: verified,
+    schema: {
+      tags: TAGS,
+      summary:
+        'Người mua trả giá — từ 1 đồng tới giá đăng; tin đang hiển thị và cho thương lượng; giá mới thay giá đang chờ',
+      security: bearer,
+      params: conversationParamsSchema,
+      body: offerBodySchema,
+      response: { 201: ok(messageSchema), 400: errorResponse, 409: errorResponse, ...errors },
+    },
+    handler: async (request, reply) =>
+      reply
+        .status(201)
+        .send(
+          toOk(
+            await messaging.offer(
+              actorOf(request),
+              request.params.conversationId,
+              request.body.amount,
+            ),
+          ),
+        ),
+  });
+
+  for (const decision of OFFER_DECISIONS) {
+    app.post(`/me/conversations/:conversationId/offers/:messageId/${DECISION_PATH[decision]}`, {
+      preHandler: verified,
+      schema: {
+        tags: TAGS,
+        summary: DECISION_SUMMARY[decision],
+        security: bearer,
+        params: offerParamsSchema,
+        response: { 200: ok(messageSchema), 409: errorResponse, ...errors },
+      },
+      handler: async (request) =>
+        toOk(
+          await messaging.answerOffer(
+            actorOf(request),
+            request.params.conversationId,
+            request.params.messageId,
+            decision,
+          ),
+        ),
+    });
+  }
 
   app.post('/me/conversations/:conversationId/read', {
     preHandler: user,

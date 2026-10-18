@@ -3,6 +3,7 @@ import type { Conversation } from '@prisma/client';
 import type { Actor } from '../../common/auth/actor.js';
 import type { RuntimeConfig } from '../../common/config/runtime-config.js';
 import {
+  BadRequestError,
   ConflictError,
   ForbiddenError,
   NotFoundError,
@@ -21,10 +22,13 @@ import type { MessagingRepository } from './messaging.repository.js';
 
 export type MessagingIdentityPort = Pick<
   IdentityService,
-  'accountSummaries' | 'sharedDeviceAccounts' | 'deviceToken'
+  'accountSummaries' | 'avatarUrls' | 'sharedDeviceAccounts' | 'deviceToken'
 >;
-/** `reportTarget` = tin người này thấy được qua đường link, kể cả tin của mình — đúng luật mở hội thoại mới. */
-export type MessagingListingPort = Pick<ListingService, 'reportTarget' | 'titles'>;
+/**
+ * `reportTarget` = tin người này thấy được qua đường link, kể cả tin của mình — đúng luật mở hội thoại mới;
+ * `conversationCards` = thẻ tin đầu hội thoại và dữ kiện luật trả giá (add-price-offers).
+ */
+export type MessagingListingPort = Pick<ListingService, 'reportTarget' | 'conversationCards'>;
 export interface MessagingTrustPort {
   tierOf(accountId: string): Promise<TrustTier>;
 }
@@ -80,6 +84,20 @@ export const conversationClosed = (): ConflictError =>
 /** Câu chung, không nêu cụm nào bị trúng (spec conversations, cam kết 5). */
 export const messageNotAllowed = (): ConflictError =>
   new ConflictError('Tin nhắn có nội dung không được phép trên Ghim', 'MESSAGE_NOT_ALLOWED');
+export const offerBuyerOnly = (): ForbiddenError =>
+  new ForbiddenError('Chỉ người mua trả giá — người bán trả lời lời đề nghị', 'OFFER_BUYER_ONLY');
+export const offerSellerOnly = (): ForbiddenError =>
+  new ForbiddenError('Chỉ người bán trả lời lời đề nghị giá', 'OFFER_SELLER_ONLY');
+export const offerListingNotLive = (): ConflictError =>
+  new ConflictError('Tin không còn bán — không trả giá được nữa', 'LISTING_NOT_LIVE');
+export const offersNotAccepted = (): ConflictError =>
+  new ConflictError('Tin này không nhận trả giá', 'OFFERS_NOT_ACCEPTED');
+export const offerAbovePrice = (): BadRequestError =>
+  new BadRequestError('Giá trả không được cao hơn giá đăng', 'OFFER_ABOVE_PRICE');
+export const offerNotPending = (): ConflictError =>
+  new ConflictError('Lời đề nghị này đã được trả lời hoặc đã có giá mới', 'OFFER_NOT_PENDING');
+export const offerNotFound = (): NotFoundError => new NotFoundError('Không có lời đề nghị này');
+
 export const newConversationLimit = (cap: number, retryAt: Date): TooManyRequestsError =>
   new TooManyRequestsError(
     `Mỗi ngày mở tối đa ${cap} hội thoại mới — mở tiếp được từ ${formatTimeVN(retryAt)}`,

@@ -54,6 +54,7 @@ Lỗi mạng thì client tự nối lại như thường.
 | `me:groups-changed`    | `{ groupId: string }`                            | Tư cách hay vai của bạn ở nhóm này vừa đổi (vào, rời, bị gỡ, đổi đơn vị, làm chủ…) — tải lại "nhóm của tôi"                                                    |
 | `group:pending`        | `{ groupId: string, joinRequests: number }`      | Chỉ quản trị nhóm: số đơn xin vào đang chờ                                                                                                                     |
 | `message:new`          | `{ conversationId: string, messageId: string }`  | Tin nhắn mới trong một hội thoại của bạn (add-messaging) — tải lại hội thoại qua HTTP; chưa có dòng hộp thư (`add-notifications`)                              |
+| `message:updated`      | `{ conversationId: string, messageId: string }`  | Một tin nhắn đã có vừa đổi — người bán vừa trả lời đề nghị giá của bạn (add-price-offers); tải lại tin nhắn đó qua HTTP                                        |
 
 `Notification` giống hệt một phần tử của `GET /me/notifications`:
 
