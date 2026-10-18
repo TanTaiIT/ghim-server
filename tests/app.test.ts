@@ -22,6 +22,53 @@ beforeAll(async () => {
 afterAll(() => app.close());
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const SESSION_HEADERS = 'authorization,content-type,x-device-id';
+
+/** Lượt hỏi trước của trình duyệt cho một request ghi kèm phiên và mã thiết bị. */
+const preflight = (target: FastifyInstance, origin: string, method: string) =>
+  target.inject({
+    method: 'OPTIONS',
+    url: '/api/v1/listings/00000000-0000-0000-0000-000000000000',
+    headers: {
+      origin,
+      'access-control-request-method': method,
+      'access-control-request-headers': SESSION_HEADERS,
+    },
+  });
+
+// Header là danh sách ngăn bằng dấu phẩy, có thể kèm khoảng trắng.
+const allowedMethods = (res: { headers: Record<string, unknown> }) =>
+  String(res.headers['access-control-allow-methods']).split(/\s*,\s*/);
+
+/*
+ * `isProduction` chốt lúc nạp `env.ts`, nên phải nạp lại cả cây module với env production —
+ * không có cách nào bật nó cho riêng một app đã dựng.
+ */
+async function withProductionApp(run: (production: FastifyInstance) => Promise<void>) {
+  vi.resetModules();
+  vi.stubEnv('NODE_ENV', 'production');
+  vi.stubEnv('DATABASE_URL', 'postgresql://ghim:ghim@localhost:5432/ghim');
+  vi.stubEnv('LOG_LEVEL', 'error');
+  // Production bắt buộc hai biến này (env.ts); các khoá còn lại đã có từ vitest.config.ts.
+  vi.stubEnv('SMTP_URL', 'smtps://user:pass@smtp.example.com:465');
+  vi.stubEnv('GOOGLE_CLIENT_IDS', 'ios-id.apps.googleusercontent.com');
+  vi.stubEnv('CORS_ORIGIN', 'https://ops.ghim.vn');
+  vi.stubEnv('TRUST_PROXY', 'uniquelocal');
+  try {
+    // Chốt tên DB (database-guard.ts) cấm production trỏ vào DB `_test`, nên app này không được
+    // chạm DB: bảng con số tĩnh thay cho lượt đọc `config_versions` lúc dựng.
+    const { buildTestApp: buildProductionApp } = await import('./test-app.js');
+    const production = await buildProductionApp({ config: createStaticRuntimeConfig() });
+    try {
+      await run(production);
+    } finally {
+      await production.close();
+    }
+  } finally {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  }
+}
 
 describe('Hạ tầng HTTP', () => {
   it('GET /health trả 200 trong vỏ chuẩn', async () => {
@@ -81,6 +128,41 @@ describe('Hạ tầng HTTP', () => {
 
     expect(res.headers['x-content-type-options']).toBe('nosniff');
   });
+
+  // Đọc phương thức từ tài liệu chứ không chép tay: route đầu tiên dùng phương thức mới làm ca này đỏ.
+  it('mọi phương thức trong tài liệu API đều qua preflight, kèm phiên và mã thiết bị', async () => {
+    const doc = (await app.inject({ method: 'GET', url: '/docs/json' })).json() as {
+      paths: Record<string, Record<string, unknown>>;
+    };
+    const methods = new Set(
+      Object.values(doc.paths).flatMap((ops) => Object.keys(ops).map((m) => m.toUpperCase())),
+    );
+    expect([...methods]).toEqual(expect.arrayContaining(['PATCH', 'PUT', 'DELETE']));
+
+    const replies = await Promise.all(
+      [...methods].map(async (method) => ({
+        method,
+        res: await preflight(app, 'http://localhost:8081', method),
+      })),
+    );
+    for (const { method, res } of replies) {
+      expect(res.statusCode, method).toBe(204);
+      expect(allowedMethods(res), method).toContain(method);
+      expect(res.headers['access-control-allow-headers'], method).toBe(SESSION_HEADERS);
+    }
+  });
+
+  it('production: origin trong danh sách được ghi kèm cookie; origin khác không được cấp quyền', () =>
+    withProductionApp(async (production) => {
+      const allowed = await preflight(production, 'https://ops.ghim.vn', 'PATCH');
+      expect(allowed.headers['access-control-allow-origin']).toBe('https://ops.ghim.vn');
+      expect(allowed.headers['access-control-allow-credentials']).toBe('true');
+      expect(allowedMethods(allowed)).toContain('PATCH');
+
+      const foreign = await preflight(production, 'https://evil.example', 'PATCH');
+      // Thư viện vẫn gắn `allow-credentials`; thiếu `allow-origin` khớp là trình duyệt đã chặn.
+      expect(foreign.headers['access-control-allow-origin']).toBeUndefined();
+    }));
 });
 
 describe('Tài liệu API', () => {
@@ -90,33 +172,11 @@ describe('Tài liệu API', () => {
     expect(res.statusCode).toBe(200);
   });
 
-  /*
-   * `isProduction` chốt lúc nạp `env.ts`, nên phải nạp lại cả cây module với env production —
-   * không có cách nào bật nó cho riêng một app đã dựng.
-   */
-  it('production: /docs không tồn tại', async () => {
-    vi.resetModules();
-    vi.stubEnv('NODE_ENV', 'production');
-    vi.stubEnv('DATABASE_URL', 'postgresql://ghim:ghim@localhost:5432/ghim');
-    vi.stubEnv('LOG_LEVEL', 'error');
-    // Production bắt buộc hai biến này (env.ts); các khoá còn lại đã có từ vitest.config.ts.
-    vi.stubEnv('SMTP_URL', 'smtps://user:pass@smtp.example.com:465');
-    vi.stubEnv('GOOGLE_CLIENT_IDS', 'ios-id.apps.googleusercontent.com');
-    vi.stubEnv('CORS_ORIGIN', 'https://ops.ghim.vn');
-    vi.stubEnv('TRUST_PROXY', 'uniquelocal');
-    try {
-      // Chốt tên DB (database-guard.ts) cấm production trỏ vào DB `_test`, nên app này không được
-      // chạm DB: bảng con số tĩnh thay cho lượt đọc `config_versions` lúc dựng.
-      const { buildTestApp: buildProductionApp } = await import('./test-app.js');
-      const production = await buildProductionApp({ config: createStaticRuntimeConfig() });
+  it('production: /docs không tồn tại', () =>
+    withProductionApp(async (production) => {
       const res = await production.inject({ method: 'GET', url: '/docs' });
-      await production.close();
 
       expect(res.statusCode).toBe(404);
       expect(res.json().error.code).toBe('NOT_FOUND');
-    } finally {
-      vi.unstubAllEnvs();
-      vi.resetModules();
-    }
-  });
+    }));
 });

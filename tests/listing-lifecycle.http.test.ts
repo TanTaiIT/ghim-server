@@ -587,12 +587,14 @@ describe('Swagger', () => {
     );
   };
 
-  it('đủ 15 route tin đăng, không thừa; route của người đăng và của nhóm đòi bearerAuth', async () => {
+  // Route đọc không khai Bearer thì client sinh từ tài liệu gọi ẩn danh cả khi đã đăng nhập: chủ tin mở nháp của
+  // mình nhận 404, thành viên không thấy tin "chỉ thành viên".
+  it('đủ 15 route tin đăng, không thừa; route đọc: không phiên hoặc Bearer; còn lại đòi bearerAuth', async () => {
     const ops = await listingOperations();
     expect(ops.map((op) => op.key).toSorted()).toEqual(LISTING_ROUTES.toSorted());
     for (const op of ops) {
       const reader = op.key.startsWith('GET ') && op.key !== 'GET /me/listings';
-      expect(op.security, op.key).toEqual(reader ? undefined : [{ bearerAuth: [] }]);
+      expect(op.security, op.key).toEqual(reader ? [{}, { bearerAuth: [] }] : [{ bearerAuth: [] }]);
     }
   });
 

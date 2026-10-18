@@ -52,11 +52,14 @@ describe('Tạo nháp', () => {
     expect(codeOf(res)).toBe('UNAUTHORIZED');
   });
 
-  it('người khác mở hoặc sửa nháp: 404 NOT_FOUND', async () => {
+  it('khách hoặc người khác mở, người khác sửa nháp: 404 NOT_FOUND', async () => {
     const [owner, other] = [await newUser(app), await newUser(app)];
     const draft = await createDraft(app, owner, { title: 'Nháp riêng' });
     const read = await listingApi(app, 'GET', `/listings/${draft.id}`, other);
     expect(read.statusCode).toBe(404);
+    const guest = await listingApi(app, 'GET', `/listings/${draft.id}`, null);
+    expect(guest.statusCode).toBe(404);
+    expect(codeOf(guest)).toBe('NOT_FOUND');
     const edit = await patch(app, other, draft, { title: 'Sửa trộm' });
     expect(edit.statusCode).toBe(404);
     expect(codeOf(edit)).toBe('NOT_FOUND');

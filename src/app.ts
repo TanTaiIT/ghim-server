@@ -569,7 +569,13 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
   await app.register(helmet);
   // `credentials` chỉ bật khi origin là danh sách cụ thể: trình duyệt từ chối cookie kèm CORS `*`,
   // và mở credentials cho mọi nguồn là cho mọi trang web gọi API bằng cookie của người dùng.
-  await app.register(cors, { origin: corsOrigin, credentials: corsOrigin !== '*' });
+  // Phương thức liệt kê tường minh: mặc định của thư viện chỉ có GET/HEAD/POST, còn `*` đi kèm
+  // cookie thì trình duyệt đọc là tên một phương thức — hỏng đúng ở production.
+  await app.register(cors, {
+    origin: corsOrigin,
+    credentials: corsOrigin !== '*',
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  });
   // Test bắn hàng chục request từ cùng một IP trong vài giây — không bỏ qua thì một chốt hạ
   // tầng biến thành nguồn flake của toàn bộ suite nghiệp vụ.
   if (!isTest) {

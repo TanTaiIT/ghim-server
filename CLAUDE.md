@@ -36,7 +36,9 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
   `noUncheckedIndexedAccess`, `verbatimModuleSyntax`), ESM — import nội bộ ghi đuôi `.js`.
   KHÔNG dùng `any`. Không có file `.js` trong `src/`.
   - Đang bật: `@fastify/helmet`, `@fastify/cors`, `@fastify/rate-limit` (tắt khi `NODE_ENV=test`),
-    `@fastify/swagger` + `@fastify/swagger-ui` (`/docs`, tắt ở production).
+    `@fastify/swagger` + `@fastify/swagger-ui` (`/docs`, tắt ở production). CORS liệt kê tường minh sáu phương
+    thức `GET, HEAD, POST, PUT, PATCH, DELETE` (`fix-web-api-contract`): route dùng phương thức khác phải thêm vào
+    `app.ts` — test preflight trong `tests/app.test.ts` đọc phương thức từ tài liệu nên đỏ trước.
   - Đã nối: `pg-boss` (`src/lib/jobs.ts`, start/stop trong `server.ts`), `nodemailer`
     (`src/lib/mailer.ts`, sau interface `Mailer`), `@fastify/jwt` + `@fastify/cookie`
     (`src/common/auth/auth.plugin.ts`), `argon2` (`identity/calc/password.calc.ts`), `google-auth-library`
@@ -514,7 +516,10 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   của nhóm" vào `notification/group-notices`: dòng ma trận N3, N6, N10–N14, N26–N28 chỉ viết khi câu còn đúng.
   `add-reports` (archive 16/10/2026) tạo `review/reports`, `review/report-auto-hide`, `review/reporter-score`; thêm
   "Có báo cáo đang mở vẫn tự xoá được tài khoản" vào `identity/account-deletion`, "Tin đang bị báo cáo vẫn xoá được"
-  vào `listing/deletion`, "Đóng nhóm không huỷ báo cáo" vào `group/group-lifecycle`.
+  vào `listing/deletion`, "Đóng nhóm không huỷ báo cáo" vào `group/group-lifecycle`. `fix-web-api-contract`
+  (18/10/2026, từ lượt nối `ghim-app`) thêm "Trình duyệt gọi được mọi phương thức của API" và "Tài liệu khai cách xác
+  thực của từng route" vào `http/api-contract`: route phiên tuỳ chọn (`authenticateOptional`) khai
+  `security: optionalBearer` — thiếu thì SDK sinh từ tài liệu gọi ẩn danh cả khi đã đăng nhập.
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.
