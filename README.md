@@ -120,11 +120,12 @@ Production chỉ chạy `pnpm db:deploy` (hoặc `pnpm db:deploy:prod` từ máy
 migrate bằng `node_modules/.bin/prisma migrate deploy`, CLI chạy bản đã biên dịch (`node dist/cli/…`). Job CI
 `docker` dựng image, migrate, khởi động tới `/health/ready` và tạo master — đúng các lệnh dưới đây.
 
-**Deploy lên Render (Docker)**: `render.yaml` khai một web service dựng từ `Dockerfile`, vùng Singapore, gói trả phí,
-đúng một tiến trình, chỉ deploy `main` đã qua CI, migrate ở pre-deploy command trước khi bản mới nhận traffic.
+**Deploy lên Render (Docker)**: `render.yaml` khai Render Postgres 18 và một web service dựng từ `Dockerfile`, cùng
+vùng Singapore, gói trả phí, đúng một tiến trình, chỉ deploy `main` đã qua CI, migrate ở pre-deploy command trước khi
+bản mới nhận traffic.
 
-1. DB: project Neon riêng cho production (Postgres 18, ap-southeast-1), tên DB không kết thúc bằng `_dev` / `_test`.
-   `DATABASE_URL` lấy chuỗi kết nối **trực tiếp** (không `-pooler`).
+1. DB: Blueprint tự tạo `ghim-db` (database `ghim`, chỉ nhận kết nối trong mạng nội bộ của Render) và tự điền
+   `DATABASE_URL` cho service — không phải chuẩn bị gì. Cần nối từ máy mình thì thêm IP vào `ipAllowList`.
 2. Render → New → Blueprint → chọn repo, điền các biến `sync: false` (ý nghĩa ở `.env.production.example`). Ba khoá
    tự sinh, giữ bản sao ngoài Render: `openssl rand -base64 48` cho `JWT_SECRET` và `IDENTITY_HASH_KEY` (hai giá
    trị khác nhau), `openssl rand -base64 32` cho `SECRETS_ENCRYPTION_KEY`.

@@ -1,15 +1,32 @@
-# Render Blueprint: một web service chạy bằng image dựng từ `Dockerfile`. Tạo trên Render: New → Blueprint → chọn repo.
-# Biến `sync: false` Render hỏi lúc tạo và không nằm trong repo — ý nghĩa từng biến ở `.env.production.example`.
+# Render Blueprint: Render Postgres + một web service chạy bằng image dựng từ `Dockerfile`. Tạo trên Render: New →
+# Blueprint → chọn repo. Biến `sync: false` Render hỏi lúc tạo và không nằm trong repo — ý nghĩa từng biến ở
+# `.env.production.example`.
+databases:
+  - name: ghim-db
+    # Id do `uuidv7()` sinh — hàm chỉ có từ Postgres 18, bản thấp hơn hỏng ngay migration đầu tiên. Không đổi được sau
+    # khi tạo.
+    postgresMajorVersion: '18'
+    # Tên DB kết thúc bằng `_dev` / `_test` thì app và Prisma CLI đều từ chối khởi động.
+    databaseName: ghim
+    user: ghim
+    region: singapore
+    # Gói trả phí nhỏ nhất (100 kết nối, dư cho 2 tiến trình chồng nhau lúc deploy × 15 kết nối mỗi tiến trình). DB free
+    # hết hạn sau 30 ngày; gói cũ (legacy) không còn chọn được cho DB mới.
+    plan: 0.1c-256mb
+    # Chỉ mạng nội bộ của Render nối được. Cần nối từ máy mình (sao lưu tay, xem dữ liệu) thì thêm IP vào đây.
+    ipAllowList: []
+
 services:
   - type: web
     name: ghim-server
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    # Cạnh Neon ap-southeast-1: mỗi câu SQL là một vòng mạng, khác vùng là cộng thêm vài chục ms mỗi câu.
+    # Cùng vùng với `ghim-db`: mạng nội bộ của Render chỉ nối trong một vùng — khác vùng là mỗi câu SQL đi qua Internet.
     region: singapore
     # Gói free ngủ sau 15 phút không có request — việc nền và outbox dừng theo — và không có pre-deploy command.
-    plan: starter
+    # `0.5c-512mb` là tên mới của `starter` (cùng cấu hình, cùng giá).
+    plan: 0.5c-512mb
     # Đúng một tiến trình: socket.io giữ kết nối trong tiến trình, sự kiện realtime không đi sang tiến trình khác.
     numInstances: 1
     branch: main
@@ -20,10 +37,11 @@ services:
     # Bản mới chỉ nhận traffic khi đã nối được DB.
     healthCheckPath: /health/ready
     envVars:
-      # Chuỗi kết nối TRỰC TIẾP của Neon (không có `-pooler`): migration và khoá advisory cần phiên thật.
-      # Tên DB không được kết thúc bằng `_dev` / `_test` — app và Prisma CLI đều từ chối.
+      # Chuỗi kết nối qua mạng nội bộ, Render tự điền — không qua pool (migration và khoá advisory cần phiên thật).
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: ghim-db
+          property: connectionString
       - key: CORS_ORIGIN
         sync: false
       # Proxy của Render nối vào từ mạng nội bộ. Sau lần deploy đầu, xem IP ở `GET /api/v1/me/sessions` có là IP
