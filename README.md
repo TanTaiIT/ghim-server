@@ -134,6 +134,21 @@ bản mới nhận traffic.
    Gỡ lớp thứ hai: `node dist/cli/reset-two-factor.js --email <email>`.
 4. Đăng nhập trên máy mình, xem `GET /api/v1/me/sessions`: IP phải là IP thật của máy — sai thì chỉnh `TRUST_PROXY`.
 
+**Thử miễn phí trên Render**: `render.free.yaml` dựng cùng hệ thống trên gói free (không cần thẻ), tài nguyên đuôi
+`-free`. Chỉ để thử: web ngủ sau 15 phút (đứt realtime, ngừng job nền), DB hết hạn sau 30 ngày và không có sao lưu. Tạo
+như bước 2, ô "Blueprint Path" điền `render.free.yaml`. Gói free không có pre-deploy nên container chạy
+`scripts/migrate-and-start.sh` (migrate rồi khởi động), và không có Shell nên master tạo từ máy mình:
+
+1. Dashboard → `ghim-db-free` → thêm IP của máy vào danh sách được nối từ ngoài.
+2. Tạo `.env.render-free` (git đã bỏ qua `.env.*`): `NODE_ENV=production`, đúng các giá trị đã điền trên Render (cả ba
+   khoá — email của master được băm bằng `IDENTITY_HASH_KEY`), `TRUST_PROXY=uniquelocal`, và `DATABASE_URL` = External
+   Database URL của `ghim-db-free` (thêm `?sslmode=require` nếu chưa có).
+3. `pnpm build`, rồi
+   `read -rs MASTER_PASSWORD && export MASTER_PASSWORD && node --env-file=.env.render-free dist/cli/create-master.js --email <email> --name "Quản trị Ghim"`.
+4. Gỡ IP vừa thêm khỏi danh sách.
+
+Lên production: tạo Blueprint mới từ `render.yaml` (DB mới, dữ liệu thử không đi theo) rồi xoá Blueprint free.
+
 ## Trước khi chạy thật
 
 - **Kho ảnh**: hiện dùng tạm Cloudinary (`STORAGE_URL=cloudinary://…?folder=ghim-server`, mẫu ở

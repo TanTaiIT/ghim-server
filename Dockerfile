@@ -42,6 +42,8 @@ COPY --from=build /app/dist ./dist
 COPY package.json prisma.config.ts ./
 COPY prisma ./prisma
 COPY src/config/database-guard.ts ./src/config/
+# Lệnh khởi động kèm migrate cho nơi không có pre-deploy (`render.free.yaml`); CMD dưới đây không dùng nó.
+COPY scripts/migrate-and-start.sh ./scripts/
 
 # Không chạy bằng root: một lỗ RCE trong app không được kèm luôn quyền root trong container.
 USER node

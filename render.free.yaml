@@ -1,0 +1,60 @@
+# Bản dùng thử MIỄN PHÍ — không phải production (production là `render.yaml`). Tạo: New → Blueprint → chọn repo, ô
+# "Blueprint Path" điền `render.free.yaml`. Giới hạn của gói free, đã tính vào cấu hình dưới:
+# - web ngủ sau 15 phút không có request, lần gọi đầu chờ khoảng một phút; lúc ngủ realtime đứt, job nền và outbox dừng;
+# - web free không có pre-deploy command và Shell: migration chạy lúc container khởi động, master tạo từ máy mình
+#   (README mục "Thử miễn phí trên Render");
+# - DB free hết hạn sau 30 ngày (14 ngày ân hạn rồi bị xoá), 1 GB, không sao lưu, mỗi workspace một DB free.
+# Lên production: tạo Blueprint mới từ `render.yaml` (DB mới, dữ liệu thử không đi theo) rồi xoá Blueprint này.
+# Tên tài nguyên có đuôi `-free` để không trùng tên với bản production khi cả hai cùng nằm trong một workspace.
+databases:
+  - name: ghim-db-free
+    # Id do `uuidv7()` sinh — hàm chỉ có từ Postgres 18.
+    postgresMajorVersion: '18'
+    # Tên DB kết thúc bằng `_dev` / `_test` thì app và Prisma CLI đều từ chối khởi động.
+    databaseName: ghim
+    user: ghim
+    region: singapore
+    plan: free
+    # Chỉ mạng nội bộ của Render nối được. Lúc tạo master từ máy mình thì thêm IP của máy trong dashboard, xong thì gỡ.
+    ipAllowList: []
+
+services:
+  - type: web
+    name: ghim-server-free
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # Cùng vùng với `ghim-db-free`: web free chỉ gửi được kết nối nội bộ tới DB cùng vùng.
+    region: singapore
+    plan: free
+    branch: main
+    autoDeployTrigger: checksPass
+    # Không có pre-deploy: migrate ngay lúc khởi động. Viết thành script để khỏi phụ thuộc chuyện Render có chạy lệnh
+    # qua shell hay không (`&&` và dấu nháy chỉ shell mới hiểu).
+    dockerCommand: sh scripts/migrate-and-start.sh
+    healthCheckPath: /health/ready
+    # Cùng bộ biến với `render.yaml` — thêm biến ở đó thì thêm cả ở đây.
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ghim-db-free
+          property: connectionString
+      - key: CORS_ORIGIN
+        sync: false
+      - key: TRUST_PROXY
+        value: uniquelocal
+      # Ba khoá tự sinh và tự giữ bản sao ngoài Render (README) — tạo master từ máy mình cũng cần đúng ba khoá này.
+      - key: JWT_SECRET
+        sync: false
+      - key: IDENTITY_HASH_KEY
+        sync: false
+      - key: SECRETS_ENCRYPTION_KEY
+        sync: false
+      - key: SMTP_URL
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: STORAGE_URL
+        sync: false
+      - key: GOOGLE_CLIENT_IDS
+        sync: false
