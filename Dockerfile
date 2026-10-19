@@ -1,7 +1,7 @@
 # Build nhiều tầng: tầng chạy KHÔNG mang theo toolchain, mã nguồn TS hay devDependencies.
 FROM node:24-slim AS base
 # Schema engine của Prisma (`migrate deploy`) là binary nối libssl của hệ thống, mà bản slim không có: thiếu thì lúc
-# cài Prisma tải nhầm bản openssl-1.1 và migration chết. CA để engine xác thực TLS của Postgres (Neon).
+# cài Prisma tải nhầm bản openssl-1.1 và migration chết. CA để engine xác thực TLS khi Postgres nối qua Internet (dev trên Neon).
 RUN apt-get update -y \
   && apt-get install -y --no-install-recommends openssl ca-certificates \
   && rm -rf /var/lib/apt/lists/*
