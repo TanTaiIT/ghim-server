@@ -16,6 +16,7 @@ import { createMediaRepository } from '../src/modules/media/media.repository.js'
 import { createMessagingRepository } from '../src/modules/messaging/messaging.repository.js';
 import { createPlatformRepository } from '../src/modules/platform/platform.repository.js';
 import { createReportRepository } from '../src/modules/review/report/report.repository.js';
+import { noopPush } from '../src/common/push/expo-push.js';
 import { createFakeJobs } from './fakes/jobs.fake.js';
 
 export const TEST_NOW = new Date('2026-10-10T09:00:00+07:00');
@@ -53,6 +54,7 @@ export function buildTestApp(overrides: AppOverrides = {}): Promise<FastifyInsta
   return buildApp({
     ...overrides,
     jobs: overrides.jobs ?? createFakeJobs(),
+    push: overrides.push ?? noopPush,
     clock: overrides.clock ?? (() => TEST_NOW),
   });
 }

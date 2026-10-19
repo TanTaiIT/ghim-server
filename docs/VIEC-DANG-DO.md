@@ -51,7 +51,18 @@ design mục 11; migration `add_reports_enums`, `add_reports` — production c�
 17/10/2026 (tech lead chốt 14 câu hỏi mở — design mục 12; migration `add_strikes_enums`, `add_strikes`,
 `add_strikes_close_cause`; hướng dẫn `docs/strikes.md`; CI xanh qua PR #7, merge `main` `15493d2`). `add-messaging` xong cùng ngày (tech lead
 chốt 11 câu hỏi mở — design mục 10; migration `add_messaging`; hướng dẫn `docs/messaging.md`). Production cần `pnpm db:deploy:prod`
-cho 9 migration từ `group_invitations_blind` tới `add_messaging`. **Làm tiếp:** `add-notifications`.
+cho 10 migration từ `group_invitations_blind` tới `add_notifications`. `add-notifications` xong cùng ngày (người dùng chốt
+Expo Push qua HTTP, làm cả ba phần; migration `add_notifications`; biến môi trường tuỳ chọn `EXPO_PUSH_URL`,
+`EXPO_ACCESS_TOKEN`). `add-data-retention` (đợt 7) xong cùng ngày (tech lead chốt 14 câu hỏi mở — design mục 11; migration
+`add_data_retention`: bỏ FK `conversations.listing_id`, `strikes.account_id`, bảng `job_runs`, `screening_run_stats`, trigger
+`audit_log_immutable` viết lại; hướng dẫn `docs/retention.md`). Production cần `pnpm db:deploy:prod` cho **11** migration từ
+`group_invitations_blind` tới `add_data_retention`. **Còn lại:** `add-image-moderation` chờ chọn dịch vụ kiểm ảnh.
+Phía bạn: tạo tài khoản Expo / EAS, khoá FCM + APNs khi app sẵn sàng, điền `EXPO_ACCESS_TOKEN` nếu bật Enhanced Security.
+
+Lượt nối app `ghim-app` (18/10/2026) lộ hai lỗi hợp đồng HTTP, sửa ở `fix-web-api-contract` (archive cùng ngày, không
+migration): CORS mở đủ sáu phương thức — trước chỉ `GET`/`HEAD`/`POST`, nên bản web của app và bàn vận hành bị chặn mọi
+`PATCH`/`PUT`/`DELETE`; năm route đọc tin khai phiên tuỳ chọn trong tài liệu để SDK sinh ra gửi kèm phiên. Phía app:
+sinh lại SDK, gỡ chỗ tự xin Bearer (`VIEWER`).
 
 ## 1. Đang chờ quyết hoặc chờ duyệt
 
@@ -64,6 +75,7 @@ cho 9 migration từ `group_invitations_blind` tới `add_messaging`. **Làm ti�
 | Tách module `region` khỏi `category`       | Đã đề xuất: dữ liệu xã phường (`category/data/regions.json`, API `/regions/...`) dùng ở nhiều nơi nên đáng là module riêng                                                                                                                                                                                                                                                                                                                                                   | Quyết làm hay không; làm thì là refactor, không cần change                                                                                  |
 | Skill `/debug`                             | Muốn: đặt breakpoint xong gõ `/debug` là tự vào chế độ debug. Chưa chốt kiểu (mở launch config của VS Code, hay chạy `node --inspect` nền rồi gắn vào)                                                                                                                                                                                                                                                                                                                       | Chọn kiểu rồi viết skill                                                                                                                    |
 | Ý tưởng "quản lý hệ thống"                 | Bạn mở đầu "điều gì làm một luồng business đi trật hướng khỏi hệ thống" nhưng chưa gửi phần ý tưởng                                                                                                                                                                                                                                                                                                                                                                          | Gửi ý tưởng để bàn                                                                                                                          |
+| Gói đẩy tin, ví Xu                         | Kế hoạch 17/10/2026 ở `docs/KE-HOACH-GOI-DAY-TIN.md`. Bước 0 (`prepare-promotions`) đã archive cùng ngày: `rank_at`, `featured_until`, `quota.fee` 0 Xu. Proposal `add-wallet`, `add-promotions` nằm chờ trong `openspec/changes/`                                                                                                                                                                                                                                           | Chốt 8 câu hỏi mục 7 của kế hoạch và duyệt phụ lục A (bản nháp TK) rồi làm bước 1                                                           |
 | Kiểm ảnh nhạy cảm (NSFW)                   | Gác lại 15/10/2026. Ứng viên `nsfwjs` (mô hình tự chạy, ảnh không rời hệ thống) — rủi ro: chỉ bắt khiêu dâm; `@tensorflow/tfjs-node` không cập nhật từ 01/2025, chưa chắc cài được trên Node 24 Windows; ngưỡng chưa chốt                                                                                                                                                                                                                                                    | Khi làm: chạy thử trong thư mục tạm (cài, đo tốc độ, chấm ảnh mẫu) rồi viết `add-image-moderation`                                          |
 
 ## 2. Change OpenSpec còn lại — theo thứ tự TK 29
@@ -72,13 +84,17 @@ Nguồn: CLAUDE.md mục **Thứ tự change**, `openspec/changes/`. Mỗi chang
 mở** trong proposal trước khi `/opsx:apply`. Cột ghi chú kể cả phần `add-review-queues` cố ý để lại cho change sau
 (proposal của nó, mục "Không làm").
 
-| Đợt | Change                 | Điều kiện / ghi chú                                                                                                                                                                           |
-| --- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 3   | `add-image-moderation` | Chờ chọn dịch vụ kiểm ảnh (mục 1) và rà soát pháp lý nếu gửi ảnh ra ngoài (TK 29 còn mở số 3)                                                                                                 |
-| 4 ✔ | `add-reports`          | Archive 16/10/2026. Còn để cho change sau: báo cáo đúng kèm gậy (`add-strikes`), báo cáo từ hội thoại (`add-messaging`), giữ bằng chứng quá hạn lưu (`add-data-retention`)                    |
-| 5 ✔ | `add-strikes`          | Archive 17/10/2026. Còn để cho change sau: thông báo khi nhận gậy / có kết quả khiếu nại (`add-notifications`), hạn lưu hồ sơ gậy (`add-data-retention`)                                      |
-| 6 ✔ | `add-messaging`        | Archive 17/10/2026. Còn để cho change sau: báo tin nhắn mới (hộp thư, đẩy điện thoại, không đẩy hội thoại đang mở) → `add-notifications`; xoá hẳn và tạm giữ hội thoại → `add-data-retention` |
-| 7   | `add-data-retention`   | Xoá hẳn tin và ảnh theo hạn lưu (TK 25). Tới lúc đó tin xoá mềm vẫn giữ ảnh trong kho                                                                                                         |
+| Đợt | Change                   | Điều kiện / ghi chú                                                                                                                                                        |
+| --- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3   | `add-image-moderation`   | Chờ chọn dịch vụ kiểm ảnh (mục 1) và rà soát pháp lý nếu gửi ảnh ra ngoài (TK 29 còn mở số 3)                                                                              |
+| 4 ✔ | `add-reports`            | Archive 16/10/2026. Còn để cho change sau: báo cáo đúng kèm gậy (`add-strikes`), báo cáo từ hội thoại (`add-messaging`), giữ bằng chứng quá hạn lưu (`add-data-retention`) |
+| 5 ✔ | `add-strikes`            | Archive 17/10/2026. Còn để cho change sau: thông báo khi nhận gậy / có kết quả khiếu nại (`add-notifications`), hạn lưu hồ sơ gậy (`add-data-retention`)                   |
+| 6 ✔ | `add-messaging`          | Archive 17/10/2026. Còn để cho change sau: xoá hẳn và tạm giữ hội thoại → `add-data-retention`                                                                             |
+| 6 ✔ | `add-notifications`      | Archive 17/10/2026 (N47 tin nhắn, push Expo gắn phiên, không đẩy hội thoại đang mở). Chưa có app nên chưa có token thật — gửi push thật chưa thử trên máy                  |
+| 7 ✔ | `add-data-retention`     | Archive 17/10/2026. Hạn lưu TK 25, tạm giữ bằng chứng, sổ `job_runs`; khoá vĩnh viễn chỉ ẩn danh hoá sau khi gỡ (design câu 3)                                             |
+| 6   | `add-price-offers`       | Proposal 18/10/2026, chờ duyệt. Người mua trả giá, người bán chấp nhận / từ chối, chấp nhận chỉ ghi nhận; hội thoại có ảnh bìa, giá, ảnh đại diện                          |
+| 6   | `add-team-conversations` | Proposal 18/10/2026, chờ duyệt — sau `add-price-offers`. Hội thoại với Hỗ trợ Ghim (hàng chung trên bàn vận hành) và với quản trị một nhóm; đổi luật TK 24                 |
+| 6   | `add-activity-status`    | Proposal 18/10/2026, chờ duyệt — sau `add-team-conversations`. Chỉ bên kia của hội thoại về tin thấy, tắt hai chiều, lần cuối hoạt động trong 7 ngày (con số đề xuất)      |
 
 ## 3. Chuyển kho ảnh Cloudinary → Cloudflare R2
 
@@ -104,7 +120,11 @@ Cloudinary chỉ dùng tạm (change `use-cloudinary-storage`, archive 15/10/202
 Nguồn: `docs/THIET-KE-HE-THONG.md` phần 29.
 
 1. Danh mục luôn duyệt tay giữ 100% tin — đủ staff không?
-2. Rà soát pháp lý — dấu băm email, dấu thiết bị, bảng lưu trữ (TK 25), giữ hội thoại làm bằng chứng.
+2. Rà soát pháp lý — dấu băm email, dấu thiết bị, bảng lưu trữ (TK 25), giữ hội thoại làm bằng chứng. Mọi con số đã là
+   khoá `retention.*` chỉnh được không cần deploy (`docs/retention.md`). Dữ liệu cá nhân **chưa có hạn lưu** vì TK 25 không
+   có dòng (design add-data-retention câu 8): báo cáo kể cả danh tính người báo, điểm tin cậy báo cáo, chặn người, thành
+   viên nhóm đang hoạt động, tài khoản bỏ không lâu năm — chốt cùng luật sư rồi thêm bước vào `retention.service.ts`.
+   TK 28 nên thêm các dòng `retention.*` (chủ TK sửa).
 3. Dịch vụ kiểm ảnh nhạy cảm (mục 1, mục 2).
 
 Phần **Hoãn lại** của TK 29 (ví Xu, đẩy tin, đánh giá người bán, lưu tin, xác thực số điện thoại, đọc chữ trong ảnh,

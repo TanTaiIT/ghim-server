@@ -92,6 +92,9 @@ const envSchema = z
       .string()
       .url()
       .default('https://disposable.github.io/disposable-email-domains/domains.txt'),
+    /** Expo Push Service (add-notifications): gọi bằng HTTP thuần; token truy cập tuỳ chọn, Expo cấp cho dự án EAS. */
+    EXPO_PUSH_URL: z.string().url().default('https://exp.host/--/api/v2/push/send'),
+    EXPO_ACCESS_TOKEN: z.string().trim().min(1).optional(),
   })
   .superRefine((value, ctx) => {
     const databaseIssue = databaseEnvironmentIssue(value.NODE_ENV, value.DATABASE_URL);

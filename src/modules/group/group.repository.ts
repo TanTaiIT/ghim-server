@@ -98,6 +98,8 @@ export interface GroupRepository {
     query: { unitId?: string; after?: string; take: number },
   ): Promise<string[]>;
   isBanned(groupId: string, accountId: string): Promise<boolean>;
+  /** Trong `accountIds`, ai đang bị cấm khỏi nhóm — theo lô cho danh sách hội thoại (add-team-conversations). */
+  bannedAmong(groupId: string, accountIds: string[]): Promise<Set<string>>;
   lastRejectedAt(groupId: string, accountId: string): Promise<Date | null>;
   countPendingRequestsOf(accountId: string, now: Date): Promise<number>;
   findJoinRequest(id: string): Promise<GroupJoinRequest | null>;
@@ -333,6 +335,14 @@ export interface GroupRepository {
 
   // ── VIỆC THEO LỊCH ──
   expireDue(now: Date): Promise<{ requests: number; invitations: number; offers: number }>;
+  // ── HẠN LƯU (add-data-retention) ──
+  /** Nhóm đã đóng trước `closedBefore` mà `ops` chưa dọn, theo trang con trỏ `id`. */
+  closedGroupsDue(closedBefore: Date, after: string | null, limit: number): Promise<string[]>;
+  /**
+   * Xoá thành viên, cấm, đơn, lời mời, danh sách lớp, lời giao chủ, thông báo của nhóm đã đóng; ghi `purged_at`. Dòng
+   * nhóm giữ (tên nhóm còn trong quyết định, nhật ký). `null` = nhóm không còn ở trạng thái đóng.
+   */
+  purgeClosedGroup(id: string, at: Date): Promise<{ members: number } | null>;
   lockOwnerlessTimedOut(now: Date, maxDays: number): Promise<string[]>;
 }
 
@@ -639,6 +649,14 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
         select: { groupId: true },
       });
       return row !== null;
+    },
+    async bannedAmong(groupId, accountIds) {
+      if (accountIds.length === 0) return new Set();
+      const rows = await prisma.groupBan.findMany({
+        where: { groupId, accountId: { in: accountIds } },
+        select: { accountId: true },
+      });
+      return new Set(rows.map((row) => row.accountId));
     },
     async lastRejectedAt(groupId, accountId) {
       const row = await prisma.groupJoinRequest.findFirst({
@@ -1599,6 +1617,36 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
     findGroups: (ids) => prisma.group.findMany({ where: { id: { in: ids } } }),
 
     // ── VIỆC THEO LỊCH ───────────────────────────────────────────────────────────────────────────
+
+    closedGroupsDue: async (closedBefore, after, limit) =>
+      (
+        await prisma.group.findMany({
+          where: {
+            state: 'closed',
+            closedAt: { lt: closedBefore },
+            purgedAt: null,
+            ...(after ? { id: { gt: after } } : {}),
+          },
+          orderBy: { id: 'asc' },
+          take: limit,
+          select: { id: true },
+        })
+      ).map((row) => row.id),
+
+    purgeClosedGroup: (id, at) =>
+      prisma.$transaction(async (tx) => {
+        const current = await groupStateFor(tx, id, 'update');
+        if (current?.state !== 'closed') return null;
+        const members = await tx.groupMember.deleteMany({ where: { groupId: id } });
+        await tx.groupBan.deleteMany({ where: { groupId: id } });
+        await tx.groupJoinRequest.deleteMany({ where: { groupId: id } });
+        await tx.groupInvitation.deleteMany({ where: { groupId: id } });
+        await tx.groupRosterEntry.deleteMany({ where: { groupId: id } });
+        await tx.groupOwnerOffer.deleteMany({ where: { groupId: id } });
+        await tx.groupAnnouncement.deleteMany({ where: { groupId: id } });
+        await tx.group.update({ where: { id }, data: { purgedAt: at } });
+        return { members: members.count };
+      }),
 
     expireDue: (now) =>
       prisma.$transaction(async (tx) => {

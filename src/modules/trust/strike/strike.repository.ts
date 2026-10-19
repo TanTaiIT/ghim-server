@@ -64,6 +64,22 @@ export interface StrikeRepository {
   /** Đánh dấu hết hạn có điều kiện (còn `active`), trả các gậy vừa hết. */
   expireDue(tx: Tx, now: Date): Promise<Strike[]>;
   permanentReviewDue(now: Date): Promise<Strike[]>;
+  // ── HẠN LƯU (add-data-retention) ──
+  /** Gậy của các tin kèm trạng thái khiếu nại, mới trước — `ops` tính tạm giữ và mốc xoá tin vi phạm. */
+  ofListings(
+    listingIds: string[],
+  ): Promise<(Strike & { appeal: Pick<StrikeAppeal, 'status'> | null })[]>;
+  /** Gậy chưa ẩn danh đã đóng trước mốc (hết hạn, huỷ), hay đã gỡ khoá vĩnh viễn mà ngày khoá trước mốc. */
+  anonymizeDue(closedBefore: Date, limit: number): Promise<Pick<Strike, 'id' | 'accountId'>[]>;
+  /** Thay người nhận bằng mã giả, bỏ dấu băm email, xoá lời khiếu nại — chỉ khi chưa ẩn danh. */
+  anonymize(
+    tx: Tx,
+    input: { id: string; accountId: string; pseudonym: string; at: Date },
+  ): Promise<boolean>;
+  /** Khoá vĩnh viễn đã gỡ: dấu băm email giữ vì khoá đó bị xoá (spec data-retention). */
+  dropLiftedEmailHashes(): Promise<number>;
+  /** Đăng ký dở dang bị dọn (`identity.account.purged`): gậy đã kế thừa của các tài khoản đó đi theo. */
+  deleteOfAccounts(accountIds: string[]): Promise<number>;
 
   createAppeal(
     tx: Tx,
@@ -183,6 +199,59 @@ export function createStrikeRepository(prisma: PrismaClient): StrikeRepository {
         where: { status: 'permanent', permanentReviewAt: { lte: now } },
         orderBy: { permanentReviewAt: 'asc' },
       }),
+
+    ofListings: (listingIds) =>
+      listingIds.length === 0
+        ? Promise.resolve([])
+        : prisma.strike.findMany({
+            where: { listingId: { in: listingIds } },
+            include: { appeal: { select: { status: true } } },
+            orderBy: [{ issuedAt: 'desc' }, { id: 'desc' }],
+          }),
+
+    anonymizeDue: (closedBefore, limit) =>
+      prisma.strike.findMany({
+        where: {
+          anonymizedAt: null,
+          OR: [
+            { status: 'expired', expiresAt: { lt: closedBefore } },
+            { status: 'cancelled', cancelledAt: { lt: closedBefore } },
+            { status: 'lifted', issuedAt: { lt: closedBefore } },
+          ],
+        },
+        orderBy: { issuedAt: 'asc' },
+        take: limit,
+        select: { id: true, accountId: true },
+      }),
+
+    async anonymize(tx, { id, accountId, pseudonym, at }) {
+      const { count } = await tx.strike.updateMany({
+        where: { id, accountId, anonymizedAt: null },
+        data: { accountId: pseudonym, emailHashes: [], anonymizedAt: at },
+      });
+      if (count === 0) return false;
+      await tx.strikeAppeal.updateMany({
+        where: { strikeId: id },
+        data: { accountId: pseudonym, statement: '' },
+      });
+      return true;
+    },
+
+    async dropLiftedEmailHashes() {
+      const { count } = await prisma.strike.updateMany({
+        where: { status: 'lifted', NOT: { emailHashes: { isEmpty: true } } },
+        data: { emailHashes: [] },
+      });
+      return count;
+    },
+
+    async deleteOfAccounts(accountIds) {
+      if (accountIds.length === 0) return 0;
+      const { count } = await prisma.strike.deleteMany({
+        where: { accountId: { in: accountIds } },
+      });
+      return count;
+    },
 
     createAppeal: (tx, data) => tx.strikeAppeal.create({ data }),
 

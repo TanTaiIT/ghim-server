@@ -19,6 +19,8 @@ import type { ListingRoutesOptions } from '../listing.routes.js';
 const TAGS_OWNER = ['Listings · Người đăng'];
 const TAGS_VIEWER = ['Listings · Người xem'];
 const bearer = [{ bearerAuth: [] }];
+/** Không token vẫn xem được; có token thì người đăng thấy tin của mình, thành viên thấy tin "chỉ thành viên". */
+const optionalBearer = [{}, ...bearer];
 const readErrors = { 400: errorResponse, 404: errorResponse };
 
 /** Mọi lượt đọc tin — theo một luật "ai thấy một tin" (`calc/visibility.calc.ts`, CLAUDE.md luật 25). */
@@ -46,6 +48,7 @@ export const readRoutes: FastifyPluginAsyncZod<ListingRoutesOptions> = async (ap
     preHandler: anyone,
     schema: {
       tags: TAGS_VIEWER,
+      security: optionalBearer,
       summary:
         'Không `q` = bảng tin / danh mục (tin hiện đầy đủ); có `q` = tìm kiếm (gồm tin hạn chế)',
       querystring: feedQuerySchema,
@@ -58,6 +61,7 @@ export const readRoutes: FastifyPluginAsyncZod<ListingRoutesOptions> = async (ap
     preHandler: anyone,
     schema: {
       tags: TAGS_VIEWER,
+      security: optionalBearer,
       summary:
         'Một tin — người đăng thấy trạng thái và lý do; người khác không được thấy thì 404 như tin không tồn tại',
       params: listingParamsSchema,
@@ -70,6 +74,7 @@ export const readRoutes: FastifyPluginAsyncZod<ListingRoutesOptions> = async (ap
     preHandler: anyone,
     schema: {
       tags: TAGS_VIEWER,
+      security: optionalBearer,
       summary: 'Vài tin sàn chung cùng danh mục để xem tiếp',
       params: listingParamsSchema,
       response: { 200: ok(z.array(listingSchema)), ...readErrors },
@@ -81,6 +86,7 @@ export const readRoutes: FastifyPluginAsyncZod<ListingRoutesOptions> = async (ap
     preHandler: anyone,
     schema: {
       tags: TAGS_VIEWER,
+      security: optionalBearer,
       summary: 'Bảng tin nhóm — "chỉ thành viên" chỉ hiện cho thành viên; có `q` = tìm trong nhóm',
       params: groupListingParamsSchema,
       querystring: groupFeedQuerySchema,
@@ -94,6 +100,7 @@ export const readRoutes: FastifyPluginAsyncZod<ListingRoutesOptions> = async (ap
     preHandler: anyone,
     schema: {
       tags: TAGS_VIEWER,
+      security: optionalBearer,
       summary: 'Tin đang hiển thị của người bán mà người xem được phép thấy',
       params: userListingParamsSchema,
       querystring: cursorQuerySchema,

@@ -141,6 +141,7 @@ export interface MeDto extends PublicProfileDto {
   role: Account['role'];
   twoFactorEnabled: boolean;
   nameHidden: boolean;
+  showActivity: boolean;
 }
 
 export interface FlagDto {
@@ -178,6 +179,7 @@ export interface IdVerificationDto {
 export interface PatchMeInput {
   displayName?: string | undefined;
   phone?: string | null | undefined;
+  showActivity?: boolean | undefined;
 }
 
 export interface RegisterInput {
@@ -228,6 +230,15 @@ export interface IdentityService extends ActorResolver {
   listSessions(actor: Actor): Promise<SessionDto[]>;
   revokeSession(actor: Actor, sessionId: string): Promise<void>;
   revokeOtherSessions(actor: Actor): Promise<void>;
+  /** Token Expo Push của máy đang giữ phiên này (add-notifications); token ở phiên khác thì chuyển sang phiên này. */
+  setPushToken(actor: Actor, token: string): Promise<void>;
+  clearPushToken(actor: Actor): Promise<void>;
+  /** Cổng cho `notification`: token của phiên còn sống của những người này — máy đã đăng xuất, bị khoá thì vắng. */
+  pushTargets(
+    accountIds: string[],
+  ): Promise<{ accountId: string; sessionId: string; token: string }[]>;
+  /** Cổng cho `notification`: Expo báo máy đã gỡ app — bỏ token. */
+  forgetPushToken(token: string): Promise<void>;
 
   forgotPassword(input: { email: string }): Promise<void>;
   resetPassword(input: { email: string; code: string; password: string }): Promise<void>;
@@ -277,6 +288,17 @@ export interface IdentityService extends ActorResolver {
   unlockAccount(actor: Actor, accountId: string): Promise<void>;
   deleteMyAccount(actor: Actor): Promise<void>;
   requestDeletion(input: { email: string; password: string }): Promise<void>;
+  // ── HẠN LƯU (add-data-retention) — `ops` gọi ──
+  /** Tài khoản đã xoá trước `deletedBefore` chưa được dọn, theo trang con trỏ `id`. */
+  purgeDue(deletedBefore: Date, after: string | null, limit: number): Promise<string[]>;
+  /**
+   * Xoá hẳn hồ sơ: ẩn danh hoá (như khi hết thời gian chờ), xoá hồ sơ giấy tờ, ghi đã dọn. Tin và ảnh của người đó do
+   * `ops` đi qua `listing`, `media` trước; dòng tài khoản giữ cho lịch sử chống gian lận.
+   */
+  purgeDeletedAccount(accountId: string): Promise<void>;
+  purgeDeviceData(before: Date): Promise<{ posts: number; flags: number; sessionIps: number }>;
+  /** Mã giả thay mã tài khoản khi ẩn danh hoá gậy: HMAC khoá ngoài DB, dạng UUID — cùng người cùng mã, không dò ngược. */
+  pseudonymOf(accountId: string): string;
 
   /**
    * Dấu băm của mã máy app gửi (`x-device-id`) — HMAC thuần, không chạm DB. `listing` ghi dấu này vào sự kiện gửi tin
@@ -327,6 +349,14 @@ export interface IdentityService extends ActorResolver {
   lockAccountStatus(tx: Prisma.TransactionClient, accountId: string): Promise<AccountStatus | null>;
   /** Theo lô, bỏ qua mã không có; `group` đếm điều hành viên dùng được, `notification` lấy tên hiển thị. */
   accountSummaries(ids: string[]): Promise<Map<string, AccountSummary>>;
+  /** Theo lô: ảnh đại diện đã ký của tài khoản chưa xoá có đặt ảnh — `messaging` vẽ đầu hội thoại (add-price-offers). */
+  avatarUrls(ids: string[]): Promise<Map<string, string>>;
+  /** Kênh realtime báo kết nối mở / kết nối cuối đóng: ghi mốc "lần cuối hoạt động" (add-activity-status). */
+  recordSeen(accountId: string): Promise<void>;
+  /** Theo lô cho `messaging`: công tắc và mốc hoạt động của tài khoản chưa xoá. */
+  activityOf(
+    ids: string[],
+  ): Promise<Map<string, { showActivity: boolean; lastSeenAt: Date | null }>>;
   /** Tài khoản chưa xoá mang email này (so sau chuẩn hoá) — lời mời vào nhóm theo email. */
   accountIdByEmail(email: string): Promise<string | null>;
   /** Dấu băm HMAC của email đã chuẩn hoá, cùng khoá với `accounts.email_hash` — danh sách lớp của nhóm. */

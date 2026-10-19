@@ -17,6 +17,7 @@ export type TrustListingPort = Pick<
   | 'shownMs'
   | 'stateOf'
   | 'compensateLockedDays'
+  | 'postingFee'
 >;
 
 /** Tuổi tài khoản tính từ lúc tạo (câu 6) — `identity` trả lời; tài khoản đã xoá thì không tính lại. */

@@ -28,6 +28,8 @@ export const trustDashboardSchema = z.object({
     submissionsLeft: z.number().int(),
     /** Lúc có thêm lượt gửi khi đã hết lượt trong giờ; còn lượt thì `null`. */
     nextSubmissionAt: iso.nullable(),
+    /** Phí một lượt đăng tin (TK 29): hiện 0 Xu, app hiện "Miễn phí" — hợp đồng giữ nguyên ngày bật phí. */
+    fee: z.object({ amount: z.number().int().min(0), currency: z.literal('xu') }),
   }),
   /** Đang trong thời gian chờ vì dò cổng cứng: mốc được gửi tin mới lại — không nêu cổng nào. */
   cooldownUntil: iso.nullable(),

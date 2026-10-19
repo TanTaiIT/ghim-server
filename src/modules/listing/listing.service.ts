@@ -7,6 +7,10 @@ import {
 import { createListingFactsService } from './read/facts.service.js';
 import { createListingReadService, type ListingReadService } from './read/read.service.js';
 import {
+  createListingRetentionService,
+  type ListingRetentionService,
+} from './system/retention.service.js';
+import {
   createListingCascadeService,
   type ListingCascadeService,
 } from './system/cascade.service.js';
@@ -18,6 +22,7 @@ export type ListingService = ListingPostingService &
   ListingReadService &
   ListingSystemService &
   ListingCascadeService &
+  ListingRetentionService &
   ListingFactsService;
 
 /**
@@ -31,6 +36,7 @@ export function createListingService(deps: ListingServiceDeps): ListingService {
     ...createListingReadService(shared),
     ...createListingSystemService(shared),
     ...createListingCascadeService(shared),
+    ...createListingRetentionService(shared),
     ...createListingFactsService(shared),
   };
 }

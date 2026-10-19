@@ -30,6 +30,9 @@ const socket = io(API_ORIGIN, {
 
 Không có phòng theo nhóm: vào hay rời nhóm giữa chừng **không** phải nối lại. Server tự tính ai nhận gì.
 
+Kết nối cũng là tín hiệu "đang mở app" của trạng thái hoạt động trong hội thoại (add-activity-status, `docs/messaging.md`):
+nối khi app ra trước, ngắt khi app vào nền — giữ kết nối lúc app nằm nền là để người khác thấy mình "đang hoạt động" sai.
+
 ## Khi nào server cắt kết nối
 
 | Tình huống                                                                                                       | App thấy                                    | App làm                                               |
@@ -54,6 +57,8 @@ Lỗi mạng thì client tự nối lại như thường.
 | `me:groups-changed`    | `{ groupId: string }`                            | Tư cách hay vai của bạn ở nhóm này vừa đổi (vào, rời, bị gỡ, đổi đơn vị, làm chủ…) — tải lại "nhóm của tôi"                                                    |
 | `group:pending`        | `{ groupId: string, joinRequests: number }`      | Chỉ quản trị nhóm: số đơn xin vào đang chờ                                                                                                                     |
 | `message:new`          | `{ conversationId: string, messageId: string }`  | Tin nhắn mới trong một hội thoại của bạn (add-messaging) — tải lại hội thoại qua HTTP; chưa có dòng hộp thư (`add-notifications`)                              |
+| `message:updated`      | `{ conversationId: string, messageId: string }`  | Một tin nhắn đã có vừa đổi — người bán vừa trả lời đề nghị giá của bạn (add-price-offers); tải lại tin nhắn đó qua HTTP                                        |
+| `support:pending`      | `{ count: number }`                              | Chỉ staff đang mang quyền "hỗ trợ người dùng": số hội thoại hỗ trợ đang chờ đội trả lời vừa đổi (add-team-conversations) — tải lại hàng hỗ trợ                 |
 
 `Notification` giống hệt một phần tử của `GET /me/notifications`:
 
@@ -102,3 +107,22 @@ Tất cả cần `Authorization: Bearer <access token>`, dưới `/api/v1`:
 | `DELETE /me/group-mutes/:groupId`            | Bật lại tiếng                                                                 |
 
 Swagger (`/docs`, môi trường dev) có schema đầy đủ, tag **Notifications**.
+
+## Đẩy lên điện thoại (add-notifications)
+
+Server đẩy qua **Expo Push Service**; app là Expo nên lấy `ExponentPushToken[…]` bằng `expo-notifications` sau khi người
+dùng cho phép. Token gắn với **phiên đăng nhập** của máy đó:
+
+| Route                   | Việc                                                                                                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PUT /me/push-token`    | `{ token }` → 204. Gọi sau khi được cho phép và sau mỗi lần token đổi. Token đang ở phiên khác (máy đăng nhập tài khoản khác) thì chuyển sang phiên này |
+| `DELETE /me/push-token` | Thôi hiện thông báo trên máy này → 204                                                                                                                  |
+
+- Chỉ thông báo có `alert: true` mới đẩy (cùng luật với banner: bật tắt nhóm, tắt tiếng nhóm, trần gộp). Push mang
+  `title`, `body` như dòng hộp thư và `data` (`notificationId`, `type`, các mã của dòng) để mở đúng màn.
+- Phiên bị thu hồi hay hết hạn (đăng xuất, đổi mật khẩu, khoá tài khoản) thì máy đó tự hết nhận — không cần gọi gì.
+- Máy đã gỡ app (Expo báo `DeviceNotRegistered`) thì server quên token; cài lại thì gọi `PUT` lần nữa.
+- **Đang mở đúng hội thoại**: app gọi `PUT /me/conversations/{id}/viewing` khi mở màn hội thoại (lặp lại mỗi vài phút
+  khi còn mở — dấu sống 10 phút) và `DELETE …/viewing` khi đóng: tin nhắn của hội thoại đó không đẩy lên máy ấy; máy
+  khác của cùng người vẫn nhận. Hộp thư và `message:new` không đổi.
+- Đẩy là việc nền sau khi hộp thư đã ghi: chậm vài giây; mất mạng thì app tải lại qua HTTP như mọi khi.

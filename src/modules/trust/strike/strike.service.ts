@@ -1,4 +1,4 @@
-import type { Prisma, ReviewActorRole, StrikeKind } from '@prisma/client';
+import type { Prisma, ReviewActorRole, StrikeKind, StrikeStatus } from '@prisma/client';
 
 import type { OutboxEventInput } from '../../../common/outbox/outbox.js';
 
@@ -127,6 +127,31 @@ export interface TrustStrikeService {
   expireStrikes(): Promise<number>;
   /** Job hằng ngày: khoá vĩnh viễn tới kỳ xem lại → `review` mở việc cho master. */
   permanentReviewsDue(): Promise<number>;
+  // ── HẠN LƯU (add-data-retention) — `ops` gọi ──
+  /** Gậy mới nhất của từng tin, dạng dữ kiện: `ops` tính tạm giữ bằng chứng và mốc xoá tin bị gỡ vì vi phạm. */
+  strikesOfListings(listingIds: string[]): Promise<Map<string, StrikeFact>>;
+  /** Gậy tới hạn ẩn danh hoá: đóng (hết hạn, huỷ) trước mốc, hay đã gỡ khoá và ngày khoá trước mốc. */
+  anonymizeDue(closedBefore: Date, limit: number): Promise<{ id: string; accountId: string }[]>;
+  /** Trong transaction của `ops` cùng `review` và nhật ký: người nhận thành mã giả, dấu băm email và lời khiếu nại bỏ. */
+  anonymizeStrike(
+    tx: Tx,
+    input: { id: string; accountId: string; pseudonym: string },
+  ): Promise<boolean>;
+  dropLiftedEmailHashes(): Promise<number>;
+  /** Bên nghe `identity.account.purged`: đăng ký dở bị dọn thì gậy đã kế thừa của nó đi theo. */
+  onAccountsPurged(accountIds: string[]): Promise<number>;
+}
+
+/** Dữ kiện một gậy cho luật hạn lưu và tạm giữ của `ops` — không mang người, lý do hay điều đã trích. */
+export interface StrikeFact {
+  id: string;
+  kind: StrikeKind;
+  status: StrikeStatus;
+  issuedAt: Date;
+  expiresAt: Date | null;
+  cancelledAt: Date | null;
+  liftedAt: Date | null;
+  appealPending: boolean;
 }
 
 const notFound = (): NotFoundError => new NotFoundError('Không có gậy này');
@@ -777,5 +802,32 @@ export function createStrikeService(
       );
       return due.length;
     },
+
+    async strikesOfListings(listingIds) {
+      const facts = new Map<string, StrikeFact>();
+      // Mới trước: dòng đầu của mỗi tin là gậy mới nhất.
+      for (const row of await strikes.ofListings([...new Set(listingIds)])) {
+        if (!row.listingId || facts.has(row.listingId)) continue;
+        facts.set(row.listingId, {
+          id: row.id,
+          kind: row.kind,
+          status: row.status,
+          issuedAt: row.issuedAt,
+          expiresAt: row.expiresAt,
+          cancelledAt: row.cancelledAt,
+          liftedAt: row.liftedAt,
+          appealPending: row.appeal?.status === 'pending',
+        });
+      }
+      return facts;
+    },
+
+    anonymizeDue: (closedBefore, limit) => strikes.anonymizeDue(closedBefore, limit),
+
+    anonymizeStrike: (tx, input) => strikes.anonymize(tx, { ...input, at: clock() }),
+
+    dropLiftedEmailHashes: () => strikes.dropLiftedEmailHashes(),
+
+    onAccountsPurged: (accountIds) => strikes.deleteOfAccounts(accountIds),
   };
 }

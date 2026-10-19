@@ -4,10 +4,11 @@ import { type PaginationQuery, toPage, toSkipTake } from '../../common/schemas/p
 import type { MyReportDto } from '../review/report/report.schema.js';
 import type { BlockedDto, ConversationReportBody } from './messaging.schema.js';
 import {
-  conversationNotFound,
+  isTeam,
   type MessagingServiceDeps,
+  notReportable,
   otherOf,
-  sideOf,
+  ownedBy,
 } from './messaging.shared.js';
 
 export interface BlockService {
@@ -68,12 +69,13 @@ export function createBlockService(deps: MessagingServiceDeps): BlockService {
     },
 
     async report(actor, conversationId, body, deviceId) {
-      const row = await repository.find(conversationId);
-      const side = row ? sideOf(row, actor.accountId) : null;
-      if (!row || !side) throw conversationNotFound();
+      const { row, side } = await ownedBy(deps, actor, conversationId);
+      const other = otherOf(row, side);
+      // Báo cáo nhắm một tài khoản; bên kia là cả đội thì chưa có đối tượng nào để báo (change sau).
+      if (isTeam(row) || !other) throw notReportable();
       return review.submitReport(
         actor,
-        { subject: { kind: 'account', accountId: otherOf(row, side) }, category: body.category },
+        { subject: { kind: 'account', accountId: other }, category: body.category },
         deviceId,
         { conversationId: row.id },
       );

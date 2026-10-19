@@ -20,6 +20,8 @@ export const LISTING_EVENTS = {
   placementDowngraded: 'listing.placement.downgraded',
   badgeRemoved: 'listing.badge.removed',
   expiryReminder: 'listing.expiry.reminder',
+  /** Tin hết hạn còn 7 ngày nữa tới hạn xoá hẳn (add-data-retention) — N48. */
+  purgeReminder: 'listing.purge.reminder',
   edited: 'listing.listing.edited',
   deleted: 'listing.listing.deleted',
   moved: 'listing.listing.moved',

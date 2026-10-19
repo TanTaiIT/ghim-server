@@ -5,7 +5,12 @@ import { NotFoundError } from '../../../common/errors/app-error.js';
 import { type CursorKey, toCursorPage } from '../../../common/schemas/cursor.js';
 import { fold } from '../../../common/text/fold.js';
 import { isDetached, placementsHiddenOnLeave } from '../calc/hide.calc.js';
-import type { GroupLeave, ReportTarget, ReviewSubject } from '../listing.ports.js';
+import type {
+  ConversationCard,
+  GroupLeave,
+  ReportTarget,
+  ReviewSubject,
+} from '../listing.ports.js';
 import type { FeedQuery, ListingDto, OwnListingDto } from '../listing.schema.js';
 import { type ListingShared, listingNotFound } from '../listing.shared.js';
 import { canView, type ListSurface, visibleWhere } from '../calc/visibility.calc.js';
@@ -39,6 +44,8 @@ export interface ListingReadService {
   ): Promise<CursorPage<OwnListingDto>>;
   /** Cổng cho `notification`: tiêu đề tin theo mã, để câu thông báo nêu đúng món đồ. */
   titles(ids: string[]): Promise<Map<string, string>>;
+  /** Cổng cho `messaging`: thẻ tin của một trang hội thoại, một lượt đọc; tin đã xoá hẳn thì vắng. */
+  conversationCards(ids: string[]): Promise<Map<string, ConversationCard>>;
   /**
    * Cổng cho `review`: dữ kiện để định tuyến việc và kiểm quyết định; tin đã xoá thì `null`, trừ khi hỏi kèm
    * `includeDeleted` — báo cáo về tin đã xoá vẫn được nhận, được quyết trên bản lưu (add-reports).
@@ -76,7 +83,7 @@ const PENDING_IN_GROUP_LIMIT = 100;
 /** Việc bù lúc khởi động — giai đoạn đầu chỉ vài chục tin; lần khởi động sau bù tiếp phần còn lại. */
 const BACKLOG_LIMIT = 5000;
 
-const liveKey = (row: Listing): CursorKey => ({ at: row.firstLiveAt ?? row.createdAt, id: row.id });
+const liveKey = (row: Listing): CursorKey => ({ at: row.rankAt ?? row.createdAt, id: row.id });
 const updatedKey = (row: Listing): CursorKey => ({ at: row.updatedAt, id: row.id });
 
 const keywordWhere = (q: string | undefined): Prisma.ListingWhereInput =>
@@ -195,6 +202,33 @@ export function createListingReadService(shared: ListingShared): ListingReadServ
     async titles(ids) {
       const rows = await repository.findByIds(ids);
       return new Map(rows.flatMap((row) => (row.title ? [[row.id, row.title] as const] : [])));
+    },
+
+    async conversationCards(ids) {
+      const rows = await repository.findByIds(ids);
+      const cards = await Promise.all(
+        rows.map(async (row): Promise<[string, ConversationCard]> => {
+          const deleted = row.deletedAt !== null;
+          const [coverId] = row.imageIds;
+          const cover =
+            deleted || row.state === 'removed' || !coverId
+              ? null
+              : { id: coverId, url: await shared.media.viewUrl(coverId) };
+          return [
+            row.id,
+            {
+              title: deleted ? null : row.title,
+              price: deleted ? null : row.price,
+              negotiable: row.negotiable,
+              state: row.state,
+              visible: !deleted && row.state === 'live' && row.hideReasons.length === 0,
+              deleted,
+              cover,
+            },
+          ];
+        }),
+      );
+      return new Map(cards);
     },
 
     async reviewSubject(id, options = {}) {

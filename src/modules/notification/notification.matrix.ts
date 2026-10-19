@@ -21,7 +21,13 @@ export interface NoticeDraft {
    * Chuyện lặp lại theo nhóm: cập nhật dòng chưa đọc cùng khoá thay vì thêm dòng (luật gộp). `alertMinutes` = khoá
    * trần nhắc riêng của dòng ma trận (mặc định `notification.collapseAlertMinutes`).
    */
-  collapse?: { key: string; render: (count: number) => string; alertMinutes?: RuntimeConfigKey };
+  collapse?: {
+    key: string;
+    render: (count: number) => string;
+    alertMinutes?: RuntimeConfigKey;
+    /** Nhắc mỗi lượt dù dòng gộp vừa nhắc — hội thoại đang trò chuyện (add-notifications), không phải chuyện lặp của nhóm. */
+    alertEvery?: boolean;
+  };
 }
 
 /** Thông báo tới mọi thành viên (hay một đơn vị) — người nhận lấy theo trang, không nạp cả nhóm một lượt. */
@@ -71,6 +77,20 @@ export interface MatrixContext {
    * `null`. Nội dung xem trong app của N43, N44 (notify-listing-decisions).
    */
   machineNotice(listingId: string): Promise<MachineNotice | null>;
+  /** Nội dung, người gửi của một tin nhắn — `messaging` trả lời; tin không có thì `null` (add-notifications). */
+  messagePreview(messageId: string): Promise<{
+    conversationId: string;
+    senderId: string;
+    body: string;
+    /** Đề nghị giá (add-price-offers): không có chữ, câu nhắc nêu số tiền. */
+    offer: { amount: bigint } | null;
+    /** Câu nhắc ký theo phía gửi: tên người, hay tên đội (add-team-conversations). */
+    conversation: {
+      kind: 'listing' | 'support' | 'group';
+      groupId: string | null;
+      buyerId: string;
+    };
+  } | null>;
 }
 
 export type Payload = Record<string, unknown>;

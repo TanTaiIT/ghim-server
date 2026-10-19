@@ -202,6 +202,7 @@ export function createListingShared(deps: ListingServiceDeps) {
               ? { groupId: row.badgeGroupId, name: label.name }
               : null,
           firstLiveAt: row.firstLiveAt?.toISOString() ?? null,
+          featuredUntil: row.featuredUntil?.toISOString() ?? null,
           expiresAt: row.expiresAt?.toISOString() ?? null,
           createdAt: row.createdAt.toISOString(),
           updatedAt: row.updatedAt.toISOString(),

@@ -109,3 +109,5 @@ người bán — có ở mọi việc). Quyết:
 `trust.permanent-review` (00:45 hằng ngày): khoá vĩnh viễn tới kỳ → `trust.strike.review_due` → `review` mở việc.
 `trust.strike.standing { accountId, points, active, severe }` phát sau **mọi** thay đổi — bên nghe hỏi lại `trust`
 rồi đối chiếu, không tin payload. Con số: `strike.*`, `trust.t3NoStrikeDays`, `review.appealDays` trong bảng con số.
+Hạn lưu (add-data-retention, `docs/retention.md`): gậy đóng quá 2 năm được ẩn danh hoá — `account_id` thành mã giả,
+dấu băm email bỏ, lời khiếu nại xoá; khoá vĩnh viễn chỉ ẩn danh sau khi gỡ, dấu băm email giữ tới lúc đó.

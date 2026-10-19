@@ -34,6 +34,7 @@ const contextWith = (
     ),
   listingTargets: unused,
   masterIds: () => Promise.resolve(masters),
+  messagePreview: unused,
   machineNotice: unused,
 });
 

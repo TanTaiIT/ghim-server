@@ -38,6 +38,27 @@ export async function appendAudit(tx: Prisma.TransactionClient, entry: AuditEntr
   });
 }
 
+/**
+ * Ẩn danh hoá gậy (TK 25, add-data-retention): dòng về gậy đó mang `details.accountId`, và dòng khoá tài khoản vì gậy đó
+ * (`target_type = account`, `details.strikeId`) — mã người nhận thành mã giả. Chỉ đường này được sửa nhật ký: trigger
+ * `audit_log_immutable` mở khi transaction đặt `ghim.anonymize = 'on'`, và chỉ cho `target_id`, `details` đổi.
+ */
+export async function pseudonymizeAudit(
+  tx: Prisma.TransactionClient,
+  input: { strikeId: string; accountId: string; pseudonym: string },
+): Promise<number> {
+  await tx.$executeRawUnsafe(`SET LOCAL ghim.anonymize = 'on'`);
+  const onStrike = await tx.$executeRaw`
+    UPDATE audit_log SET details = jsonb_set(details, '{accountId}', to_jsonb(${input.pseudonym}::text))
+     WHERE target_type = 'strike' AND target_id = ${input.strikeId}
+       AND details->>'accountId' = ${input.accountId}`;
+  const onAccount = await tx.$executeRaw`
+    UPDATE audit_log SET target_id = ${input.pseudonym}
+     WHERE target_type = 'account' AND target_id = ${input.accountId}
+       AND details->>'strikeId' = ${input.strikeId}`;
+  return onStrike + onAccount;
+}
+
 /** Phần "ai làm" của một dòng nhật ký, lấy từ `request.actor` — staff ghi dưới tài khoản cá nhân của chính mình. */
 export function auditActor(actor: Actor): Pick<AuditEntry, 'actorId' | 'actorRole'> {
   return { actorId: actor.accountId, actorRole: actor.role };

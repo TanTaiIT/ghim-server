@@ -68,6 +68,7 @@ export function createTrustDashboardService(
           submissionsLeft: Math.max(0, settings.perHour - recent.length),
           nextSubmissionAt:
             !rate.ok && rate.code === 'SUBMISSION_RATE_LIMITED' ? rate.retryAt.toISOString() : null,
+          fee: listings.postingFee(),
         },
         cooldownUntil: cooldownUntil?.toISOString() ?? null,
         strikes: strikeDtos,

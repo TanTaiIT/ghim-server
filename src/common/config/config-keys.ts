@@ -72,7 +72,9 @@ const REPORT = 'Báo cáo';
 const LISTING = 'Tin đăng';
 const GROUP = 'Nhóm';
 const NOTIFICATION = 'Thông báo';
+const MESSAGING = 'Nhắn tin';
 const MEDIA = 'Ảnh';
+const RETENTION = 'Hạn lưu';
 
 export const CONFIG_KEYS = {
   // Tài khoản
@@ -206,6 +208,8 @@ export const CONFIG_KEYS = {
   'notification.groupListingsAlertMinutes': minutes(120, NOTIFICATION),
   // N40–N42 báo master: TK 16 "nhắc lại mỗi ngày" — cảnh báo của dòng gộp không bật lại sớm hơn (fix-audit-review, T9).
   'notification.reviewAlertMinutes': minutes(1440, NOTIFICATION),
+  // Nhắn tin — "lần cuối hoạt động" chỉ hiện trong cửa sổ này (add-activity-status): xa hơn là dữ liệu để rình, không giúp chat.
+  'messaging.activityVisibleDays': days(7, MESSAGING, { max: 30 }),
   // Ảnh
   'media.maxImageBytes': int(5_242_880, MEDIA),
   // Chữ ký S3 (SigV4) sống tối đa 7 ngày.
@@ -214,6 +218,22 @@ export const CONFIG_KEYS = {
   'media.unconfirmedHours': hours(48, MEDIA),
   // Bộ nối S3 ký đường xem gấp đôi số phút, mà chữ ký sống tối đa 7 ngày.
   'media.viewUrlMinutes': minutes(60, MEDIA, { max: 5040 }),
+  // Hạn lưu (TK 25, add-data-retention) — hạn tài khoản đã xoá dùng `identity.deletedEmailHoldDays`, dữ liệu thiết bị
+  // dùng `device.dataRetentionDays`: cùng một con số của TK, không khai hai lần.
+  'retention.draftDays': days(7, RETENTION),
+  'retention.mistakeDays': days(90, RETENTION),
+  'retention.violationGraceDays': days(30, RETENTION, { min: 0 }),
+  'retention.seriousYears': years(2, RETENTION),
+  'retention.selfDeletedDays': days(30, RETENTION),
+  'retention.soldDays': days(180, RETENTION),
+  'retention.expiredDays': days(365, RETENTION),
+  'retention.purgeRemindBeforeDays': days(7, RETENTION),
+  'retention.closedGroupDays': days(90, RETENTION),
+  'retention.conversationIdleDays': days(365, RETENTION),
+  'retention.notificationDays': days(90, RETENTION),
+  'retention.screeningRunDays': days(180, RETENTION),
+  'retention.strikeAnonymizeYears': years(2, RETENTION),
+  'retention.evidenceHoldDays': days(30, RETENTION, { min: 0 }),
 } as const satisfies Record<string, ConfigKeySpec>;
 
 export type RuntimeConfigKey = keyof typeof CONFIG_KEYS;
@@ -286,6 +306,11 @@ const RELATIONS: { holds: (values: ConfigValues) => boolean; issue: string }[] =
     holds: (v) => v['identity.codeTtlMinutes'] < v['identity.unverifiedPurgeDays'] * 1440,
     issue:
       'identity.codeTtlMinutes phải ngắn hơn identity.unverifiedPurgeDays — đăng ký bị dọn khi mã còn sống',
+  },
+  {
+    holds: (v) => v['retention.purgeRemindBeforeDays'] < v['retention.expiredDays'],
+    issue:
+      'retention.purgeRemindBeforeDays phải nhỏ hơn retention.expiredDays — không thì tin vừa hết hạn đã bị nhắc sắp xoá hẳn',
   },
 ];
 

@@ -14,6 +14,11 @@ export interface Realtime {
   disconnectUser(accountId: string): void;
   /** Một phiên bị thu hồi: chỉ kết nối mở bằng phiên đó. */
   disconnectSession(sessionId: string): void;
+  /**
+   * Trong `accountIds`, ai đang có ít nhất một kết nối (add-activity-status) — app chỉ nối khi đang mở, nên đây là "đang
+   * mở app". Đọc trong bộ nhớ của tiến trình: TK 30 chốt một tiến trình; tách tiến trình thì đổi sang adapter dùng chung.
+   */
+  onlineAmong(accountIds: string[]): Set<string>;
 }
 
 /** Cho test HTTP và lúc chưa có server — phát vào hư không. */
@@ -21,6 +26,7 @@ export const noopRealtime: Realtime = {
   emitToUser: () => {},
   disconnectUser: () => {},
   disconnectSession: () => {},
+  onlineAmong: () => new Set(),
 };
 
 export const REALTIME_PATH = '/realtime';
@@ -30,6 +36,11 @@ export interface RealtimeGatewayDeps {
   verifyToken(token: string): { sid: string; exp: number };
   resolveActor(sessionId: string): Promise<Actor>;
   corsOrigin: string | string[];
+  /**
+   * Một kết nối vừa mở, hay kết nối cuối cùng của tài khoản vừa đóng — chủ dữ liệu ghi mốc "lần cuối hoạt động". Kênh
+   * này là hạ tầng chung, không ghi bảng của module nào (design add-activity-status mục 2).
+   */
+  onPresence?(accountId: string): void;
 }
 
 interface SocketIdentity {
@@ -86,7 +97,12 @@ export function createRealtimeGateway(
     // Hết hạn access token thì ngắt: app nối lại bằng token mới, và phiên được kiểm lại lúc bắt tay.
     const timer = setTimeout(() => socket.disconnect(true), Math.max(0, exp * 1000 - Date.now()));
     timer.unref();
-    socket.on('disconnect', () => clearTimeout(timer));
+    deps.onPresence?.(accountId);
+    socket.on('disconnect', () => {
+      clearTimeout(timer);
+      // Lúc `disconnect` socket đã rời phòng: phòng còn người là còn máy khác đang mở app.
+      if (!io.sockets.adapter.rooms.has(userRoom(accountId))) deps.onPresence?.(accountId);
+    });
   });
 
   return {
@@ -99,6 +115,8 @@ export function createRealtimeGateway(
     disconnectSession: (sessionId) => {
       io.in(sessionRoom(sessionId)).disconnectSockets(true);
     },
+    onlineAmong: (accountIds) =>
+      new Set(accountIds.filter((id) => io.sockets.adapter.rooms.has(userRoom(id)))),
     // Chỉ cắt kết nối và đóng engine — `io.close()` còn đóng luôn HTTP server, việc đó là của Fastify.
     close: async () => {
       io.disconnectSockets(true);

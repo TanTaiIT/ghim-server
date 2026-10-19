@@ -30,14 +30,41 @@ export interface JobSendOptions {
   startAfter?: Date;
 }
 
+export type JobSummary = Record<string, number | string | boolean | null>;
+
+/**
+ * Điều một lượt việc theo lịch nói về mình (TK 26 luật 2): `partial` = bị cắt giữa chừng, phần còn lại ở lượt sau;
+ * không trả gì = xong.
+ */
+export interface JobOutcome {
+  partial?: boolean;
+  summary?: JobSummary;
+}
+
+export type JobRunStatus = 'done' | 'partial' | 'failed';
+
+export interface JobRunRecord {
+  name: JobName;
+  status: JobRunStatus;
+  startedAt: Date;
+  finishedAt: Date;
+  summary: JobSummary;
+  error: string | null;
+}
+
+/** Sổ kết quả lượt chạy — `ops` sở hữu bảng `job_runs`; `createJobs` chỉ ghi. */
+export interface JobRunLog {
+  record(run: JobRunRecord): Promise<void>;
+}
+
 export interface Jobs {
   start(): Promise<void>;
   stop(): Promise<void>;
-  /** Việc theo lịch cron. Handler là hàm thuần nhận deps lúc khai. */
+  /** Việc theo lịch cron. Handler là hàm thuần nhận deps lúc khai; kết quả lượt được ghi vào sổ (`JobRunLog`). */
   schedule(
     name: JobName,
     cron: string,
-    handler: () => Promise<void>,
+    handler: () => Promise<JobOutcome | void>,
     options?: JobScheduleOptions,
   ): Promise<void>;
   /**
@@ -61,8 +88,44 @@ const DEFAULT_TZ = 'Asia/Ho_Chi_Minh';
 const DEFAULT_RETRY_LIMIT = 3;
 /** Ngắn hơn `SHUTDOWN_TIMEOUT_MS` của server.ts, để còn chỗ đóng Prisma trước khi bị thoát cưỡng bức. */
 const STOP_TIMEOUT_MS = 5_000;
+const ERROR_MAX_CHARS = 500;
 
 type Registration = () => Promise<void>;
+
+const errorText = (error: unknown): string =>
+  (error instanceof Error ? error.message : String(error)).slice(0, ERROR_MAX_CHARS);
+
+/**
+ * Chạy một lượt việc theo lịch và ghi kết quả vào sổ: xong, mới làm được một phần (handler trả `partial`), hay hỏng
+ * (handler ném — ghi rồi ném tiếp để pg-boss thử lại). Sổ hỏng không che lỗi của việc, chỉ lên log.
+ */
+export async function recordedRun(
+  name: JobName,
+  handler: () => Promise<JobOutcome | void>,
+  runLog: JobRunLog | undefined,
+  clock: () => Date = () => new Date(),
+): Promise<JobOutcome | void> {
+  const startedAt = clock();
+  const record = async (run: Omit<JobRunRecord, 'name' | 'startedAt' | 'finishedAt'>) => {
+    try {
+      await runLog?.record({ name, startedAt, finishedAt: clock(), ...run });
+    } catch (error) {
+      logger.error({ err: error, job: name }, 'Không ghi được kết quả lượt việc');
+    }
+  };
+  try {
+    const outcome = await handler();
+    await record({
+      status: outcome?.partial ? 'partial' : 'done',
+      summary: outcome?.summary ?? {},
+      error: null,
+    });
+    return outcome;
+  } catch (error) {
+    await record({ status: 'failed', summary: {}, error: errorText(error) });
+    throw error;
+  }
+}
 
 /**
  * Việc nền trên chính Postgres (TK 26), một instance cho cả tiến trình: `buildApp` khai việc của
@@ -71,7 +134,10 @@ type Registration = () => Promise<void>;
  * khai không phải biết điều đó. Chạy nhiều tiến trình sau này không phải đổi gì: pg-boss khoá theo
  * job, không theo tiến trình.
  */
-export function createJobs(connectionString: string, { max }: { max?: number } = {}): Jobs {
+export function createJobs(
+  connectionString: string,
+  { max, runLog }: { max?: number; runLog?: JobRunLog } = {},
+): Jobs {
   const boss = new PgBoss({
     connectionString,
     schema: SCHEMA,
@@ -108,7 +174,7 @@ export function createJobs(connectionString: string, { max }: { max?: number } =
       register(async () => {
         await boss.createQueue(name);
         await boss.work(name, async () => {
-          await handler();
+          await recordedRun(name, handler, runLog);
         });
         await boss.schedule(name, cron, null, {
           tz: options.tz ?? DEFAULT_TZ,

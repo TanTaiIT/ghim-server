@@ -2,14 +2,19 @@ import { type BlockService, createBlockService } from './block.service.js';
 import { type ConversationService, createConversationService } from './conversation.service.js';
 import { createInboxService, type InboxService } from './inbox.service.js';
 import type { MessagingServiceDeps } from './messaging.shared.js';
+import { createSupportDeskService, type SupportDeskService } from './support.service.js';
 
 export type { MessagingServiceDeps } from './messaging.shared.js';
 
-export type MessagingService = ConversationService & InboxService & BlockService;
+export type MessagingService = ConversationService &
+  InboxService &
+  BlockService &
+  SupportDeskService;
 
 /**
- * Nhắn tin (TK 24, design add-messaging): hội thoại gắn với một tin, hai bên là người mua và người đăng; chặn người;
- * báo cáo từ hội thoại đi qua `review`. Chỉ `messaging` ghi hội thoại, tin nhắn, chặn (CLAUDE.md luật 11).
+ * Nhắn tin (TK 24, design add-messaging): hội thoại về một tin giữa người mua và người đăng, hay với một đội — Hỗ trợ
+ * Ghim, quản trị một nhóm (add-team-conversations); chặn người; báo cáo từ hội thoại đi qua `review`. Chỉ `messaging`
+ * ghi hội thoại, tin nhắn, chặn (CLAUDE.md luật 11).
  */
 export function createMessagingService(deps: MessagingServiceDeps): MessagingService {
   const inbox = createInboxService(deps);
@@ -17,5 +22,6 @@ export function createMessagingService(deps: MessagingServiceDeps): MessagingSer
     ...inbox.service,
     ...createConversationService(deps, inbox.describe),
     ...createBlockService(deps),
+    ...createSupportDeskService(deps, inbox.describe),
   };
 }

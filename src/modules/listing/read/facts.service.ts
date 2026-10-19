@@ -1,4 +1,5 @@
 import { shownMsAt } from '../calc/display-period.calc.js';
+import { postingFee } from '../calc/fee.calc.js';
 import type { ListingFactsService } from '../listing.ports.js';
 import type { ListingShared } from '../listing.shared.js';
 
@@ -9,6 +10,7 @@ const textOf = (row: { title: string | null; description: string | null }): stri
 export function createListingFactsService(shared: ListingShared): ListingFactsService {
   const { repository } = shared;
   return {
+    postingFee,
     quotaFacts: (tx, input) => repository.quotaFacts(tx, input),
     occupying: (tx, accountId) => repository.occupying(tx, accountId),
 

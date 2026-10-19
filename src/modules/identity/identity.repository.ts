@@ -71,6 +71,7 @@ export type AccountPatch = Partial<
     | 'totpEnabledAt'
     | 'emailChangedAt'
     | 'passwordChangedAt'
+    | 'showActivity'
   >
 >;
 
@@ -238,6 +239,13 @@ export interface IdentityRepository {
   findAccountSummaries(
     ids: string[],
   ): Promise<Pick<Account, 'id' | 'role' | 'status' | 'displayName' | 'createdAt'>[]>;
+  /** Mốc "lần cuối hoạt động" — tài khoản đã xoá không ghi: kết nối của nó đóng ngay sau lượt xoá (add-activity-status). */
+  recordSeen(accountId: string, at: Date): Promise<void>;
+  findActivity(ids: string[]): Promise<Pick<Account, 'id' | 'showActivity' | 'lastSeenAt'>[]>;
+  /** Chỉ tài khoản chưa xoá. */
+  findAvatarSources(
+    ids: string[],
+  ): Promise<Pick<Account, 'id' | 'avatarFromGoogle' | 'googlePictureUrl' | 'avatarImageId'>[]>;
   /** Chỉ tài khoản chưa xoá. */
   findAccountIdsByEmailHashes(hashes: string[]): Promise<Pick<Account, 'id' | 'emailHash'>[]>;
   findAccountByGoogleSub(googleSub: string): Promise<Account | null>;
@@ -265,6 +273,13 @@ export interface IdentityRepository {
    * `add-data-retention`. `false` = dòng không còn ở trạng thái đó (đã ẩn danh, hay chưa hết thời gian chờ).
    */
   anonymizeDeletedAccount(input: { id: string; deletedBefore: Date }): Promise<boolean>;
+  // ── HẠN LƯU (add-data-retention) ──
+  /** Tài khoản đã xoá trước `deletedBefore` mà `ops` chưa dọn, theo trang con trỏ `id` (tài khoản đang tạm giữ bị bỏ qua). */
+  deletedAccountsDue(deletedBefore: Date, after: string | null, limit: number): Promise<string[]>;
+  /** Lượt dọn xong: ghi `purged_at`, xoá hồ sơ xác minh giấy tờ (số giấy tờ là dữ liệu cá nhân, không giữ mãi). */
+  markAccountPurged(id: string, at: Date): Promise<void>;
+  /** Dữ liệu thiết bị quá hạn lưu (TK 8): lượt ghi dấu máy, đánh dấu đã gỡ, địa chỉ mạng của phiên mở trước mốc. */
+  purgeDeviceData(before: Date): Promise<{ posts: number; flags: number; sessionIps: number }>;
   /**
    * Khoá dòng tài khoản rồi mới đọc trạng thái, ghi trạng thái đó vào `statusBeforeLock` (fix-audit-identity-low,
    * L1). `false` = không có tài khoản, hoặc nó không còn `active` / `pending_verification` (lượt khoá khác vừa chạy)
@@ -321,6 +336,16 @@ export interface IdentityRepository {
   rotateRefreshToken(input: RotateRefreshInput): Promise<boolean>;
   /** Phiên chưa thu hồi, mới hoạt động trước. */
   listActiveSessions(accountId: string): Promise<Session[]>;
+  /** Token đẩy gắn phiên (add-notifications): một token một phiên — đang ở phiên khác thì chuyển sang. */
+  setPushToken(sessionId: string, token: string): Promise<void>;
+  clearPushToken(sessionId: string): Promise<void>;
+  /** Expo báo máy đã gỡ app: bỏ token ở phiên nào đang giữ. */
+  forgetPushToken(token: string): Promise<void>;
+  /** Token của phiên còn sống (chưa thu hồi, chưa hết hạn) của những người này. */
+  pushTargets(
+    accountIds: string[],
+    now: Date,
+  ): Promise<{ accountId: string; sessionId: string; token: string }[]>;
   revokeSessions(input: RevokeSessionsInput): Promise<number>;
   deleteSessionsInactiveBefore(before: Date): Promise<number>;
 
@@ -393,6 +418,22 @@ async function revokeSessionsIn(
   return count;
 }
 
+/**
+ * Xoá HẲN đăng ký dở dang và báo `identity.account.purged`: gậy đã kế thừa không còn khoá ngoại sang tài khoản
+ * (add-data-retention) nên `trust` nghe mà dọn. Chỉ những dòng còn `pending_verification` lúc xoá mới vào sự kiện.
+ */
+async function purgeUnverifiedIn(tx: Prisma.TransactionClient, ids: string[]): Promise<number> {
+  if (ids.length === 0) return 0;
+  const purged = await tx.$queryRaw<{ id: string }[]>`
+    DELETE FROM accounts WHERE id = ANY(${ids}::uuid[]) AND status = 'pending_verification' RETURNING id::text`;
+  if (purged.length > 0) {
+    await appendEvents(tx, [
+      { type: 'identity.account.purged', payload: { accountIds: purged.map((row) => row.id) } },
+    ]);
+  }
+  return purged.length;
+}
+
 export function createIdentityRepository(prisma: PrismaClient): IdentityRepository {
   return {
     findAccountById: (id) => prisma.account.findUnique({ where: { id } }),
@@ -409,6 +450,31 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
         : prisma.account.findMany({
             where: { id: { in: ids } },
             select: { id: true, role: true, status: true, displayName: true, createdAt: true },
+          }),
+    async recordSeen(accountId, at) {
+      await prisma.account.updateMany({
+        where: { id: accountId, status: { not: 'deleted' } },
+        data: { lastSeenAt: at },
+      });
+    },
+    findActivity: (ids) =>
+      ids.length === 0
+        ? Promise.resolve([])
+        : prisma.account.findMany({
+            where: { id: { in: ids }, status: { not: 'deleted' } },
+            select: { id: true, showActivity: true, lastSeenAt: true },
+          }),
+    findAvatarSources: (ids) =>
+      ids.length === 0
+        ? Promise.resolve([])
+        : prisma.account.findMany({
+            where: { id: { in: ids }, status: { not: 'deleted' } },
+            select: {
+              id: true,
+              avatarFromGoogle: true,
+              googlePictureUrl: true,
+              avatarImageId: true,
+            },
           }),
     findAccountIdsByEmailHashes: (hashes) =>
       hashes.length === 0
@@ -439,18 +505,19 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
         await appendEvents(tx, events);
         return true;
       }),
-    async deleteUnverifiedAccountsBefore(createdBefore) {
-      const { count } = await prisma.account.deleteMany({
-        where: { status: 'pending_verification', createdAt: { lt: createdBefore } },
-      });
-      return count;
-    },
-    async deleteUnverifiedAccount(id) {
-      const { count } = await prisma.account.deleteMany({
-        where: { id, status: 'pending_verification' },
-      });
-      return count === 1;
-    },
+    deleteUnverifiedAccountsBefore: (createdBefore) =>
+      prisma.$transaction(async (tx) => {
+        const rows = await tx.account.findMany({
+          where: { status: 'pending_verification', createdAt: { lt: createdBefore } },
+          select: { id: true },
+        });
+        return purgeUnverifiedIn(
+          tx,
+          rows.map((row) => row.id),
+        );
+      }),
+    deleteUnverifiedAccount: (id) =>
+      prisma.$transaction(async (tx) => (await purgeUnverifiedIn(tx, [id])) === 1),
     anonymizeDeletedAccount: ({ id, deletedBefore }) =>
       prisma.$transaction(async (tx) => {
         const tombstone = `${DELETED_EMAIL_PREFIX}${id}`;
@@ -479,6 +546,36 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
         await tx.verificationCode.deleteMany({ where: { accountId: id } });
         return true;
       }),
+    deletedAccountsDue: async (deletedBefore, after, limit) =>
+      (
+        await prisma.account.findMany({
+          where: {
+            status: 'deleted',
+            deletedAt: { lt: deletedBefore },
+            purgedAt: null,
+            ...(after ? { id: { gt: after } } : {}),
+          },
+          orderBy: { id: 'asc' },
+          take: limit,
+          select: { id: true },
+        })
+      ).map((row) => row.id),
+    markAccountPurged: (id, at) =>
+      prisma.$transaction(async (tx) => {
+        await tx.idVerification.deleteMany({ where: { accountId: id } });
+        await tx.account.update({ where: { id }, data: { purgedAt: at } });
+      }),
+    async purgeDeviceData(before) {
+      const [posts, flags, sessions] = await Promise.all([
+        prisma.devicePost.deleteMany({ where: { lastPostedAt: { lt: before } } }),
+        prisma.accountFlag.deleteMany({ where: { clearedAt: { lt: before } } }),
+        prisma.session.updateMany({
+          where: { createdAt: { lt: before }, ip: { not: null } },
+          data: { ip: null },
+        }),
+      ]);
+      return { posts: posts.count, flags: flags.count, sessionIps: sessions.count };
+    },
     lockAccount: ({ accountId, reason, lockedBy, at, events, audit }) =>
       prisma.$transaction(async (tx) => {
         const [row] = await tx.$queryRaw<{ status: AccountStatus }[]>`
@@ -538,7 +635,8 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
       prisma.$transaction(async (tx) => {
         await tx.account.update({
           where: { id: accountId },
-          data: { status: 'deleted', deletedAt: at },
+          // Mốc hoạt động là dữ liệu cá nhân không còn việc gì để dùng (cam kết 31).
+          data: { status: 'deleted', deletedAt: at, lastSeenAt: null },
         });
         await revokeSessionsIn(tx, { accountId, reason: 'account_deleted', at });
         await appendEvents(tx, events);
@@ -631,6 +729,41 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
         where: { accountId, revokedAt: null },
         orderBy: { lastActiveAt: 'desc' },
       }),
+
+    setPushToken: (sessionId, token) =>
+      prisma.$transaction(async (tx) => {
+        await tx.session.updateMany({
+          where: { pushToken: token, id: { not: sessionId } },
+          data: { pushToken: null },
+        });
+        await tx.session.update({ where: { id: sessionId }, data: { pushToken: token } });
+      }),
+
+    async clearPushToken(sessionId) {
+      await prisma.session.update({ where: { id: sessionId }, data: { pushToken: null } });
+    },
+
+    async forgetPushToken(token) {
+      await prisma.session.updateMany({ where: { pushToken: token }, data: { pushToken: null } });
+    },
+
+    async pushTargets(accountIds, now) {
+      if (accountIds.length === 0) return [];
+      const rows = await prisma.session.findMany({
+        where: {
+          accountId: { in: accountIds },
+          revokedAt: null,
+          expiresAt: { gt: now },
+          pushToken: { not: null },
+        },
+        select: { accountId: true, id: true, pushToken: true },
+      });
+      return rows.flatMap((row) =>
+        row.pushToken
+          ? [{ accountId: row.accountId, sessionId: row.id, token: row.pushToken }]
+          : [],
+      );
+    },
     revokeSessions: (input) => prisma.$transaction((tx) => revokeSessionsIn(tx, input)),
     async deleteSessionsInactiveBefore(before) {
       const { count } = await prisma.session.deleteMany({

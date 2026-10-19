@@ -14,6 +14,8 @@ const LIVE_BATCH = 500;
  * xếp dần thay vì dồn hết vào hàng việc một lúc (fix-audit-image-checks).
  */
 const REQUEUE_LIMIT = 500;
+/** Một trang của lượt gộp kết quả máy — một transaction, đủ nhỏ để không giữ khoá lâu. */
+const FOLD_BATCH = 1000;
 
 export interface ScreeningUpkeepService {
   /** Lưới an toàn mỗi 5 phút (design mục 10). */
@@ -22,6 +24,11 @@ export interface ScreeningUpkeepService {
   refreshPriceStats(): Promise<number>;
   /** Bật thật cụm mức chắc: rút tin đang hiển thị chứa cụm về chờ duyệt (design mục 7); trả số tin đã rút. */
   rescanPhrase(phraseId: string): Promise<number>;
+  /**
+   * `ops` dọn theo hạn lưu (add-data-retention): kết quả máy bắt đầu trước mốc gộp thành số liệu rồi xoá, dấu "ảnh chưa
+   * kiểm" cùng mốc xoá. Theo trang tới khi hết.
+   */
+  foldRuns(startedBefore: Date): Promise<{ folded: number; deleted: number; marks: number }>;
 }
 
 export function createUpkeepService(
@@ -131,6 +138,19 @@ export function createUpkeepService(
         );
         return recalled.filter(Boolean).length;
       });
+    },
+
+    async foldRuns(startedBefore) {
+      const drain = async (sum: {
+        folded: number;
+        deleted: number;
+      }): Promise<{ folded: number; deleted: number }> => {
+        const page = await repository.foldRunsBefore(startedBefore, FOLD_BATCH);
+        const total = { folded: sum.folded + page.folded, deleted: sum.deleted + page.deleted };
+        return page.deleted < FOLD_BATCH ? total : drain(total);
+      };
+      const runs = await drain({ folded: 0, deleted: 0 });
+      return { ...runs, marks: await repository.deleteMarksBefore(startedBefore) };
     },
   };
 }

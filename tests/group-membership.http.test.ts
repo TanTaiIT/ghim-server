@@ -1233,3 +1233,112 @@ describe('huỷ kèm theo vẫn phát sự kiện (fix-audit-group-low, L5)', ()
     ]);
   });
 });
+
+describe('người xin thấy đơn đang chờ của mình (add-join-request-status)', () => {
+  const view = (groupId: string, viewer?: TestUser) =>
+    api(app, 'GET', `/groups/${groupId}`, viewer?.token);
+
+  it('Vừa gửi đơn vào nhóm xét duyệt', async () => {
+    const group = await createActiveGroup(app, { mode: 'public_review' });
+    const user = await newUser(app);
+    const requestId = await requestJoin(user, group.groupId);
+
+    const res = await view(group.groupId, user);
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data).toMatchObject({
+      visibility: 'full',
+      membership: null,
+      joinRequest: {
+        id: requestId,
+        createdAt: TEST_NOW.toISOString(),
+        expiresAt: day(21).toISOString(),
+      },
+    });
+  });
+
+  it('Đơn vào nhóm có mã', async () => {
+    const group = await createActiveGroup(app, { mode: 'private_code' });
+    const code = (await view(group.groupId, group.owner)).json().data.code as string;
+    const user = await newUser(app);
+    const sent = await join(user, group.groupId, code);
+    expect(sent.statusCode).toBe(201);
+
+    const res = await view(group.groupId, user);
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data).toEqual({
+      visibility: 'name_only',
+      id: group.groupId,
+      name: expect.any(String),
+      joinRequest: {
+        id: sent.json().data.request.id,
+        createdAt: TEST_NOW.toISOString(),
+        expiresAt: day(21).toISOString(),
+      },
+    });
+  });
+
+  it('Chưa gửi đơn', async () => {
+    const group = await createActiveGroup(app, { mode: 'public_review' });
+    const user = await newUser(app);
+
+    const res = await view(group.groupId, user);
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.joinRequest).toBeNull();
+  });
+
+  it('Người khác xem', async () => {
+    const group = await createActiveGroup(app, { mode: 'public_review' });
+    await requestJoin(await newUser(app), group.groupId);
+    const viewers = [
+      undefined,
+      await newUser(app),
+      await addMember(app, group.groupId),
+      group.owner,
+      group.master,
+    ];
+
+    for (const viewer of viewers) {
+      const res = await view(group.groupId, viewer);
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data.joinRequest).toBeNull();
+    }
+  });
+
+  it('Đơn đã rút', async () => {
+    const group = await createActiveGroup(app, { mode: 'public_review' });
+    const user = await newUser(app);
+    await requestJoin(user, group.groupId);
+    const withdrawn = await api(app, 'DELETE', `/groups/${group.groupId}/join-request`, user.token);
+    expect(withdrawn.statusCode).toBe(204);
+
+    const res = await view(group.groupId, user);
+    expect(res.json().data.joinRequest).toBeNull();
+  });
+
+  it('Đơn được duyệt', async () => {
+    const group = await createActiveGroup(app, { mode: 'public_review' });
+    const moderator = await moderatorOf(group);
+    const user = await newUser(app);
+    const requestId = await requestJoin(user, group.groupId);
+    expect((await decide(moderator, requestId, true)).statusCode).toBe(200);
+
+    const res = await view(group.groupId, user);
+    expect(res.json().data).toMatchObject({
+      membership: { role: 'member', joinedVia: 'approved' },
+      joinRequest: null,
+    });
+  });
+
+  it('Đơn đã quá hạn', async () => {
+    const group = await createActiveGroup(app, { mode: 'public_review' });
+    const user = await newUser(app);
+    const requestId = await requestJoin(user, group.groupId);
+
+    now = day(20);
+    expect((await view(group.groupId, user)).json().data.joinRequest).toMatchObject({
+      id: requestId,
+    });
+    now = day(22);
+    expect((await view(group.groupId, user)).json().data.joinRequest).toBeNull();
+  });
+});

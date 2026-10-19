@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import type { ImageOwnerKind, Prisma } from '@prisma/client';
 import { z } from 'zod';
 
 import type { Actor } from '../../common/auth/actor.js';
@@ -76,6 +76,11 @@ export interface MediaService {
     uploaderId: string;
   }): Promise<{ imageIds: string[]; commit(tx: Prisma.TransactionClient): Promise<void> }>;
   purgeUnconfirmed(): Promise<number>;
+  /**
+   * Chủ (tin, hồ sơ) vừa bị xoá hẳn: xoá mọi ảnh của nó — dòng trước (kèm `media.images.deleted` cho `screening`), tệp
+   * sau (add-data-retention; spec image-cleanup "ảnh theo chủ"). Trả số ảnh đã xoá.
+   */
+  purgeOwners(kind: ImageOwnerKind, ownerIds: string[]): Promise<number>;
   /** Mỗi lượt xét ít nhất một trang rồi mới kiểm trần thời gian, nên lượt nào cũng tiến. */
   reconcile(input: {
     after?: string | undefined;
@@ -245,6 +250,13 @@ export function createMediaService(deps: MediaServiceDeps): MediaService {
     purgeUnconfirmed() {
       const cutoff = new Date(clock().getTime() - config.get('media.unconfirmedHours') * HOUR_MS);
       return drain(() => repository.deleteUnconfirmedBefore(cutoff, BATCH));
+    },
+
+    async purgeOwners(kind, ownerIds) {
+      if (ownerIds.length === 0) return 0;
+      const deleted = await repository.deleteByOwners(kind, ownerIds);
+      await storage.deleteMany(deleted.map(imageKey));
+      return deleted.length;
     },
 
     async reconcile({ after, budgetMs, pageSize = BATCH }) {

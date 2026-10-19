@@ -27,6 +27,7 @@ import { isReservedName } from './calc/reserved-names.calc.js';
 import type { RequiredFlag } from './calc/device.calc.js';
 import type {
   IdentityServiceDeps,
+  ProfileImages,
   PublicProfileDto,
   MeDto,
   FlagDto,
@@ -36,6 +37,16 @@ import type {
   SessionDto,
   DisposableDomainDto,
 } from './identity.service.js';
+
+/** Ảnh trong kho → đường xem có ký, có hạn; ảnh Google → link Google; không đặt → null. */
+export async function avatarUrlOf(
+  account: Pick<Account, 'avatarFromGoogle' | 'googlePictureUrl' | 'avatarImageId'>,
+  images: Pick<ProfileImages, 'viewUrl'> | undefined,
+): Promise<string | null> {
+  if (account.avatarFromGoogle) return account.googlePictureUrl;
+  if (account.avatarImageId && images) return images.viewUrl(account.avatarImageId);
+  return null;
+}
 
 export const MINUTE_MS = 60_000;
 export const SECOND_MS = 1_000;
@@ -134,6 +145,7 @@ export function toMe(account: Account, avatarUrl: string | null, nameHidden: boo
   return {
     ...toPublicProfile(account, avatarUrl),
     nameHidden,
+    showActivity: account.showActivity,
     email: account.email,
     emailVerified: account.status === 'active',
     role: account.role,

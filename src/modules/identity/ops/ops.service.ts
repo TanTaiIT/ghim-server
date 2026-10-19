@@ -7,6 +7,7 @@ import { parseDomainList } from '../identity.jobs.js';
 import type { OutboxEventInput } from '../identity.repository.js';
 import { FLAG_CLEARED_REASONS } from '../identity.schema.js';
 import { hashPassword } from '../calc/password.calc.js';
+import { pseudonymOf } from '../calc/pseudonym.calc.js';
 import {
   hashDeviceId,
   requiredDeviceFlags,
@@ -22,6 +23,7 @@ import {
   SCREENED_DISPLAY_NAME,
 } from '../identity.service.js';
 import {
+  avatarUrlOf,
   toDisposableDomainDto,
   toFlagDto,
   toIdVerificationDto,
@@ -59,6 +61,9 @@ export type IdentityOpsService = Pick<
   | 'accountState'
   | 'lockAccountStatus'
   | 'accountSummaries'
+  | 'avatarUrls'
+  | 'recordSeen'
+  | 'activityOf'
   | 'accountIdByEmail'
   | 'emailHashOf'
   | 'emailHintOf'
@@ -66,6 +71,10 @@ export type IdentityOpsService = Pick<
   | 'accountEmailHash'
   | 'createMaster'
   | 'resetTwoFactor'
+  | 'purgeDue'
+  | 'purgeDeletedAccount'
+  | 'purgeDeviceData'
+  | 'pseudonymOf'
 >;
 
 /**
@@ -508,6 +517,23 @@ export function createIdentityOpsService(
       );
     },
 
+    async avatarUrls(ids) {
+      const rows = await repository.findAvatarSources([...new Set(ids)]);
+      const urls = await Promise.all(
+        rows.map(async (row) => [row.id, await avatarUrlOf(row, deps.images)] as const),
+      );
+      return new Map(urls.flatMap(([id, url]) => (url ? [[id, url] as const] : [])));
+    },
+
+    recordSeen: (accountId) => repository.recordSeen(accountId, clock()),
+
+    async activityOf(ids) {
+      const rows = await repository.findActivity([...new Set(ids)]);
+      return new Map(
+        rows.map((row) => [row.id, { showActivity: row.showActivity, lastSeenAt: row.lastSeenAt }]),
+      );
+    },
+
     async accountIdByEmail(email) {
       const account = await repository.findAccountByEmail(normalizeEmail(email));
       return account && account.status !== 'deleted' ? account.id : null;
@@ -552,6 +578,22 @@ export function createIdentityOpsService(
       await repository.updateAccount(account.id, { role: 'master' });
       return { accountId: account.id };
     },
+
+    // ── HẠN LƯU (add-data-retention) ──────────────────────────────────────────────────────────
+
+    purgeDue: (deletedBefore, after, limit) =>
+      repository.deletedAccountsDue(deletedBefore, after, limit),
+
+    async purgeDeletedAccount(accountId) {
+      const now = clock();
+      // Đã ẩn danh từ lượt đăng ký lại cùng email thì `false` — vẫn ghi đã dọn.
+      await repository.anonymizeDeletedAccount({ id: accountId, deletedBefore: now });
+      await repository.markAccountPurged(accountId, now);
+    },
+
+    purgeDeviceData: (before) => repository.purgeDeviceData(before),
+
+    pseudonymOf: (accountId) => pseudonymOf(accountId, hashKey),
 
     async resetTwoFactor({ email }) {
       const account = await repository.findAccountByEmail(normalizeEmail(email));

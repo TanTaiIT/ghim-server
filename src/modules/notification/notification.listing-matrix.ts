@@ -263,6 +263,23 @@ export const LISTING_MATRIX: Record<string, Handler> = {
       alertable: true,
     });
   },
+
+  // N48 — tin hết hạn gần một năm, sắp bị xoá hẳn (add-data-retention): nhắc để còn kịp gia hạn.
+  async [LISTING_EVENTS.purgeReminder](payload, ctx) {
+    const ownerId = str(payload, 'ownerId');
+    if (!ownerId) return empty();
+    const listingId = str(payload, 'listingId');
+    const title = await titleOf(ctx, listingId);
+    const purgeAt = str(payload, 'purgeAt');
+    return toOwners([ownerId], {
+      type: 'listing.purge.reminder',
+      title: title ?? 'Tin sắp bị xoá hẳn',
+      body: `Tin đã hết hạn gần một năm và sẽ bị xoá hẳn ngày ${date(purgeAt)}. Gia hạn nếu bạn còn bán.`,
+      data: { listingId, purgeAt },
+      groupId: null,
+      alertable: true,
+    });
+  },
 };
 
 export const LISTING_NOTICE_EVENTS = Object.keys(LISTING_MATRIX) as OutboxEventType[];

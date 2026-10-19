@@ -18,6 +18,7 @@ import {
   SCREENED_DISPLAY_NAME,
 } from '../identity.service.js';
 import {
+  avatarUrlOf as signedAvatarUrl,
   DAY_MS,
   hiddenNames,
   TOTP_ISSUER,
@@ -39,6 +40,10 @@ export type IdentityAccountService = Pick<
   | 'listSessions'
   | 'revokeSession'
   | 'revokeOtherSessions'
+  | 'setPushToken'
+  | 'clearPushToken'
+  | 'pushTargets'
+  | 'forgetPushToken'
   | 'getPublicProfile'
   | 'getMe'
   | 'updateMe'
@@ -80,12 +85,8 @@ export function createIdentityAccountService(
     return deps.images;
   };
 
-  /** Ảnh trong kho → đường xem có ký, có hạn; ảnh Google → link Google; không đặt → null. */
-  const avatarUrlOf = async (account: Account): Promise<string | null> => {
-    if (account.avatarFromGoogle) return account.googlePictureUrl;
-    if (account.avatarImageId && deps.images) return deps.images.viewUrl(account.avatarImageId);
-    return null;
-  };
+  const avatarUrlOf = (account: Account): Promise<string | null> =>
+    signedAvatarUrl(account, deps.images);
 
   const nameHidden = async (account: Account): Promise<boolean> =>
     (await hiddenNames(deps, [account.displayName])).has(account.displayName);
@@ -127,6 +128,11 @@ export function createIdentityAccountService(
       deps.sessionsRevoked?.account(actor.accountId);
     },
 
+    setPushToken: (actor, token) => repository.setPushToken(actor.sessionId, token),
+    clearPushToken: (actor) => repository.clearPushToken(actor.sessionId),
+    pushTargets: (accountIds) => repository.pushTargets(accountIds, clock()),
+    forgetPushToken: (token) => repository.forgetPushToken(token),
+
     // ── HỒ SƠ ───────────────────────────────────────────────────────────────────────────────────
 
     async getPublicProfile(accountId) {
@@ -145,11 +151,12 @@ export function createIdentityAccountService(
       return me(await accountOf(actor));
     },
 
-    async updateMe(actor, { displayName, phone }) {
+    async updateMe(actor, { displayName, phone, showActivity }) {
       if (displayName !== undefined) assertDisplayNameAllowed(displayName);
       const patch = {
         ...(displayName === undefined ? {} : { displayName: displayName.trim() }),
         ...(phone === undefined ? {} : { phone }),
+        ...(showActivity === undefined ? {} : { showActivity }),
       };
       return me(await repository.updateAccount(actor.accountId, patch));
     },

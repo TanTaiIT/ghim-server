@@ -202,7 +202,7 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
             restrictions: restrictionsGoingLive(locked, tier, result.restrictMachine, points),
           }),
         },
-        ranked?.firstLiveAt ?? null,
+        ranked?.rankAt ?? null,
       );
       return passed !== null;
     },

@@ -60,7 +60,7 @@ function liveData(
   categoryId: string,
   overrides: Partial<Prisma.ListingUncheckedCreateInput> = {},
 ): Prisma.ListingUncheckedCreateInput {
-  return {
+  const merged: Prisma.ListingUncheckedCreateInput = {
     ownerId,
     state: 'live',
     placement: 'marketplace',
@@ -73,6 +73,8 @@ function liveData(
     shownSince: NOW,
     ...overrides,
   };
+  // Vị trí đi cùng mốc lên bảng (CHECK listings_rank_check); ca cố ý tách hai cột tự ghi rankAt.
+  return { rankAt: merged.firstLiveAt ?? null, ...merged };
 }
 
 describe('listings — CHECK', () => {
@@ -228,6 +230,20 @@ describe('listings — CHECK', () => {
         }),
       ),
     ).resolves.toBeNull();
+  });
+
+  it('listings_rank_check: vị trí xếp hạng đi cùng mốc lên bảng (prepare-promotions)', async () => {
+    const { owner, category } = await world();
+    const lopsided = [
+      { state: 'checking', firstLiveAt: null, rankAt: NOW, expiresAt: null, shownSince: null },
+      { rankAt: null },
+    ] as const;
+    const states = await Promise.all(
+      lopsided.map((row) =>
+        sqlStateOf(prisma.listing.create({ data: liveData(owner.id, category.id, row) })),
+      ),
+    );
+    expect(states).toEqual([CHECK, CHECK]);
   });
 
   it('listings_clock_started_check: chưa từng lên bảng thì không có đồng hồ, không có khoảng được thấy', async () => {

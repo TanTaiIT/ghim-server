@@ -232,15 +232,28 @@ export function createGroupMembershipService(
         const offer = actor ? await repository.findPendingOffer(groupId) : null;
         if (offer?.toAccountId !== actor?.accountId) throw new NotFoundError('Không có nhóm này');
       }
+      // Thành viên không thể còn đơn chờ (duyệt là vào), master không vào nhóm: chỉ người ngoài đã đăng nhập mới hỏi.
+      const pending =
+        actor && !isMaster && !member
+          ? await repository.findPendingRequest(groupId, actor.accountId, clock())
+          : null;
+      const joinRequest = pending && {
+        id: pending.id,
+        createdAt: pending.createdAt.toISOString(),
+        expiresAt: pending.expiresAt.toISOString(),
+      };
       // Người ngoài nhóm riêng tư — kể cả khi bấm vào huy hiệu trên tin sàn — chỉ thấy tên nhóm (spec badges).
       if (!isPublicMode(group.mode) && !member && !isMaster) {
-        return { visibility: 'name_only', id: group.id, name: group.name };
+        return { visibility: 'name_only', id: group.id, name: group.name, joinRequest };
       }
       const [counts, units] = await Promise.all([
         repository.countMembers([groupId]),
         repository.listUnits(groupId),
       ]);
-      return toProfile({ group, member, isMaster }, counts.get(groupId) ?? 0, units);
+      return {
+        ...toProfile({ group, member, isMaster }, counts.get(groupId) ?? 0, units),
+        joinRequest,
+      };
     },
 
     async lookupCode(actor, code) {

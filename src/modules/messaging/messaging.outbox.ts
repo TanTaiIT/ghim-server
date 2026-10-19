@@ -11,6 +11,8 @@ import type {
 export const MESSAGING_EVENTS = {
   conversationOpened: 'messaging.conversation.opened',
   messageSent: 'messaging.message.sent',
+  /** Người bán trả lời đề nghị giá (add-price-offers); đề nghị mới đi đường `messageSent` như tin chữ. */
+  offerAnswered: 'messaging.offer.answered',
 } as const satisfies Record<string, OutboxEventType>;
 
 export const messagingEvent = (

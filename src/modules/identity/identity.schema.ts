@@ -108,6 +108,13 @@ export const sessionSchema = z.object({
 
 export const sessionParamsSchema = z.object({ id: z.uuid() });
 
+/** Token của Expo Push Service — dạng cố định, không nhận chuỗi tuỳ ý (add-notifications). */
+export const pushTokenBodySchema = z
+  .object({
+    token: z.string().regex(/^ExponentPushToken\[[A-Za-z0-9_-]+\]$/, 'Token đẩy không hợp lệ'),
+  })
+  .strict();
+
 export const googleBodySchema = z.object({
   idToken: z.string().min(1),
   deviceName: z.string().trim().min(1).max(DEVICE_NAME_MAX).optional(),
@@ -137,6 +144,8 @@ export const meSchema = publicProfileSchema.extend({
   twoFactorEnabled: z.boolean(),
   /** Tên trúng cụm từ cấm mức chắc: người khác thấy "Người dùng Ghim" — app nhắc đổi tên. */
   nameHidden: z.boolean(),
+  /** Hiện trạng thái hoạt động trong hội thoại; tắt là hai chiều (add-activity-status). */
+  showActivity: z.boolean(),
 });
 
 const phoneNumberSchema = z
@@ -158,6 +167,7 @@ export const patchMeBodySchema = z.object({
   displayName: displayNameSchema.optional(),
   /** `null` để xoá số; bỏ qua để giữ nguyên. */
   phone: phoneNumberSchema.nullable().optional(),
+  showActivity: z.boolean().optional(),
 });
 
 export const emailChangeBodySchema = z.object({

@@ -32,3 +32,12 @@ export const priceSchema = moneyCodec(
   z.number().int('Giá phải là số nguyên, tính bằng đồng.').nonnegative('Giá không được âm.'),
   z.bigint().nonnegative(),
 );
+
+/** Giá trả trong hội thoại (add-price-offers): như giá tin nhưng phải lớn hơn 0 — trả 0 đồng không phải một lời đề nghị. */
+export const offerAmountSchema = moneyCodec(
+  z.number().int('Giá phải là số nguyên, tính bằng đồng.').positive('Giá trả phải lớn hơn 0.'),
+  z.bigint().positive(),
+);
+
+/** "12.000.000 ₫" — câu thông báo và bản ghi cho người xử nêu số tiền như người Việt đọc. */
+export const formatMoneyVN = (amount: bigint): string => `${amount.toLocaleString('vi-VN')} ₫`;

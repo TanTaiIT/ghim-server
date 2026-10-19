@@ -40,6 +40,9 @@ export interface GroupSystemService {
   onAccountDeleted(accountId: string): Promise<void>;
   expireDue(): Promise<{ requests: number; invitations: number; offers: number }>;
   lockOwnerlessTimedOut(): Promise<string[]>;
+  /** `ops` dọn nhóm đóng quá hạn lưu (add-data-retention): ứng viên theo trang, rồi xoá thành viên và các danh sách. */
+  purgeDue(closedBefore: Date, after: string | null, limit: number): Promise<string[]>;
+  purgeClosed(groupId: string): Promise<{ members: number } | null>;
   ownsAnyGroup(accountId: string): Promise<boolean>;
   managerIds(groupId: string): Promise<string[]>;
   /** Mọi điều hành viên (mọi phạm vi) — thông báo thiếu chủ tới hết. */
@@ -56,6 +59,17 @@ export interface GroupSystemService {
   isMember(groupId: string, accountId: string): Promise<boolean>;
   /** Đang bị cấm khỏi nhóm không — bên nghe của module khác đối chiếu trạng thái hiện tại (fix-audit-listeners). */
   isBanned(groupId: string, accountId: string): Promise<boolean>;
+  /** Cổng cho `messaging` (add-team-conversations): những ai trong `accountIds` đang bị cấm khỏi nhóm. */
+  bannedAmong(groupId: string, accountIds: string[]): Promise<Set<string>>;
+  /** Cổng cho `messaging`: tên và trạng thái của nhiều nhóm một lượt; nhóm không có thì vắng. */
+  groupsByIds(ids: string[]): Promise<Map<string, { name: string; state: Group['state'] }>>;
+  /**
+   * Cổng cho `messaging`: đội quản trị đang giữ vai của nhóm — chủ nhóm và mọi điều hành viên, trừ vai đang treo (khoá
+   * tài khoản, gậy nặng) — cùng luật với người xử việc của nhóm (`reviewersOf`).
+   */
+  conversationTeam(groupId: string): Promise<string[]>;
+  /** Cổng cho `messaging`: nhóm mà người này đang giữ vai quản trị, không treo — danh sách hội thoại của quản trị. */
+  managedGroupIds(accountId: string): Promise<string[]>;
   /** Đơn vị hiện tại của thành viên (`null` = cả nhóm); `undefined` = không còn là thành viên. */
   memberUnit(groupId: string, accountId: string): Promise<string | null | undefined>;
   /**
@@ -154,6 +168,9 @@ export function createGroupService(deps: GroupServiceDeps): GroupService {
     },
 
     expireDue: () => repository.expireDue(clock()),
+    purgeDue: (closedBefore, after, limit) =>
+      repository.closedGroupsDue(closedBefore, after, limit),
+    purgeClosed: (groupId) => repository.purgeClosedGroup(groupId, clock()),
     lockOwnerlessTimedOut: () =>
       repository.lockOwnerlessTimedOut(clock(), deps.config.get('group.ownerlessMaxDays')),
     ownsAnyGroup: (accountId) => repository.ownsAnyGroup(accountId),
@@ -196,6 +213,27 @@ export function createGroupService(deps: GroupServiceDeps): GroupService {
       return (await repository.findMember(groupId, accountId)) !== null;
     },
     isBanned: (groupId, accountId) => repository.isBanned(groupId, accountId),
+    bannedAmong: (groupId, accountIds) => repository.bannedAmong(groupId, [...new Set(accountIds)]),
+    async groupsByIds(ids) {
+      const rows = await repository.findGroups([...new Set(ids)]);
+      return new Map(rows.map((row) => [row.id, { name: row.name, state: row.state }]));
+    },
+    async conversationTeam(groupId) {
+      const reviewers = await system.reviewersOf(groupId);
+      if (!reviewers) return [];
+      const ids = reviewers.moderators.map((row) => row.accountId);
+      return reviewers.ownerId ? [reviewers.ownerId, ...ids] : ids;
+    },
+    async managedGroupIds(accountId) {
+      // Vai treo theo tài khoản (khoá, gậy nặng) áp cho mọi nhóm cùng lúc — xét một lần.
+      if ((await statusOf(accountId)) !== 'active') return [];
+      if ((await deps.trust?.hasSevereStrike(accountId)) ?? false) return [];
+      const memberships = await repository.myMemberships(accountId);
+      return memberships
+        .filter((row) => row.role !== 'member')
+        .filter((row) => !(row.role === 'owner' && row.group.state === 'ownerless'))
+        .map((row) => row.groupId);
+    },
     async memberUnit(groupId, accountId) {
       const [member] = await repository.membersAmong(groupId, [accountId]);
       return member?.unitId;

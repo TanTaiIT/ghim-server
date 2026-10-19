@@ -11,6 +11,7 @@ import type {
 import type { CategoryService } from '../category/category.service.js';
 import type { GroupService } from '../group/group.service.js';
 import type { MediaService } from '../media/media.service.js';
+import type { PostingFee } from './calc/fee.calc.js';
 
 /*
  * Hợp đồng của `listing` với module khác (CLAUDE.md luật 12): `trust`, `screening` cài các cổng này, `app.ts` nối vào,
@@ -110,7 +111,34 @@ export type ListingCategoryPort = Pick<
   CategoryService,
   'statusOf' | 'lockStatus' | 'validateRegion' | 'validateAttributes'
 >;
-export type ListingMediaPort = Pick<MediaService, 'resolve' | 'attach' | 'viewUrl' | 'copyImages'>;
+export type ListingMediaPort = Pick<
+  MediaService,
+  'resolve' | 'attach' | 'viewUrl' | 'copyImages' | 'purgeOwners'
+>;
+
+/**
+ * Luật hạn lưu của TK 25 mà `ops` áp lên tin (add-data-retention). Mốc do `ops` tính từ bảng con số; `listing` chỉ dịch
+ * mỗi luật thành điều kiện trên bảng của mình, và kiểm lại điều kiện đó lúc xoá.
+ */
+export type RetentionRule =
+  | { kind: 'draft'; updatedBefore: Date }
+  /** Từ chối / gỡ vì sai sót, hay đã rời nhóm hẳn vì bị gỡ khỏi nhóm / nhóm sang riêng tư — không được sửa từ mốc. */
+  | { kind: 'mistake'; updatedBefore: Date }
+  /** Từ chối / gỡ vì vi phạm — mốc theo gậy, `ops` chọn mã rồi mới gọi xoá. */
+  | { kind: 'violation' }
+  | { kind: 'self_deleted'; deletedBefore: Date }
+  | { kind: 'sold'; updatedBefore: Date }
+  | { kind: 'expired'; expiredBefore: Date }
+  /** Tin đã xoá mềm của một tài khoản bị xoá hẳn / một nhóm đóng quá hạn. */
+  | { kind: 'owner'; ownerId: string }
+  | { kind: 'group'; groupId: string };
+
+export interface RetentionRow {
+  id: string;
+  ownerId: string;
+  groupId: string | null;
+  updatedAt: Date;
+}
 
 /** Một lượt rời nhóm như `group.member.left` mang theo — đủ để biết tin nào của người đó bị ẩn (C8). */
 export interface GroupLeave {
@@ -146,6 +174,21 @@ export interface ReportTarget {
   placement: ListingPlacement | null;
   /** Đang hiện với người khác: chỉ tin sàn chung đang hiện mới tự ẩn khi nhiều người báo. */
   visible: boolean;
+}
+
+/**
+ * Thẻ tin đầu một hội thoại và dữ kiện của luật trả giá (add-price-offers). Tin đã xoá: chỉ còn `deleted`. Tin bị gỡ không
+ * kèm ảnh bìa — ảnh của tin vi phạm không đi tiếp qua đường hội thoại.
+ */
+export interface ConversationCard {
+  title: string | null;
+  price: bigint | null;
+  negotiable: boolean;
+  state: ListingState;
+  /** Đang hiện với người khác: đang hiển thị và không tạm ẩn. */
+  visible: boolean;
+  deleted: boolean;
+  cover: { id: string; url: string } | null;
 }
 
 /** Dòng tin `review` đang giữ khoá trong lượt ghi việc: phiên bản và trạng thái tại lúc đó (fix-audit-review, T5). */
@@ -196,6 +239,8 @@ export interface ListingFactsService {
   }): Promise<{ listingId: string; ownerId: string }[]>;
   /** Tổng thời gian tin đã được thấy tới `now` — lối "đã bán" cần đủ số ngày; `null` khi không có tin này. */
   shownMs(listingId: string, now: Date): Promise<number | null>;
+  /** Phí một lượt đăng tin cho bảng uy tín (TK 29): hiện 0 Xu (prepare-promotions). */
+  postingFee(): PostingFee;
   /** Trạng thái hiện tại của tin (kể cả tin đã xoá mềm) — `trust` đối chiếu cặp mất / có lại tư cách tin sạch. */
   stateOf(listingId: string): Promise<{ state: ListingState; fault: ListingFault | null } | null>;
   /**

@@ -26,8 +26,9 @@ import {
 } from '../calc/report.calc.js';
 import type { ReviewQueueService } from '../queue/queue.service.js';
 import { REVIEW_EVENTS, reviewEvent } from '../review.outbox.js';
+import type { Tx } from '../review.repository.js';
 import type { ReviewShared } from '../review.shared.js';
-import type { Report, ReportSubject, ReportWithEntries } from './report.repository.js';
+import type { Report, ReportHolds, ReportSubject, ReportWithEntries } from './report.repository.js';
 import type { MyReportDto, RelatedReportDto, ReportBody } from './report.schema.js';
 
 const HOUR_MS = 3_600_000;
@@ -60,6 +61,17 @@ export interface ReviewReportService {
    * Bên nghe `review.report.decided`: báo cáo đúng thì tin mất tư cách tin sạch, người đăng bị cấm khỏi nhóm / bị khoá
    * nếu người quyết đã chọn — quyền đã kiểm lúc quyết, các bên nhận bỏ qua khi đã áp nên chạy lại vô hại.
    */
+  // ── HẠN LƯU (add-data-retention) — `ops` gọi ──
+  /** Tạm giữ bằng chứng: báo cáo đang mở hay đóng sau `since` dính tới các tin, người, hội thoại này. */
+  reportHolds(
+    input: { listingIds: string[]; accountIds: string[]; conversationIds: string[] },
+    since: Date,
+  ): Promise<ReportHolds>;
+  /** Trong transaction ẩn danh hoá gậy của `ops`: quyết định về gậy chỉ còn mã giả thay người nhận. */
+  pseudonymizeDecisions(
+    tx: Tx,
+    input: { strikeId: string; accountId: string; pseudonym: string },
+  ): Promise<number>;
   onReportDecided(input: {
     verdict: ReportVerdict;
     subjectKind: ReportSubjectKind;
@@ -299,5 +311,9 @@ export function createReportService(
       }
       if (input.lockAccount) await identity.lockFromReport({ accountId, by, reason: LOCK_REASON });
     },
+
+    reportHolds: (input, since) => reports.holds(input, since),
+
+    pseudonymizeDecisions: (tx, input) => repository.pseudonymizeDecisions(tx, input),
   };
 }
