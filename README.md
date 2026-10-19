@@ -116,7 +116,22 @@ khởi động. Rate limit và IP lưu trong phiên đăng nhập dựa vào đ�
 giây, chờ lấy kết nối 5 giây, nhận request 30 giây.
 
 Production chỉ chạy `pnpm db:deploy` (hoặc `pnpm db:deploy:prod` từ máy có `.env.production`) rồi
-`pnpm start`. Image Docker: `Dockerfile` (nhiều tầng, chạy bằng user `node`, cổng 3100).
+`pnpm start`. Image Docker: `Dockerfile` (nhiều tầng, chạy bằng user `node`, cổng 3100). Trong image không có pnpm:
+migrate bằng `node_modules/.bin/prisma migrate deploy`, CLI chạy bản đã biên dịch (`node dist/cli/…`). Job CI
+`docker` dựng image, migrate, khởi động tới `/health/ready` và tạo master — đúng các lệnh dưới đây.
+
+**Deploy lên Render (Docker)**: `render.yaml` khai một web service dựng từ `Dockerfile`, vùng Singapore, gói trả phí,
+đúng một tiến trình, chỉ deploy `main` đã qua CI, migrate ở pre-deploy command trước khi bản mới nhận traffic.
+
+1. DB: project Neon riêng cho production (Postgres 18, ap-southeast-1), tên DB không kết thúc bằng `_dev` / `_test`.
+   `DATABASE_URL` lấy chuỗi kết nối **trực tiếp** (không `-pooler`).
+2. Render → New → Blueprint → chọn repo, điền các biến `sync: false` (ý nghĩa ở `.env.production.example`). Ba khoá
+   tự sinh, giữ bản sao ngoài Render: `openssl rand -base64 48` cho `JWT_SECRET` và `IDENTITY_HASH_KEY` (hai giá
+   trị khác nhau), `openssl rand -base64 32` cho `SECRETS_ENCRYPTION_KEY`.
+3. Sau lần deploy đầu, tạo master trong Render Shell của service (mật khẩu không nằm lại trên dòng lệnh):
+   `read -rs MASTER_PASSWORD && export MASTER_PASSWORD && node dist/cli/create-master.js --email <email> --name "Quản trị Ghim"`.
+   Gỡ lớp thứ hai: `node dist/cli/reset-two-factor.js --email <email>`.
+4. Đăng nhập trên máy mình, xem `GET /api/v1/me/sessions`: IP phải là IP thật của máy — sai thì chỉnh `TRUST_PROXY`.
 
 ## Trước khi chạy thật
 

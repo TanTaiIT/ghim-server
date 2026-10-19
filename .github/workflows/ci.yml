@@ -92,3 +92,64 @@ jobs:
       # Migration đã áp phải khớp đúng `schema.prisma`. Lệch = SQL viết tay sai tên index /
       # constraint, và `migrate dev` lần sau sẽ tự sinh lệnh DROP để "sửa".
       - run: pnpm run db:drift
+
+  # Image production dựng được, migrate được, khởi động được và tạo được master — đúng các lệnh Render chạy
+  # (`render.yaml`). DB tên `ghim`: production từ chối tên kết thúc bằng `_dev` / `_test`.
+  docker:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: ghim
+          POSTGRES_PASSWORD: ghim
+          POSTGRES_DB: ghim
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ghim -d ghim"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      DATABASE_URL: postgresql://ghim:ghim@localhost:5432/ghim
+    steps:
+      - uses: actions/checkout@v6
+
+      - run: docker build -t ghim-server .
+
+      # Pre-deploy command của Render, chạy bằng chính image.
+      - run: docker run --rm --network host -e DATABASE_URL ghim-server node_modules/.bin/prisma migrate deploy
+
+      # Bộ biến tối thiểu production đòi. Kho ảnh và SMTP không cần thật: lúc khởi động production không gọi tới.
+      - name: Khởi động image
+        run: |
+          cat > prod.env <<EOF
+          DATABASE_URL=$DATABASE_URL
+          CORS_ORIGIN=https://ops.example.test
+          TRUST_PROXY=uniquelocal
+          JWT_SECRET=$(openssl rand -base64 48)
+          IDENTITY_HASH_KEY=$(openssl rand -base64 48)
+          SECRETS_ENCRYPTION_KEY=$(openssl rand -base64 32)
+          SMTP_URL=smtp://ci:ci@localhost:1025
+          MAIL_FROM=no-reply@example.test
+          STORAGE_URL=https://ci:ci-secret@storage.example.test/ghim
+          GOOGLE_CLIENT_IDS=ci.apps.googleusercontent.com
+          EOF
+          docker run -d --name ghim --network host --env-file prod.env ghim-server
+
+      - name: Chờ /health/ready
+        run: |
+          for _ in $(seq 1 30); do
+            curl -fsS http://localhost:3100/health/ready && exit 0
+            sleep 2
+          done
+          exit 1
+
+      # Cách tạo master trên Render Shell: CLI đã biên dịch nằm sẵn trong image.
+      - run: >-
+          docker exec -e MASTER_PASSWORD=ci-Master-password-2026 ghim
+          node dist/cli/create-master.js --email master@example.test --name "Quản trị CI"
+
+      - if: always()
+        run: docker logs ghim

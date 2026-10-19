@@ -202,6 +202,9 @@ importers:
       argon2:
         specifier: ^0.45.1
         version: 0.45.1
+      dotenv:
+        specifier: ^18.0.3
+        version: 18.0.3
       fastify:
         specifier: ^5.12.5
         version: 5.12.5
@@ -223,6 +226,9 @@ importers:
       pino:
         specifier: ^10.3.1
         version: 10.3.1
+      prisma:
+        specifier: 7.10.0
+        version: 7.10.0(@types/react@19.3.0)(magicast@0.5.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@7.0.2)
       sharp:
         specifier: ^0.35.5
         version: 0.35.5(@types/node@24.13.6)
@@ -245,9 +251,6 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^5.0.1
         version: 5.0.1(vitest@5.0.1)
-      dotenv:
-        specifier: ^18.0.3
-        version: 18.0.3
       oxlint:
         specifier: 1.84.0
         version: 1.84.0
@@ -257,9 +260,6 @@ importers:
       prettier:
         specifier: ^3.9.8
         version: 3.9.9
-      prisma:
-        specifier: 7.10.0
-        version: 7.10.0(@types/react@19.3.0)(magicast@0.5.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@7.0.2)
       socket.io-client:
         specifier: ^4.8.4
         version: 4.8.4

@@ -1,0 +1,48 @@
+# Render Blueprint: một web service chạy bằng image dựng từ `Dockerfile`. Tạo trên Render: New → Blueprint → chọn repo.
+# Biến `sync: false` Render hỏi lúc tạo và không nằm trong repo — ý nghĩa từng biến ở `.env.production.example`.
+services:
+  - type: web
+    name: ghim-server
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # Cạnh Neon ap-southeast-1: mỗi câu SQL là một vòng mạng, khác vùng là cộng thêm vài chục ms mỗi câu.
+    region: singapore
+    # Gói free ngủ sau 15 phút không có request — việc nền và outbox dừng theo — và không có pre-deploy command.
+    plan: starter
+    # Đúng một tiến trình: socket.io giữ kết nối trong tiến trình, sự kiện realtime không đi sang tiến trình khác.
+    numInstances: 1
+    branch: main
+    # Chỉ deploy commit đã qua CI (job `docker` dựng và khởi động đúng image này).
+    autoDeployTrigger: checksPass
+    # Chạy bằng chính image mới, trước khi bản mới nhận traffic: migration lỗi thì bản cũ vẫn chạy tiếp.
+    preDeployCommand: node_modules/.bin/prisma migrate deploy
+    # Bản mới chỉ nhận traffic khi đã nối được DB.
+    healthCheckPath: /health/ready
+    envVars:
+      # Chuỗi kết nối TRỰC TIẾP của Neon (không có `-pooler`): migration và khoá advisory cần phiên thật.
+      # Tên DB không được kết thúc bằng `_dev` / `_test` — app và Prisma CLI đều từ chối.
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      # Proxy của Render nối vào từ mạng nội bộ. Sau lần deploy đầu, xem IP ở `GET /api/v1/me/sessions` có là IP
+      # thật của máy mình không.
+      - key: TRUST_PROXY
+        value: uniquelocal
+      # Ba khoá tự sinh và tự giữ bản sao ngoài Render: mất IDENTITY_HASH_KEY hay SECRETS_ENCRYPTION_KEY là mất dữ
+      # liệu băm / mã hoá đã có, tạo lại service không sinh lại được đúng khoá cũ.
+      - key: JWT_SECRET
+        sync: false
+      - key: IDENTITY_HASH_KEY
+        sync: false
+      - key: SECRETS_ENCRYPTION_KEY
+        sync: false
+      - key: SMTP_URL
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: STORAGE_URL
+        sync: false
+      - key: GOOGLE_CLIENT_IDS
+        sync: false
