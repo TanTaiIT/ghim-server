@@ -150,3 +150,64 @@ Tin nhắn của hội thoại khác SHALL vẫn hiện như thường.
 
 - **WHEN** người bán vừa đóng hội thoại X rồi người mua gửi tin nhắn trong X
 - **THEN** thông báo về tin nhắn đó hiện lên màn hình như thường
+
+### Requirement: Báo đề nghị giá và câu trả lời
+
+Đề nghị giá mới SHALL được báo cho người bán, và câu trả lời của người bán SHALL được báo cho người mua, bằng thông báo
+nhóm "tin nhắn" như một tin nhắn mới của hội thoại đó — cùng luật gộp, nhắc và không đẩy khi đang mở đúng hội thoại.
+Câu nhắc nêu số tiền và kết quả, không nêu gì khác. Người gửi MUST NOT nhận thông báo về đề nghị hay câu trả lời của
+chính mình.
+
+#### Scenario: Người bán nhận đề nghị
+
+- **WHEN** người mua gửi đề nghị 12.000.000 đồng
+- **THEN** người bán được báo bằng thông báo nhóm "tin nhắn" nêu số tiền 12.000.000 đồng, và người mua không nhận thông
+  báo nào về đề nghị đó
+
+#### Scenario: Người mua nhận câu trả lời
+
+- **WHEN** người bán chấp nhận đề nghị 12.000.000 đồng
+- **THEN** người mua được báo bằng thông báo nhóm "tin nhắn" rằng người bán đã chấp nhận 12.000.000 đồng
+
+#### Scenario: Đề nghị bị thay không báo
+
+- **WHEN** đề nghị đang chờ chuyển sang "đã thay" vì người mua gửi đề nghị mới
+- **THEN** người bán chỉ được báo về đề nghị mới, không có thông báo riêng nào về đề nghị bị thay
+
+#### Scenario: App đang nối realtime
+
+- **WHEN** người mua đang nối realtime và người bán trả lời đề nghị của người mua
+- **THEN** kết nối của người mua nhận báo hiệu tin nhắn của hội thoại đó đã đổi, để app tải lại
+
+### Requirement: Báo tin nhắn của hội thoại với một đội
+
+Tin nhắn của đội tới người dùng SHALL được báo cho người dùng, ký tên đội: tin nhắn của Hỗ trợ Ghim vào nhóm "hỗ trợ",
+tin nhắn của quản trị nhóm vào nhóm "tin nhắn". Tin nhắn của người dùng tới quản trị một nhóm SHALL được báo cho mọi
+chủ nhóm và điều hành viên đang giữ vai, bằng nhóm "tin nhắn". Staff hỗ trợ MUST NOT nhận thông báo vào hộp thư cho
+từng tin nhắn hỗ trợ — hàng trên bàn vận hành là chỗ của họ. Người trong đội gửi tin MUST NOT làm người khác trong đội
+nhận thông báo.
+
+#### Scenario: Người dùng nhận trả lời của hỗ trợ
+
+- **WHEN** staff hỗ trợ trả lời người dùng
+- **THEN** người dùng nhận thông báo nhóm "hỗ trợ" ký "Hỗ trợ Ghim", không nêu tên staff
+
+#### Scenario: Người dùng nhận trả lời của quản trị nhóm
+
+- **WHEN** điều hành viên nhóm "Hội Nhiếp ảnh Sài Gòn" trả lời người dùng
+- **THEN** người dùng nhận thông báo nhóm "tin nhắn" ký "Quản trị nhóm «Hội Nhiếp ảnh Sài Gòn»"
+
+#### Scenario: Quản trị nhận tin của người dùng
+
+- **WHEN** người dùng nhắn quản trị một nhóm có chủ nhóm và hai điều hành viên
+- **THEN** cả ba nhận thông báo nhóm "tin nhắn" về tin nhắn đó
+
+#### Scenario: Điều hành viên trả lời không báo cho đội
+
+- **WHEN** một điều hành viên trả lời người dùng
+- **THEN** chủ nhóm và điều hành viên khác không nhận thông báo nào về tin nhắn đó
+
+#### Scenario: Staff hỗ trợ không nhận thông báo vào hộp thư
+
+- **WHEN** người dùng nhắn hỗ trợ
+- **THEN** không staff hỗ trợ nào nhận thông báo vào hộp thư về tin nhắn đó
