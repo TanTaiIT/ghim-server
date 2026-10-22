@@ -2,7 +2,6 @@ import type { ListingPlacement, ScreeningRun, TrustTier } from '@prisma/client';
 
 import type { RuntimeConfig } from '../../common/config/runtime-config.js';
 import { TooManyRequestsError } from '../../common/errors/app-error.js';
-import { formatTimeVN } from '../../common/time/time.js';
 import type { Jobs } from '../../lib/jobs.js';
 import type { CategoryService } from '../category/category.service.js';
 import type { IdentityService } from '../identity/identity.service.js';
@@ -10,6 +9,7 @@ import type { ListingFactsService, ScreeningSubmission } from '../listing/listin
 import type { MediaService } from '../media/media.service.js';
 import { buildPhraseMatcher, type PhraseMatcher } from './calc/phrase.calc.js';
 import type { BandThresholds, RawHit, RuleSnapshot } from './calc/score.calc.js';
+import { cooldownSentence } from './screening.outbox.js';
 import { INITIAL_RULES } from './screening.rules.js';
 import type { ScreeningRepository, Tx } from './screening.repository.js';
 import type { SignalLimits } from './calc/signals.calc.js';
@@ -174,13 +174,10 @@ export const signalLimits = (config: RuntimeConfig): SignalLimits => ({
 
 // ── LỖI ──────────────────────────────────────────────────────────────────────────────────────────
 
-/** Không nêu cổng cứng nào (TK 13) — chỉ mốc gửi lại, như bảng uy tín. */
 export const submissionCooldown = (until: Date): TooManyRequestsError =>
-  new TooManyRequestsError(
-    `Tạm thời chưa gửi được tin mới — gửi lại từ ${formatTimeVN(until)}`,
-    'SUBMISSION_COOLDOWN',
-    { retryAt: until.toISOString() },
-  );
+  new TooManyRequestsError(cooldownSentence(until), 'SUBMISSION_COOLDOWN', {
+    retryAt: until.toISOString(),
+  });
 
 /** Mã tra cứu của máy duyệt: cùng bộ chữ với mã đánh dấu của `identity`, tiền tố riêng để hỗ trợ biết tra ở đâu. */
 export const LOOKUP_PREFIX = 'S';

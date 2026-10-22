@@ -18,6 +18,8 @@ import { sequentially } from '../../common/utils/sequential.js';
 import type { AccountSummary } from '../identity/identity.service.js';
 import type { MachineNotice } from '../listing/listing.ports.js';
 import type { ListingService } from '../listing/listing.service.js';
+import type { ReviewService } from '../review/review.service.js';
+import type { TrustService } from '../trust/trust.service.js';
 import {
   GROUP_MATRIX,
   type GroupFanOut,
@@ -28,6 +30,7 @@ import {
 import { LISTING_MATRIX } from './notification.listing-matrix.js';
 import { MEDIA_MATRIX } from './notification.media-matrix.js';
 import { REVIEW_MATRIX } from './notification.review-matrix.js';
+import { TRUST_MATRIX } from './notification.trust-matrix.js';
 import type { NotificationRepository, NotificationRow } from './notification.repository.js';
 import {
   ALWAYS_ON,
@@ -72,6 +75,10 @@ export interface NotificationServiceDeps {
   screening: { notices(listingIds: string[]): Promise<Map<string, MachineNotice>> };
   /** Nội dung tin nhắn cho câu thông báo, máy đang mở hội thoại — `notification` không đọc bảng của `messaging` (TK 30). */
   messaging: Pick<MessagingService, 'previewOf' | 'viewingSessions'>;
+  /** Gậy và điểm gậy cho câu thông báo về gậy (add-trust-notices) — `notification` không đọc bảng của `trust` (TK 30). */
+  trust: Pick<TrustService, 'strikeDetail' | 'standingOf'>;
+  /** Người xử việc nhóm và số việc đang chờ cho N36 — người xử tính lúc đọc ở `review`, không lưu (add-trust-notices). */
+  review: Pick<ReviewService, 'groupHeldNotice'>;
   push: PushSender;
   jobs: Jobs;
   realtime: Realtime;
@@ -139,6 +146,8 @@ export function createNotificationService(deps: NotificationServiceDeps): Notifi
     listings,
     screening,
     messaging,
+    trust,
+    review,
     push,
     jobs,
     realtime,
@@ -170,6 +179,18 @@ export function createNotificationService(deps: NotificationServiceDeps): Notifi
       return (await screening.notices([listingId])).get(listingId) ?? null;
     },
     messagePreview: (messageId) => messaging.previewOf(messageId),
+    strike: (strikeId) => trust.strikeDetail(strikeId),
+    standing: (accountId) => trust.standingOf(accountId),
+    postingLockPoints: () => config.get('strike.postingLockFromPoints'),
+    groupHeldNotice: (taskId) => review.groupHeldNotice(taskId),
+    async liveAccounts(ids) {
+      const summaries = await identity.accountSummaries(ids);
+      return new Set(
+        [...summaries.values()]
+          .filter((summary) => summary.status !== 'deleted')
+          .map((summary) => summary.id),
+      );
+    },
   };
 
   /** Dòng có nhắc vừa ghi → việc đẩy lên điện thoại, sau commit của hộp thư (design add-notifications mục 3). */
@@ -329,7 +350,8 @@ export function createNotificationService(deps: NotificationServiceDeps): Notifi
         LISTING_MATRIX[event.type] ??
         MEDIA_MATRIX[event.type] ??
         REVIEW_MATRIX[event.type] ??
-        MESSAGING_MATRIX[event.type];
+        MESSAGING_MATRIX[event.type] ??
+        TRUST_MATRIX[event.type];
       if (!handler) return;
       const result = await handler(payload, context);
       await sequentially(result.drafts, ({ recipients, ...draft }) =>

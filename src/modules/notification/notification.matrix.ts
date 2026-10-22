@@ -1,7 +1,22 @@
 import type { RuntimeConfigKey } from '../../common/config/runtime-config.js';
 import { formatDateVN } from '../../common/time/time.js';
 import type { MachineNotice } from '../listing/listing.ports.js';
+import type { StrikeDetailDto } from '../trust/strike/strike.schema.js';
 import type { NotificationCategory } from './notification.schema.js';
+
+/** Phần của một gậy mà câu thông báo cần (add-trust-notices) — đọc lại từ `trust` lúc gửi, không tin payload (C1). */
+export type StrikeNotice = Pick<
+  StrikeDetailDto,
+  | 'accountId'
+  | 'kind'
+  | 'status'
+  | 'points'
+  | 'ruleCode'
+  | 'ruleText'
+  | 'expiresAt'
+  | 'appealUntil'
+  | 'listingId'
+>;
 
 /** Một loại thông báo cho một nhóm người nhận — văn bản đã sinh, cờ nhắc chưa tính (còn bật tắt, tắt tiếng, gộp). */
 export interface NoticeDraft {
@@ -90,6 +105,26 @@ export interface MatrixContext {
       groupId: string | null;
       buyerId: string;
     };
+  } | null>;
+  /** Một gậy như người nhận thấy — `trust` trả lời; không có thì `null` (add-trust-notices). */
+  strike(strikeId: string): Promise<StrikeNotice | null>;
+  /** Điểm gậy đang tính của một người — `trust` trả lời, để câu gậy hết hạn nói được "đã đăng tin lại được". */
+  standing(accountId: string): Promise<{ points: number }>;
+  /** Ngưỡng điểm khoá đăng tin hiện hành của bảng con số (`strike.postingLockFromPoints`). */
+  postingLockPoints(): number;
+  /**
+   * Những mã còn nhận thông báo được — `identity` trả lời: tài khoản đã xoá (hay đã xoá hẳn) vắng mặt; bị khoá, chờ xác
+   * nhận email vẫn có (đọc được hộp thư khi mở khoá). Ma trận gậy lọc qua đây vì gậy ra được trên bản lưu của tài khoản
+   * đã xoá.
+   */
+  liveAccounts(ids: string[]): Promise<Set<string>>;
+  /**
+   * N36: người đang xử được một việc máy giữ về tin trong nhóm, kèm số việc máy giữ đang chờ của mỗi người — `review`
+   * trả lời lúc gửi; việc đã đóng hay không còn ở cấp quản trị nhóm thì `null` (add-trust-notices).
+   */
+  groupHeldNotice(taskId: string): Promise<{
+    groupId: string;
+    recipients: { accountId: string; pending: number }[];
   } | null>;
 }
 

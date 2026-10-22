@@ -22,8 +22,9 @@ Trong Claude Code, mở thư mục này làm workspace rồi:
 Cần CLI `openspec` trên PATH, cùng phiên bản trong `package.json`:
 `npm i -g @fission-ai/openspec@1.14.1`.
 
-Hiện trạng (đợt 1, một phần đợt 2): hạ tầng (HTTP, lỗi, response, Swagger, health, việc nền pg-boss, gửi thư, outbox, realtime
-socket.io ở `/realtime`) và các module:
+Hiện trạng (đợt 1–7, trừ kiểm ảnh nhạy cảm và gói đẩy tin — xem [`docs/VIEC-DANG-DO.md`](docs/VIEC-DANG-DO.md)):
+hạ tầng (HTTP, lỗi, response, Swagger, health, việc nền pg-boss, gửi thư, outbox, realtime socket.io ở `/realtime`,
+đẩy lên điện thoại qua Expo) và các module:
 
 - **`identity`**: đăng ký + xác nhận email, đăng nhập / phiên / refresh, Google, hai lớp TOTP cho master và staff,
   hồ sơ, đổi email, quên / đổi mật khẩu, khoá / mở khoá / xoá tài khoản, dấu thiết bị + mã tra cứu, xác minh giấy
@@ -33,7 +34,8 @@ socket.io ở `/realtime`) và các module:
 - **`group`**: nhóm bốn chế độ, vòng đời (giao chủ, thiếu chủ, khoá, đóng), vào nhóm (tham gia, đơn, lời mời, mã,
   danh sách lớp), đơn vị con, vai, huy hiệu, thông báo của nhóm.
 - **`notification`**: hộp thư, bật tắt từng nhóm thông báo, tắt tiếng từng nhóm, gộp chuyện lặp lại, đẩy realtime
-  — hướng dẫn cho app ở [`docs/realtime.md`](docs/realtime.md). Push lên điện thoại chưa làm.
+  — hướng dẫn cho app ở [`docs/realtime.md`](docs/realtime.md); báo tin nhắn mới và đẩy lên điện thoại qua Expo Push
+  khi phiên có token (chưa thử với token thật trên máy).
 - **`media`** (đợt 2): kho ảnh Cloudinary dùng tạm (về sau R2 chuẩn S3; test chạy RustFS), app tải thẳng bằng quyền tải
   một lần, nhãn "chưa xác nhận", dọn ảnh 6 giờ và đối chiếu hằng tháng; ảnh đại diện (ảnh trong kho hay ảnh Google)
   — hướng dẫn cho app ở [`docs/media.md`](docs/media.md).
@@ -42,13 +44,21 @@ socket.io ở `/realtime`) và các module:
   con trỏ, huy hiệu nhóm, chuyển tin đã rời nhóm lên sàn chung, thông báo N31–N35, N37.
 - **`trust`** (đợt 2): mức tin cậy T0–T3 tính lại từ tuổi tài khoản và tin sạch (tối đa 3 tin sạch mỗi 7 ngày, tin
   vượt được dời), hạn mức tin sống và nhịp gửi theo mức, trần riêng của người ngoài, bảng uy tín `GET /me/trust`,
-  tính lại 00:30 mỗi ngày; nhận vai chủ nhóm / điều hành viên cần T1.
+  tính lại 00:30 mỗi ngày; nhận vai chủ nhóm / điều hành viên cần T1. Gậy (đợt 5): người duyệt ra gậy khi quyết vi
+  phạm, khiếu nại, ân xá, gậy nghiêm trọng — hướng dẫn ở [`docs/strikes.md`](docs/strikes.md).
 - **`screening`** (đợt 3): máy duyệt — chấm chữ ngay trong lượt gửi (12 dấu hiệu có trọng số, ba dải, ma trận dải ×
   mức tin cậy), cổng cứng (cụm từ cấm mức chắc, ảnh trùng theo dHash, giá vượt trần), danh mục luôn duyệt tay, đánh
   dấu theo thiết bị, dò cổng cứng → thời gian chờ 24 giờ; kiểm ảnh qua hàng việc (`sharp`), lưới an toàn mỗi 5 phút,
   thống kê giá 02:00, quét lại tin đang hiện khi bật cụm; câu báo cho người đăng và mã tra cứu cho hỗ trợ; bàn vận
   hành luật, cụm từ, danh sách trắng ảnh mẫu, từ khoá danh mục dưới `/api/v1/ops/screening` — hướng dẫn cho app ở
   [`docs/screening.md`](docs/screening.md). Chưa kiểm ảnh nhạy cảm (`add-image-moderation`).
+- **`review`** (đợt 4): hàng việc cho người duyệt (máy giữ, báo cáo, việc về gậy, máy hạn chế, nhóm chuyển lên, hậu
+  kiểm), nhận việc và quyết định trên bàn vận hành `/api/v1/ops/review` và ở app cho quản trị nhóm, lý do từ chối mẫu,
+  số liệu cho master; báo cáo tin và báo cáo người — hướng dẫn ở [`docs/review.md`](docs/review.md).
+- **`messaging`** (đợt 6): hội thoại về một tin, với Hỗ trợ Ghim và với quản trị một nhóm; trả giá, chặn, xoá hội
+  thoại, trạng thái hoạt động — hướng dẫn cho app ở [`docs/messaging.md`](docs/messaging.md).
+- **`ops`** (đợt 7): hạn lưu và dọn dữ liệu theo lịch, tạm giữ bằng chứng, sổ `job_runs` — hướng dẫn ở
+  [`docs/retention.md`](docs/retention.md).
 
 ## Cần có
 

@@ -39,6 +39,7 @@ import {
   codeOf,
   dataOf,
   decideStrike,
+  eventsOf,
   heldListing,
   staffOf,
   strikesOf,
@@ -317,6 +318,11 @@ describe('Bảng uy tín (spec trust/seller-dashboard)', () => {
   });
 });
 
+const inheritedNotices = (accountId: string) =>
+  prisma.notification.findMany({
+    where: { recipientId: accountId, type: 'trust.strike.inherited' },
+  });
+
 describe('Gậy đi theo email (spec identity/registration, email-change)', () => {
   it('tài khoản xoá rồi bị gậy nặng trong 90 ngày ẩn: đăng ký lại bằng biến thể email sau khi hết giữ → kế thừa gậy đúng hạn', async () => {
     const safety = await staffOf(app, [], ['user_reports']);
@@ -349,6 +355,19 @@ describe('Gậy đi theo email (spec identity/registration, email-change)', () =
         inheritedFromId: expect.any(String),
       },
     ]);
+    const [copy] = await strikesOf(fresh?.id ?? '');
+    expect(await eventsOf('trust.strike.inherited', 'accountId', fresh?.id ?? '')).toEqual([
+      expect.objectContaining({ strikeIds: [copy?.id] }),
+    ]);
+    // N50 (add-trust-notices): một dòng có nhắc, không nêu tài khoản trước.
+    expect(await inheritedNotices(fresh?.id ?? '')).toMatchObject([
+      {
+        category: 'trust_strikes',
+        alert: true,
+        body: 'Tài khoản mang theo 1 gậy còn hiệu lực.',
+        detail: expect.stringMatching(/^Một gậy nặng, hết hạn ngày \d{2}\/\d{2}\/\d{4}\.$/),
+      },
+    ]);
   });
 
   it('gậy đã hết hạn trước khi đăng ký lại: tài khoản mới không có gậy', async () => {
@@ -370,12 +389,15 @@ describe('Gậy đi theo email (spec identity/registration, email-change)', () =
       normalizeEmail(variantOf(gone.email)),
     );
     expect(await strikesOf(fresh?.id ?? '')).toEqual([]);
+    expect(await eventsOf('trust.strike.inherited', 'accountId', fresh?.id ?? '')).toEqual([]);
+    expect(await inheritedNotices(fresh?.id ?? '')).toEqual([]);
   });
 
-  it('người có gậy đổi email: vẫn mang gậy; lập tài khoản bằng email cũ kế thừa gậy đúng hạn', async () => {
+  it('người có hai gậy đổi email: vẫn mang gậy; lập tài khoản bằng email cũ kế thừa cả hai, một sự kiện kế thừa', async () => {
     const { categoryId, staff } = await fixture();
     const poster = await realUser();
     const { strike } = await struck(app, { staff, poster, categoryId, kind: 'normal' });
+    const { strike: second } = await struck(app, { staff, poster, categoryId, kind: 'normal' });
     const oldEmail = poster.email;
     const newEmail = `doi-${randomUUID().slice(0, 8)}@ghim.test`;
     const asked = await api(app, 'POST', '/me/email-change', poster.token, {
@@ -391,13 +413,27 @@ describe('Gậy đi theo email (spec identity/registration, email-change)', () =
     const kept = await prisma.strike.findUniqueOrThrow({ where: { id: strike.id } });
     expect(kept).toMatchObject({ status: 'active', points: 1, expiresAt: day(90) });
     expect(kept.emailHashes).toHaveLength(2);
-    expect((await trust().standingOf(poster.id)).points).toBe(1);
+    expect((await trust().standingOf(poster.id)).points).toBe(2);
 
     expect((await register(oldEmail)).statusCode).toBe(201);
     await deliverAll(app);
     const fresh = await repositories.identity.findAccountByEmail(normalizeEmail(oldEmail));
-    expect(await strikesOf(fresh?.id ?? '')).toMatchObject([
-      { kind: 'normal', expiresAt: day(90), inheritedFromId: strike.id },
+    const copies = await strikesOf(fresh?.id ?? '');
+    expect(copies).toHaveLength(2);
+    expect(copies.map((row) => row.inheritedFromId).toSorted()).toEqual(
+      [strike.id, second.id].toSorted(),
+    );
+    expect(
+      copies.every(
+        (row) => row.kind === 'normal' && row.expiresAt?.getTime() === day(90).getTime(),
+      ),
+    ).toBe(true);
+    // Hai gậy, đúng một sự kiện kế thừa — `notification` dựng một thông báo từ nó.
+    expect(await eventsOf('trust.strike.inherited', 'accountId', fresh?.id ?? '')).toEqual([
+      expect.objectContaining({ strikeIds: expect.arrayContaining(copies.map((row) => row.id)) }),
+    ]);
+    expect(await inheritedNotices(fresh?.id ?? '')).toMatchObject([
+      { body: 'Tài khoản mang theo 2 gậy còn hiệu lực.' },
     ]);
   });
 });

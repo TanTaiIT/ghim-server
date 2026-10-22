@@ -19,6 +19,7 @@ import {
   withReasons,
 } from '../calc/task.calc.js';
 import type { StrikeDetailDto } from '../../trust/strike/strike.schema.js';
+import { REVIEW_EVENTS, reviewEvent } from '../review.outbox.js';
 import type { Tx } from '../review.repository.js';
 import type { ReviewShared } from '../review.shared.js';
 
@@ -191,32 +192,44 @@ export function createQueueService(shared: ReviewShared): ReviewQueueService {
         : {}),
       ...(input.sampledDecisionId ? { sampledDecisionId: input.sampledDecisionId } : {}),
     };
+    // N36: chỉ lượt việc CHUYỂN vào hàng máy giữ — gộp thêm lý do vào việc đã ở hàng 0, chạy lại `backfill` thì im, để
+    // quản trị nhóm không bị nhắc lại cho cùng một việc.
+    const groupHeld = (tx: Tx, taskId: string) =>
+      subject.groupId && subject.placement !== 'marketplace'
+        ? repository.emitIn(tx, [
+            reviewEvent(REVIEW_EVENTS.groupHeld, { taskId, groupId: subject.groupId }),
+          ])
+        : Promise.resolve();
     await onOpenTask(
       listingId,
       async (tx, open, listing) => {
         if (!matches(listing, input.expect)) return;
         if (!open) {
-          await repository.insertTask(tx, {
+          const queue = QUEUE_OF[input.reason];
+          const task = await repository.insertTask(tx, {
             listingId,
             reasons: [input.reason],
             createdAt: now,
-            queue: QUEUE_OF[input.reason],
+            queue,
             dueAt: due,
             excludedIds: excluded,
             ...scopeOf(subject),
             ...extra,
           });
+          if (queue === 0) await groupHeld(tx, task.id);
           return;
         }
         const reasons = withReasons(open.reasons, [input.reason]);
+        const queue = queueOf(reasons);
         await repository.updateTask(tx, open.id, {
           reasons,
-          queue: queueOf(reasons),
+          queue,
           dueAt: earliest(open.dueAt, due),
           excludedIds: [...new Set([...open.excludedIds, ...excluded])],
           ...scopeOf(subject),
           ...extra,
         });
+        if (queue === 0 && open.queue !== 0) await groupHeld(tx, open.id);
       },
       input.tx,
     );

@@ -40,6 +40,19 @@ export const strikesOf = (accountId: string): Promise<Strike[]> =>
 export const strikeTaskOf = (strikeId: string) =>
   prisma.reviewTask.findFirst({ where: { strikeId }, orderBy: { createdAt: 'desc' } });
 
+/** Payload các sự kiện outbox một loại mà `payload[field]` là `value` — trong file, sự kiện của các ca trước còn đó. */
+export async function eventsOf(
+  type: string,
+  field: string,
+  value: string,
+): Promise<Record<string, unknown>[]> {
+  const rows = await prisma.outboxEvent.findMany({
+    where: { type, payload: { path: [field], equals: value } },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+  });
+  return rows.map((row) => row.payload as Record<string, unknown>);
+}
+
 /** Nhận rồi quyết việc về gậy ở bàn vận hành — nhận hỏng thì ném, để ca test chỉ kiểm lượt quyết. */
 export async function decideStrike(
   app: FastifyInstance,

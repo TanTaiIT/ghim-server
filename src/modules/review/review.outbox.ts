@@ -24,6 +24,12 @@ export const REVIEW_EVENTS = {
    * nhóm / khoá tài khoản / mất tư cách tin sạch áp ở bên nghe của chính `review`.
    */
   reportDecided: 'review.report.decided',
+  /**
+   * Việc về tin trong nhóm vừa vào hàng máy giữ (N36, add-trust-notices) — cùng transaction với lượt mở / gộp việc.
+   * Chỉ mang mã: ai xử được và còn bao nhiêu việc thì `notification` hỏi lại lúc gửi (`groupHeldNotice`), vì người xử
+   * tính lúc đọc và sự kiện có thể tới muộn.
+   */
+  groupHeld: 'review.task.group_held',
 } as const satisfies Record<string, OutboxEventType>;
 
 /** Kết quả người đăng được báo (N45) — tên theo việc xảy ra với tin, không theo nút người duyệt bấm. */

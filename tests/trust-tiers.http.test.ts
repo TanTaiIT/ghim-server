@@ -135,6 +135,15 @@ describe('Lên mức theo tuổi tài khoản và tin sạch', () => {
     expect(
       (await prisma.listing.findUniqueOrThrow({ where: { id: live.id } })).restrictions,
     ).toEqual([]);
+    // N56 (add-trust-notices): lên mức vào hộp thư, không nhắc.
+    await deliverAll(app);
+    expect(
+      await prisma.notification.findMany({
+        where: { recipientId: minh.id, category: 'trust_strikes' },
+      }),
+    ).toMatchObject([
+      { type: 'trust.tier.raised', alert: false, body: 'Tài khoản đã lên mức T1.' },
+    ]);
   });
 
   it('20 ngày tuổi chưa có tin sạch: T0; 5 ngày tuổi có 2 tin sạch: T0', async () => {

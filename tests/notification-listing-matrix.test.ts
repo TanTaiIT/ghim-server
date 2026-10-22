@@ -29,6 +29,13 @@ const contextWith = (notice: MachineNotice | null): MatrixContext => ({
   masterIds: unused,
   machineNotice: () => Promise.resolve(notice),
   messagePreview: unused,
+  strike: unused,
+  standing: unused,
+  postingLockPoints: () => {
+    throw new Error('ma trận này không được hỏi ngưỡng khoá đăng tin');
+  },
+  liveAccounts: unused,
+  groupHeldNotice: unused,
 });
 
 const stateChanged = (payload: Payload, notice: MachineNotice | null = null) => {

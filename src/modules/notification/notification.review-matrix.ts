@@ -129,6 +129,34 @@ export const REVIEW_MATRIX: Record<string, Handler> = {
     return { ...empty(), drafts: [notice] };
   },
 
+  // N36 — tin trong nhóm bị máy giữ chờ duyệt (add-trust-notices): người đang xử được việc, mỗi người một dòng gộp theo
+  // nhóm với số việc đang chờ HIỆN TẠI của mình — tính lại mỗi lượt như N40–N42, không đếm số lượt như N20. Không nêu lý
+  // do máy giữ hay người đăng.
+  async [REVIEW_EVENTS.groupHeld](payload: Payload, ctx: MatrixContext) {
+    const taskId = str(payload, 'taskId');
+    if (!taskId) return empty();
+    const notice = await ctx.groupHeldNotice(taskId);
+    if (!notice || notice.recipients.length === 0) return empty();
+    const group = await ctx.group(notice.groupId);
+    if (!group) return empty();
+    const drafts = notice.recipients.map(({ accountId, pending }): NoticeDraft => {
+      const body = `«${group.name}» có ${pending} tin chờ duyệt.`;
+      return {
+        recipients: [accountId],
+        category: 'your_groups',
+        type: 'group.review.pending',
+        title: group.name,
+        body,
+        data: { groupId: group.id },
+        groupId: group.id,
+        alertable: true,
+        personal: false,
+        collapse: { key: `group:${group.id}:held`, render: () => body },
+      };
+    });
+    return { ...empty(), drafts };
+  },
+
   // N40 — việc nằm ở hàng master quá hạn nhắc, nhắc lại mỗi ngày.
   async [REVIEW_EVENTS.masterReminder](payload: Payload, ctx: MatrixContext) {
     const count = num(payload, 'count');

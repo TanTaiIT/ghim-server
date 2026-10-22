@@ -63,7 +63,7 @@ chung) trong 24 giờ. Sửa, gửi lại, gia hạn tin đang có vẫn đượ
   "success": false,
   "error": {
     "code": "SUBMISSION_COOLDOWN",
-    "message": "Tạm thời chưa gửi được tin mới — gửi lại từ 14:30",
+    "message": "Tạm thời chưa gửi được tin mới — gửi lại từ 14:30 ngày 14/10/2026",
     "details": { "retryAt": "2026-10-14T07:30:00.000Z" }
   }
 }

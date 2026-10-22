@@ -29,6 +29,13 @@ const contextWith = (
   listingTitles: unused,
   machineNotice: unused,
   messagePreview: unused,
+  strike: unused,
+  standing: unused,
+  postingLockPoints: () => {
+    throw new Error('ma trận này không được hỏi ngưỡng khoá đăng tin');
+  },
+  liveAccounts: unused,
+  groupHeldNotice: unused,
   listingTargets: (ids) =>
     Promise.resolve(
       new Map(ids.flatMap((id) => (targets[id] ? [[id, targets[id]] as const] : []))),

@@ -26,6 +26,7 @@ import {
   tierPort,
   uniqueHash,
 } from './screening-helpers.js';
+import { formatMomentVN } from '../src/common/time/time.js';
 import { sequentially } from '../src/common/utils/sequential.js';
 import { buildTestApp } from './test-app.js';
 
@@ -233,6 +234,20 @@ describe('Dò cổng cứng thì vào thời gian chờ', () => {
     });
     expect((await getOwn(app, user, draft.id)).state).toBe('draft');
     expect(blocked.body).not.toMatch(/trần|cổng/);
+    // Mốc 24 giờ sau phải có ngày — giờ trần không nói hôm nay hay mai (add-trust-notices).
+    expect(blocked.json().error.message).toBe(
+      `Tạm thời chưa gửi được tin mới — gửi lại từ ${formatMomentVN(at(44))}`,
+    );
+    expect(blocked.json().error.message).toMatch(/\d{2}:\d{2} ngày \d{2}\/\d{2}\/\d{4}$/);
+    // N58: vào thời gian chờ thì được báo bằng đúng câu đó, có nhắc, nhóm "mức tin cậy và gậy".
+    await deliverAll(app);
+    expect(
+      await prisma.notification.findMany({
+        where: { recipientId: user.id, type: 'listing.submission.cooldown' },
+      }),
+    ).toMatchObject([
+      { category: 'trust_strikes', alert: true, body: blocked.json().error.message },
+    ]);
 
     const edited = await resubmitted(app, user, third.listing, { price: 50 * MILLION });
     expect(edited.run.outcome).toBe('pass_full');

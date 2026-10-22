@@ -492,6 +492,11 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
       previewOf: (messageId) => messaging.service.previewOf(messageId),
       viewingSessions: (conversationId) => messaging.service.viewingSessions(conversationId),
     },
+    trust: {
+      strikeDetail: (strikeId) => trustModule.service.strikeDetail(strikeId),
+      standingOf: (accountId) => trustModule.service.standingOf(accountId),
+    },
+    review: { groupHeldNotice: (taskId) => review.service.groupHeldNotice(taskId) },
     push: deps.push,
     jobs: deps.jobs,
     realtime,
