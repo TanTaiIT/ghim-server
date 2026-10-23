@@ -143,6 +143,8 @@ export const meSchema = publicProfileSchema.extend({
   nameHidden: z.boolean(),
   /** Hiện trạng thái hoạt động trong hội thoại; tắt là hai chiều (add-activity-status). */
   showActivity: z.boolean(),
+  /** Đang mang quyền staff còn hiệu lực — app hiện lối vào bàn vận hành. Quyền đang treo là `false` (add-me-staff-flag). */
+  staff: z.boolean(),
 });
 
 const phoneNumberSchema = z

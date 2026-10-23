@@ -61,7 +61,7 @@ export function createIdentityAccountService(
   deps: IdentityServiceDeps,
   shared: IdentityShared,
 ): IdentityAccountService {
-  const { repository, config, clock, hashKey, secrets, jobs } = deps;
+  const { repository, config, clock, hashKey, secrets, jobs, privilegeSource } = deps;
   const {
     passwordIssue,
     issueAndSendCode,
@@ -84,8 +84,17 @@ export function createIdentityAccountService(
   const nameHidden = async (account: Account): Promise<boolean> =>
     (await hiddenNames(deps, [account.displayName])).has(account.displayName);
 
+  // Quyền treo không làm được gì ở bàn vận hành: cờ trả lời "có lối vào không", không phải "còn mang quyền" (design mục 2).
+  const activeStaff = async (account: Account): Promise<boolean> =>
+    (await privilegeSource.staffGrant(account.id))?.status === 'active';
+
   const me = async (account: Account) =>
-    toMe(account, await avatarUrlOf(account), await nameHidden(account));
+    toMe(
+      account,
+      await avatarUrlOf(account),
+      await nameHidden(account),
+      await activeStaff(account),
+    );
 
   return {
     // ── PHIÊN ───────────────────────────────────────────────────────────────────────────────────

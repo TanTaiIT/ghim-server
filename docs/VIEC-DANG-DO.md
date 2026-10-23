@@ -74,9 +74,9 @@ DeviceCheck) là quyết định sản phẩm, không phải việc dở — xem
 
 ## 5. Bảo mật và vận hành
 
-- [ ] `ghim-app` sau `remove-two-factor` (23/10/2026, bỏ lớp đăng nhập thứ hai): `npm run api:sync`, bỏ `TwoFactorGate`
-      (`app/ops/_layout.tsx`), ô mã ở `app/login.tsx`, hàm gọi `/me/two-factor/*` (`src/api/client.ts`,
-      `src/queries/auth.ts`). Production chạy migration `remove_two_factor` (xoá 3 cột) khi deploy.
+- [ ] Production chạy migration `remove_two_factor` (xoá 3 cột) khi deploy. `ghim-app` đã bỏ `TwoFactorGate`, ô mã ở
+      màn đăng nhập và hàm gọi `/me/two-factor/*`, lấy lối vào bàn vận hành từ cờ `staff` của `/me` (23/10/2026, change
+      `add-me-staff-flag`) — bản app đó cần server có cờ này.
 - [ ] Tạo lại khoá Cloudinary "moderation" (API secret đã gửi qua chat 15/10/2026), dán vào `.env.development`; nếu hệ
       cũ `docs/Vue` dùng chung tài khoản thì sửa cả bên đó.
 - [ ] Neon: xoá project cũ `us-east-1` (chuỗi cũ còn ở dòng comment trong `.env.development` — xoá luôn dòng đó), rồi
@@ -148,7 +148,6 @@ phần **Hoãn lại** của TK 29 thì là quyết định sản phẩm, ghi ra
 | Tìm kiếm: sắp xếp, lọc theo mẫu thông tin của danh mục (TK 11)                | Chỉ khớp chuỗi trên tiêu đề + mô tả, lọc danh mục / tỉnh / phường / giá             |
 | Bàn vận hành: số liệu theo ngày, danh sách / tìm người dùng, doanh thu        | Chỉ có `/ops/review/stats/*`, `/ops/jobs/runs`; khoá / mở khoá theo mã tài khoản    |
 | Số liệu máy duyệt                                                             | `screening_run_stats` được ghi (`screening.repository.ts`) nhưng chưa route nào đọc |
-| `/me` cho biết là staff                                                       | Chỉ có `role` và `twoFactorEnabled` — staff chưa bật lớp thứ hai không thấy lối vào |
 | Ảnh trong tin nhắn, khu vực mặc định của người dùng                           | Chưa có                                                                             |
 
 Dọn nhỏ (comment "tạm" đã lỗi thời, sửa khi chạm tới file): `trust/trust.shared.ts` (`noBuyerInterest`,

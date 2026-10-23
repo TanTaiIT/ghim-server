@@ -141,6 +141,7 @@ export interface MeDto extends PublicProfileDto {
   role: Account['role'];
   nameHidden: boolean;
   showActivity: boolean;
+  staff: boolean;
 }
 
 export interface FlagDto {

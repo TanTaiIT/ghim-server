@@ -137,11 +137,17 @@ export function toPublicProfile(
 }
 
 /** Chủ tài khoản luôn thấy tên thật; `nameHidden` để app nhắc đổi tên (spec identity/profile). */
-export function toMe(account: Account, avatarUrl: string | null, nameHidden: boolean): MeDto {
+export function toMe(
+  account: Account,
+  avatarUrl: string | null,
+  nameHidden: boolean,
+  staff: boolean,
+): MeDto {
   return {
     ...toPublicProfile(account, avatarUrl),
     nameHidden,
     showActivity: account.showActivity,
+    staff,
     email: account.email,
     emailVerified: account.status === 'active',
     role: account.role,
