@@ -25,7 +25,7 @@ Cần CLI `openspec` trên PATH, cùng phiên bản trong `package.json`:
 Hiện trạng (đợt 1, một phần đợt 2): hạ tầng (HTTP, lỗi, response, Swagger, health, việc nền pg-boss, gửi thư, outbox, realtime
 socket.io ở `/realtime`) và các module:
 
-- **`identity`**: đăng ký + xác nhận email, đăng nhập / phiên / refresh, Google, hai lớp TOTP cho master và staff,
+- **`identity`**: đăng ký + xác nhận email, đăng nhập / phiên / refresh, Google,
   hồ sơ, đổi email, quên / đổi mật khẩu, khoá / mở khoá / xoá tài khoản, dấu thiết bị + mã tra cứu, xác minh giấy
   tờ, danh sách email dùng một lần.
 - **`platform`**: master, quyền staff theo danh mục, bảng con số có phiên bản, nhật ký bàn vận hành.
@@ -71,9 +71,7 @@ MASTER_PASSWORD='<mật khẩu>' pnpm cli:create-master --email <email> --name "
 ```
 
 Master chỉ tạo được bằng lệnh trên (không có route HTTP nào), và hệ thống có đúng một master. Đăng nhập
-bằng email / mật khẩu đó, rồi thiết lập lớp thứ hai (`POST /api/v1/me/two-factor/setup` → `/confirm`)
-trước khi bàn vận hành mở. Master mất ứng dụng tạo mã: `pnpm cli:reset-2fa --email <email>` gỡ lớp
-thứ hai và thu hồi mọi phiên. Quên mật khẩu thì đi "quên mật khẩu" như mọi người (ở dev, mã nằm trong
+bằng email / mật khẩu đó là dùng được bàn vận hành ngay. Quên mật khẩu thì đi "quên mật khẩu" như mọi người (ở dev, mã nằm trong
 Mailpit).
 
 - `GET /health` — tiến trình còn sống không (không chạm DB)
@@ -98,7 +96,6 @@ Mailpit).
 | `pnpm db:drift`                                               | Kiểm migration đã áp có khớp `schema.prisma` không                                                                 |
 | `pnpm db:studio`                                              | Mở Prisma Studio                                                                                                   |
 | `pnpm cli:create-master`                                      | Tạo master (một lần, chỉ khi chưa có)                                                                              |
-| `pnpm cli:reset-2fa`                                          | Gỡ lớp thứ hai + thu hồi phiên của một tài khoản                                                                   |
 | `pnpm cli:build-regions`                                      | Sinh lại `category/data/regions.json` từ provinces.open-api.vn                                                     |
 
 **Cập nhật địa giới hành chính**: `pnpm cli:build-regions` tải API, trộn tên cũ cấp tỉnh từ
@@ -131,7 +128,6 @@ bản mới nhận traffic.
    trị khác nhau), `openssl rand -base64 32` cho `SECRETS_ENCRYPTION_KEY`.
 3. Sau lần deploy đầu, tạo master trong Render Shell của service (mật khẩu không nằm lại trên dòng lệnh):
    `read -rs MASTER_PASSWORD && export MASTER_PASSWORD && node dist/cli/create-master.js --email <email> --name "Quản trị Ghim"`.
-   Gỡ lớp thứ hai: `node dist/cli/reset-two-factor.js --email <email>`.
 4. Đăng nhập trên máy mình, xem `GET /api/v1/me/sessions`: IP phải là IP thật của máy — sai thì chỉnh `TRUST_PROXY`.
 
 **Thử miễn phí trên Render**: `render.free.yaml` dựng cùng hệ thống trên gói free (không cần thẻ), tài nguyên đuôi

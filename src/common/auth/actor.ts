@@ -7,8 +7,6 @@ export interface Actor {
   accountId: string;
   role: AccountRole;
   sessionId: string;
-  /** Phiên đã qua lớp thứ hai lúc nào; `null` = chưa, bàn vận hành từ chối. */
-  secondFactorAt: Date | null;
   emailVerified: boolean;
 }
 

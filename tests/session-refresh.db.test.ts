@@ -29,7 +29,6 @@ async function session() {
     deviceName: 'Máy',
     ip: null,
     userAgent: null,
-    secondFactorAt: null,
     expiresAt: LATER,
     at: NOW,
   });

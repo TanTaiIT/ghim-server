@@ -32,7 +32,6 @@ async function masterActor(): Promise<Actor> {
     accountId: row.id,
     role: 'master',
     sessionId: 's',
-    secondFactorAt: NOW,
     emailVerified: true,
   };
 }

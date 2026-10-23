@@ -56,7 +56,7 @@ const envSchema = z
      * tài khoản trên máy. Vì vậy phải KHÁC `JWT_SECRET`, để xoay khoá ký không kéo theo khoá này.
      */
     IDENTITY_HASH_KEY: z.string().min(32),
-    /** AES-256-GCM cho bí mật TOTP và số giấy tờ: đúng 32 byte, base64 (`openssl rand -base64 32`). */
+    /** AES-256-GCM cho số giấy tờ và mã xác nhận trên đường gửi thư: đúng 32 byte, base64 (`openssl rand -base64 32`). */
     SECRETS_ENCRYPTION_KEY: z
       .base64()
       .refine((value) => Buffer.from(value, 'base64').length === 32, {

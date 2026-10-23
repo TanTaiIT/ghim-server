@@ -67,8 +67,6 @@ export type AccountPatch = Partial<
     | 'avatarImageId'
     | 'avatarFromGoogle'
     | 'phone'
-    | 'totpSecretEnc'
-    | 'totpEnabledAt'
     | 'emailChangedAt'
     | 'passwordChangedAt'
     | 'showActivity'
@@ -133,13 +131,7 @@ export interface AccountChangeInput {
 
 export type NewSession = Pick<
   Session,
-  | 'accountId'
-  | 'refreshTokenHash'
-  | 'deviceName'
-  | 'ip'
-  | 'userAgent'
-  | 'secondFactorAt'
-  | 'expiresAt'
+  'accountId' | 'refreshTokenHash' | 'deviceName' | 'ip' | 'userAgent' | 'expiresAt'
 > & { at: Date };
 
 export type SessionPatch = Partial<
@@ -151,7 +143,6 @@ export type SessionPatch = Partial<
     | 'expiresAt'
     | 'revokedAt'
     | 'revokeReason'
-    | 'secondFactorAt'
   >
 >;
 
@@ -161,7 +152,6 @@ export interface ActorSession {
   accountId: string;
   revokedAt: Date | null;
   expiresAt: Date;
-  secondFactorAt: Date | null;
   role: Account['role'];
   status: Account['status'];
   lockedReason: string | null;
@@ -268,7 +258,7 @@ export interface IdentityRepository {
   /** Xoá HẲN một đăng ký dở khi chủ email vào bằng Google; `false` = dòng vừa được xác nhận nên không xoá. */
   deleteUnverifiedAccount(id: string): Promise<boolean>;
   /**
-   * Tài khoản đã xoá qua hết thời gian chờ: bỏ email, tên, ảnh, mật khẩu, mã Google, số điện thoại, lớp thứ hai để email
+   * Tài khoản đã xoá qua hết thời gian chờ: bỏ email, tên, ảnh, mật khẩu, mã Google, số điện thoại để email
    * và mã Google tự do; giữ dòng, dấu băm email và mọi dòng con (lịch sử chống gian lận — C9). Xoá thật là việc của
    * `add-data-retention`. `false` = dòng không còn ở trạng thái đó (đã ẩn danh, hay chưa hết thời gian chờ).
    */
@@ -538,8 +528,6 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
             avatarImageId: null,
             avatarFromGoogle: false,
             phone: null,
-            totpSecretEnc: null,
-            totpEnabledAt: null,
           },
         });
         if (count === 0) return false;
@@ -700,8 +688,7 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
     async findActorSession(sessionId) {
       const rows = await prisma.$queryRaw<ActorSession[]>`
         SELECT s.id AS "sessionId", s.account_id AS "accountId", s.revoked_at AS "revokedAt",
-               s.expires_at AS "expiresAt", s.second_factor_at AS "secondFactorAt",
-               a.role::text AS role, a.status::text AS status, a.locked_reason AS "lockedReason"
+               s.expires_at AS "expiresAt", a.role::text AS role, a.status::text AS status, a.locked_reason AS "lockedReason"
           FROM sessions s
           JOIN accounts a ON a.id = s.account_id
          WHERE s.id = ${sessionId}::uuid`;

@@ -141,7 +141,7 @@ describe('Mất quyền báo cáo khi điểm quá thấp', () => {
       },
     });
     now = new Date(TEST_NOW.getTime() + 30 * DAY_MS + MINUTE_MS);
-    const back = { ...reporter, token: await tokenFor(app, reporter.id, {}, now) };
+    const back = { ...reporter, token: await tokenFor(app, reporter.id, now) };
     const res = await report(app, back, aboutListing(target.id));
     expect(res.statusCode).toBe(201);
   });

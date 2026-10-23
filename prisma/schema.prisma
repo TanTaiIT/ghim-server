@@ -124,8 +124,6 @@ model Account {
   /// Công tắc hai chiều: tắt thì không ai thấy trạng thái của mình, mình cũng không thấy của ai.
   showActivity      Boolean        @default(true) @map("show_activity")
   phone             String?
-  totpSecretEnc     String?        @map("totp_secret_enc")
-  totpEnabledAt     DateTime?      @map("totp_enabled_at") @db.Timestamptz(3)
   lockedReason      String?        @map("locked_reason")
   lockedAt          DateTime?      @map("locked_at") @db.Timestamptz(3)
   lockedBy          String?        @map("locked_by") @db.Uuid
@@ -212,8 +210,6 @@ model Session {
   deviceName           String               @map("device_name")
   ip                   String?
   userAgent            String?              @map("user_agent")
-  /// Có giá trị = phiên này đã qua lớp thứ hai; `requireOps` từ chối phiên thiếu nó.
-  secondFactorAt       DateTime?            @map("second_factor_at") @db.Timestamptz(3)
   createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
   lastActiveAt         DateTime             @default(now()) @map("last_active_at") @db.Timestamptz(3)
   /// Hết hạn trượt: last_active_at + 30 ngày (giá trị khởi đầu), cập nhật khi refresh.

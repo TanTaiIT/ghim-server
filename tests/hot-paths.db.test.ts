@@ -68,7 +68,6 @@ describe('đường nóng: một câu SQL mỗi lượt đọc', () => {
       deviceName: 'Máy',
       ip: null,
       userAgent: null,
-      secondFactorAt: null,
       expiresAt: LATER,
       at: NOW,
     });

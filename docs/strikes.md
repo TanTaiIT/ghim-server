@@ -46,7 +46,7 @@ Kênh hỗ trợ (không đăng nhập, rate limit như đăng nhập) cho ngư�
 quyết); `POST /support/serious-appeal { email, code, statement }` — 201 trả `ruleText`, `issuedAt`, `appealUntil`; mã
 sai → `401 UNAUTHORIZED` không lộ gì; quá 30 ngày → `409 APPEAL_WINDOW_CLOSED`; lần hai → `409 APPEAL_ALREADY_USED`.
 
-## Bàn vận hành — `/api/v1/ops/trust` (cần lớp thứ hai)
+## Bàn vận hành — `/api/v1/ops/trust`
 
 | Route                                       | Ai     | Việc                                                                                                           |
 | ------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------- |

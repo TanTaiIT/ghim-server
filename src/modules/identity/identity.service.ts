@@ -30,7 +30,7 @@ export interface IdentityServiceDeps {
   clock: () => Date;
   /** `IDENTITY_HASH_KEY` — băm email, mã thiết bị và mã xác nhận. */
   hashKey: string;
-  /** Mã hoá bí mật TOTP, số giấy tờ, và mã xác nhận trên đường tới việc gửi thư. */
+  /** Mã hoá số giấy tờ và mã xác nhận trên đường tới việc gửi thư. */
   secrets: SecretBox;
   googleVerifier: GoogleTokenVerifier;
   /** `group` trả lời "đang là chủ nhóm nào không" — chủ nhóm phải chuyển chủ rồi mới xoá được tài khoản. */
@@ -139,7 +139,6 @@ export interface MeDto extends PublicProfileDto {
   email: string;
   emailVerified: boolean;
   role: Account['role'];
-  twoFactorEnabled: boolean;
   nameHidden: boolean;
   showActivity: boolean;
 }
@@ -191,7 +190,6 @@ export interface RegisterInput {
 export interface LoginInput {
   email: string;
   password: string;
-  totpCode?: string | undefined;
   deviceName: string;
   ip: string | null;
   userAgent: string | null;
@@ -247,9 +245,6 @@ export interface IdentityService extends ActorResolver {
     input: { currentPassword: string; newPassword: string },
   ): Promise<void>;
 
-  setupTwoFactor(actor: Actor): Promise<{ otpauthUri: string }>;
-  confirmTwoFactor(actor: Actor, input: { code: string }): Promise<void>;
-
   loginWithGoogle(input: GoogleLoginInput): Promise<SessionOpened>;
 
   getPublicProfile(accountId: string): Promise<PublicProfileDto>;
@@ -259,7 +254,7 @@ export interface IdentityService extends ActorResolver {
   clearAvatar(actor: Actor): Promise<MeDto>;
   requestEmailChange(
     actor: Actor,
-    input: { email: string; currentPassword: string; totpCode?: string | undefined },
+    input: { email: string; currentPassword: string },
   ): Promise<void>;
   confirmEmailChange(actor: Actor, input: { code: string }): Promise<void>;
 
@@ -369,8 +364,6 @@ export interface IdentityService extends ActorResolver {
   accountIdsByEmailHashes(hashes: string[]): Promise<Map<string, string>>;
   /** Chỉ CLI gọi (spec master-accounts): đúng một master, email chưa có tài khoản, xác nhận sẵn. */
   createMaster(input: RegisterInput): Promise<{ accountId: string }>;
-  /** Chỉ CLI gọi: gỡ lớp thứ hai và thu hồi mọi phiên — thiết lập lại trước khi dùng bàn vận hành. */
-  resetTwoFactor(input: { email: string }): Promise<void>;
 }
 
 export interface AccountState {

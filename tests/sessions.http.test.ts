@@ -110,7 +110,7 @@ describe('POST /auth/login', () => {
       expiresIn: 15 * 60,
     });
     const me = await api('GET', '/__test/me', { token: res.json().data.accessToken });
-    expect(me.json().data).toMatchObject({ emailVerified: true, secondFactorAt: null });
+    expect(me.json().data).toMatchObject({ emailVerified: true });
   });
 
   it('đăng nhập bằng biến thể của email vào đúng tài khoản', async () => {
