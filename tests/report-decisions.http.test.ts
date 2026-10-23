@@ -293,7 +293,7 @@ describe('Có báo cáo đang mở vẫn tự xoá được tài khoản, báo c
     await deliverAll(app);
     now = new Date(TEST_NOW.getTime() + 30 * DAY_MS);
     // Phiên cũ đã hết hạn vì 30 ngày không dùng — staff đăng nhập lại lúc này.
-    const fresh = { ...staff, token: await tokenFor(app, staff.id, {}, now) };
+    const fresh = { ...staff, token: await tokenFor(app, staff.id, now) };
     const res = await decideOps(app, fresh, subject, {
       outcome: 'keep',
       report: { verdict: 'upheld' },

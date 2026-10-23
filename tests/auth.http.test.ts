@@ -51,17 +51,13 @@ async function category(): Promise<string> {
   return row.id;
 }
 
-async function token(
-  accountId: string,
-  overrides: { secondFactorAt?: Date; expiresAt?: Date; revoked?: boolean } = {},
-) {
+async function token(accountId: string, overrides: { expiresAt?: Date; revoked?: boolean } = {}) {
   const session = await repository.createSession({
     accountId,
     refreshTokenHash: `rt-${accountId}-${Math.random()}`,
     deviceName: 'Máy thử',
     ip: null,
     userAgent: null,
-    secondFactorAt: overrides.secondFactorAt ?? null,
     expiresAt: overrides.expiresAt ?? new Date(NOW.getTime() + 30 * DAY_MS),
     at: NOW,
   });
@@ -132,60 +128,40 @@ describe('requireVerifiedEmail / requireMaster', () => {
     expect(res.json().error.code).toBe('EMAIL_NOT_VERIFIED');
   });
 
-  it('người thường gọi route master → 403 FORBIDDEN; master cần lớp thứ hai rồi mới 200', async () => {
+  it('người thường gọi route master → 403 FORBIDDEN; master có phiên là 200', async () => {
     const user = await account();
     expect((await call('/__test/master', await token(user.id))).json().error.code).toBe(
       'FORBIDDEN',
     );
     const master = await account({ role: 'master' });
-    expect((await call('/__test/master', await token(master.id))).json().error.code).toBe(
-      'TWO_FACTOR_REQUIRED',
-    );
-    expect(
-      (await call('/__test/master', await token(master.id, { secondFactorAt: NOW }))).statusCode,
-    ).toBe(200);
+    expect((await call('/__test/master', await token(master.id))).statusCode).toBe(200);
   });
 });
 
 describe('requireOps', () => {
   it('người không có việc → 403 FORBIDDEN', async () => {
     const { id } = await account();
-    const res = await call('/__test/ops', await token(id, { secondFactorAt: NOW }));
-    expect(res.statusCode).toBe(403);
-    expect(res.json().error.code).toBe('FORBIDDEN');
-  });
-
-  it('staff có việc nhưng phiên chưa qua lớp thứ hai → 403 TWO_FACTOR_REQUIRED', async () => {
-    const { id } = await account();
-    await grantStaff(id, ['support']);
     const res = await call('/__test/ops', await token(id));
     expect(res.statusCode).toBe(403);
-    expect(res.json().error.code).toBe('TWO_FACTOR_REQUIRED');
+    expect(res.json().error.code).toBe('FORBIDDEN');
   });
 
   it('staff chỉ có việc khác → 403 FORBIDDEN', async () => {
     const { id } = await account();
     await grantStaff(id, ['id_verification']);
-    const res = await call('/__test/ops', await token(id, { secondFactorAt: NOW }));
+    const res = await call('/__test/ops', await token(id));
     expect(res.json().error.code).toBe('FORBIDDEN');
   });
 
-  it('master cũng phải có lớp thứ hai; có rồi thì qua', async () => {
+  it('master có phiên → 200, không đòi gì thêm', async () => {
     const { id } = await account({ role: 'master' });
-    expect((await call('/__test/ops', await token(id))).json().error.code).toBe(
-      'TWO_FACTOR_REQUIRED',
-    );
-    expect((await call('/__test/ops', await token(id, { secondFactorAt: NOW }))).statusCode).toBe(
-      200,
-    );
+    expect((await call('/__test/ops', await token(id))).statusCode).toBe(200);
   });
 
-  it('staff có việc và đã qua lớp thứ hai → 200', async () => {
+  it('staff vừa được gắn việc, phiên mở bằng mật khẩu → 200 ngay', async () => {
     const { id } = await account();
     await grantStaff(id, ['support']);
-    expect((await call('/__test/ops', await token(id, { secondFactorAt: NOW }))).statusCode).toBe(
-      200,
-    );
+    expect((await call('/__test/ops', await token(id))).statusCode).toBe(200);
   });
 });
 
@@ -195,7 +171,7 @@ describe('quyền treo và quyền theo danh mục', () => {
     const granted = await category();
     await grantStaff(id, ['support'], [granted]);
     await repositories.platform.suspendStaff({ accountId: id, reason: 'Thử', at: NOW });
-    const bearer = await token(id, { secondFactorAt: NOW });
+    const bearer = await token(id);
     expect((await call('/__test/ops', bearer)).json().error.code).toBe(
       'STAFF_PERMISSION_SUSPENDED',
     );
@@ -210,13 +186,12 @@ describe('quyền treo và quyền theo danh mục', () => {
     const { id } = await account();
     const [granted, other] = [await category(), await category()];
     await grantStaff(id, [], [granted]);
-    const bearer = await token(id, { secondFactorAt: NOW });
+    const bearer = await token(id);
     expect((await call(`/__test/categories/${granted}`, bearer)).statusCode).toBe(200);
     expect((await call(`/__test/categories/${other}`, bearer)).json().error.code).toBe('FORBIDDEN');
     const master = await account({ role: 'master' });
-    expect(
-      (await call(`/__test/categories/${other}`, await token(master.id, { secondFactorAt: NOW })))
-        .statusCode,
-    ).toBe(200);
+    expect((await call(`/__test/categories/${other}`, await token(master.id))).statusCode).toBe(
+      200,
+    );
   });
 });

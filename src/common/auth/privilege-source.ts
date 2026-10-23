@@ -6,8 +6,8 @@ export const OPS_SCOPES = ['support', 'user_reports', 'id_verification'] as cons
 export type OpsScope = (typeof OPS_SCOPES)[number];
 
 /**
- * Quyền staff của một tài khoản, trọn gói. `suspended` vẫn là "mang quyền staff" (hai lớp, trần 3
- * phiên lúc đăng nhập) nhưng không làm được gì ở bàn vận hành.
+ * Quyền staff của một tài khoản, trọn gói. `suspended` vẫn là "mang quyền staff" (trần 3 phiên
+ * lúc đăng nhập) nhưng không làm được gì ở bàn vận hành.
  */
 export interface StaffGrantView {
   status: 'active' | 'suspended';

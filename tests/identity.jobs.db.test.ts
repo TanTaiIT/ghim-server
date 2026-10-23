@@ -91,7 +91,6 @@ describe('identity.purge-expired trên Postgres thật', () => {
           deviceName: 'Máy',
           ip: null,
           userAgent: null,
-          secondFactorAt: null,
           expiresAt: new Date(NOW.getTime() + expiresInDays * DAY_MS),
           at: NOW,
         })

@@ -66,7 +66,7 @@ Gậy đóng quá 2 năm (`retention.strikeAnonymizeYears`): `strikes.account_id
 Khoá vĩnh viễn **chưa gỡ thì chưa ẩn danh**: lượt xem lại 2 năm và lệnh gỡ khoá cần nối gậy ↔ tài khoản; dấu băm email
 giữ để email còn bị chặn đăng ký. Gỡ khoá rồi thì lượt kế tiếp bỏ dấu băm và ẩn danh hoá.
 
-## Bàn vận hành — `/api/v1/ops/jobs/runs` (master, cần lớp thứ hai)
+## Bàn vận hành — `/api/v1/ops/jobs/runs` (master)
 
 `GET /ops/jobs/runs?name=&limit=` — các lượt việc theo lịch gần nhất, mới trước: `name`, `status` (`done` · `partial` =
 mới làm được một phần, lượt sau làm tiếp · `failed` = ném, pg-boss thử lại), `startedAt`, `finishedAt`, `summary` (số

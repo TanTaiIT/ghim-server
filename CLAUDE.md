@@ -42,8 +42,7 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
   - Đã nối: `pg-boss` (`src/lib/jobs.ts`, start/stop trong `server.ts`), `nodemailer`
     (`src/lib/mailer.ts`, sau interface `Mailer`), `@fastify/jwt` + `@fastify/cookie`
     (`src/common/auth/auth.plugin.ts`), `argon2` (`identity/calc/password.calc.ts`), `google-auth-library`
-    (`google.verifier.ts`, sau interface `GoogleTokenVerifier`), `otplib` (hai lớp trong
-    `identity.service.ts`). Không còn gói nào cài mà chưa dùng.
+    (`google.verifier.ts`, sau interface `GoogleTokenVerifier`). Không còn gói nào cài mà chưa dùng.
 - DB: **PostgreSQL 18 + Prisma 7**, driver adapter `@prisma/adapter-pg`, preview `partialIndexes`.
   - `prisma/schema.prisma` là nguồn sự thật của schema đang chạy. Mỗi module một migration `init_<module>`
     (`identity`, `platform_category`, `group`, `notification`) cộng vài migration chỉnh sau; khoá chính
@@ -79,9 +78,9 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
   - Đăng nhập Google: **google-auth-library** verify ID token do app gửi lên; không có OAuth redirect
     phía server. Đứng sau `GoogleTokenVerifier` (`google.verifier.ts`); `GOOGLE_CLIENT_IDS` trống =
     tắt (dev), production bắt buộc.
-  - Hai lớp cho master, staff: **otplib** (TOTP, ứng dụng tạo mã bất kỳ). Bí mật mã hoá AES-256-GCM
-    (`src/common/crypto/secrets.ts`); `requireMaster` và `requireOps` đều đòi `second_factor_at` trên
-    phiên — kể cả master, kể cả khi chưa thiết lập.
+  - Không có lớp đăng nhập thứ hai (change `remove-two-factor`, chốt 23/10/2026): `requireMaster` chỉ kiểm vai,
+    `requireOps` / `requireCategoryOps` kiểm quyền treo và phạm vi. Số giấy tờ mã hoá AES-256-GCM
+    (`src/common/crypto/secrets.ts`).
   - Băm ảnh so trùng (đồng ý 12/10/2026): **sharp** — thu ảnh về 9×8 xám rồi dHash 64 bit, đứng sau cổng
     `ImageHasher` (`src/modules/screening/run/image-hash.ts`). Kiểm ảnh nhạy cảm chưa chọn dịch vụ
     (`add-image-moderation`).
@@ -181,7 +180,7 @@ src/
                                 `review/{queue,desk,schedule,stats}/`
     data/                     ← (nếu có) file tĩnh đi kèm, đọc bằng `new URL('./data/…', import.meta.url)`;
                                 tsc không chép nên `pnpm run build` có bước `build:data` chép `src/**/data` sang dist
-  cli/                        ← script chạy tay, không qua HTTP: `create-master`, `reset-two-factor`
+  cli/                        ← script chạy tay, không qua HTTP: `create-master`
                                 (dùng `cli-identity.ts`), `build-regions` (sinh `category/data/regions.json`)
 tests/*.test.ts               ← phẳng, không chia thư mục con; chạy trên Postgres test
 tests/*.db.test.ts            ← ghi thẳng bằng Prisma để kiểm ràng buộc của DB, tiện ích ở `tests/db-helpers.ts`
@@ -559,6 +558,10 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   `messaging/blocking`, `messaging/conversation-deletion`, `notification/inbox`, `notification/realtime`;
   `add-activity-status` tạo `messaging/activity-status`, thêm "Công tắc hiện trạng thái hoạt động" vào
   `identity/profile`.
+  `remove-two-factor` (23/10/2026, người dùng chốt bỏ lớp thứ hai) bỏ "Đăng nhập hai lớp cho master và staff", thêm "Bàn
+  vận hành chỉ đòi phiên đăng nhập hợp lệ" vào `identity/sessions`; thay "Xin đổi email phải nhập lại mật khẩu" bằng "Xin
+  đổi email chỉ đòi mật khẩu hiện tại" (`identity/email-change`), "Đúng một master" bằng "Hệ thống chỉ có một master"
+  (`platform/master-accounts`); bỏ chữ lớp thứ hai khỏi `platform/staff-permissions`, `review/queues`.
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.

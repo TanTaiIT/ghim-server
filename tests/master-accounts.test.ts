@@ -4,7 +4,6 @@ import { prisma, truncateAll } from './db-helpers.js';
 import { buildIdentityService } from './identity-service.helpers.js';
 
 /* Spec master-accounts, phần do công cụ của đội kỹ thuật làm (`src/cli/*`). */
-const NOW = new Date('2026-10-10T09:00:00+07:00');
 const PASSWORD = 'ghim-rao-vat-2026!';
 
 beforeEach(truncateAll);
@@ -52,45 +51,5 @@ describe('createMaster', () => {
       service.createMaster({ email: 'a@ghim.vn', password: '12345678', displayName: 'A' }),
     ).rejects.toMatchObject({ code: 'PASSWORD_WEAK' });
     expect(await prisma.account.count()).toBe(0);
-  });
-});
-
-describe('resetTwoFactor', () => {
-  it('gỡ bí mật, tắt lớp thứ hai và thu hồi mọi phiên', async () => {
-    const { service, repository } = buildIdentityService();
-    const { accountId } = await service.createMaster({
-      email: 'master@ghim.vn',
-      password: PASSWORD,
-      displayName: 'M',
-    });
-    await repository.updateAccount(accountId, {
-      totpSecretEnc: 'bi-mat-niem-phong',
-      totpEnabledAt: NOW,
-    });
-    const session = await repository.createSession({
-      accountId,
-      refreshTokenHash: 'rt',
-      deviceName: 'Máy',
-      ip: null,
-      userAgent: null,
-      secondFactorAt: NOW,
-      expiresAt: new Date(NOW.getTime() + 86_400_000),
-      at: NOW,
-    });
-
-    await service.resetTwoFactor({ email: 'MASTER@ghim.vn' });
-
-    expect(await repository.findAccountById(accountId)).toMatchObject({
-      totpSecretEnc: null,
-      totpEnabledAt: null,
-    });
-    expect((await repository.findSessionById(session.id))?.revokedAt).not.toBeNull();
-  });
-
-  it('email không có tài khoản → 404', async () => {
-    const { service } = buildIdentityService();
-    await expect(service.resetTwoFactor({ email: 'khong@ghim.vn' })).rejects.toMatchObject({
-      statusCode: 404,
-    });
   });
 });

@@ -191,7 +191,6 @@ describe('Câu cho tin chờ duyệt do screening cấp (cổng HoldExplanation)
       accountId: holder.id,
       role: 'user' as const,
       sessionId: 's',
-      secondFactorAt: null,
       emailVerified: true,
     };
     expect((await trust.dashboard(actor)).pending).toEqual([

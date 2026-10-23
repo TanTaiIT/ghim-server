@@ -175,7 +175,7 @@ export function createReviewShared(deps: ReviewServiceDeps) {
   const locateTask = async (actor: Actor, taskId: string, surface: Surface) => {
     const task = await deps.repository.findTask(taskId);
     if (!task || (surface.kind === 'group' && task.groupId !== surface.groupId)) return null;
-    // Route của nhóm không đòi lớp thứ hai, nên ở đó chỉ vai trong nhóm được tính; quyền master đi qua bàn vận hành
+    // Ở route của nhóm chỉ vai trong nhóm được tính, mà master không vào nhóm nào; quyền master đi qua bàn vận hành
     // (spec review/queues, chốt 15/10/2026).
     const viewer: Viewer =
       surface.kind === 'ops'

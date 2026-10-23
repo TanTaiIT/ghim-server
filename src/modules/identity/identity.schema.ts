@@ -82,8 +82,6 @@ export const resendCodeBodySchema = z.object({ email: emailSchema });
 export const loginBodySchema = z.object({
   email: emailSchema,
   password: passwordSchema,
-  /** Bắt buộc với master và staff đã bật hai lớp; người khác bỏ trống. */
-  totpCode: codeSchema.optional(),
   deviceName: z.string().trim().min(1).max(DEVICE_NAME_MAX).optional(),
   client: z.enum(CLIENTS).default('app'),
 });
@@ -141,7 +139,6 @@ export const meSchema = publicProfileSchema.extend({
   email: z.string(),
   emailVerified: z.boolean(),
   role: z.enum(['user', 'master']),
-  twoFactorEnabled: z.boolean(),
   /** Tên trúng cụm từ cấm mức chắc: người khác thấy "Người dùng Ghim" — app nhắc đổi tên. */
   nameHidden: z.boolean(),
   /** Hiện trạng thái hoạt động trong hội thoại; tắt là hai chiều (add-activity-status). */
@@ -173,8 +170,6 @@ export const patchMeBodySchema = z.object({
 export const emailChangeBodySchema = z.object({
   email: emailSchema,
   currentPassword: passwordSchema,
-  /** Bắt buộc khi tài khoản đã bật lớp thứ hai. */
-  totpCode: codeSchema.optional(),
 });
 
 export const emailChangeConfirmBodySchema = z.object({ code: codeSchema });
@@ -193,12 +188,6 @@ export const changePasswordBodySchema = z.object({
   currentPassword: passwordSchema,
   newPassword: passwordSchema,
 });
-
-// ── HAI LỚP ─────────────────────────────────────────────────────────────────────────────────────
-
-export const twoFactorSetupSchema = z.object({ otpauthUri: z.string() });
-
-export const twoFactorConfirmBodySchema = z.object({ code: codeSchema });
 
 // ── KHOÁ / XOÁ TÀI KHOẢN ────────────────────────────────────────────────────────────────────────
 

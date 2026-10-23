@@ -9,7 +9,6 @@ const MASTER: Actor = {
   accountId: '00000000-0000-7000-8000-00000000000a',
   role: 'master',
   sessionId: 's',
-  secondFactorAt: NOW,
   emailVerified: true,
 };
 

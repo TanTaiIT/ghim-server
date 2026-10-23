@@ -74,6 +74,9 @@ DeviceCheck) là quyết định sản phẩm, không phải việc dở — xem
 
 ## 5. Bảo mật và vận hành
 
+- [ ] `ghim-app` sau `remove-two-factor` (23/10/2026, bỏ lớp đăng nhập thứ hai): `npm run api:sync`, bỏ `TwoFactorGate`
+      (`app/ops/_layout.tsx`), ô mã ở `app/login.tsx`, hàm gọi `/me/two-factor/*` (`src/api/client.ts`,
+      `src/queries/auth.ts`). Production chạy migration `remove_two_factor` (xoá 3 cột) khi deploy.
 - [ ] Tạo lại khoá Cloudinary "moderation" (API secret đã gửi qua chat 15/10/2026), dán vào `.env.development`; nếu hệ
       cũ `docs/Vue` dùng chung tài khoản thì sửa cả bên đó.
 - [ ] Neon: xoá project cũ `us-east-1` (chuỗi cũ còn ở dòng comment trong `.env.development` — xoá luôn dòng đó), rồi

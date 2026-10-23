@@ -48,7 +48,6 @@ export function createIdentityAuthService(
     issueAndSendCode,
     assertResendAllowed,
     matchLiveCode,
-    totpMatches,
     openSession,
     claimEmail,
     releaseDeleted,
@@ -122,7 +121,7 @@ export function createIdentityAuthService(
 
     // ── PHIÊN ───────────────────────────────────────────────────────────────────────────────────
 
-    async login({ email, password, totpCode, deviceName, ip, userAgent }) {
+    async login({ email, password, deviceName, ip, userAgent }) {
       const now = clock();
       const account = await repository.findAccountByEmail(normalizeEmail(email));
       // Tài khoản chỉ có Google không có mật khẩu: với người gõ mật khẩu, nó như không tồn tại.
@@ -134,14 +133,7 @@ export function createIdentityAuthService(
       if (account.status === 'locked') throw accountLocked(account);
 
       const privileged = await isPrivileged(account);
-      let secondFactorAt: Date | null = null;
-      if (account.totpEnabledAt && account.totpSecretEnc && privileged) {
-        if (!totpCode) throw invalidCredentials('Tài khoản này cần mã từ ứng dụng tạo mã');
-        if (!(await totpMatches(account.totpSecretEnc, totpCode))) throw invalidCredentials();
-        secondFactorAt = now;
-      }
-
-      return openSession(account, { deviceName, ip, userAgent, secondFactorAt, privileged }, now);
+      return openSession(account, { deviceName, ip, userAgent, privileged }, now);
     },
 
     async refresh(refreshToken) {
@@ -269,17 +261,8 @@ export function createIdentityAuthService(
           ...(google.picture === null ? { avatarFromGoogle: false } : {}),
         });
       }
-      // Lớp thứ hai áp cùng luật với mật khẩu, nhưng Google không có chỗ nhập mã trong cùng request:
-      // tài khoản có quyền đã bật hai lớp phải đăng nhập bằng mật khẩu.
       const privileged = await isPrivileged(account);
-      if (account.totpEnabledAt && privileged) {
-        throw invalidCredentials('Tài khoản có lớp thứ hai đăng nhập bằng email và mật khẩu');
-      }
-      return openSession(
-        account,
-        { deviceName, ip, userAgent, secondFactorAt: null, privileged },
-        now,
-      );
+      return openSession(account, { deviceName, ip, userAgent, privileged }, now);
     },
 
     // ── MẬT KHẨU ────────────────────────────────────────────────────────────────────────────────

@@ -259,7 +259,6 @@ describe('Công khai sang riêng tư qua trạng thái chuyển', () => {
       accountId: group.owner.id,
       role: 'user',
       sessionId: group.owner.id,
-      secondFactorAt: null,
       emailVerified: true,
     };
 
@@ -292,7 +291,6 @@ describe('Công khai sang riêng tư qua trạng thái chuyển', () => {
       accountId: group.owner.id,
       role: 'user',
       sessionId: group.owner.id,
-      secondFactorAt: null,
       emailVerified: true,
     };
     await withListing.updateSettings(owner, group.groupId, { mode: 'private_code' });
@@ -354,7 +352,6 @@ describe('Công khai sang riêng tư qua trạng thái chuyển', () => {
       accountId: group.owner.id,
       role: 'user',
       sessionId: group.owner.id,
-      secondFactorAt: null,
       emailVerified: true,
     };
 

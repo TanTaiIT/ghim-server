@@ -96,7 +96,6 @@ describe('IdentityRepository', () => {
       deviceName: 'Máy',
       ip: null,
       userAgent: null,
-      secondFactorAt: NOW,
       expiresAt: LATER,
       at: NOW,
     });
@@ -105,7 +104,6 @@ describe('IdentityRepository', () => {
       accountId: account.id,
       revokedAt: null,
       expiresAt: LATER,
-      secondFactorAt: NOW,
       role: 'user',
       status: 'locked',
       lockedReason: 'Thử',
@@ -121,7 +119,6 @@ describe('IdentityRepository', () => {
       deviceName: 'Máy',
       ip: null,
       userAgent: null,
-      secondFactorAt: null,
       expiresAt: LATER,
       at: NOW,
     });

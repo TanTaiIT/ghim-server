@@ -1,5 +1,4 @@
 import { randomInt, timingSafeEqual } from 'node:crypto';
-import { verify as verifyTotp } from 'otplib';
 import type { Actor } from '../../common/auth/actor.js';
 import { hmacHex, randomToken, sha256Hex } from '../../common/crypto/secrets.js';
 import {
@@ -52,9 +51,6 @@ export const MINUTE_MS = 60_000;
 export const SECOND_MS = 1_000;
 export const DAY_MS = 86_400_000;
 export const CODE_DIGITS = 6;
-export const TOTP_ISSUER = 'Ghim';
-/** Một bước 30 giây mỗi phía: đồng hồ điện thoại lệch vài giây là chuyện thường, không phải tấn công. */
-export const TOTP_EPOCH_TOLERANCE = 1;
 
 export const PASSWORD_MESSAGES: Record<PasswordIssue, (min: number, max: number) => string> = {
   too_short: (min) => `Mật khẩu cần ít nhất ${min} ký tự`,
@@ -149,7 +145,6 @@ export function toMe(account: Account, avatarUrl: string | null, nameHidden: boo
     email: account.email,
     emailVerified: account.status === 'active',
     role: account.role,
-    twoFactorEnabled: account.totpEnabledAt !== null,
   };
 }
 
@@ -318,15 +313,6 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
     throw codeInvalid();
   };
 
-  const totpMatches = async (secretEnc: string, token: string): Promise<boolean> => {
-    const result = await verifyTotp({
-      secret: secrets.open(secretEnc),
-      token,
-      epochTolerance: TOTP_EPOCH_TOLERANCE,
-    });
-    return result.valid;
-  };
-
   /**
    * Mở phiên: đủ trần thì đẩy phiên ít hoạt động nhất ra chứ không từ chối (spec sessions) —
    * người thật hiếm khi nhớ mình còn phiên ở đâu. Phiên đã hết hạn trượt không chiếm chỗ.
@@ -334,8 +320,7 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
   const openSession = async (
     account: Account,
     input: Pick<LoginInput, 'deviceName' | 'ip' | 'userAgent'> & {
-      secondFactorAt: Date | null;
-      /** Người gọi đã hỏi lúc kiểm lớp thứ hai — truyền vào để mỗi lượt đăng nhập chỉ hỏi một lần. */
+      /** Có quyền thì trần phiên thấp hơn; người gọi hỏi sẵn để mỗi lượt đăng nhập chỉ hỏi một lần. */
       privileged: boolean;
     },
     at: Date,
@@ -347,7 +332,6 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
       deviceName: input.deviceName,
       ip: input.ip,
       userAgent: input.userAgent,
-      secondFactorAt: input.secondFactorAt,
       expiresAt: idleExpiry(at),
       at,
       cap: input.privileged
@@ -469,7 +453,6 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
       accountId: session.accountId,
       role: session.role,
       sessionId: session.sessionId,
-      secondFactorAt: session.secondFactorAt,
       emailVerified: session.status === 'active',
     };
   };
@@ -483,7 +466,6 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
     issueAndSendCode,
     assertResendAllowed,
     matchLiveCode,
-    totpMatches,
     openSession,
     isDisposableEmail,
     accountOf,

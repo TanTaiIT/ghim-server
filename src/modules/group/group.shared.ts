@@ -2,7 +2,6 @@ import type { Group, GroupMember, GroupState, GroupUnit, Prisma } from '@prisma/
 
 import type { AuditAction, AuditDetails, AuditEntry } from '../../common/audit/audit.js';
 import type { Actor } from '../../common/auth/actor.js';
-import { requireSecondFactor } from '../../common/auth/auth.plugin.js';
 import type { RuntimeConfig } from '../../common/config/runtime-config.js';
 import { ConflictError, ForbiddenError, NotFoundError } from '../../common/errors/app-error.js';
 import type { AccountSummary } from '../identity/identity.service.js';
@@ -194,8 +193,6 @@ export function createGroupShared(deps: GroupServiceDeps) {
 
   const context = async (actor: Actor, groupId: string): Promise<GroupContext> => {
     const isMaster = actor.role === 'master';
-    // Master làm thay chủ nhóm qua cùng route của app: vẫn là thao tác master, vẫn đòi lớp thứ hai.
-    if (isMaster) requireSecondFactor(actor);
     const group = await loadGroup(groupId);
     const member = isMaster ? null : await repository.findMember(groupId, actor.accountId);
     const suspended =

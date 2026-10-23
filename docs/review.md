@@ -35,7 +35,7 @@ mục (master ra, từ báo cáo về người) và gậy nghiêm trọng đi th
 thấy — với master ra gậy nghiêm trọng, chỉ master kia thấy (`docs/strikes.md`).
 Master xử được mọi việc. Việc ngoài phạm vi trả `404 NOT_FOUND` như việc không tồn tại.
 
-## Bàn vận hành — `/api/v1/ops/review` (staff có danh mục hay việc an toàn, master; cần lớp thứ hai)
+## Bàn vận hành — `/api/v1/ops/review` (staff có danh mục hay việc an toàn, master)
 
 | Route                                                    | Việc                                                                                                                                                                                                                                                                                                                                                           |
 | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -67,7 +67,6 @@ const actorOf = (id: string, role: 'user' | 'master' = 'master'): Actor => ({
   accountId: id,
   role,
   sessionId: 's',
-  secondFactorAt: NOW,
   emailVerified: true,
 });
 

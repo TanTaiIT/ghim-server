@@ -11,7 +11,7 @@ export interface SecretBox {
 
 /**
  * AES-256-GCM với khoá 32 byte từ `SECRETS_ENCRYPTION_KEY` (`env.ts` đã kiểm độ dài). Chỉ cho dữ
- * liệu phải ĐỌC LẠI được — bí mật TOTP, số giấy tờ; thứ chỉ cần so trùng (token, mã xác nhận) thì
+ * liệu phải ĐỌC LẠI được — số giấy tờ; thứ chỉ cần so trùng (token, mã xác nhận) thì
  * băm, không mã hoá.
  *
  * Bản mã = base64(iv ‖ tag ‖ ciphertext). iv ngẫu nhiên mỗi lần nên hai lần seal cùng chuỗi ra hai

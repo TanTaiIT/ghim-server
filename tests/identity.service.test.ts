@@ -42,16 +42,12 @@ async function seedAccount(
   return repository.findAccountById(account.id);
 }
 
-const session = (
-  accountId: string,
-  overrides: Partial<{ expiresAt: Date; secondFactorAt: Date | null }> = {},
-) => ({
+const session = (accountId: string, overrides: Partial<{ expiresAt: Date }> = {}) => ({
   accountId,
   refreshTokenHash: `rt-${Math.random()}`,
   deviceName: 'Máy thử',
   ip: null,
   userAgent: null,
-  secondFactorAt: overrides.secondFactorAt ?? null,
   expiresAt: overrides.expiresAt ?? new Date(NOW.getTime() + 30 * DAY_MS),
   at: NOW,
 });
@@ -66,14 +62,11 @@ describe('resolveActor', () => {
   it('phiên sống của tài khoản đã xác nhận → actor đủ trường, không email', async () => {
     const { service } = buildIdentityService();
     const account = await seedAccount();
-    const { id: sessionId } = await repository.createSession(
-      session(account!.id, { secondFactorAt: NOW }),
-    );
+    const { id: sessionId } = await repository.createSession(session(account!.id));
     await expect(service.resolveActor(sessionId)).resolves.toEqual({
       accountId: account!.id,
       role: 'user',
       sessionId,
-      secondFactorAt: NOW,
       emailVerified: true,
     });
   });
