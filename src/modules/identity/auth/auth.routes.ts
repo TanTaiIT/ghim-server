@@ -119,16 +119,15 @@ export const identityAuthRoutes: FastifyPluginAsyncZod<IdentityAuthRoutesOptions
     config: sensitive,
     schema: {
       tags: TAGS,
-      summary: 'Đăng nhập bằng email và mật khẩu (master, staff kèm mã lớp thứ hai)',
+      summary: 'Đăng nhập bằng email và mật khẩu',
       body: loginBodySchema,
       response: { 200: ok(tokensSchema), 401: errorResponse, 403: errorResponse },
     },
     handler: async (request, reply) => {
-      const { email, password, totpCode, deviceName, client } = request.body;
+      const { email, password, deviceName, client } = request.body;
       const opened = await identity.login({
         email,
         password,
-        totpCode,
         deviceName: deviceNameOf(request, deviceName),
         ip: request.ip,
         userAgent: request.headers['user-agent'] ?? null,

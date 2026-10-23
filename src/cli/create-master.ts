@@ -18,5 +18,5 @@ if (!email || !password) {
 
 await runCli(async (identity) => {
   const { accountId } = await identity.createMaster({ email, password, displayName });
-  return `Đã tạo master ${accountId} (${email}). Đăng nhập rồi thiết lập lớp thứ hai (POST /api/v1/me/two-factor/setup rồi /confirm) trước khi dùng bàn vận hành.`;
+  return `Đã tạo master ${accountId} (${email}). Đăng nhập bằng email và mật khẩu vừa đặt để dùng bàn vận hành.`;
 });

@@ -20,7 +20,7 @@ beforeAll(async () => {
   app.get('/__test/me', { preHandler: [app.authenticate] }, async (request) => toOk(request.actor));
   await app.ready();
   master = await seedAccount({ role: 'master', passwordHash: await hashPassword(PASSWORD) }, NOW);
-  masterToken = await tokenFor(app, master.id, {}, NOW);
+  masterToken = await tokenFor(app, master.id, NOW);
 });
 
 afterAll(() => app.close());

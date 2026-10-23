@@ -63,7 +63,7 @@ const deliver = async (): Promise<void> => {
 /** Phiên mới theo đồng hồ hiện tại: phiên cũ bị thu hồi lúc khoá, hoặc đã quá 30 ngày khi đồng hồ chạy xa. */
 const fresh = async (user: TestUser): Promise<TestUser> => ({
   ...user,
-  token: await tokenFor(app, user.id, {}, now),
+  token: await tokenFor(app, user.id, now),
 });
 
 const lockAccount = async (master: TestUser, accountId: string): Promise<void> => {
@@ -697,7 +697,6 @@ const masterOf = (group: OwnerlessGroup): Actor => ({
   accountId: group.master.id,
   role: 'master',
   sessionId: group.master.id,
-  secondFactorAt: TEST_NOW,
   emailVerified: true,
 });
 
@@ -876,7 +875,6 @@ const ownerActor = (group: ActiveGroup): Actor => ({
   accountId: group.owner.id,
   role: 'user',
   sessionId: group.owner.id,
-  secondFactorAt: null,
   emailVerified: true,
 });
 

@@ -35,7 +35,6 @@ describe('lockAccount trên Postgres thật', () => {
       deviceName: 'Máy',
       ip: null,
       userAgent: null,
-      secondFactorAt: null,
       expiresAt: LATER,
       at: NOW,
     });

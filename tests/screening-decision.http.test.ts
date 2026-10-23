@@ -138,7 +138,6 @@ describe('Kết quả ghi căn cứ và phiên bản', () => {
       accountId: master.id,
       role: 'master' as const,
       sessionId: 's',
-      secondFactorAt: now,
       emailVerified: true,
     };
     const { version } = await app.modules.platform.changeConfig(actor, {

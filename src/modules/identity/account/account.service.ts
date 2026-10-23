@@ -1,8 +1,6 @@
-import { generateSecret, generateURI } from 'otplib';
 import {
   BadRequestError,
   ConflictError,
-  ForbiddenError,
   NotFoundError,
   TooManyRequestsError,
 } from '../../../common/errors/app-error.js';
@@ -21,7 +19,6 @@ import {
   avatarUrlOf as signedAvatarUrl,
   DAY_MS,
   hiddenNames,
-  TOTP_ISSUER,
   toIdVerificationDto,
   toSessionDto,
   toPublicProfile,
@@ -52,15 +49,13 @@ export type IdentityAccountService = Pick<
   | 'requestEmailChange'
   | 'confirmEmailChange'
   | 'changePassword'
-  | 'setupTwoFactor'
-  | 'confirmTwoFactor'
   | 'deleteMyAccount'
   | 'submitIdVerification'
 >;
 
 /**
- * Mặt người đã đăng nhập: hồ sơ, đổi email và mật khẩu, thiết bị đang đăng nhập, hai lớp, xoá tài
- * khoản, nộp giấy tờ.
+ * Mặt người đã đăng nhập: hồ sơ, đổi email và mật khẩu, thiết bị đang đăng nhập, xoá tài khoản,
+ * nộp giấy tờ.
  */
 export function createIdentityAccountService(
   deps: IdentityServiceDeps,
@@ -68,12 +63,10 @@ export function createIdentityAccountService(
 ): IdentityAccountService {
   const { repository, config, clock, hashKey, secrets, jobs } = deps;
   const {
-    isPrivileged,
     passwordIssue,
     issueAndSendCode,
     assertResendAllowed,
     matchLiveCode,
-    totpMatches,
     accountOf,
     claimEmail,
     assertNotDisposable,
@@ -198,18 +191,13 @@ export function createIdentityAccountService(
       );
     },
 
-    async requestEmailChange(actor, { email, currentPassword, totpCode }) {
+    async requestEmailChange(actor, { email, currentPassword }) {
       const now = clock();
       const account = await accountOf(actor);
       // Xác thực lại trước mọi luật khác: token lộ không gửi được mã, không dò được email nào đã có tài khoản (T12).
       if (!account.passwordHash) throw passwordNotSet();
       if (!(await verifyPassword(account.passwordHash, currentPassword))) {
         throw invalidCredentials('Mật khẩu hiện tại không đúng');
-      }
-      if (account.totpEnabledAt && account.totpSecretEnc) {
-        if (!totpCode || !(await totpMatches(account.totpSecretEnc, totpCode))) {
-          throw invalidCredentials('Mã từ ứng dụng tạo mã không đúng');
-        }
       }
       if (account.emailChangedAt) {
         const intervalDays = config.get('identity.emailChangeIntervalDays');
@@ -289,41 +277,6 @@ export function createIdentityAccountService(
         events: [],
       });
       deps.sessionsRevoked?.account(account.id);
-    },
-
-    // ── HAI LỚP ─────────────────────────────────────────────────────────────────────────────────
-
-    async setupTwoFactor(actor) {
-      const account = await accountOf(actor);
-      if (!(await isPrivileged(account))) {
-        throw new ForbiddenError('Lớp thứ hai chỉ dành cho master và staff');
-      }
-      // Thiết lập lại gỡ lớp đang bật trước khi có lớp mới: phiên chỉ qua mật khẩu (token bị lộ) tự đặt được ứng dụng
-      // tạo mã của mình. Đổi ứng dụng là việc của `cli:reset-2fa` (TK 5, spec sessions).
-      if (account.totpEnabledAt) {
-        throw new ConflictError(
-          'Lớp thứ hai đã bật — muốn đổi ứng dụng tạo mã thì liên hệ đội kỹ thuật',
-          'TWO_FACTOR_ENABLED',
-        );
-      }
-      // Thiết lập lần đầu = bí mật mới, chưa bật: tới khi xác nhận bằng mã đầu tiên thì bàn vận hành đóng.
-      const secret = generateSecret();
-      await repository.updateAccount(account.id, {
-        totpSecretEnc: secrets.seal(secret),
-        totpEnabledAt: null,
-      });
-      return { otpauthUri: generateURI({ issuer: TOTP_ISSUER, label: account.email, secret }) };
-    },
-
-    async confirmTwoFactor(actor, { code }) {
-      const now = clock();
-      const account = await accountOf(actor);
-      if (!account.totpSecretEnc) throw codeInvalid('Chưa bắt đầu thiết lập lớp thứ hai');
-      if (!(await totpMatches(account.totpSecretEnc, code))) throw codeInvalid();
-
-      await repository.updateAccount(account.id, { totpEnabledAt: now });
-      // Phiên đang thiết lập vừa chứng minh có ứng dụng tạo mã: mở bàn vận hành ngay, không bắt đăng nhập lại.
-      await repository.updateSession(actor.sessionId, { secondFactorAt: now });
     },
 
     // ── KHOÁ / MỞ KHOÁ / XOÁ ────────────────────────────────────────────────────────────────────

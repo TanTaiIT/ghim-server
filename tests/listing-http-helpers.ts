@@ -277,7 +277,7 @@ export const signedInAt = async (
   app: FastifyInstance,
   user: TestUser,
   at: Date,
-): Promise<TestUser> => ({ ...user, token: await tokenFor(app, user.id, {}, at) });
+): Promise<TestUser> => ({ ...user, token: await tokenFor(app, user.id, at) });
 
 /** Máy giữ cho người đúng phiên bản đang kiểm — tin sang chờ duyệt. */
 export async function machineHold(

@@ -17,8 +17,6 @@ import {
   publicProfileSchema,
   sessionParamsSchema,
   sessionSchema,
-  twoFactorConfirmBodySchema,
-  twoFactorSetupSchema,
   userParamsSchema,
   pushTokenBodySchema,
 } from '../identity.schema.js';
@@ -252,32 +250,6 @@ export const identityMeRoutes: FastifyPluginAsyncZod<IdentityMeRoutesOptions> = 
     },
     handler: async (request, reply) => {
       await identity.changePassword(actorOf(request), request.body);
-      return reply.status(204).send(null);
-    },
-  });
-
-  app.post('/me/two-factor/setup', {
-    preHandler: signedIn,
-    schema: {
-      tags: TAGS_ME,
-      summary: 'Bắt đầu thiết lập lớp thứ hai — trả URI otpauth cho ứng dụng tạo mã',
-      security: bearer,
-      response: { 200: ok(twoFactorSetupSchema), 401: errorResponse, 403: errorResponse },
-    },
-    handler: async (request) => toOk(await identity.setupTwoFactor(actorOf(request))),
-  });
-
-  app.post('/me/two-factor/confirm', {
-    preHandler: signedIn,
-    schema: {
-      tags: TAGS_ME,
-      summary: 'Xác nhận lớp thứ hai bằng mã đầu tiên — phiên này được mở bàn vận hành ngay',
-      security: bearer,
-      body: twoFactorConfirmBodySchema,
-      response: { 204: emptySchema, 400: errorResponse, 401: errorResponse },
-    },
-    handler: async (request, reply) => {
-      await identity.confirmTwoFactor(actorOf(request), request.body);
       return reply.status(204).send(null);
     },
   });

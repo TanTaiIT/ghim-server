@@ -16,7 +16,7 @@ const noJob = async (): Promise<never> => {
   throw new Error('CLI không có việc nền — thao tác này không được gửi thư hay xếp việc');
 };
 
-/** Tạo master và đặt lại lớp thứ hai không gửi mã nào, nên CLI không cần pg-boss lẫn SMTP. */
+/** Tạo master không gửi mã nào, nên CLI không cần pg-boss lẫn SMTP. */
 const noJobs: Jobs = {
   start: async () => {},
   stop: async () => {},

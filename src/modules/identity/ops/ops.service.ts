@@ -70,7 +70,6 @@ export type IdentityOpsService = Pick<
   | 'accountIdsByEmailHashes'
   | 'accountEmailHash'
   | 'createMaster'
-  | 'resetTwoFactor'
   | 'purgeDue'
   | 'purgeDeletedAccount'
   | 'purgeDeviceData'
@@ -79,7 +78,7 @@ export type IdentityOpsService = Pick<
 
 /**
  * Mặt bàn vận hành và module khác: khoá / mở khoá, đánh dấu thiết bị, duyệt giấy tờ, miền dùng một
- * lần, cửa đọc cho `platform`, và hai việc chỉ CLI gọi (tạo master, đặt lại hai lớp).
+ * lần, cửa đọc cho `platform`, và việc chỉ CLI gọi (tạo master).
  */
 export function createIdentityOpsService(
   deps: IdentityServiceDeps,
@@ -594,19 +593,5 @@ export function createIdentityOpsService(
     purgeDeviceData: (before) => repository.purgeDeviceData(before),
 
     pseudonymOf: (accountId) => pseudonymOf(accountId, hashKey),
-
-    async resetTwoFactor({ email }) {
-      const account = await repository.findAccountByEmail(normalizeEmail(email));
-      if (!account || account.status === 'deleted')
-        throw new NotFoundError('Không có tài khoản này');
-      await repository.updateAccount(account.id, { totpSecretEnc: null, totpEnabledAt: null });
-      // Phiên cũ có thể đã qua lớp thứ hai bằng bí mật vừa gỡ: thu hết, vào lại bằng mật khẩu.
-      await repository.revokeSessions({
-        accountId: account.id,
-        reason: 'password_reset',
-        at: clock(),
-      });
-      deps.sessionsRevoked?.account(account.id);
-    },
   };
 }

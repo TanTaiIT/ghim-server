@@ -311,19 +311,19 @@ describe('Đổi email phải xác thực lại, báo email cũ (fix-audit-ident
     expect(jobs.sent.slice(sentBefore)).toEqual([]);
   });
 
-  it('staff đã bật lớp thứ hai, đúng mật khẩu mà không có mã → 401, không thư mã nào', async () => {
+  it('staff xin đổi email chỉ với đúng mật khẩu → thư mã gửi tới email mới', async () => {
     const { id, email } = await account();
     const token = await login(email);
     await grantStaff(id);
-    await repository.updateAccount(id, { totpSecretEnc: 'sealed', totpEnabledAt: now });
-    const sentBefore = jobs.sent.length;
     const res = await requestChange(token, {
       email: 'staff-moi@ghim.test',
       currentPassword: PASSWORD,
     });
-    expect(res.statusCode).toBe(401);
-    expect(res.json().error.code).toBe('INVALID_CREDENTIALS');
-    expect(jobs.sent.slice(sentBefore)).toEqual([]);
+    expect(res.statusCode).toBe(200);
+    expect(jobs.sent.at(-1)?.data).toMatchObject({
+      to: 'staff-moi@ghim.test',
+      purpose: 'email_change',
+    });
   });
 
   it('tài khoản chỉ đăng nhập bằng Google → 409 PASSWORD_NOT_SET', async () => {
@@ -339,7 +339,7 @@ describe('Đổi email phải xác thực lại, báo email cũ (fix-audit-ident
       displayName: `Google ${seq}`,
       at: now,
     });
-    const res = await requestChange(await tokenFor(app, row.id, {}, now), {
+    const res = await requestChange(await tokenFor(app, row.id, now), {
       email: 'google-moi@ghim.test',
       currentPassword: 'bat-ky-mat-khau-nao',
     });

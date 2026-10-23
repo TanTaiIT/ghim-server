@@ -14,9 +14,9 @@ declare module 'fastify' {
     /** Như `authenticate` khi có header `Authorization`; không có thì là khách (`request.actor = null`). */
     authenticateOptional: preHandlerAsyncHookHandler;
     requireVerifiedEmail: preHandlerAsyncHookHandler;
-    /** Chỉ master, và phiên phải có lớp thứ hai — mọi route master đều là bàn vận hành. */
+    /** Chỉ master — mọi route master đều là bàn vận hành. */
     requireMaster: preHandlerAsyncHookHandler;
-    /** Master luôn qua; người khác phải có việc `scope` đang hiệu lực; cả hai phải có lớp thứ hai. */
+    /** Master luôn qua; người khác phải có việc `scope` đang hiệu lực. */
     requireOps: (scope: OpsScope) => preHandlerAsyncHookHandler;
     /** Master hay bất kỳ staff nào đang hiệu lực, không cần việc hay danh mục cụ thể (danh sách trắng ảnh mẫu). */
     requireStaff: preHandlerAsyncHookHandler;
@@ -51,16 +51,6 @@ export interface AuthDeps {
 }
 
 const SECONDS_PER_MINUTE = 60;
-
-// Kể cả master, kể cả khi chưa thiết lập: không có lớp thứ hai thì không có bàn vận hành.
-export function requireSecondFactor(actor: Actor): void {
-  if (!actor.secondFactorAt) {
-    throw new ForbiddenError(
-      'Thiết lập và nhập mã lớp thứ hai trước khi dùng bàn vận hành',
-      'TWO_FACTOR_REQUIRED',
-    );
-  }
-}
 
 /**
  * Guard đăng nhập dùng chung cho mọi module, gọi thẳng trong `buildApp` (không qua `register`)
@@ -101,7 +91,6 @@ export async function registerAuth(app: FastifyInstance, deps: AuthDeps): Promis
       }
       if (!grant || !inScope(grant)) throw new ForbiddenError();
     }
-    requireSecondFactor(actor);
   };
 
   const authenticate = async (request: FastifyRequest): Promise<void> => {
@@ -128,9 +117,7 @@ export async function registerAuth(app: FastifyInstance, deps: AuthDeps): Promis
   });
 
   app.decorate('requireMaster', async (request) => {
-    const actor = actorOf(request);
-    if (actor.role !== 'master') throw new ForbiddenError();
-    requireSecondFactor(actor);
+    if (actorOf(request).role !== 'master') throw new ForbiddenError();
   });
 
   app.decorate('requireOps', (scope: OpsScope) => async (request: FastifyRequest) => {

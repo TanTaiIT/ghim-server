@@ -78,7 +78,6 @@ describe('Dữ liệu thiết bị', () => {
       deviceName: 'Điện thoại',
       ip: '203.0.113.9',
       userAgent: 'Ghim/1.0',
-      secondFactorAt: null,
       expiresAt: day(400),
       at: TEST_NOW,
     });

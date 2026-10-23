@@ -47,7 +47,6 @@ export async function seedAccount(
 export async function tokenFor(
   app: FastifyInstance,
   accountId: string,
-  options: { secondFactor?: boolean } = {},
   now: Date = TEST_NOW,
 ): Promise<string> {
   const session = await repositories.identity.createSession({
@@ -56,7 +55,6 @@ export async function tokenFor(
     deviceName: 'Máy test',
     ip: null,
     userAgent: null,
-    secondFactorAt: options.secondFactor === false ? null : now,
     expiresAt: new Date(now.getTime() + 30 * DAY_MS),
     at: now,
   });

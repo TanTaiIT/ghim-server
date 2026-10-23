@@ -329,7 +329,7 @@ describe('Bảng uy tín', () => {
     expect(JSON.stringify(cooling)).not.toMatch(/trần|cổng|price_over_cap|certain_phrase/);
 
     now = new Date(LATER.getTime() + 25 * HOUR_MS);
-    const later = await api(app, 'GET', '/me/trust', await tokenFor(app, user.id, {}, now));
+    const later = await api(app, 'GET', '/me/trust', await tokenFor(app, user.id, now));
     expect(later.json().data.cooldownUntil).toBeNull();
     expect(await getOwn(app, user, held.id)).toMatchObject({ state: 'pending' });
   });

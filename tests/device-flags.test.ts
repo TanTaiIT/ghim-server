@@ -19,7 +19,6 @@ const MASTER: Actor = {
   accountId: MASTER_ID,
   role: 'master',
   sessionId: 's',
-  secondFactorAt: START,
   emailVerified: true,
 };
 const SUPPORT: Actor = { ...MASTER, role: 'user' };

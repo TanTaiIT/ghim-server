@@ -160,8 +160,8 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 
 **Master**
 
-- **Đúng một tài khoản master**, do đội kỹ thuật tạo trực tiếp một lần, không đăng ký qua app. Không có luồng thay hay bỏ master trong app; mất máy tạo mã thì đội kỹ thuật đặt lại hai lớp bằng công cụ chạy tay (chốt 10/10/2026).
-- Bắt buộc đăng nhập hai lớp bằng ứng dụng tạo mã; tối đa 3 phiên đăng nhập cùng lúc.
+- **Đúng một tài khoản master**, do đội kỹ thuật tạo trực tiếp một lần, không đăng ký qua app. Không có luồng thay hay bỏ master trong app (chốt 10/10/2026); quên mật khẩu thì lấy lại qua email như mọi tài khoản.
+- Đăng nhập bằng mật khẩu (hoặc Google), không có lớp thứ hai (chốt 23/10/2026); tối đa 3 phiên đăng nhập cùng lúc.
 - **Toàn quyền** trên mọi phần của hệ thống; quyết định là cuối cùng, không khiếu nại lên ai khác. Mọi thao tác **ghi** vào nhật ký (thao tác chỉ đọc và thao tác bị từ chối thì không); chỉ master đọc nhật ký.
 - Tài khoản master không đăng tin, không vào nhóm. Người làm master muốn bán đồ thì dùng tài khoản cá nhân như mọi người.
 
@@ -170,10 +170,10 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 - Không phải một loại tài khoản riêng. Staff là **một quyền master gắn lên tài khoản cá nhân** của một người. Staff vẫn đăng tin, nhắn tin, vào nhóm như mọi người dùng.
 - Quyền theo **danh mục**: "xử tin sàn của Điện thoại và Máy tính". Một danh mục có thể có nhiều staff.
 - Master có thể giao thêm ba việc toàn hệ thống: **hỗ trợ người dùng**, **xử báo cáo về người** (việc an toàn), **duyệt giấy tờ xác minh**.
-- Tài khoản mang quyền staff bắt buộc đăng nhập hai lớp, tối đa 3 phiên.
+- Tài khoản mang quyền staff tối đa 3 phiên; không có lớp đăng nhập thứ hai (chốt 23/10/2026).
 - Tài khoản bị khoá hoặc đang có gậy thì **quyền staff tự treo**, việc đang nhận trả về hàng chờ. Hết gậy hay mở khoá thì master quyết có trả lại không.
 - Tài khoản mang quyền staff bị xoá thì **quyền staff bị thu hẳn**, kể cả quyền đang treo: tài khoản đã xoá không quay lại được nên không có gì để treo chờ (11/10/2026).
-- Quyền staff phải **tường minh và đầy đủ**: master gắn đúng danh mục và đúng việc toàn hệ thống, không có "mọi danh mục". Staff có thể chỉ mang việc toàn hệ thống mà không có danh mục nào. Chỉ gắn được cho tài khoản đang hoạt động và đã xác nhận email. Quyền đang treo vẫn là quyền staff: vẫn đòi hai lớp và trần 3 phiên (chốt 10/10/2026).
+- Quyền staff phải **tường minh và đầy đủ**: master gắn đúng danh mục và đúng việc toàn hệ thống, không có "mọi danh mục". Staff có thể chỉ mang việc toàn hệ thống mà không có danh mục nào. Chỉ gắn được cho tài khoản đang hoạt động và đã xác nhận email. Quyền đang treo vẫn là quyền staff: vẫn chịu trần 3 phiên (chốt 10/10/2026).
 
 **Trong một nhóm**
 
@@ -1026,7 +1026,7 @@ Mỗi dòng kiểm chứng được — người kiểm thử dùng làm danh s�
 25. Báo cáo chỉ đóng bằng quyết định của người. Báo cáo lừa đảo, hàng cấm về tin trong nhóm luôn tới staff hoặc master.
 26. Mỗi tin chỉ bị tạm ẩn tự động một lần giữa hai quyết định của người.
 27. Mọi tin lên bảng — do máy hay do người cho lên — đều có khả năng được một người khác xem lại.
-28. Người bị khoá hoặc đang có gậy không giữ quyền staff. Tài khoản mang quyền staff và master luôn bật đăng nhập hai lớp.
+28. Người bị khoá hoặc đang có gậy không giữ quyền staff.
 29. Giá 0 không bị coi là giá bất thường theo phân phối, nhưng có luật riêng ở danh mục giá trị cao.
 30. Mỗi tin tối đa 6 ảnh; mọi ảnh hoặc có chủ, hoặc đang nằm trong diện dọn.
 31. Dữ liệu dính tới báo cáo, gậy, khiếu nại đang mở không bị xoá hẳn. Mọi dữ liệu cá nhân khác có hạn lưu; nhật ký giữ mãi nhưng không chứa nội dung tin.
@@ -1115,7 +1115,7 @@ Mỗi đợt xong khi mọi cam kết ở phần 27 thuộc đợt đó có các
 
 - Email chuẩn hoá trước khi so trùng và trước khi băm; dấu băm dùng **HMAC** với khoá bí mật nằm ngoài cơ sở dữ liệu.
 - Dấu thiết bị: Android dùng mã máy ổn định tới khi khôi phục cài đặt gốc; iOS dùng mã theo nhà phát triển, kèm địa chỉ mạng và thời điểm đăng ký làm tín hiệu phụ; **DeviceCheck** để đánh dấu máy lạm dụng thêm ở bản sau (phần 29).
-- Tài khoản mang quyền staff, master: đăng nhập hai lớp bằng ứng dụng tạo mã, tối đa 3 phiên.
+- Tài khoản mang quyền staff, master: tối đa 3 phiên; không có lớp đăng nhập thứ hai (bỏ ngày 23/10/2026).
 
 **Ảnh**
 
