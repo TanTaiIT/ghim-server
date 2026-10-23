@@ -181,8 +181,8 @@ describe('GET / PATCH /me', () => {
       email,
       emailVerified: true,
       role: 'user',
-      twoFactorEnabled: false,
     });
+    expect(res.json().data).not.toHaveProperty('twoFactorEnabled');
     expect(JSON.stringify(res.json())).not.toMatch(/device|flag|thiết bị|đánh dấu|ABCDEFGH|may-1/i);
   });
 

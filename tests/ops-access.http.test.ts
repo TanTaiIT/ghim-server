@@ -8,8 +8,9 @@ import type {
 } from '../src/modules/identity/google.verifier.js';
 import { hashPassword } from '../src/modules/identity/calc/password.calc.js';
 import { prisma } from './db-helpers.js';
+import { seedCategory } from './listing-helpers.js';
 import { seedAccount } from './ops-helpers.js';
-import { buildTestApp, grantStaff, repositories, TEST_AUDIT } from './test-app.js';
+import { buildTestApp, grantStaff, repositories } from './test-app.js';
 
 /*
  * Bàn vận hành chỉ đòi phiên đăng nhập hợp lệ (change remove-two-factor): spec `identity/sessions`,
@@ -55,22 +56,13 @@ async function login(email: string, extra: object = {}): Promise<string> {
 
 const account = (role: 'user' | 'master' = 'user') => seedAccount({ role, passwordHash }, NOW);
 
-let categorySeq = 0;
-async function category(): Promise<string> {
-  categorySeq += 1;
-  const row = await prisma.category.create({
-    data: { name: `Danh mục truy cập ${categorySeq}`, createdBy: TEST_AUDIT.actorId },
-  });
-  return row.id;
-}
-
 const draftOf = (categoryId: string, token: string) =>
   api('GET', `/ops/categories/${categoryId}/template/draft`, token);
 
 describe('Bàn vận hành chỉ đòi phiên đăng nhập hợp lệ', () => {
   it('staff vừa được gắn quyền danh mục, đăng nhập bằng mật khẩu → mở được danh mục đó ngay', async () => {
     const staff = await account();
-    const phone = await category();
+    const phone = await seedCategory();
     await grantStaff(staff.id, [], [phone]);
     const res = await draftOf(phone, await login(staff.email));
     expect(res.statusCode).toBe(200);
@@ -78,7 +70,7 @@ describe('Bàn vận hành chỉ đòi phiên đăng nhập hợp lệ', () => {
 
   it('staff ngoài phạm vi vẫn bị chặn → 403 FORBIDDEN', async () => {
     const staff = await account();
-    const [phone, cars] = [await category(), await category()];
+    const [phone, cars] = [await seedCategory(), await seedCategory()];
     await grantStaff(staff.id, [], [phone]);
     const res = await draftOf(cars, await login(staff.email));
     expect(res.statusCode).toBe(403);
@@ -99,7 +91,7 @@ describe('Bàn vận hành chỉ đòi phiên đăng nhập hợp lệ', () => {
 
   it('staff đã liên kết Google đăng nhập bằng Google → làm được việc trong phạm vi', async () => {
     const staff = await account();
-    const phone = await category();
+    const phone = await seedCategory();
     await grantStaff(staff.id, [], [phone]);
     identities.set('tok-staff', {
       sub: `g-${staff.id}`,
