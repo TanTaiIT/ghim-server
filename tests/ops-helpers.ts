@@ -3,8 +3,8 @@ import type { FastifyInstance } from 'fastify';
 import { repositories, TEST_AUDIT, TEST_NOW } from './test-app.js';
 
 /**
- * Dựng tài khoản + phiên có sẵn lớp thứ hai rồi ký access token — cho test bàn vận hành không phải đi
- * hết luồng đăng nhập / TOTP ở mỗi ca. Quyền staff gắn bằng `grantStaff` của `test-app.ts`.
+ * Dựng tài khoản + phiên rồi ký access token — cho test bàn vận hành không phải đi hết luồng đăng nhập ở mỗi
+ * ca. Quyền staff gắn bằng `grantStaff` của `test-app.ts`.
  */
 const DAY_MS = 86_400_000;
 let seq = 0;

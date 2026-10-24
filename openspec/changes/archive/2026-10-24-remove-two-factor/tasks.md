@@ -7,12 +7,12 @@
       mọi chỗ còn đọc trường đã bỏ
 - [x] 1.2 `group.shared.context`: bỏ dòng `requireSecondFactor` và chú thích của nó; `review.shared.locateTask` sửa chú
       thích "Route của nhóm không đòi lớp thứ hai" thành lý do còn đúng (chỉ vai trong nhóm được tính ở route của nhóm)
-- [ ] 1.3 `tests/auth.http.test.ts`: ca 403 `TWO_FACTOR_REQUIRED` đổi thành ca dương — staff đúng phạm vi, phiên mở bằng
+- [x] 1.3 `tests/auth.http.test.ts`: ca 403 `TWO_FACTOR_REQUIRED` đổi thành ca dương — staff đúng phạm vi, phiên mở bằng
       mật khẩu, gọi hàng chờ → 200; giữ ca ngoài phạm vi → 403 `FORBIDDEN` (scenario "Staff vừa được gắn quyền làm việc
       ngay", "Staff ngoài phạm vi vẫn bị chặn"); bỏ `secondFactorAt` khỏi helper (`ops-helpers.ts`, `group-helpers.ts`…).
-      Kiểm: `pnpm test auth.http` xanh
-- [ ] 1.4 Test `review/queues`: master đăng nhập mật khẩu, nhận và quyết một việc của nhóm ở bàn vận hành → quyết định
-      ghi dưới vai master (scenario "Master xử việc của nhóm ở bàn vận hành"); ca 404 / 403 qua route của nhóm vẫn xanh
+      Kiểm: `pnpm test auth.http` xanh Test nằm ở `tests/ops-access.http.test.ts` (đánh dấu 24/10/2026).
+- [x] 1.4 Test `review/queues`: master đăng nhập mật khẩu, nhận và quyết một việc của nhóm ở bàn vận hành → quyết định
+      ghi dưới vai master (scenario "Master xử việc của nhóm ở bàn vận hành"); ca 404 / 403 qua route của nhóm vẫn xanh Test: `tests/review-group.http.test.ts` "master xem, nhận việc của nhóm qua route nhóm…".
 
 ## 2. Đăng nhập không đọc mã
 
@@ -21,10 +21,10 @@
       sửa chú thích; `resolveActor` bỏ `secondFactorAt`
 - [x] 2.2 `identity.schema`: bỏ `totpCode` khỏi `loginBodySchema`, giữ `z.object` không strict (design mục 2);
       `auth.routes` bỏ `totpCode` khỏi lời gọi, sửa `summary` "kèm mã lớp thứ hai"
-- [ ] 2.3 Test HTTP: master đăng nhập mật khẩu không mã rồi gọi bàn vận hành → được (scenario "Master đăng nhập bằng mật
+- [x] 2.3 Test HTTP: master đăng nhập mật khẩu không mã rồi gọi bàn vận hành → được (scenario "Master đăng nhập bằng mật
       khẩu rồi dùng bàn vận hành"); body có `totpCode` 6 số bất kỳ → 200, phiên mở ("Client cũ vẫn gửi mã lúc đăng
       nhập"); staff đăng nhập Google rồi gọi bàn vận hành trong phạm vi → được ("Tài khoản có quyền đăng nhập bằng
-      Google"). Trần 3 phiên của tài khoản có quyền vẫn xanh ở `sessions.http.test.ts`
+      Google"). Trần 3 phiên của tài khoản có quyền vẫn xanh ở `sessions.http.test.ts` Test nằm ở `tests/ops-access.http.test.ts`.
 
 ## 3. Bỏ thiết lập và đặt lại lớp thứ hai
 
@@ -36,25 +36,25 @@
 - [x] 3.3 `ops.service.resetTwoFactor`, khai báo trong `IdentityService`, `src/cli/reset-two-factor.ts`, script
       `cli:reset-2fa` trong `package.json`: xoá (design mục 6); `create-master.ts` bỏ câu nhắc thiết lập lớp thứ hai;
       `cli-identity.ts` sửa chú thích
-- [ ] 3.4 Xoá `tests/two-factor.http.test.ts`; `master-accounts.test.ts` bỏ ca đặt lại lớp thứ hai, thêm ca master vừa
+- [x] 3.4 Xoá `tests/two-factor.http.test.ts`; `master-accounts.test.ts` bỏ ca đặt lại lớp thứ hai, thêm ca master vừa
       tạo đăng nhập mật khẩu dùng bàn vận hành ngay (scenario "Master vừa tạo dùng bàn vận hành ngay"); test HTTP hai route
-      cũ → 404 `NOT_FOUND` (scenario "Gọi thao tác thiết lập lớp thứ hai cũ")
+      cũ → 404 `NOT_FOUND` (scenario "Gọi thao tác thiết lập lớp thứ hai cũ") Test nằm ở `tests/ops-access.http.test.ts`; `two-factor.http.test.ts` đã xoá.
 
 ## 4. Đổi email chỉ đòi mật khẩu
 
 - [x] 4.1 `account.service.requestEmailChange`: bỏ khối kiểm `totpCode`; `emailChangeBodySchema` bỏ `totpCode`;
       `IdentityService.requestEmailChange` bỏ tham số (design mục 5)
-- [ ] 4.2 Test HTTP: staff xin đổi email chỉ với đúng mật khẩu → thư mã gửi tới email mới (scenario "Staff xin đổi
-      email chỉ với mật khẩu"); ca sai mật khẩu → 401 `INVALID_CREDENTIALS`, chỉ Google → 409 `PASSWORD_NOT_SET` vẫn xanh
+- [x] 4.2 Test HTTP: staff xin đổi email chỉ với đúng mật khẩu → thư mã gửi tới email mới (scenario "Staff xin đổi
+      email chỉ với mật khẩu"); ca sai mật khẩu → 401 `INVALID_CREDENTIALS`, chỉ Google → 409 `PASSWORD_NOT_SET` vẫn xanh Test nằm ở `tests/profile.http.test.ts`.
 
 ## 5. Migration và thư viện
 
 - [x] 5.1 `schema.prisma`: xoá `Account.totpSecretEnc`, `Account.totpEnabledAt`, `Session.secondFactorAt`;
       `prisma format` → `prisma validate` → `prisma migrate dev --create-only --name remove_two_factor` → **đọc SQL**:
       đúng ba `ALTER TABLE … DROP COLUMN`, không gì khác (design mục 7) → `pnpm db:migrate` → `prisma generate`
-- [ ] 5.2 `identity.repository`: bỏ hai cột khỏi kiểu cập nhật tài khoản và lượt ẩn danh; bỏ `secondFactorAt` khỏi kiểu
+- [x] 5.2 `identity.repository`: bỏ hai cột khỏi kiểu cập nhật tài khoản và lượt ẩn danh; bỏ `secondFactorAt` khỏi kiểu
       mở phiên, kiểu phiên, câu SQL `findActorSession`. Test DB repository (`identity.repository.db.test.ts`,
-      `session-refresh.db.test.ts`, `hot-paths.db.test.ts`…) bỏ trường đã xoá và xanh
+      `session-refresh.db.test.ts`, `hot-paths.db.test.ts`…) bỏ trường đã xoá và xanh `grep -ri "secondFactor\|totp" src` không còn kết quả.
 - [x] 5.3 `pnpm remove otplib`; xoá `totpMatches`, `TOTP_ISSUER`, `TOTP_EPOCH_TOLERANCE` khỏi `identity.shared`; chú thích
       `SECRETS_ENCRYPTION_KEY` (`config/env.ts`, `common/crypto/secrets.ts`, `identity.service.ts`, `.env.*.example`) bỏ
       chữ TOTP (design mục 8). Kiểm: `grep -ri "otplib\|totp" src` không còn kết quả
@@ -74,7 +74,7 @@
 
 ## 7. Kiểm tra tích hợp
 
-- [ ] 7.1 `pnpm run check` (gồm test DB — bật `docker compose up -d --wait postgres-test storage-test`), `pnpm run
+- [x] 7.1 `pnpm run check` (gồm test DB — bật `docker compose up -d --wait postgres-test storage-test`), `pnpm run Xanh 24/10/2026 cùng nhánh `rename-strike-to-warning` (2653 test).
 format:check`, `pnpm run build`, `pnpm db:drift` ra "No difference detected"
 
 ## Workflow follow-up

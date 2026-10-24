@@ -34,23 +34,6 @@ master.
 - **WHEN** master dùng thao tác gắn quyền của bàn vận hành để đặt một tài khoản thành master
 - **THEN** response có HTTP 400 `VALIDATION_ERROR` và tài khoản đó không thành master
 
-### Requirement: Đúng một master
-
-Hệ thống SHALL có đúng một tài khoản master. Công cụ của đội kỹ thuật MUST từ chối tạo master thứ hai, và
-MUST NOT có luồng thay hay bỏ master trong app. Master mất ứng dụng tạo mã thì đội kỹ thuật đặt lại lớp thứ
-hai bằng công cụ chạy tay; không ai khác làm được.
-
-#### Scenario: Tạo master thứ hai
-
-- **WHEN** đã có một master và đội kỹ thuật chạy công cụ tạo thêm một master
-- **THEN** công cụ từ chối và hệ thống vẫn chỉ có một master
-
-#### Scenario: Đặt lại lớp thứ hai cho master
-
-- **WHEN** đội kỹ thuật chạy công cụ đặt lại lớp thứ hai cho master
-- **THEN** lớp thứ hai bị gỡ, master đăng nhập lại được bằng mật khẩu, và phải thiết lập lại ứng dụng tạo mã
-  trước khi dùng bàn vận hành
-
 ### Requirement: Master toàn quyền ở bàn vận hành
 
 Master SHALL làm được mọi thao tác của bàn vận hành trên mọi danh mục và mọi việc toàn hệ thống mà không cần
@@ -102,3 +85,19 @@ tài khoản hay phiên nào.
 
 - **WHEN** master khoá tài khoản của chính mình kèm lý do
 - **THEN** response có HTTP 409 `CONFLICT`, tài khoản master vẫn hoạt động và các phiên của master vẫn dùng được
+
+### Requirement: Hệ thống chỉ có một master
+
+Hệ thống SHALL có đúng một tài khoản master. Công cụ của đội kỹ thuật MUST từ chối tạo master thứ hai, và MUST NOT có
+luồng thay hay bỏ master trong app. Master vừa tạo SHALL dùng được bàn vận hành ngay sau khi đăng nhập, không phải thiết
+lập gì thêm; quên mật khẩu thì lấy lại bằng luồng quên mật khẩu qua email như mọi tài khoản (chốt 23/10/2026).
+
+#### Scenario: Tạo master thứ hai
+
+- **WHEN** đã có một master và đội kỹ thuật chạy công cụ tạo thêm một master
+- **THEN** công cụ từ chối và hệ thống vẫn chỉ có một master
+
+#### Scenario: Master vừa tạo dùng bàn vận hành ngay
+
+- **WHEN** đội kỹ thuật tạo master, rồi master đăng nhập bằng email và mật khẩu vừa đặt
+- **THEN** master làm được thao tác của bàn vận hành mà không phải thiết lập gì thêm

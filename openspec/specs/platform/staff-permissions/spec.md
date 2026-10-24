@@ -143,7 +143,7 @@ MUST NOT cho làm thao tác nào của bàn vận hành.
 #### Scenario: Quyền treo vẫn là quyền staff với đăng nhập
 
 - **WHEN** tài khoản có quyền đang treo được mở khoá và đăng nhập lại
-- **THEN** vẫn phải đưa mã lớp thứ hai nếu đã bật, và vẫn chịu trần 3 phiên như staff
+- **THEN** vẫn chịu trần 3 phiên như staff
 
 ### Requirement: Chỉ master trả lại quyền đang treo
 

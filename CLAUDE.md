@@ -561,7 +561,7 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   `messaging/blocking`, `messaging/conversation-deletion`, `notification/inbox`, `notification/realtime`;
   `add-activity-status` tạo `messaging/activity-status`, thêm "Công tắc hiện trạng thái hoạt động" vào
   `identity/profile`.
-  `remove-two-factor` (23/10/2026, người dùng chốt bỏ lớp thứ hai) bỏ "Đăng nhập hai lớp cho master và staff", thêm "Bàn
+  `remove-two-factor` (23/10/2026, người dùng chốt bỏ lớp thứ hai; archive 24/10/2026) bỏ "Đăng nhập hai lớp cho master và staff", thêm "Bàn
   vận hành chỉ đòi phiên đăng nhập hợp lệ" vào `identity/sessions`; thay "Xin đổi email phải nhập lại mật khẩu" bằng "Xin
   đổi email chỉ đòi mật khẩu hiện tại" (`identity/email-change`), "Đúng một master" bằng "Hệ thống chỉ có một master"
   (`platform/master-accounts`); bỏ chữ lớp thứ hai khỏi `platform/staff-permissions`, `review/queues`.
