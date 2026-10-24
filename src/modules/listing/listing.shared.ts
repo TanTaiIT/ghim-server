@@ -98,8 +98,10 @@ export function placementError(code: PlacementBlock): AppError {
   return status === 403 ? new ForbiddenError(message, code) : new ConflictError(message, code);
 }
 
-export const validationError = (message: string): BadRequestError =>
-  new BadRequestError(message, 'VALIDATION_ERROR');
+export const validationError = (
+  message: string,
+  details?: Record<string, unknown>,
+): BadRequestError => new BadRequestError(message, 'VALIDATION_ERROR', details);
 
 // ── CHUNG ────────────────────────────────────────────────────────────────────────────────────────
 
