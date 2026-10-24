@@ -57,7 +57,7 @@ export function createTrustQuotaService(
           throw new AppError(
             403,
             'POSTING_LOCKED',
-            `Bạn đang tạm khoá đăng tin vì điểm gậy — gửi lại được từ ${formatDateVN(standing.postingLockedUntil)}`,
+            `Bạn đang tạm khoá đăng tin vì điểm vi phạm — gửi lại được từ ${formatDateVN(standing.postingLockedUntil)}`,
             { until: standing.postingLockedUntil.toISOString() },
           );
         }

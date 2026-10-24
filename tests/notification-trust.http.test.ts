@@ -80,9 +80,9 @@ describe('Báo người nhận gậy', () => {
       alert: true,
       data: { strikeId: strike.id, listingId: listing.id },
     });
-    expect(row?.body).toMatch(/^Bạn nhận một gậy thường liên quan tới tin «.+»\.$/);
+    expect(row?.body).toMatch(/^Bạn nhận một cảnh cáo liên quan tới tin «.+»\.$/);
     expect(row?.detail).toMatch(
-      /^Điều .+\. Gậy thường 1 điểm, hết hạn ngày \d{2}\/\d{2}\/\d{4}\. Khiếu nại được tới ngày/,
+      /^Điều .+\. Cảnh cáo 1 điểm, hết hạn ngày \d{2}\/\d{2}\/\d{4}\. Đủ 3 điểm vi phạm thì tạm dừng đăng tin mới\. Khiếu nại được tới ngày/,
     );
     const sent = push.sent.filter((message) => message.to === token);
     expect(sent.map((message) => message.body)).toContain(row?.body);
@@ -143,7 +143,7 @@ describe('Báo kết quả khiếu nại, gậy được huỷ', () => {
       {
         alert: true,
         body: 'Khiếu nại không được chấp nhận.',
-        detail: expect.stringMatching(/^Gậy vẫn hết hạn ngày/),
+        detail: expect.stringMatching(/^Cảnh cáo vẫn hết hạn ngày/),
       },
     ]);
   });
@@ -163,7 +163,7 @@ describe('Báo kết quả khiếu nại, gậy được huỷ', () => {
     const rows = await inbox(poster);
     expect(rows.filter((row) => row.type === 'trust.appeal.decided')).toMatchObject([
       {
-        body: 'Khiếu nại được chấp nhận — gậy đã huỷ.',
+        body: 'Khiếu nại được chấp nhận — cảnh cáo đã xoá.',
         detail: expect.stringMatching(/được khôi phục\.$/),
       },
     ]);
@@ -186,7 +186,7 @@ describe('Báo kết quả khiếu nại, gậy được huỷ', () => {
       (row) => row.type !== 'trust.strike.issued' && !row.type.startsWith('trust.tier'),
     );
     expect(rows).toMatchObject([
-      { type: 'trust.strike.cancelled', alert: true, body: 'Một gậy của bạn đã được huỷ.' },
+      { type: 'trust.strike.cancelled', alert: true, body: 'Một cảnh cáo của bạn đã được xoá.' },
     ]);
     expect(`${rows[0]?.body} ${rows[0]?.detail}`).not.toContain('Nhầm điều luật');
   });

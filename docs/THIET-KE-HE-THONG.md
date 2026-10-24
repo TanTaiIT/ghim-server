@@ -34,8 +34,8 @@
 18. Vòng đời một tin
 19. Sửa, gia hạn, tạm ẩn, xoá tin
 20. Mức tin cậy và hạn mức
-21. Gậy
-22. Khiếu nại, ân xá, gậy nghiêm trọng
+21. Cảnh cáo
+22. Khiếu nại, ân xá, vi phạm nghiêm trọng
 23. Báo cáo vi phạm
 24. Nhắn tin và thông báo
 25. Ảnh và lưu trữ dữ liệu
@@ -62,7 +62,7 @@
 | 9   | **Một máy tối đa 3 tài khoản đăng tin** trong 90 ngày. Từ tài khoản thứ 4, tin luôn chờ người duyệt — giữ lại chứ không chặn.                                                                                                           |
 | 10  | **Chỉ master lập nhóm.**                                                                                                                                                                                                                |
 | 11  | **Huy hiệu nhóm** chỉ cho thành viên đã được nhóm xét vào.                                                                                                                                                                              |
-| 12  | **Phạt bằng gậy có hạn.** Mức tin cậy quyết định đăng được bao nhiêu và hiển thị rộng tới đâu.                                                                                                                                          |
+| 12  | **Phạt bằng cảnh cáo có hạn.** Mức tin cậy quyết định đăng được bao nhiêu và hiển thị rộng tới đâu.                                                                                                                                     |
 | 13  | **Tối đa 6 ảnh** mỗi tin.                                                                                                                                                                                                               |
 | 14  | **Xác minh giấy tờ là tính năng phụ**, không tham gia luồng chính.                                                                                                                                                                      |
 | 15  | **Không kiểm nội dung ảnh.** Máy chỉ kiểm ảnh trùng và chất lượng ảnh (hỏng, quá nhỏ, mờ, quá tối, quá sáng); không dịch vụ ngoài, không mô hình tự chạy (chốt 24/10/2026).                                                             |
@@ -91,32 +91,32 @@
 
 ## 3. Từ điển
 
-| Từ                        | Nghĩa                                                                                                                                                      |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tin đăng                  | Một món đồ được rao bán: ảnh, tiêu đề, mô tả, giá, khu vực.                                                                                                |
-| Nháp                      | Tin đang soạn, chưa gửi. Ảnh chọn trong lúc soạn thuộc về nháp.                                                                                            |
-| Phủ sóng                  | Tin được ai xem. Ba mức: **chỉ thành viên** nhóm · **nhóm công khai** (ai cũng đọc, nhưng nằm trong nhóm) · **sàn chung** (cả nước).                       |
-| Mức hiển thị              | Tin đã lên bảng hiển thị **đầy đủ** (bảng tin, tìm kiếm, gợi ý, hồ sơ) hay **hạn chế** (chỉ tìm kiếm có từ khoá, hồ sơ người bán, đường link trực tiếp).   |
-| Giữ cho người             | Máy không chắc, nên để tin chờ một người thật xem trước khi hiện.                                                                                          |
-| Cổng cứng                 | Những trường hợp máy luôn giữ cho người, không cần chấm điểm.                                                                                              |
-| Việc · hàng chờ           | Một **việc** là thứ cần người xử (tin bị giữ, báo cáo, khiếu nại…). Việc nằm trong **hàng chờ** của người có quyền xử. Mỗi tin có tối đa một việc đang mở. |
-| Hậu kiểm                  | Người xem lại một ít tin đã lên bảng — do máy hoặc người duyệt khác cho lên — để biết có gì lọt không.                                                     |
-| Sàn chung · Nhóm          | Hai nơi đăng tin (phần 2). Chỉ master lập nhóm.                                                                                                            |
-| Người ngoài               | Người gửi tin vào một nhóm mà mình không phải thành viên.                                                                                                  |
-| Huy hiệu nhóm             | Dòng "Thành viên nhóm X" trên tin sàn chung của một thành viên.                                                                                            |
-| Master                    | Người quản lý cao nhất, toàn quyền. Đúng một người.                                                                                                        |
-| Staff                     | Người được master gắn quyền xử tin sàn của một vài danh mục, trên chính tài khoản cá nhân của họ.                                                          |
-| Chủ nhóm · Điều hành viên | Người chịu trách nhiệm một nhóm (đúng một người) · người chủ nhóm giao việc duyệt tin, quản lý thành viên.                                                 |
-| Thiếu chủ nhóm            | Nhóm vừa mất chủ nhóm, chờ giao chủ mới, tối đa 30 ngày.                                                                                                   |
-| Mức tin cậy               | T0, T1, T2, T3 của một người dùng; tính lại từ tuổi tài khoản, tin sạch và gậy.                                                                            |
-| Tin sạch                  | Tin đã hiện ít nhất 7 ngày, hoặc đã bán sau ít nhất 2 ngày và có người nhắn hỏi mua; không bị gỡ vì vi phạm, không bị báo cáo đúng.                        |
-| Hạn mức                   | Số tin tối đa một người được có cùng lúc (tin sống) và số lượt gửi mỗi giờ (nhịp gửi).                                                                     |
-| Gậy                       | Án phạt có điểm và ngày hết hạn, do người thật ra khi xác nhận vi phạm.                                                                                    |
-| Khiếu nại                 | Người nhận gậy xin xét lại, một lần.                                                                                                                       |
-| Sai sót · Vi phạm         | Hai mức khi người duyệt từ chối hay gỡ. **Sai sót**: sửa lại là được, không bị gì. **Vi phạm**: phạm quy định sàn, kèm gậy.                                |
-| Tạm ẩn                    | Tin bị giấu vì một lý do bên ngoài (nhóm bị khoá, danh mục tắt…). Hết lý do thì hiện lại nguyên như cũ. **Không phải án phạt.**                            |
-| Dấu thiết bị              | Mã nhận ra chiếc điện thoại đang dùng app, để biết một máy có bao nhiêu tài khoản đăng tin. Chỉ dùng chống gian lận.                                       |
-| Tạm giữ bằng chứng        | Dữ liệu dính tới một báo cáo, gậy hay khiếu nại đang mở không bị xoá hẳn, kể cả khi người dùng tự xoá.                                                     |
+| Từ                        | Nghĩa                                                                                                                                                                                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tin đăng                  | Một món đồ được rao bán: ảnh, tiêu đề, mô tả, giá, khu vực.                                                                                                                                                                           |
+| Nháp                      | Tin đang soạn, chưa gửi. Ảnh chọn trong lúc soạn thuộc về nháp.                                                                                                                                                                       |
+| Phủ sóng                  | Tin được ai xem. Ba mức: **chỉ thành viên** nhóm · **nhóm công khai** (ai cũng đọc, nhưng nằm trong nhóm) · **sàn chung** (cả nước).                                                                                                  |
+| Mức hiển thị              | Tin đã lên bảng hiển thị **đầy đủ** (bảng tin, tìm kiếm, gợi ý, hồ sơ) hay **hạn chế** (chỉ tìm kiếm có từ khoá, hồ sơ người bán, đường link trực tiếp).                                                                              |
+| Giữ cho người             | Máy không chắc, nên để tin chờ một người thật xem trước khi hiện.                                                                                                                                                                     |
+| Cổng cứng                 | Những trường hợp máy luôn giữ cho người, không cần chấm điểm.                                                                                                                                                                         |
+| Việc · hàng chờ           | Một **việc** là thứ cần người xử (tin bị giữ, báo cáo, khiếu nại…). Việc nằm trong **hàng chờ** của người có quyền xử. Mỗi tin có tối đa một việc đang mở.                                                                            |
+| Hậu kiểm                  | Người xem lại một ít tin đã lên bảng — do máy hoặc người duyệt khác cho lên — để biết có gì lọt không.                                                                                                                                |
+| Sàn chung · Nhóm          | Hai nơi đăng tin (phần 2). Chỉ master lập nhóm.                                                                                                                                                                                       |
+| Người ngoài               | Người gửi tin vào một nhóm mà mình không phải thành viên.                                                                                                                                                                             |
+| Huy hiệu nhóm             | Dòng "Thành viên nhóm X" trên tin sàn chung của một thành viên.                                                                                                                                                                       |
+| Master                    | Người quản lý cao nhất, toàn quyền. Đúng một người.                                                                                                                                                                                   |
+| Staff                     | Người được master gắn quyền xử tin sàn của một vài danh mục, trên chính tài khoản cá nhân của họ.                                                                                                                                     |
+| Chủ nhóm · Điều hành viên | Người chịu trách nhiệm một nhóm (đúng một người) · người chủ nhóm giao việc duyệt tin, quản lý thành viên.                                                                                                                            |
+| Thiếu chủ nhóm            | Nhóm vừa mất chủ nhóm, chờ giao chủ mới, tối đa 30 ngày.                                                                                                                                                                              |
+| Mức tin cậy               | T0, T1, T2, T3 của một người dùng; tính lại từ tuổi tài khoản, tin sạch và cảnh cáo.                                                                                                                                                  |
+| Tin sạch                  | Tin đã hiện ít nhất 7 ngày, hoặc đã bán sau ít nhất 2 ngày và có người nhắn hỏi mua; không bị gỡ vì vi phạm, không bị báo cáo đúng.                                                                                                   |
+| Hạn mức                   | Số tin tối đa một người được có cùng lúc (tin sống) và số lượt gửi mỗi giờ (nhịp gửi).                                                                                                                                                |
+| Cảnh cáo                  | Án phạt có điểm (gọi là **điểm vi phạm**) và ngày hết hạn, do người thật ghi khi xác nhận vi phạm. Nặng nhất là **vi phạm nghiêm trọng**: khoá tài khoản. Trong spec và code gọi là **gậy** / `strike` (đổi chữ hiển thị 24/10/2026). |
+| Khiếu nại                 | Người nhận cảnh cáo xin xét lại, một lần.                                                                                                                                                                                             |
+| Sai sót · Vi phạm         | Hai mức khi người duyệt từ chối hay gỡ. **Sai sót**: sửa lại là được, không bị gì. **Vi phạm**: phạm quy định sàn, kèm cảnh cáo.                                                                                                      |
+| Tạm ẩn                    | Tin bị giấu vì một lý do bên ngoài (nhóm bị khoá, danh mục tắt…). Hết lý do thì hiện lại nguyên như cũ. **Không phải án phạt.**                                                                                                       |
+| Dấu thiết bị              | Mã nhận ra chiếc điện thoại đang dùng app, để biết một máy có bao nhiêu tài khoản đăng tin. Chỉ dùng chống gian lận.                                                                                                                  |
+| Tạm giữ bằng chứng        | Dữ liệu dính tới một báo cáo, cảnh cáo hay khiếu nại đang mở không bị xoá hẳn, kể cả khi người dùng tự xoá.                                                                                                                           |
 
 ---
 
@@ -127,10 +127,10 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 1. **Máy quyết phần chắc, người quyết phần máy không chắc.** Không có người đứng giữa tin đạt chuẩn và bảng tin. Phần máy giữ lại chờ người, có hạn xử.
 2. **Quá hạn thì giữ, không mở.** Việc nào bảo vệ người mua mà không ai xử kịp thì giữ nguyên và đẩy lên cấp trên. Chỉ việc lấy mẫu hậu kiểm được tự huỷ khi quá hạn.
 3. **Master toàn quyền.** Mọi luật ràng buộc người dùng, điều hành nhóm và staff. Master đứng ngoài; quyết định của master là cuối cùng và được ghi nhật ký.
-4. **Không ai, trừ master, xử việc của chính mình** — tin mình đăng, báo cáo về mình, khiếu nại về gậy mình ra — kể cả qua tài khoản dùng chung thiết bị.
-5. **Việc cần hai người thì phải là hai người khác nhau.** Người duyệt khác người đăng. Người xét khiếu nại khác người ra gậy (gậy thường, nặng do master ra thì master tự xem lại; gậy nghiêm trọng do một master ra thì master kia xét). Người xác nhận vi phạm khác người đề nghị.
+4. **Không ai, trừ master, xử việc của chính mình** — tin mình đăng, báo cáo về mình, khiếu nại về cảnh cáo mình ra — kể cả qua tài khoản dùng chung thiết bị.
+5. **Việc cần hai người thì phải là hai người khác nhau.** Người duyệt khác người đăng. Người xét khiếu nại khác người ghi cảnh cáo (cảnh cáo thường, nặng do master ra thì master tự xem lại; vi phạm nghiêm trọng do một master ra thì master kia xét). Người xác nhận vi phạm khác người đề nghị.
 6. **Mỗi tin có tối đa một việc đang mở.** Thêm lý do thì gộp vào việc đó. Không bao giờ có hai người xử một tin ra hai kết quả.
-7. **Máy không phạt.** Máy cho qua hoặc giữ cho người. Mọi hình phạt do một người thật ra, có lý do, có ngày hết hạn (trừ gậy nghiêm trọng).
+7. **Máy không phạt.** Máy cho qua hoặc giữ cho người. Mọi hình phạt do một người thật ra, có lý do, có ngày hết hạn (trừ vi phạm nghiêm trọng).
 8. **Người dùng luôn biết mình đang ở đâu.** Bị giữ thì biết đang chờ người duyệt và chờ tới bao giờ; bị phạt thì biết ngày hết. Lỗi tự sửa được thì được giải thích cụ thể. Dấu hiệu gian lận thì nói ở mức chung — "tin cần kiểm tra an toàn thêm" — kèm thời gian chờ ước tính và nút liên hệ hỗ trợ có mã tra cứu: biết vì sao và tới bao giờ, nhưng không dạy cách lách.
 9. **Tạm ẩn khác với bị phạt, và mọi dữ liệu cá nhân có hạn lưu.** Tin tạm ẩn vì lý do bên ngoài hiện lại đúng như cũ, không mất ngày. Không gì giữ mãi, trừ nhật ký quyết định — và nhật ký không chứa nội dung tin.
 
@@ -150,7 +150,7 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 | Máy quét hàng chờ 2 phút một lần; ảnh không được kiểm                | Máy kiểm chữ và ảnh ngay khi gửi, xong trước khi tin hiện                               |
 | Máy từ chối tin dính cụm cấm                                         | Máy không từ chối; không chắc thì giữ cho người                                         |
 | Người có quyền duyệt tự duyệt được tin mình                          | Không ai (trừ master) xử việc của mình, kể cả qua tài khoản trùng thiết bị              |
-| Bậc uy tín 0–2 cộng trừ theo từng lần duyệt                          | Mức tin cậy T0–T3 tính lại từ lịch sử; gậy có ngày hết hạn                              |
+| Bậc uy tín 0–2 cộng trừ theo từng lần duyệt                          | Mức tin cậy T0–T3 tính lại từ lịch sử; cảnh cáo có ngày hết hạn                         |
 | "Đã ẩn" gộp cả bị phạt lẫn bị ảnh hưởng vì nhóm                      | Ba thứ riêng: trạng thái tin, cờ tạm ẩn, mức hiển thị có lý do                          |
 | Bàn quản trị nằm trong app                                           | Bàn vận hành là trang web riêng                                                         |
 | Không có luật lưu trữ dữ liệu                                        | Mỗi loại dữ liệu có hạn lưu                                                             |
@@ -172,7 +172,7 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 - Quyền theo **danh mục**: "xử tin sàn của Điện thoại và Máy tính". Một danh mục có thể có nhiều staff.
 - Master có thể giao thêm ba việc toàn hệ thống: **hỗ trợ người dùng**, **xử báo cáo về người** (việc an toàn), **duyệt giấy tờ xác minh**.
 - Tài khoản mang quyền staff tối đa 3 phiên; không có lớp đăng nhập thứ hai (chốt 23/10/2026).
-- Tài khoản bị khoá hoặc đang có gậy thì **quyền staff tự treo**, việc đang nhận trả về hàng chờ. Hết gậy hay mở khoá thì master quyết có trả lại không.
+- Tài khoản bị khoá hoặc đang có cảnh cáo thì **quyền staff tự treo**, việc đang nhận trả về hàng chờ. Hết cảnh cáo hay mở khoá thì master quyết có trả lại không.
 - Tài khoản mang quyền staff bị xoá thì **quyền staff bị thu hẳn**, kể cả quyền đang treo: tài khoản đã xoá không quay lại được nên không có gì để treo chờ (11/10/2026).
 - Quyền staff phải **tường minh và đầy đủ**: master gắn đúng danh mục và đúng việc toàn hệ thống, không có "mọi danh mục". Staff có thể chỉ mang việc toàn hệ thống mà không có danh mục nào. Chỉ gắn được cho tài khoản đang hoạt động và đã xác nhận email. Quyền đang treo vẫn là quyền staff: vẫn chịu trần 3 phiên (chốt 10/10/2026).
 
@@ -181,7 +181,7 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 - **Chủ nhóm**: đúng một người, do master giao; chuyển nhượng được, người nhận phải bấm đồng ý trong 14 ngày.
 - **Điều hành viên**: chủ nhóm bổ nhiệm; phụ trách cả nhóm hoặc một lớp, một phòng ban.
 - **Thành viên**: người đã vào nhóm.
-- Giữ vai chủ nhóm hay điều hành viên cần **mức T1 trở lên và không có gậy nặng**. Nhận gậy nặng hoặc bị khoá tài khoản thì tạm mất vai tới khi gậy hết hoặc được mở khoá. Mức chỉ xét lúc **nhận** vai: tụt dưới T1 sau đó không làm mất vai (chốt 12/10/2026).
+- Giữ vai chủ nhóm hay điều hành viên cần **mức T1 trở lên và không có cảnh cáo nặng**. Nhận cảnh cáo nặng hoặc bị khoá tài khoản thì tạm mất vai tới khi cảnh cáo hết hoặc được mở khoá. Mức chỉ xét lúc **nhận** vai: tụt dưới T1 sau đó không làm mất vai (chốt 12/10/2026).
 
 > **Vì sao staff là một quyền chứ không phải tài khoản riêng.** Mỗi người một tài khoản thì luật "không xử việc của mình" chỉ còn là phép so người duyệt có phải người đăng không. Khe hở còn lại — một người tự lập tài khoản thứ hai bằng email khác — được thu hẹp bằng dấu thiết bị (phần 8), nhật ký ghi tên người xử, và hậu kiểm quyết định của người duyệt (phần 16).
 
@@ -191,23 +191,23 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 
 Ô trống nghĩa là không. Mọi ô ✓ đều có một ngoại lệ chung: không ai, trừ master, xử việc của chính mình hay của tài khoản dùng chung thiết bị với mình — việc đó tự đi cho người kế tiếp (phần 16).
 
-| Việc                                                                  | Khách | Người dùng | Điều hành viên                    | Chủ nhóm                | Staff (danh mục được giao)                                              | Master                                   |
-| --------------------------------------------------------------------- | ----- | ---------- | --------------------------------- | ----------------------- | ----------------------------------------------------------------------- | ---------------------------------------- |
-| Xem tin công khai, hồ sơ nhóm công khai                               | ✓     | ✓          | ✓                                 | ✓                       | ✓                                                                       | ✓                                        |
-| Đăng, sửa, gia hạn tin của mình · nhắn tin · lưu tin · báo cáo        |       | ✓          | ✓                                 | ✓                       | ✓                                                                       | qua tài khoản cá nhân                    |
-| Xử tin trong nhóm mà máy giữ                                          |       |            | ✓ phạm vi của mình                | ✓                       | khi nhóm hết người, hoặc danh mục đặt "tin nhóm do sàn duyệt" (phần 11) | ✓                                        |
-| Từ chối, gỡ vì vi phạm trong nhóm                                     |       |            | không gậy, chuyển staff           | không gậy, chuyển staff | xác nhận → gậy                                                          | ✓                                        |
-| Xử tin sàn mà máy giữ · gỡ, khôi phục tin sàn · hậu kiểm              |       |            |                                   |                         | ✓                                                                       | ✓                                        |
-| Gỡ tin khỏi nhóm, gỡ huy hiệu nhóm mình                               |       |            | ✓                                 | ✓                       |                                                                         | ✓                                        |
-| Duyệt đơn vào nhóm, mời, gỡ, cấm thành viên                           |       |            | ✓                                 | ✓                       |                                                                         | ✓                                        |
-| Bổ nhiệm điều hành viên, sửa cài đặt, bật hiện tên nhóm, đóng nhóm    |       |            |                                   | ✓                       |                                                                         | ✓                                        |
-| Xử báo cáo về một tin                                                 |       |            | tin nhóm, trừ lừa đảo và hàng cấm | như điều hành viên      | tin sàn; lừa đảo, hàng cấm cả trong nhóm                                | ✓                                        |
-| Xử báo cáo về một người                                               |       |            |                                   |                         | nếu được giao việc an toàn                                              | ✓                                        |
-| Xét khiếu nại về gậy                                                  |       |            |                                   |                         | gậy thường, nặng do staff khác ra; gậy nghiêm trọng chỉ ghi nhận xét    | ✓ cuối cùng; gậy nghiêm trọng chỉ master |
-| Soạn · phát hành mẫu thông tin danh mục                               |       |            |                                   |                         | soạn                                                                    | phát hành                                |
-| Lập nhóm, giao chủ nhóm, khoá nhóm                                    |       |            |                                   |                         |                                                                         | ✓                                        |
-| Cấp, thu quyền staff · danh mục · cụm từ cấm · luật máy · bảng con số |       |            |                                   |                         |                                                                         | ✓                                        |
-| Khoá tài khoản · ân xá · quyết gậy nghiêm trọng                       |       |            |                                   |                         |                                                                         | ✓                                        |
+| Việc                                                                  | Khách | Người dùng | Điều hành viên                    | Chủ nhóm                     | Staff (danh mục được giao)                                                    | Master                                       |
+| --------------------------------------------------------------------- | ----- | ---------- | --------------------------------- | ---------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------- |
+| Xem tin công khai, hồ sơ nhóm công khai                               | ✓     | ✓          | ✓                                 | ✓                            | ✓                                                                             | ✓                                            |
+| Đăng, sửa, gia hạn tin của mình · nhắn tin · lưu tin · báo cáo        |       | ✓          | ✓                                 | ✓                            | ✓                                                                             | qua tài khoản cá nhân                        |
+| Xử tin trong nhóm mà máy giữ                                          |       |            | ✓ phạm vi của mình                | ✓                            | khi nhóm hết người, hoặc danh mục đặt "tin nhóm do sàn duyệt" (phần 11)       | ✓                                            |
+| Từ chối, gỡ vì vi phạm trong nhóm                                     |       |            | không cảnh cáo, chuyển staff      | không cảnh cáo, chuyển staff | xác nhận → cảnh cáo                                                           | ✓                                            |
+| Xử tin sàn mà máy giữ · gỡ, khôi phục tin sàn · hậu kiểm              |       |            |                                   |                              | ✓                                                                             | ✓                                            |
+| Gỡ tin khỏi nhóm, gỡ huy hiệu nhóm mình                               |       |            | ✓                                 | ✓                            |                                                                               | ✓                                            |
+| Duyệt đơn vào nhóm, mời, gỡ, cấm thành viên                           |       |            | ✓                                 | ✓                            |                                                                               | ✓                                            |
+| Bổ nhiệm điều hành viên, sửa cài đặt, bật hiện tên nhóm, đóng nhóm    |       |            |                                   | ✓                            |                                                                               | ✓                                            |
+| Xử báo cáo về một tin                                                 |       |            | tin nhóm, trừ lừa đảo và hàng cấm | như điều hành viên           | tin sàn; lừa đảo, hàng cấm cả trong nhóm                                      | ✓                                            |
+| Xử báo cáo về một người                                               |       |            |                                   |                              | nếu được giao việc an toàn                                                    | ✓                                            |
+| Xét khiếu nại về cảnh cáo                                             |       |            |                                   |                              | cảnh cáo thường, nặng do staff khác ra; vi phạm nghiêm trọng chỉ ghi nhận xét | ✓ cuối cùng; vi phạm nghiêm trọng chỉ master |
+| Soạn · phát hành mẫu thông tin danh mục                               |       |            |                                   |                              | soạn                                                                          | phát hành                                    |
+| Lập nhóm, giao chủ nhóm, khoá nhóm                                    |       |            |                                   |                              |                                                                               | ✓                                            |
+| Cấp, thu quyền staff · danh mục · cụm từ cấm · luật máy · bảng con số |       |            |                                   |                              |                                                                               | ✓                                            |
+| Khoá tài khoản · ân xá · quyết vi phạm nghiêm trọng                   |       |            |                                   |                              |                                                                               | ✓                                            |
 
 ---
 
@@ -239,17 +239,17 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 - Tên hiển thị và ảnh đại diện qua cùng bộ lọc cụm từ cấm và kiểm ảnh như tin đăng. Không ai được đặt tên trùng tên của bộ phận quản lý ("Quản trị hệ thống").
 - Ai thấy số điện thoại của mình bị người khác dùng thì báo cáo loại "sai thông tin".
 
-**Đổi email:** phải xác nhận email mới; tối đa 1 lần mỗi 30 ngày. Gậy đang có đi theo cả email cũ lẫn email mới.
+**Đổi email:** phải xác nhận email mới; tối đa 1 lần mỗi 30 ngày. Cảnh cáo đang có đi theo cả email cũ lẫn email mới.
 
 **Khoá:** master khoá tài khoản thì mọi tin của người đó tạm ẩn; mở khoá thì hiện lại như cũ.
 
 **Xoá tài khoản**
 
-- **Không xoá được** khi đang có gậy nặng, gậy nghiêm trọng, đang bị khoá, hoặc đang là chủ nhóm (phải chuyển chủ trước).
-- **Có báo cáo đang mở vẫn xoá được** — giữ người dùng lại trái ý họ là sai, và dễ vướng quyền xoá dữ liệu cá nhân. Tài khoản ẩn 90 ngày; trong khoảng đó báo cáo vẫn được xử trên bản lưu. Báo cáo đúng thì gậy vẫn được ghi, đi theo email: xoá tài khoản không thoát được án.
+- **Không xoá được** khi đang có cảnh cáo nặng, vi phạm nghiêm trọng, đang bị khoá, hoặc đang là chủ nhóm (phải chuyển chủ trước).
+- **Có báo cáo đang mở vẫn xoá được** — giữ người dùng lại trái ý họ là sai, và dễ vướng quyền xoá dữ liệu cá nhân. Tài khoản ẩn 90 ngày; trong khoảng đó báo cáo vẫn được xử trên bản lưu. Báo cáo đúng thì cảnh cáo vẫn được ghi, đi theo email: xoá tài khoản không thoát được án.
 - Xoá thì tin ẩn ngay; sau **90 ngày** xoá hẳn tin, ảnh, hồ sơ. Hội thoại chỉ ẩn phía người xoá — người kia vẫn đọc được.
 - Trong 90 ngày chờ xoá hẳn, **email đó chưa đăng ký lại được**: tài khoản còn nằm đó dưới dạng ẩn, nên luật mỗi email một tài khoản vẫn áp; app báo ngày được đăng ký lại.
-- **Đăng ký lại bằng cùng email** (sau chuẩn hoá) thì **kế thừa gậy còn hiệu lực**. Hệ thống chỉ giữ một **dấu băm** của email, tạo bằng một khoá bí mật nằm ngoài cơ sở dữ liệu, giữ 2 năm cùng gậy: đủ để nhận ra email khi có người đăng ký lại, nhưng không ai dò ngược ra được email gốc.
+- **Đăng ký lại bằng cùng email** (sau chuẩn hoá) thì **kế thừa cảnh cáo còn hiệu lực**. Hệ thống chỉ giữ một **dấu băm** của email, tạo bằng một khoá bí mật nằm ngoài cơ sở dữ liệu, giữ 2 năm cùng cảnh cáo: đủ để nhận ra email khi có người đăng ký lại, nhưng không ai dò ngược ra được email gốc.
 
 **Xác minh giấy tờ:** tính năng phụ. Người dùng tự nguyện nộp; master hoặc staff được giao việc này duyệt. Kết quả chỉ được lưu lại — **không** chặn ai dùng app, **không** ảnh hưởng đăng tin, mức tin cậy, hạn mức hay máy duyệt. Số giấy tờ không bao giờ hiện ra ngoài.
 
@@ -265,13 +265,13 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 | Danh sách email dùng một lần tự cập nhật        | hằng tuần                                      |
 | Email của tài khoản đã xoá đăng ký lại được sau | 90 ngày                                        |
 
-> **Chỉ xác thực bằng email: được gì, mất gì.** Được: đăng ký nhanh, không tốn tiền SMS. Mất: một người có nhiều email là có nhiều tài khoản. Hệ thống bù bằng bốn lớp: tài khoản mới chỉ hiển thị hạn chế (phần 15) · dấu thiết bị (phần 8) · gậy đi theo email (ở trên) · chặn email dùng một lần. Không lớp nào là tường tuyệt đối; cộng lại thì lập tài khoản mới không còn đáng công.
+> **Chỉ xác thực bằng email: được gì, mất gì.** Được: đăng ký nhanh, không tốn tiền SMS. Mất: một người có nhiều email là có nhiều tài khoản. Hệ thống bù bằng bốn lớp: tài khoản mới chỉ hiển thị hạn chế (phần 15) · dấu thiết bị (phần 8) · cảnh cáo đi theo email (ở trên) · chặn email dùng một lần. Không lớp nào là tường tuyệt đối; cộng lại thì lập tài khoản mới không còn đáng công.
 
 ---
 
 ## 8. Một máy, nhiều tài khoản
 
-**Vì sao cần.** Đăng ký chỉ cần email, nên một người có nhiều email là có nhiều tài khoản — để thoát gậy, tự duyệt tin mình, hay báo cáo hạ tin đối thủ. Không dùng SMS thì hệ thống cần một dấu hiệu khác cho biết các tài khoản này đang dùng chung một chiếc máy.
+**Vì sao cần.** Đăng ký chỉ cần email, nên một người có nhiều email là có nhiều tài khoản — để thoát cảnh cáo, tự duyệt tin mình, hay báo cáo hạ tin đối thủ. Không dùng SMS thì hệ thống cần một dấu hiệu khác cho biết các tài khoản này đang dùng chung một chiếc máy.
 
 **Luật**
 
@@ -279,7 +279,7 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 - Đếm số tài khoản **đã đăng tin** từ máy đó trong **90 ngày** gần nhất. Không đếm mọi tài khoản từng đăng nhập: điện thoại cũ qua tay nhiều chủ, mà Ghim lại là nơi bán điện thoại cũ.
 - **Ba tài khoản đầu** trên một máy đăng bình thường. Từ **tài khoản thứ 4**, mọi tin của tài khoản đó **luôn giữ cho người**. Không chặn đăng, không chặn cả máy — người dùng thật của máy không bị ảnh hưởng.
 - Thứ tự tính theo **lần đăng tin đầu tiên** của mỗi tài khoản trên máy đó: tài khoản cũ quay lại đăng tin vẫn giữ chỗ của mình, tài khoản đến sau mới là bên nằm ngoài ba chỗ. Đánh dấu được tính lại ở mỗi lượt gửi tin, nên khi một tài khoản cũ quá 90 ngày không đăng tin, tài khoản thứ 4 tự hết bị đánh dấu.
-- Tài khoản **bắt đầu đăng tin trên một máy sau khi** một tài khoản khác trên máy đó nhận gậy hay bị khoá: tin cũng luôn giữ cho người, tới khi gậy đó hết hạn hoặc tài khoản kia được mở khoá. Nhờ vậy không ai thoát gậy bằng cách lập tài khoản mới ngay trên máy mình, còn người nhà đã đăng tin từ trước thì không bị liên luỵ — với họ, việc dùng chung máy chỉ là một dấu hiệu rủi ro 30 điểm (phần 14).
+- Tài khoản **bắt đầu đăng tin trên một máy sau khi** một tài khoản khác trên máy đó nhận cảnh cáo hay bị khoá: tin cũng luôn giữ cho người, tới khi cảnh cáo đó hết hạn hoặc tài khoản kia được mở khoá. Nhờ vậy không ai thoát cảnh cáo bằng cách lập tài khoản mới ngay trên máy mình, còn người nhà đã đăng tin từ trước thì không bị liên luỵ — với họ, việc dùng chung máy chỉ là một dấu hiệu rủi ro 30 điểm (phần 14).
 - Người dùng thấy **câu chung của mọi dấu hiệu chống gian lận** (phần 13), không nhắc tới thiết bị — nói rõ chỉ giúp kẻ gian biết phải khôi phục cài đặt gốc. Câu có nút **liên hệ hỗ trợ kèm mã tra cứu**; hỗ trợ nhập mã là thấy lý do cụ thể. Mỗi đánh dấu có một mã riêng, cấp ngay lúc đánh dấu; mã không nói gì về loại đánh dấu hay thiết bị. Người vừa mua lại máy cũ được xác nhận thì thoát diện giữ.
 
 **Dấu thiết bị còn dùng ở đâu**
@@ -403,7 +403,7 @@ Mã nhóm gồm 6 ký tự, đổi được khi bị lộ (chủ nhóm, master).
 
 **Thiếu chủ nhóm**
 
-- Chủ nhóm phải chuyển chủ trước khi rời nhóm hay xoá tài khoản. Nên nhóm chỉ mất chủ khi **tài khoản chủ nhóm bị khoá** hoặc chủ nhóm nhận gậy nặng.
+- Chủ nhóm phải chuyển chủ trước khi rời nhóm hay xoá tài khoản. Nên nhóm chỉ mất chủ khi **tài khoản chủ nhóm bị khoá** hoặc chủ nhóm nhận cảnh cáo nặng.
 - Khi đó nhóm sang trạng thái **thiếu chủ**: hệ thống đề cử điều hành viên cấp cả nhóm nhận vai sớm nhất (không có ai cấp cả nhóm thì điều hành viên đơn vị con nhận vai sớm nhất); master xác nhận bằng một lời giao chủ — cho người được đề cử hay một thành viên khác — và người đó bấm đồng ý. Trong lúc chờ, điều hành viên tiếp tục việc hằng ngày; không ai trong nhóm đổi được cài đặt hay bổ nhiệm người mới — master thì được.
 - Chủ cũ được mở khoá trước khi có chủ mới thì nhóm trở lại với chủ cũ. Quá **30 ngày** chưa có chủ thì nhóm tạm khoá. Nhóm **không còn điều hành viên** nào ở mọi cấp thì tạm khoá ngay. Nhóm khoá vì hai lý do này tự mở khi có chủ dùng được.
 
@@ -505,17 +505,17 @@ flowchart TB
   lim -. "dải Vừa của T1" .-> post
 ```
 
-**Hai lối ra, không có "từ chối".** Máy chỉ **cho qua** (hiển thị đầy đủ hoặc hạn chế) hoặc **giữ cho người**. Máy không trả tin về, không ra gậy, không hạ mức tin cậy. **Không chắc thì giữ**: dịch vụ chấm điểm lỗi, ảnh quá 5 phút chưa có kết quả — đều là giữ, không bao giờ là cho qua.
+**Hai lối ra, không có "từ chối".** Máy chỉ **cho qua** (hiển thị đầy đủ hoặc hạn chế) hoặc **giữ cho người**. Máy không trả tin về, không ghi cảnh cáo, không hạ mức tin cậy. **Không chắc thì giữ**: dịch vụ chấm điểm lỗi, ảnh quá 5 phút chưa có kết quả — đều là giữ, không bao giờ là cho qua.
 
 **Luôn giữ cho người, không cần chấm điểm**
 
 - **Cổng cứng**: cụm từ cấm mức chắc · ảnh trùng với tin của tài khoản khác (trừ ảnh mẫu của hãng trong danh sách trắng do staff nuôi) · giá vượt trần danh mục. Máy **không kiểm nội dung ảnh** — không dịch vụ ngoài, không mô hình tự chạy (chốt 24/10/2026).
 - **Chất lượng ảnh**: ảnh hỏng (không mở được) · ảnh quá nhỏ (cạnh ngắn dưới 480 điểm ảnh) · ảnh mờ · ảnh quá tối · ảnh quá sáng. Người đăng được nói ảnh thứ mấy lỗi gì và sửa thế nào. Bốn luật quá nhỏ, mờ, tối, sáng bật, chạy thử hoặc tắt được và bắt đầu ở chạy thử; ảnh hỏng luôn giữ. Giữ vì chất lượng ảnh **không tính là dò** (chốt 24/10/2026).
 - Danh mục bật **luôn duyệt tay** (phần 11).
-- Tài khoản từ thứ 4 trên một máy, hoặc bắt đầu đăng trên máy sau khi tài khoản khác ở đó nhận gậy (phần 8).
+- Tài khoản từ thứ 4 trên một máy, hoặc bắt đầu đăng trên máy sau khi tài khoản khác ở đó nhận cảnh cáo (phần 8).
 - Tin luôn giữ vẫn được **chấm đủ điểm** để người duyệt thấy hết. Cổng cứng **chạy thử được, không tắt được** (chốt 12/10/2026).
 
-**Dò cổng cứng.** Dính cổng cứng **3 lần trong 24 giờ** thì phải chờ 24 giờ mới gửi tin tiếp. Đây là thời gian chờ, **không phải gậy**. Đếm theo lượt qua máy — một lượt trúng mấy cổng cũng là một lần, gửi lại sau khi sửa cũng đếm; thời gian chờ chỉ chặn **tin mới** (gửi nháp, chuyển tin lên sàn chung), sửa và gia hạn tin đang có vẫn được (chốt 12/10/2026).
+**Dò cổng cứng.** Dính cổng cứng **3 lần trong 24 giờ** thì phải chờ 24 giờ mới gửi tin tiếp. Đây là thời gian chờ, **không phải cảnh cáo**. Đếm theo lượt qua máy — một lượt trúng mấy cổng cũng là một lần, gửi lại sau khi sửa cũng đếm; thời gian chờ chỉ chặn **tin mới** (gửi nháp, chuyển tin lên sàn chung), sửa và gia hạn tin đang có vẫn được (chốt 12/10/2026).
 
 **Cụm từ cấm**
 
@@ -538,20 +538,20 @@ flowchart TB
 
 ## 14. Máy duyệt: chấm điểm và ma trận quyết định
 
-| Dấu hiệu                            | Máy nhìn thấy gì                                                                                                                                                     | Điểm |
-| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
-| Chữ như gõ bừa                      | Phần lớn tiêu đề, mô tả không phải chữ có nghĩa                                                                                                                      | 30   |
-| Giá 0 ở danh mục giá trị cao        | Cho tặng trong danh mục có giá tham chiếu cao (mặc định từ 2 triệu)                                                                                                  | 30   |
-| Trùng thiết bị với tài khoản có gậy | Dùng chung máy với tài khoản đang có gậy hoặc bị khoá, xét 90 ngày (trường hợp chưa thuộc diện luôn giữ ở phần 8)                                                    | 30   |
-| Cụm từ cấm mức mơ hồ                | Trúng một cụm trong danh sách "mơ hồ"                                                                                                                                | 25   |
-| Giá bất thường                      | Ngoài khoảng từ nửa phân vị 10 tới gấp đôi phân vị 90 của giá tin cùng danh mục trong 90 ngày; cần ít nhất 30 tin để so, thiếu thì không xét. Giá 0 không tính ở đây | 25   |
-| Liên hệ ngoài sàn                   | Số điện thoại, Zalo, đường link nằm trong **mô tả**                                                                                                                  | 20   |
-| Trùng tin của chính mình            | Gần như y hệt một tin khác của mình, kể cả tin đã xoá, hết hạn trong 30 ngày. Tin mới giữ vị trí của tin cũ, không được đẩy lên đầu                                  | 20   |
-| Đăng dồn                            | Hơn 10 lượt gửi trong 24 giờ ở T0–T1, hơn 30 ở T2–T3                                                                                                                 | 20   |
-| Danh mục rủi ro cao                 | Do master đặt                                                                                                                                                        | 20   |
-| Bị giữ nhiều                        | Từ 3 lần máy giữ trong 7 ngày vì điểm hay cổng cứng (không đếm lỗi máy, quá giờ, luôn duyệt tay, đánh dấu thiết bị, chất lượng ảnh)                                  | 15   |
-| Sai danh mục                        | Máy suy ra danh mục thật khác danh mục đã chọn; nếu suy ra danh mục rủi ro cao hay luôn duyệt tay thì áp luật của danh mục đó                                        | 15   |
-| Tài khoản mới                       | Dưới 3 ngày tuổi                                                                                                                                                     | 10   |
+| Dấu hiệu                                 | Máy nhìn thấy gì                                                                                                                                                     | Điểm |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| Chữ như gõ bừa                           | Phần lớn tiêu đề, mô tả không phải chữ có nghĩa                                                                                                                      | 30   |
+| Giá 0 ở danh mục giá trị cao             | Cho tặng trong danh mục có giá tham chiếu cao (mặc định từ 2 triệu)                                                                                                  | 30   |
+| Trùng thiết bị với tài khoản có cảnh cáo | Dùng chung máy với tài khoản đang có cảnh cáo hoặc bị khoá, xét 90 ngày (trường hợp chưa thuộc diện luôn giữ ở phần 8)                                               | 30   |
+| Cụm từ cấm mức mơ hồ                     | Trúng một cụm trong danh sách "mơ hồ"                                                                                                                                | 25   |
+| Giá bất thường                           | Ngoài khoảng từ nửa phân vị 10 tới gấp đôi phân vị 90 của giá tin cùng danh mục trong 90 ngày; cần ít nhất 30 tin để so, thiếu thì không xét. Giá 0 không tính ở đây | 25   |
+| Liên hệ ngoài sàn                        | Số điện thoại, Zalo, đường link nằm trong **mô tả**                                                                                                                  | 20   |
+| Trùng tin của chính mình                 | Gần như y hệt một tin khác của mình, kể cả tin đã xoá, hết hạn trong 30 ngày. Tin mới giữ vị trí của tin cũ, không được đẩy lên đầu                                  | 20   |
+| Đăng dồn                                 | Hơn 10 lượt gửi trong 24 giờ ở T0–T1, hơn 30 ở T2–T3                                                                                                                 | 20   |
+| Danh mục rủi ro cao                      | Do master đặt                                                                                                                                                        | 20   |
+| Bị giữ nhiều                             | Từ 3 lần máy giữ trong 7 ngày vì điểm hay cổng cứng (không đếm lỗi máy, quá giờ, luôn duyệt tay, đánh dấu thiết bị, chất lượng ảnh)                                  | 15   |
+| Sai danh mục                             | Máy suy ra danh mục thật khác danh mục đã chọn; nếu suy ra danh mục rủi ro cao hay luôn duyệt tay thì áp luật của danh mục đó                                        | 15   |
+| Tài khoản mới                            | Dưới 3 ngày tuổi                                                                                                                                                     | 10   |
 
 **Dải rủi ro** (ngưỡng chỉnh được theo danh mục): **Thấp** dưới 30 · **Vừa** 30–59 · **Cao** từ 60.
 
@@ -563,7 +563,7 @@ flowchart TB
 | **T1** — đã quen                                    | Đầy đủ                                                       | Hạn chế, chờ hậu kiểm    | Giữ cho người |
 | **T2** — tin cậy                                    | Đầy đủ                                                       | Đầy đủ, vào mẫu hậu kiểm | Giữ cho người |
 | **T3** — uy tín                                     | Đầy đủ                                                       | Đầy đủ, vào mẫu hậu kiểm | Giữ cho người |
-| **Có gậy còn hiệu lực** (trần T1)                   | Hạn chế                                                      | Giữ cho người            | Giữ cho người |
+| **Có cảnh cáo còn hiệu lực** (trần T1)              | Hạn chế                                                      | Giữ cho người            | Giữ cho người |
 | Danh mục luôn duyệt tay                             | Giữ cho người, mọi mức, mọi dải                              |                          |               |
 | Cổng cứng · chất lượng ảnh · luôn giữ theo thiết bị | Giữ cho người, mọi mức                                       |                          |               |
 | Đang thời gian chờ                                  | Không gửi được tin mới                                       |                          |               |
@@ -589,11 +589,11 @@ flowchart TB
 
 Tin hạn chế khi còn **ít nhất một lý do**. Mỗi lý do đặt và gỡ độc lập, nên gỡ một lý do không mở nhầm tin còn lý do khác.
 
-| Lý do hạn chế     | Đặt khi                                                                                                                         | Gỡ khi                                                                                                        |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| **Máy**           | T1 đăng tin ở dải Vừa; lưới an toàn khi tin đang hiện thiếu kết quả ảnh                                                         | Người hậu kiểm cho đạt, hoặc lượt qua máy sau khi sửa cho hiện đầy đủ (chốt 12/10/2026); không tự gỡ theo giờ |
-| **Tài khoản mới** | T0 đăng ra nơi công khai (sàn chung, nhóm công khai)                                                                            | Lên T1, hoặc tin thu hẹp về "chỉ thành viên" (chốt 12/10/2026)                                                |
-| **Gậy**           | Tin mới khi người bán đang có gậy; **mọi tin đang hiện** khi điểm gậy chạm 2; tin hiện lại sau tạm ẩn khi người bán đang có gậy | Điểm gậy về 0 (tin áp ở mốc 2 thì khi về dưới 2)                                                              |
+| Lý do hạn chế     | Đặt khi                                                                                                                                       | Gỡ khi                                                                                                        |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| **Máy**           | T1 đăng tin ở dải Vừa; lưới an toàn khi tin đang hiện thiếu kết quả ảnh                                                                       | Người hậu kiểm cho đạt, hoặc lượt qua máy sau khi sửa cho hiện đầy đủ (chốt 12/10/2026); không tự gỡ theo giờ |
+| **Tài khoản mới** | T0 đăng ra nơi công khai (sàn chung, nhóm công khai)                                                                                          | Lên T1, hoặc tin thu hẹp về "chỉ thành viên" (chốt 12/10/2026)                                                |
+| **Cảnh cáo**      | Tin mới khi người bán đang có cảnh cáo; **mọi tin đang hiện** khi điểm vi phạm chạm 2; tin hiện lại sau tạm ẩn khi người bán đang có cảnh cáo | Điểm cảnh cáo về 0 (tin áp ở mốc 2 thì khi về dưới 2)                                                         |
 
 > **Vì sao có mức hạn chế.** Nó cho tin của người chưa quen được lên mà không cần người duyệt, nhưng chỉ người chủ động tìm mới thấy. Đội duyệt còn mỏng không phải xem từng tin, còn kẻ lập tài khoản mới hàng loạt thì không được đưa tin lên trước mắt người mua.
 
@@ -601,14 +601,14 @@ Tin hạn chế khi còn **ít nhất một lý do**. Mỗi lý do đặt và g�
 
 ## 16. Người duyệt: hàng chờ và hạn xử
 
-| Hàng | Việc                                                     | Ai xử                                                                                                                                     | Hạn    | Quá hạn thì                                                                                                   |
-| ---- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------- |
-| 0    | **Máy giữ** — tin chưa hiện                              | Tin sàn: staff danh mục · tin nhóm: điều hành viên, nhóm hết người thì staff; danh mục đặt "tin nhóm do sàn duyệt" thì staff              | 24 giờ | Chuyển master; tin vẫn giữ                                                                                    |
-| 1    | **Báo cáo**                                              | Phần 23                                                                                                                                   | 72 giờ | Chuyển master; tạm ẩn giữ nguyên                                                                              |
-| 2    | **Khiếu nại gậy**                                        | Gậy thường, nặng: staff khác người ra gậy (gậy của master thì master) · gậy nghiêm trọng: chỉ master — master kia nếu chính master ra gậy | 7 ngày | Gậy thường: tự thắng · gậy nặng: chuyển master, giữ nguyên · gậy nghiêm trọng: nhắc master mỗi ngày, vẫn khoá |
-| 3    | **Hiển thị hạn chế do máy** — tin dải Vừa của T1         | Staff danh mục                                                                                                                            | 72 giờ | Chuyển master; tin vẫn hạn chế                                                                                |
-| 4    | **Chuyển từ nhóm** — điều hành thấy vi phạm quy định sàn | Staff danh mục, hoặc master — khác người đề nghị                                                                                          | 72 giờ | Chuyển master                                                                                                 |
-| 5    | **Mẫu hậu kiểm** — tin đã lên bảng                       | Staff danh mục (tin sàn) · điều hành viên (tin nhóm) — khác người đã duyệt                                                                | 7 ngày | Việc tự huỷ, tính vào số liệu "bỏ sót"; hàng duy nhất được tự huỷ                                             |
+| Hàng | Việc                                                     | Ai xử                                                                                                                                                               | Hạn    | Quá hạn thì                                                                                                                 |
+| ---- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------- |
+| 0    | **Máy giữ** — tin chưa hiện                              | Tin sàn: staff danh mục · tin nhóm: điều hành viên, nhóm hết người thì staff; danh mục đặt "tin nhóm do sàn duyệt" thì staff                                        | 24 giờ | Chuyển master; tin vẫn giữ                                                                                                  |
+| 1    | **Báo cáo**                                              | Phần 23                                                                                                                                                             | 72 giờ | Chuyển master; tạm ẩn giữ nguyên                                                                                            |
+| 2    | **Khiếu nại cảnh cáo**                                   | Cảnh cáo thường, nặng: staff khác người ghi cảnh cáo (cảnh cáo của master thì master) · vi phạm nghiêm trọng: chỉ master — master kia nếu chính master ghi cảnh cáo | 7 ngày | Cảnh cáo thường: tự thắng · cảnh cáo nặng: chuyển master, giữ nguyên · vi phạm nghiêm trọng: nhắc master mỗi ngày, vẫn khoá |
+| 3    | **Hiển thị hạn chế do máy** — tin dải Vừa của T1         | Staff danh mục                                                                                                                                                      | 72 giờ | Chuyển master; tin vẫn hạn chế                                                                                              |
+| 4    | **Chuyển từ nhóm** — điều hành thấy vi phạm quy định sàn | Staff danh mục, hoặc master — khác người đề nghị                                                                                                                    | 72 giờ | Chuyển master                                                                                                               |
+| 5    | **Mẫu hậu kiểm** — tin đã lên bảng                       | Staff danh mục (tin sàn) · điều hành viên (tin nhóm) — khác người đã duyệt                                                                                          | 7 ngày | Việc tự huỷ, tính vào số liệu "bỏ sót"; hàng duy nhất được tự huỷ                                                           |
 
 **Một tin, một việc.** Việc mới về cùng một tin gộp vào việc đang mở, thêm lý do; hạn lấy hạn sớm nhất; người xử theo hàng số nhỏ nhất. Trong cùng hàng báo cáo, báo cáo lừa đảo và hàng cấm thắng. Việc bị chuyển chỗ lúc đang có người nhận thì người đó mất quyền quyết và được báo.
 
@@ -631,20 +631,20 @@ Tin hạn chế khi còn **ít nhất một lý do**. Mỗi lý do đặt và g�
 
 Người duyệt bấm **Nhận** một việc và được giữ nó **10 phút**; người khác thấy "đang có người xử". Quá 10 phút chưa quyết thì việc tự trả về hàng chờ.
 
-**Người xử thấy:** tin, điểm và luật máy đã trúng, lịch sử gậy và tin sạch của người bán, báo cáo liên quan, tin cùng ảnh của tài khoản khác, tài khoản dùng chung thiết bị.
+**Người xử thấy:** tin, điểm và luật máy đã trúng, lịch sử cảnh cáo và tin sạch của người bán, báo cáo liên quan, tin cùng ảnh của tài khoản khác, tài khoản dùng chung thiết bị.
 
-| Kết quả                    | Hệ quả                                                                                                                                                                                                         |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Đạt**                    | Tin máy giữ: lên bảng theo ma trận, trừ lý do giữ. Tin hậu kiểm: giữ tin, gỡ lý do hạn chế "máy". Ghi "máy đúng" hay "máy quá tay"                                                                             |
-| **Từ chối · gỡ — sai sót** | Kèm lý do mẫu ("Ảnh chưa rõ sản phẩm"). Người đăng sửa rồi gửi lại. **Không ảnh hưởng gì** tới tài khoản                                                                                                       |
-| **Từ chối · gỡ — vi phạm** | Kèm **gậy**, trích một điều trong quy định sàn. Chỉ staff, master                                                                                                                                              |
-| **Gỡ khỏi nhóm**           | Chỉ với tin nhóm, do điều hành viên. Tin rời nhóm, không gậy, trạng thái tin không đổi; người đăng có 30 ngày chuyển lên sàn chung như khi nhóm đóng (chốt 12/10/2026). Trái cả quy định sàn thì chuyển hàng 4 |
-| **Khôi phục**              | Tin đã gỡ trở lại hiển thị; ngày hiển thị chạy tiếp từ chỗ dừng                                                                                                                                                |
+| Kết quả                    | Hệ quả                                                                                                                                                                                                              |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Đạt**                    | Tin máy giữ: lên bảng theo ma trận, trừ lý do giữ. Tin hậu kiểm: giữ tin, gỡ lý do hạn chế "máy". Ghi "máy đúng" hay "máy quá tay"                                                                                  |
+| **Từ chối · gỡ — sai sót** | Kèm lý do mẫu ("Ảnh chưa rõ sản phẩm"). Người đăng sửa rồi gửi lại. **Không ảnh hưởng gì** tới tài khoản                                                                                                            |
+| **Từ chối · gỡ — vi phạm** | Kèm **cảnh cáo**, trích một điều trong quy định sàn. Chỉ staff, master                                                                                                                                              |
+| **Gỡ khỏi nhóm**           | Chỉ với tin nhóm, do điều hành viên. Tin rời nhóm, không cảnh cáo, trạng thái tin không đổi; người đăng có 30 ngày chuyển lên sàn chung như khi nhóm đóng (chốt 12/10/2026). Trái cả quy định sàn thì chuyển hàng 4 |
+| **Khôi phục**              | Tin đã gỡ trở lại hiển thị; ngày hiển thị chạy tiếp từ chỗ dừng                                                                                                                                                     |
 
 - Nếu người đăng vừa sửa tin trong lúc người duyệt đang xem, hệ thống báo và người duyệt tải lại — không ai quyết dựa trên nội dung cũ.
-- Mỗi quyết định ghi nhật ký: ai, việc nào, hành động, mức độ, quy định, lý do, kết quả máy trước đó, và hậu quả thật (gậy nào, mức tin cậy sau đó).
+- Mỗi quyết định ghi nhật ký: ai, việc nào, hành động, mức độ, quy định, lý do, kết quả máy trước đó, và hậu quả thật (cảnh cáo nào, mức tin cậy sau đó).
 
-> **Vì sao điều hành nhóm không ra gậy được.** Gậy ảnh hưởng tới tài khoản trên cả hệ thống. Nếu điều hành nhóm ra được gậy, quản trị của bất kỳ nhóm nào cũng hạ được tài khoản của một người lạ chỉ vì người đó gửi tin vào nhóm họ. Nên nhóm chỉ **chuyển lên**; một staff — người khác — xem và xác nhận.
+> **Vì sao điều hành nhóm không ghi cảnh cáo được.** Cảnh cáo ảnh hưởng tới tài khoản trên cả hệ thống. Nếu điều hành nhóm ra được cảnh cáo, quản trị của bất kỳ nhóm nào cũng hạ được tài khoản của một người lạ chỉ vì người đó gửi tin vào nhóm họ. Nên nhóm chỉ **chuyển lên**; một staff — người khác — xem và xác nhận.
 
 ---
 
@@ -720,7 +720,7 @@ Ngoài các mũi tên này, không có cách nào khác để đổi trạng th�
 - Mỗi tin hiện **30 ngày**, tính từ lúc **lên bảng lần đầu**. Chỉ gia hạn mới đặt lại.
 - **Sửa tin không làm mới** ngày hết hạn và không đổi vị trí trên bảng tin. Tin đang chờ máy hay người sau khi sửa mà hết ngày hiển thị thì vẫn được xét; cho qua thì tin lên bảng rồi chuyển hết hạn ở lượt chạy kế tiếp, người đăng gia hạn như thường (chốt 12/10/2026).
 - Ngày hiển thị **dừng** khi tin bị gỡ (khôi phục thì chạy tiếp từ chỗ dừng) và khi tin tạm ẩn vì lý do không do người đăng.
-- **Khiếu nại thắng**: tin bị gỡ hiện lại với số ngày còn lại; tin chưa từng lên bảng thì được đủ 30 ngày. Gậy nghiêm trọng bị huỷ thì được trả lại số ngày đã trôi trong lúc bị khoá.
+- **Khiếu nại thắng**: tin bị gỡ hiện lại với số ngày còn lại; tin chưa từng lên bảng thì được đủ 30 ngày. Vi phạm nghiêm trọng bị huỷ thì được trả lại số ngày đã trôi trong lúc bị khoá.
 - **Gia hạn**: trong 7 ngày cuối hoặc sau khi hết hạn; hệ thống nhắc trước 7 ngày; tin qua máy lại; **không** đẩy tin lên đầu bảng.
   - **Gia hạn sớm** (tin còn đang hiện) đi như sửa tin: qua máy lại vài giây rồi hiện tiếp. Hạn mới = **ngày hết hạn cũ + 30 ngày**, nên không mất những ngày còn lại; gia hạn không đẩy tin lên đầu bảng nên không có gì để lách. Tin vẫn là một tin sống, không chiếm thêm chỗ — nhưng người đang vượt trần sau khi tụt mức thì không gia hạn được (phần 20).
   - **Gia hạn sau khi hết hạn**: cần còn chỗ trong hạn mức; 30 ngày tính từ lúc tin lên bảng lại. Sửa tin được **kèm** lúc gia hạn, trong cùng một lượt qua máy; tin hết hạn không sửa riêng được (chốt 12/10/2026).
@@ -741,15 +741,15 @@ Ngoài các mũi tên này, không có cách nào khác để đổi trạng th�
 | Danh mục bị tắt                                                                                                    | Dừng          | Bật lại, hoặc người đăng đổi danh mục                               |
 | Nhiều người báo cáo (phần 23)                                                                                      | Dừng          | Người xử bác báo cáo; không tự gỡ theo giờ                          |
 
-\* Khoá vì gậy nghiêm trọng mà gậy sau đó bị huỷ thì được trả lại số ngày đã trôi.
+\* Khoá vì vi phạm nghiêm trọng mà cảnh cáo sau đó bị huỷ thì được trả lại số ngày đã trôi.
 
 - **Tin tạm ẩn không tính vào hạn mức.** Hiện lại mà vượt hạn mức thì tin vẫn hiện; người đăng chỉ chưa đăng thêm được tới khi về dưới hạn mức.
-- Nhiều lý do cùng lúc thì chỉ hiện lại khi **hết mọi lý do**, và trở về **đúng trạng thái trước đó**. Riêng người đăng đang có gậy thì tin hiện lại ở mức hạn chế.
+- Nhiều lý do cùng lúc thì chỉ hiện lại khi **hết mọi lý do**, và trở về **đúng trạng thái trước đó**. Riêng người đăng đang có cảnh cáo thì tin hiện lại ở mức hạn chế.
 - Tin tạm ẩn vì một nhóm (tự rời, bị gỡ, bị cấm, nhóm khoá) mà người đăng đổi nơi đăng ra khỏi nhóm đó thì mất mọi lý do của nhóm ấy và qua máy như mọi lần đổi nơi đăng. Tin đã rời nhóm hẳn (nhóm đóng, sang riêng tư, bị gỡ khỏi nhóm) **không sửa được nữa** — chỉ chuyển lên sàn chung thành tin mới, hoặc xoá; nhờ vậy mỗi món đồ chỉ lên sàn chung một lần (chốt 12/10/2026).
 
 **Xoá tin — một luật cho mọi trạng thái**
 
-- Người đăng xoá mềm được tin của mình, **trừ** tin bị từ chối hay bị gỡ vì vi phạm: tin đó giữ tới khi gậy hết hạn thêm 30 ngày (gậy nghiêm trọng: 2 năm) hoặc khiếu nại thắng.
+- Người đăng xoá mềm được tin của mình, **trừ** tin bị từ chối hay bị gỡ vì vi phạm: tin đó giữ tới khi cảnh cáo hết hạn thêm 30 ngày (vi phạm nghiêm trọng: 2 năm) hoặc khiếu nại thắng.
 - Tin đang có báo cáo mở vẫn xoá được, nhưng báo cáo **vẫn được xử** trên bản lưu, và nội dung giữ tới khi báo cáo đóng.
 
 **Ai thấy một tin:** tin đang hiển thị, đã bán hoặc hết hạn · không bị tạm ẩn · người xem nằm trong phạm vi nơi đăng · bề mặt đang xem nằm trong mức hiển thị. Bảng tin chỉ lấy tin đang hiển thị, mức đầy đủ. Hồ sơ, tìm kiếm và gợi ý cũng chỉ có tin **đang hiển thị**; tin đã bán, hết hạn chỉ mở được bằng đường link. Tin "nhóm công khai" chỉ tìm được trong nhóm của nó, không có trong tìm kiếm chung (chốt 12/10/2026).
@@ -758,31 +758,31 @@ Ngoài các mũi tên này, không có cách nào khác để đổi trạng th�
 
 ## 20. Mức tin cậy và hạn mức
 
-| Mức              | Điều kiện                                                                        | Tin sống tối đa | Lượt gửi mỗi giờ | Hội thoại mới mỗi ngày |
-| ---------------- | -------------------------------------------------------------------------------- | --------------- | ---------------- | ---------------------- |
-| **T0 · Mới**     | Email đã xác nhận — mọi tài khoản mới                                            | 10              | 3                | 10                     |
-| **T1 · Đã quen** | Từ 7 ngày tuổi · từ 1 tin sạch                                                   | 20              | 5                | 20                     |
-| **T2 · Tin cậy** | Từ 30 ngày tuổi · từ 5 tin sạch · **không có gậy đang hiệu lực**                 | 50              | 10               | 50                     |
-| **T3 · Uy tín**  | Từ 90 ngày tuổi · từ 20 tin sạch · **không nhận gậy nào trong 90 ngày gần nhất** | 100             | 20               | 100                    |
+| Mức              | Điều kiện                                                                             | Tin sống tối đa | Lượt gửi mỗi giờ | Hội thoại mới mỗi ngày |
+| ---------------- | ------------------------------------------------------------------------------------- | --------------- | ---------------- | ---------------------- |
+| **T0 · Mới**     | Email đã xác nhận — mọi tài khoản mới                                                 | 10              | 3                | 10                     |
+| **T1 · Đã quen** | Từ 7 ngày tuổi · từ 1 tin sạch                                                        | 20              | 5                | 20                     |
+| **T2 · Tin cậy** | Từ 30 ngày tuổi · từ 5 tin sạch · **không có cảnh cáo đang hiệu lực**                 | 50              | 10               | 50                     |
+| **T3 · Uy tín**  | Từ 90 ngày tuổi · từ 20 tin sạch · **không nhận cảnh cáo nào trong 90 ngày gần nhất** | 100             | 20               | 100                    |
 
 - **Tin sống** = tin đang hiển thị (không bị tạm ẩn) + tin đang kiểm + tin chờ duyệt. **Lượt gửi** gồm cả gửi lại sau khi sửa. Đếm **chung mọi nơi** — sàn chung và mọi nhóm cộng lại.
 - Người ngoài gửi tin vào một nhóm: thêm trần riêng **2 tin sống mỗi nhóm**.
 - **Hội thoại mới** chỉ tính lượt mở hội thoại; trả lời trong hội thoại đã có thì không giới hạn.
-- **Có gậy** thì trần mức là T1. Gậy đã bị huỷ vì khiếu nại thắng hay ân xá thì coi như chưa từng có.
+- **Có cảnh cáo** thì trần mức là T1. Cảnh cáo đã bị huỷ vì khiếu nại thắng hay ân xá thì coi như chưa từng có.
 - **Tụt mức** xuống dưới số tin đang sống thì tin cũ giữ nguyên, chỉ không đăng mới và không gia hạn tới khi số tin sống không còn vượt trần. Gia hạn sớm không chiếm thêm chỗ nên được làm khi số tin đúng bằng trần; gia hạn tin đã hết hạn thì cần một chỗ trống (phần 19).
 - Hết chỗ thì app báo rõ tin nào đang chiếm chỗ và cách giải phóng: đánh dấu đã bán, xoá tin cũ, hoặc rút tin chờ duyệt về nháp. Chờ tin được duyệt không giải phóng chỗ — tin được duyệt vẫn là tin sống (chốt 12/10/2026).
 
 **Tin sạch.** Một tin **không bị gỡ vì vi phạm**, **không có báo cáo nào được xác nhận là đúng**, và thoả một trong hai: đã **hiển thị ít nhất 7 ngày**; hoặc đã **bán**, sau khi hiển thị **ít nhất 2 ngày** và có **ít nhất một người nhắn hỏi mua**. Tính tối đa **3 tin sạch trong 7 ngày** cuốn chiếu — mức lên bằng thời gian, không mua nhanh được. Điều kiện "đã bán" chặt hơn vì người đăng tự bấm được nút đó. Tin bị gỡ vì sai sót không bị trừ gì nhưng chưa được cộng: sửa xong, tin hiện lại đủ 7 ngày thì thành tin sạch như thường. Chốt 12/10/2026: 7 ngày là **cộng dồn** những lúc tin đang hiện và không tạm ẩn; tin sạch vượt giới hạn 3 tin được **dời** sang lúc có chỗ, không bỏ; tin bị gỡ vì vi phạm mà được khôi phục hay khiếu nại thắng thì **có lại** tư cách tin sạch; tin sạch **vẫn tính** sau khi tin bị xoá; người hỏi mua dùng chung máy với người bán không tính. **Tuổi tài khoản** tính từ lúc tạo tài khoản.
 
-**Mức được tính lại, không cộng trừ.** Mỗi khi có chuyện mới — thêm một tin sạch, một gậy hết hạn — hệ thống tính lại từ đầu dựa trên toàn bộ lịch sử và phiên bản bảng con số. Lên hay xuống mức đều có thông báo. Master phát hành bảng con số mới thì lần tính kế tiếp dùng bản mới, và lượt tính lại hằng ngày kế tiếp tính lại mọi tài khoản còn theo bản cũ (chốt 12/10/2026).
+**Mức được tính lại, không cộng trừ.** Mỗi khi có chuyện mới — thêm một tin sạch, một cảnh cáo hết hạn — hệ thống tính lại từ đầu dựa trên toàn bộ lịch sử và phiên bản bảng con số. Lên hay xuống mức đều có thông báo. Master phát hành bảng con số mới thì lần tính kế tiếp dùng bản mới, và lượt tính lại hằng ngày kế tiếp tính lại mọi tài khoản còn theo bản cũ (chốt 12/10/2026).
 
-**Bảng uy tín của người bán** luôn cho biết: mức hiện tại, còn thiếu gì để lên mức, từng gậy với lý do và ngày hết hạn, tin nào đang hạn chế vì lý do gì, tin nào đang chờ người duyệt, hạn mức còn lại, thời gian chờ nếu có.
+**Bảng uy tín của người bán** luôn cho biết: mức hiện tại, còn thiếu gì để lên mức, từng cảnh cáo với lý do và ngày hết hạn, tin nào đang hạn chế vì lý do gì, tin nào đang chờ người duyệt, hạn mức còn lại, thời gian chờ nếu có.
 
-> **Ví dụ — anh Minh.** Ngày 1: đăng ký bằng email → **T0**; tin lên sàn chung ở mức hạn chế. Ngày 8: đủ 7 ngày và có một tin hiện đủ 7 ngày → **T1**, tin hiện đầy đủ. Ngày 30: có 5 tin sạch, không gậy → **T2**, đăng tối đa 50 tin.
+> **Ví dụ — anh Minh.** Ngày 1: đăng ký bằng email → **T0**; tin lên sàn chung ở mức hạn chế. Ngày 8: đủ 7 ngày và có một tin hiện đủ 7 ngày → **T1**, tin hiện đầy đủ. Ngày 30: có 5 tin sạch, không cảnh cáo → **T2**, đăng tối đa 50 tin.
 
 ---
 
-## 21. Gậy
+## 21. Cảnh cáo
 
 | Loại             | Ví dụ                                                       | Điểm | Hết hạn sau                                              |
 | ---------------- | ----------------------------------------------------------- | ---- | -------------------------------------------------------- |
@@ -790,22 +790,22 @@ Ngoài các mũi tên này, không có cách nào khác để đổi trạng th�
 | **Nặng**         | Hàng giả, quấy rối người mua, lừa đảo chưa thành            | 2    | 180 ngày                                                 |
 | **Nghiêm trọng** | Hàng cấm, lừa đảo đã xác nhận                               | —    | Không có hạn: khoá tài khoản tới khi master mở (phần 22) |
 
-**Hạn chế khi đang có gậy**
+**Hạn chế khi đang có cảnh cáo**
 
 | Khi                | Hạn chế                                                                                                           |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------- |
 | Còn ít nhất 1 điểm | Mức tin cậy tối đa là T1 · tin mới hiển thị hạn chế; dải Vừa thì giữ cho người · quyền staff, nếu có, tự treo     |
 | Từ 2 điểm          | Thêm: **mọi tin đang hiện** chuyển sang hiển thị hạn chế, vẫn xem được qua tìm kiếm và hồ sơ                      |
 | Từ 3 điểm          | **Tạm khoá đăng tin** tới khi điểm giảm dưới 3. Vẫn sửa, đánh dấu đã bán, xoá được; không gia hạn, không đăng mới |
-| Gậy nặng           | Thêm: chủ nhóm, điều hành viên tạm mất vai tới khi gậy hết                                                        |
+| Cảnh cáo nặng      | Thêm: chủ nhóm, điều hành viên tạm mất vai tới khi cảnh cáo hết                                                   |
 
-Gậy hết hạn thì điểm tự giảm, hạn chế tự gỡ, mức tin cậy tự tính lại. Người bán biết trước từng ngày.
+Cảnh cáo hết hạn thì điểm tự giảm, hạn chế tự gỡ, mức tin cậy tự tính lại. Người bán biết trước từng ngày.
 
-**Ai ra gậy:** staff hoặc master, khi từ chối hay gỡ một tin vì vi phạm, xác nhận việc nhóm chuyển lên, hoặc xử một báo cáo đúng — và phải **trích một điều** trong quy định sàn. **Không bao giờ:** máy · điều hành nhóm · staff với việc của chính mình hay của tài khoản dùng chung thiết bị.
+**Ai ghi cảnh cáo:** staff hoặc master, khi từ chối hay gỡ một tin vì vi phạm, xác nhận việc nhóm chuyển lên, hoặc xử một báo cáo đúng — và phải **trích một điều** trong quy định sàn. **Không bao giờ:** máy · điều hành nhóm · staff với việc của chính mình hay của tài khoản dùng chung thiết bị.
 
-**Gậy đi theo email.** Xoá tài khoản rồi đăng ký lại bằng cùng email (sau chuẩn hoá) thì kế thừa gậy còn hiệu lực. Lập tài khoản mới bằng email khác trên cùng máy thì mọi tin chờ người duyệt (phần 8).
+**Cảnh cáo đi theo email.** Xoá tài khoản rồi đăng ký lại bằng cùng email (sau chuẩn hoá) thì kế thừa cảnh cáo còn hiệu lực. Lập tài khoản mới bằng email khác trên cùng máy thì mọi tin chờ người duyệt (phần 8).
 
-**Những thứ không phải gậy**
+**Những thứ không phải cảnh cáo**
 
 | Chuyện xảy ra                 | Hậu quả                                                                    |
 | ----------------------------- | -------------------------------------------------------------------------- |
@@ -815,29 +815,29 @@ Gậy hết hạn thì điểm tự giảm, hạn chế tự gỡ, mức tin c�
 | Bị nhóm gỡ tin, cấm khỏi nhóm | Chỉ có tác dụng trong nhóm đó                                              |
 | Báo cáo của mình bị bác       | Không gì với người bị báo; người báo bị trừ điểm tin cậy báo cáo (phần 23) |
 
-> **Ví dụ — chị Hoa ở T2, có 20 tin đang hiện, nhận hai gậy thường.** Ngày 0: gậy 1 → 1 điểm, mức về T1; 20 tin cũ giữ nguyên, tin mới hiển thị hạn chế. Ngày 40: gậy 2 → 2 điểm; cả 20 tin đang hiện chuyển sang hạn chế, vẫn xem được qua tìm kiếm và hồ sơ. Ngày 90: gậy 1 hết → còn 1 điểm; 20 tin cũ trở lại đầy đủ. Ngày 130: gậy 2 hết → 0 điểm, mức tính lại về T2 nếu vẫn đủ điều kiện. Chị Hoa luôn đọc được một câu như _"còn 40 ngày"_.
+> **Ví dụ — chị Hoa ở T2, có 20 tin đang hiện, nhận hai cảnh cáo thường.** Ngày 0: cảnh cáo 1 → 1 điểm, mức về T1; 20 tin cũ giữ nguyên, tin mới hiển thị hạn chế. Ngày 40: cảnh cáo 2 → 2 điểm; cả 20 tin đang hiện chuyển sang hạn chế, vẫn xem được qua tìm kiếm và hồ sơ. Ngày 90: cảnh cáo 1 hết → còn 1 điểm; 20 tin cũ trở lại đầy đủ. Ngày 130: cảnh cáo 2 hết → 0 điểm, mức tính lại về T2 nếu vẫn đủ điều kiện. Chị Hoa luôn đọc được một câu như _"còn 40 ngày"_.
 
 ---
 
-## 22. Khiếu nại, ân xá, gậy nghiêm trọng
+## 22. Khiếu nại, ân xá, vi phạm nghiêm trọng
 
 **Khiếu nại**
 
-- Mỗi gậy khiếu nại được **một lần**: trong **14 ngày**, ngay trong app. Gậy nghiêm trọng thì **30 ngày**, qua kênh hỗ trợ không cần đăng nhập, xác thực bằng email đã đăng ký.
-- **Người xét không bao giờ là người đã ra gậy**: staff khác của danh mục; danh mục chỉ có một staff, hoặc gậy đến từ báo cáo về người, thì master. Gậy do master ra thì master tự xem lại, quyết định là cuối cùng.
-- **Gậy nghiêm trọng chỉ master xét** — nó đi kèm khoá tài khoản, mà chỉ master mở khoá được; cho staff xét trước chỉ thêm một tầng không có quyền quyết. Chính master ra gậy đó thì **master kia** xét. Staff được ghi nhận xét vào hồ sơ để master tham khảo, không quyết.
-- **Hạn xét 7 ngày.** Quá hạn: gậy thường **tự thắng** (gậy huỷ, tin trở lại, mức tính lại); gậy nặng chuyển master, **giữ nguyên**; gậy nghiêm trọng vốn ở master, quá hạn thì nhắc mỗi ngày, tài khoản **vẫn khoá** — để nó tự rơi vì thiếu người là mở cửa cho đúng người cần chặn.
-- **Thắng**: gậy bị huỷ (không xoá, giữ dấu vết), tin trở lại hiển thị với số ngày còn lại, lý do hạn chế "gậy" được gỡ, mức tính lại ngay.
-- **Thua**: gậy chạy tới ngày hết hạn. Không khiếu nại lần hai.
+- Mỗi cảnh cáo khiếu nại được **một lần**: trong **14 ngày**, ngay trong app. Vi phạm nghiêm trọng thì **30 ngày**, qua kênh hỗ trợ không cần đăng nhập, xác thực bằng email đã đăng ký.
+- **Người xét không bao giờ là người đã ghi cảnh cáo**: staff khác của danh mục; danh mục chỉ có một staff, hoặc cảnh cáo đến từ báo cáo về người, thì master. Cảnh cáo do master ra thì master tự xem lại, quyết định là cuối cùng.
+- **Vi phạm nghiêm trọng chỉ master xét** — nó đi kèm khoá tài khoản, mà chỉ master mở khoá được; cho staff xét trước chỉ thêm một tầng không có quyền quyết. Chính master ghi cảnh cáo đó thì **master kia** xét. Staff được ghi nhận xét vào hồ sơ để master tham khảo, không quyết.
+- **Hạn xét 7 ngày.** Quá hạn: cảnh cáo thường **tự thắng** (cảnh cáo huỷ, tin trở lại, mức tính lại); cảnh cáo nặng chuyển master, **giữ nguyên**; vi phạm nghiêm trọng vốn ở master, quá hạn thì nhắc mỗi ngày, tài khoản **vẫn khoá** — để nó tự rơi vì thiếu người là mở cửa cho đúng người cần chặn.
+- **Thắng**: cảnh cáo bị xoá (không xoá, giữ dấu vết), tin trở lại hiển thị với số ngày còn lại, lý do hạn chế "cảnh cáo" được gỡ, mức tính lại ngay.
+- **Thua**: cảnh cáo chạy tới ngày hết hạn. Không khiếu nại lần hai.
 - Bị từ chối vì sai sót thì **không cần khiếu nại** — sửa theo lý do rồi gửi lại là xong.
 
-**Ân xá:** master huỷ được một hay nhiều gậy của một người, bắt buộc ghi lý do. Đi cùng đường với khiếu nại thắng.
+**Ân xá:** master huỷ được một hay nhiều cảnh cáo của một người, bắt buộc ghi lý do. Đi cùng đường với khiếu nại thắng.
 
-**Gậy nghiêm trọng**
+**Vi phạm nghiêm trọng**
 
-- Tài khoản **khoá ngay**, mọi tin tạm ẩn. Gậy nghiêm trọng là ngoại lệ duy nhất **không có ngày hết hạn**.
+- Tài khoản **khoá ngay**, mọi tin tạm ẩn. Vi phạm nghiêm trọng là ngoại lệ duy nhất **không có ngày hết hạn**.
 - Người bị khoá không dùng được app, nhưng xem được lý do và gửi khiếu nại qua kênh hỗ trợ không cần đăng nhập.
-- Master xem xét và chọn một trong ba: **khoá vĩnh viễn** (email bị chặn đăng ký tới khi gỡ khoá; cứ 2 năm master xem lại một lần để giữ tiếp hay gỡ) · **hạ thành gậy nặng** (mở khoá; 2 điểm, 180 ngày tính từ ngày ra gậy) · **huỷ gậy** (mở khoá, tin hiện lại, trả lại số ngày hiển thị đã mất).
+- Master xem xét và chọn một trong ba: **khoá vĩnh viễn** (email bị chặn đăng ký tới khi gỡ khoá; cứ 2 năm master xem lại một lần để giữ tiếp hay gỡ) · **hạ thành cảnh cáo nặng** (mở khoá; 2 điểm, 180 ngày tính từ ngày ghi cảnh cáo) · **xoá cảnh cáo** (mở khoá, tin hiện lại, trả lại số ngày hiển thị đã mất).
 - Việc chờ master quyết nằm trên bảng tồn, quá 72 giờ thì nhắc mỗi ngày; tài khoản vẫn khoá — không tự mở.
 - Dữ liệu liên quan giữ 2 năm kể từ ngày khoá.
 
@@ -862,9 +862,9 @@ Gậy hết hạn thì điểm tự giảm, hạn chế tự gỡ, mức tin c�
 
 Người xử không bao giờ là người đăng tin bị báo cáo, người bị báo cáo, hay tài khoản dùng chung thiết bị với họ — dùng cùng chuỗi chuyển tiếp ở phần 16.
 
-> **Vì sao lừa đảo, hàng cấm trong nhóm đi thẳng tới staff.** Điều hành viên có thể bỏ qua báo cáo để che cho người trong nhóm, và staff sẽ không bao giờ biết — nhóm riêng tư thành vùng mù với hàng cấm. Hai loại này có thể dẫn tới gậy nghiêm trọng, nên phải tới người có quyền ra gậy.
+> **Vì sao lừa đảo, hàng cấm trong nhóm đi thẳng tới staff.** Điều hành viên có thể bỏ qua báo cáo để che cho người trong nhóm, và staff sẽ không bao giờ biết — nhóm riêng tư thành vùng mù với hàng cấm. Hai loại này có thể dẫn tới vi phạm nghiêm trọng, nên phải tới người có quyền ghi cảnh cáo.
 
-**Báo cáo chỉ đóng bằng quyết định của người.** Chủ tin xoá tin hay xoá tài khoản thì báo cáo vẫn xử trên bản lưu: kết quả đúng vẫn ra gậy, vẫn khoá. Hội thoại liên quan được giữ làm bằng chứng tới khi báo cáo đóng.
+**Báo cáo chỉ đóng bằng quyết định của người.** Chủ tin xoá tin hay xoá tài khoản thì báo cáo vẫn xử trên bản lưu: kết quả đúng vẫn ghi cảnh cáo, vẫn khoá. Hội thoại liên quan được giữ làm bằng chứng tới khi báo cáo đóng.
 
 **Tạm ẩn khi nhiều người báo**
 
@@ -872,9 +872,9 @@ Người xử không bao giờ là người đăng tin bị báo cáo, người 
 - Cờ giữ tới khi có người xử; quá 72 giờ thì lên master, vẫn ẩn. Báo cáo sai thì tin hiện lại, không mất ngày.
 - **Mỗi tin chỉ tự ẩn một lần** giữa hai quyết định của người: sau khi người xử bác, báo cáo mới về tin đó vẫn vào hàng nhưng không tự ẩn nữa.
 
-**Điểm tin cậy báo cáo.** Mỗi báo cáo bị bác trừ 1 điểm, báo cáo đúng cộng 1. Dưới −3 thì báo cáo của người đó không tính vào ngưỡng tạm ẩn và xếp cuối hàng; dưới −6 thì mất quyền báo cáo 30 ngày. Không phạt, không gậy.
+**Điểm tin cậy báo cáo.** Mỗi báo cáo bị bác trừ 1 điểm, báo cáo đúng cộng 1. Dưới −3 thì báo cáo của người đó không tính vào ngưỡng tạm ẩn và xếp cuối hàng; dưới −6 thì mất quyền báo cáo 30 ngày. Không phạt, không cảnh cáo.
 
-**Xử xong:** bác — đóng, gỡ tạm ẩn, báo người báo · đúng — gỡ tin, ra gậy (staff, master), cấm khỏi nhóm, hoặc khoá tài khoản; đóng mọi báo cáo cùng đối tượng; báo người báo.
+**Xử xong:** bác — đóng, gỡ tạm ẩn, báo người báo · đúng — gỡ tin, ghi cảnh cáo (staff, master), cấm khỏi nhóm, hoặc khoá tài khoản; đóng mọi báo cáo cùng đối tượng; báo người báo.
 
 ---
 
@@ -889,7 +889,7 @@ Người xử không bao giờ là người đăng tin bị báo cáo, người 
 - Tin nhắn qua cùng bộ lọc cụm từ cấm như tin đăng.
 - **Chặn người**: một bên chặn thì không mở hội thoại mới, hội thoại cũ ngừng nhận tin. Không bên nào biết ai chặn.
 - **Báo cáo ngay từ hội thoại** khi bị quấy rối hay lừa đảo.
-- **Xoá hội thoại** chỉ ẩn ở phía mình. Hội thoại dính tới báo cáo, gậy hay khiếu nại đang mở thì không bị xoá hẳn, kể cả khi cả hai bên đã xoá.
+- **Xoá hội thoại** chỉ ẩn ở phía mình. Hội thoại dính tới báo cáo, cảnh cáo hay khiếu nại đang mở thì không bị xoá hẳn, kể cả khi cả hai bên đã xoá.
 - Người không có trong hội thoại nhận "không tìm thấy" — không lộ cả việc hội thoại đó có tồn tại.
 - **Trả giá** (chốt 18/10/2026): với tin đang hiển thị, cho thương lượng, giá trên 0, chỉ **người mua** gửi được một giá — từ 1 đồng tới giá đăng; người bán chấp nhận hoặc từ chối. Mỗi hội thoại chỉ một giá đang chờ: giá mới thay giá cũ. **Chấp nhận chỉ là ghi nhận** giữa hai bên — tin không đổi trạng thái, không bị giữ, giá đăng không đổi, người mua khác vẫn trả giá được. Giá trả tính như một tin nhắn hỏi mua.
 - Đầu hội thoại hiện ảnh bìa, giá của tin và ảnh đại diện người kia; tin bị gỡ vì vi phạm thì không hiện ảnh bìa.
@@ -901,7 +901,7 @@ Người xử không bao giờ là người đăng tin bị báo cáo, người 
 **Thông báo**
 
 - Mỗi thông báo vào **hộp thư trong app**, và nếu người dùng cho phép thì hiện thêm trên màn hình điện thoại.
-- Chín nhóm, người dùng bật tắt từng nhóm: tin nhắn · tin đăng của bạn · nhóm của bạn · báo cáo của bạn · tài khoản (luôn bật) · mức tin cậy và gậy · thông báo của nhóm · tin mới trong nhóm · hỗ trợ.
+- Chín nhóm, người dùng bật tắt từng nhóm: tin nhắn · tin đăng của bạn · nhóm của bạn · báo cáo của bạn · tài khoản (luôn bật) · mức tin cậy và cảnh cáo · thông báo của nhóm · tin mới trong nhóm · hỗ trợ.
 - Đang mở đúng hội thoại thì không hiện thông báo tin nhắn đó lên màn hình.
 - **Nhắc** = hiện lên màn hình: banner trong app qua kênh realtime khi app đang mở, và đẩy lên điện thoại khi có. Tắt một nhóm thông báo chỉ thôi nhắc; thông báo vẫn vào hộp thư (chốt 11/10/2026).
 - Người dùng **tắt tiếng từng nhóm** được: thông báo của nhóm đó vẫn vào hộp thư nhưng không nhắc — trừ chuyện về chính tư cách của mình trong nhóm (được duyệt, bị gỡ, bị cấm, lời mời, lời giao chủ, vai), để tắt tiếng một nhóm ồn không làm lỡ việc của mình (chốt 11/10/2026).
@@ -910,7 +910,7 @@ Người xử không bao giờ là người đăng tin bị báo cáo, người 
 - Chủ nhóm, điều hành viên cả nhóm gửi được thông báo cho cả nhóm; điều hành viên đơn vị con gửi cho đơn vị mình. Tối đa **5 thông báo mỗi nhóm mỗi ngày**, mỗi thông báo tối đa 1000 ký tự (chốt 11/10/2026).
 - Mọi thành viên được báo khi nhóm tạm khoá, mở khoá, đóng, hay chuyển sang công khai.
 - **Người đăng được báo kết quả duyệt tin của mình**, có nhắc: máy giữ tin chờ người duyệt hay rút tin đang hiện về chờ duyệt — câu cùng mức với câu giải thích của máy (dấu hiệu gian lận chỉ nói chung, kèm thời gian chờ ước tính), một lần mỗi lượt giữ; người duyệt cho đạt tin chờ duyệt, từ chối, gỡ, khôi phục. Câu nhắc chỉ nói kết quả — lý do mẫu và cách sửa chỉ nằm trong nội dung xem trong app. Quyết định trong nhóm ký "Quản trị nhóm «tên nhóm»", của staff, master ký "Ghim"; không nêu tên người duyệt. Không báo: máy cho qua ngay, hậu kiểm đạt một tin đang hiện, việc người đăng tự làm (chốt 16/10/2026).
-- **Nhóm "mức tin cậy và gậy"** — người dùng được báo, có nhắc: nhận gậy (loại gậy, điều được trích, tin liên quan, ngày hết hạn, hạn khiếu nại; ký "Ghim", không nêu ai ra gậy); khiếu nại có kết quả (gậy thường quá hạn xét tự thắng thì báo như thắng; gậy nặng chuyển master thì chờ master quyết mới báo); gậy được huỷ hay đổi ngoài khiếu nại (ân xá, master quyết gậy nghiêm trọng, gỡ khoá vĩnh viễn); mức tin cậy xuống; vào thời gian chờ đăng tin — đúng câu "tạm thời chưa gửi được tin mới, gửi lại từ…" của lượt gửi bị chặn, không nêu dấu hiệu nào. Báo không nhắc: gậy hết hạn (kèm "đã đăng tin lại được" khi hết khoá đăng tin), mức tin cậy lên. Đăng ký lại mang theo gậy: một thông báo nêu số gậy và ngày hết hạn, không nêu tài khoản trước. Không báo: tự gửi khiếu nại, máy bị đánh dấu, master xem lại khoá vĩnh viễn và giữ nguyên. Câu nhắc chỉ nói chuyện gì xảy ra; điều luật, hạn và hệ quả chỉ nằm trong app (chốt 22/10/2026).
+- **Nhóm "mức tin cậy và cảnh cáo"** — người dùng được báo, có nhắc: nhận cảnh cáo (loại cảnh cáo, điều được trích, tin liên quan, ngày hết hạn, hạn khiếu nại; ký "Ghim", không nêu ai ghi cảnh cáo); khiếu nại có kết quả (cảnh cáo thường quá hạn xét tự thắng thì báo như thắng; cảnh cáo nặng chuyển master thì chờ master quyết mới báo); cảnh cáo được xoá hay đổi ngoài khiếu nại (ân xá, master quyết vi phạm nghiêm trọng, gỡ khoá vĩnh viễn); mức tin cậy xuống; vào thời gian chờ đăng tin — đúng câu "tạm thời chưa gửi được tin mới, gửi lại từ…" của lượt gửi bị chặn, không nêu dấu hiệu nào. Báo không nhắc: cảnh cáo hết hạn (kèm "đã đăng tin lại được" khi hết khoá đăng tin), mức tin cậy lên. Đăng ký lại mang theo cảnh cáo: một thông báo nêu số cảnh cáo và ngày hết hạn, không nêu tài khoản trước. Không báo: tự gửi khiếu nại, máy bị đánh dấu, master xem lại khoá vĩnh viễn và giữ nguyên. Câu nhắc chỉ nói chuyện gì xảy ra; điều luật, hạn và hệ quả chỉ nằm trong app (chốt 22/10/2026).
 - **Tin trong nhóm bị máy giữ chờ duyệt**: báo, có nhắc, người đang xử được việc theo hàng chờ — gộp theo nhóm với số tin đang chờ trong phạm vi người nhận; không báo việc do sàn duyệt hay tin của chính mình; không nêu lý do giữ hay tên người đăng (chốt 22/10/2026).
 
 ---
@@ -933,28 +933,28 @@ Người xử không bao giờ là người đăng tin bị báo cáo, người 
 - Ảnh mới tải mang nhãn "chưa xác nhận"; lưu tin thành công thì gỡ nhãn. Ảnh còn nhãn quá **48 giờ** thì xoá. Mỗi tháng đối chiếu cả kho để vét ảnh lọt lưới; ảnh đang dùng mà mất khỏi kho thì báo cho chủ của nó, không tự sửa tin.
 - Mỗi ảnh được kiểm trùng với kho ảnh của mọi tài khoản và kiểm chất lượng (hỏng, quá nhỏ, mờ, quá tối, quá sáng), xong trước khi tin hiện (phần 13). Không kiểm nội dung ảnh (chốt 24/10/2026). Ảnh mẫu của hãng nằm trong danh sách trắng.
 
-**Tạm giữ bằng chứng.** Khi có báo cáo, gậy hay khiếu nại đang mở liên quan tới một tin hay một người, mọi dữ liệu dính tới nó — tin, ảnh, hội thoại về tin đó — **không bị xoá hẳn**, kể cả khi các bên tự xoá, cho tới khi việc đóng thêm 30 ngày. Mọi hạn lưu dưới đây nhường cho luật này.
+**Tạm giữ bằng chứng.** Khi có báo cáo, cảnh cáo hay khiếu nại đang mở liên quan tới một tin hay một người, mọi dữ liệu dính tới nó — tin, ảnh, hội thoại về tin đó — **không bị xoá hẳn**, kể cả khi các bên tự xoá, cho tới khi việc đóng thêm 30 ngày. Mọi hạn lưu dưới đây nhường cho luật này.
 
-| Dữ liệu                                               | Giữ                                                   | Rồi sao                                                     |
-| ----------------------------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------- |
-| Bản nháp                                              | 7 ngày từ lần sửa cuối                                | Xoá hẳn kèm ảnh                                             |
-| Ảnh chưa xác nhận                                     | 48 giờ                                                | Xoá                                                         |
-| Tin bị từ chối hay gỡ vì sai sót; tin bị gỡ khỏi nhóm | 90 ngày từ lần sửa cuối                               | Xoá hẳn kèm ảnh                                             |
-| Tin bị từ chối hay gỡ vì vi phạm                      | Tới khi gậy hết hạn + 30 ngày; gậy nghiêm trọng 2 năm | Xoá nội dung, giữ quyết định                                |
-| Tin người đăng tự xoá                                 | 30 ngày; có báo cáo mở thì tới khi báo cáo đóng       | Xoá hẳn                                                     |
-| Tin đã bán                                            | 180 ngày                                              | Xoá hẳn kèm ảnh                                             |
-| Tin hết hạn                                           | 1 năm, nhắc trước 7 ngày                              | Xoá hẳn kèm ảnh                                             |
-| Tin của nhóm đã đóng                                  | 90 ngày                                               | Xoá hẳn kèm ảnh, danh sách thành viên                       |
-| Tài khoản đăng ký dở dang                             | 7 ngày                                                | Xoá hẳn                                                     |
-| Tài khoản đã xoá                                      | Ẩn ngay, giữ 90 ngày                                  | Xoá tin, ảnh, hồ sơ                                         |
-| Dấu băm email kèm gậy                                 | 2 năm cùng gậy                                        | Xoá                                                         |
-| Dấu băm email của tài khoản bị khoá vĩnh viễn         | Tới khi gỡ khoá; master xem lại mỗi 2 năm             | Xoá khi gỡ khoá                                             |
-| Dấu thiết bị, địa chỉ mạng lúc đăng ký                | 180 ngày                                              | Xoá; chỉ dùng chống gian lận                                |
-| Hội thoại                                             | Tới khi cả hai bên xoá, hoặc 1 năm không ai nhắn      | Xoá hẳn                                                     |
-| Thông báo                                             | 90 ngày                                               | Xoá                                                         |
-| Kết quả chấm điểm của máy                             | 180 ngày                                              | Gộp thành số liệu thống kê                                  |
-| Gậy                                                   | 2 năm sau khi hết hạn hoặc sau khi khoá               | Ẩn danh hoá, kể cả nhật ký liên quan                        |
-| Quyết định, nhật ký kiểm toán                         | Mãi mãi                                               | Không chứa nội dung tin; chỉ còn mã giả sau khi ẩn danh hoá |
+| Dữ liệu                                               | Giữ                                                            | Rồi sao                                                     |
+| ----------------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------- |
+| Bản nháp                                              | 7 ngày từ lần sửa cuối                                         | Xoá hẳn kèm ảnh                                             |
+| Ảnh chưa xác nhận                                     | 48 giờ                                                         | Xoá                                                         |
+| Tin bị từ chối hay gỡ vì sai sót; tin bị gỡ khỏi nhóm | 90 ngày từ lần sửa cuối                                        | Xoá hẳn kèm ảnh                                             |
+| Tin bị từ chối hay gỡ vì vi phạm                      | Tới khi cảnh cáo hết hạn + 30 ngày; vi phạm nghiêm trọng 2 năm | Xoá nội dung, giữ quyết định                                |
+| Tin người đăng tự xoá                                 | 30 ngày; có báo cáo mở thì tới khi báo cáo đóng                | Xoá hẳn                                                     |
+| Tin đã bán                                            | 180 ngày                                                       | Xoá hẳn kèm ảnh                                             |
+| Tin hết hạn                                           | 1 năm, nhắc trước 7 ngày                                       | Xoá hẳn kèm ảnh                                             |
+| Tin của nhóm đã đóng                                  | 90 ngày                                                        | Xoá hẳn kèm ảnh, danh sách thành viên                       |
+| Tài khoản đăng ký dở dang                             | 7 ngày                                                         | Xoá hẳn                                                     |
+| Tài khoản đã xoá                                      | Ẩn ngay, giữ 90 ngày                                           | Xoá tin, ảnh, hồ sơ                                         |
+| Dấu băm email kèm cảnh cáo                            | 2 năm cùng cảnh cáo                                            | Xoá                                                         |
+| Dấu băm email của tài khoản bị khoá vĩnh viễn         | Tới khi gỡ khoá; master xem lại mỗi 2 năm                      | Xoá khi gỡ khoá                                             |
+| Dấu thiết bị, địa chỉ mạng lúc đăng ký                | 180 ngày                                                       | Xoá; chỉ dùng chống gian lận                                |
+| Hội thoại                                             | Tới khi cả hai bên xoá, hoặc 1 năm không ai nhắn               | Xoá hẳn                                                     |
+| Thông báo                                             | 90 ngày                                                        | Xoá                                                         |
+| Kết quả chấm điểm của máy                             | 180 ngày                                                       | Gộp thành số liệu thống kê                                  |
+| Cảnh cáo                                              | 2 năm sau khi hết hạn hoặc sau khi khoá                        | Ẩn danh hoá, kể cả nhật ký liên quan                        |
+| Quyết định, nhật ký kiểm toán                         | Mãi mãi                                                        | Không chứa nội dung tin; chỉ còn mã giả sau khi ẩn danh hoá |
 
 > Toàn bộ bảng này, cùng dấu băm email (kể cả ngoại lệ khoá vĩnh viễn) và dấu thiết bị, cần luật sư đối chiếu với quy định bảo vệ dữ liệu cá nhân và quy định về nền tảng trực tuyến trước khi chạy thật.
 
@@ -971,8 +971,8 @@ Người xử không bao giờ là người đăng tin bị báo cáo, người 
 | Tạm ẩn, hiện lại tin; dừng, chạy lại ngày hiển thị     | Khi khoá, mở tài khoản, nhóm, danh mục; khi rời, vào lại nhóm; khi báo cáo tạm ẩn hay bị bác |
 | Gộp việc của cùng một tin                              | Khi một tin có thêm lý do cần người xử                                                       |
 | Quét lại tin đang hiện, rút về tin chứa cụm từ cấm mới | Khi master bật thật một cụm mới                                                              |
-| Tính lại mức tin cậy; đặt, gỡ lý do hạn chế "gậy"      | Khi có tin sạch mới, gậy mới, gậy bị huỷ                                                     |
-| Gửi thông báo                                          | Khi có quyết định, gậy, tin nhắn, đơn vào nhóm…                                              |
+| Tính lại mức tin cậy; đặt, gỡ lý do hạn chế "cảnh cáo" | Khi có tin sạch mới, cảnh cáo mới, cảnh cáo bị xoá                                           |
+| Gửi thông báo                                          | Khi có quyết định, cảnh cáo, tin nhắn, đơn vào nhóm…                                         |
 
 **Theo lịch**
 
@@ -984,10 +984,10 @@ Người xử không bao giờ là người đăng tin bị báo cáo, người 
 | Nhắc hàng của master quá 72 giờ; cảnh báo khi một nửa số việc sắp chạm hạn                                    | Mỗi giờ             |
 | Chuyển tin hết ngày hiển thị sang hết hạn (không tính thời gian bị gỡ, bị tạm ẩn không do người đăng)         | Mỗi giờ             |
 | Nhắc tin sắp hết hạn                                                                                          | 9 giờ sáng mỗi ngày |
-| Gậy hết hạn, tin thành tin sạch → tính lại mức                                                                | Mỗi ngày            |
+| Cảnh cáo hết hạn, tin thành tin sạch → tính lại mức                                                           | Mỗi ngày            |
 | Nhóm thiếu chủ quá 30 ngày → tạm khoá                                                                         | Mỗi ngày            |
 | Dọn nháp, ảnh chưa xác nhận, tài khoản đăng ký dở                                                             | 6 giờ               |
-| Dọn dữ liệu quá hạn lưu, ẩn danh hoá gậy và nhật ký liên quan; bỏ qua dữ liệu đang tạm giữ                    | Mỗi ngày            |
+| Dọn dữ liệu quá hạn lưu, ẩn danh hoá cảnh cáo và nhật ký liên quan; bỏ qua dữ liệu đang tạm giữ               | Mỗi ngày            |
 | Báo master khi hậu kiểm làm xong dưới 80%                                                                     | Mỗi tuần            |
 | Đối chiếu cả kho ảnh                                                                                          | Mỗi tháng           |
 
@@ -1003,19 +1003,19 @@ Người xử không bao giờ là người đăng tin bị báo cáo, người 
 
 Mỗi dòng kiểm chứng được — người kiểm thử dùng làm danh sách.
 
-1. Không ai, trừ master, xử việc về tin hay gậy của **chính mình**, kể cả qua tài khoản dùng chung thiết bị.
-2. Việc cần hai người luôn là **hai người khác nhau** (trừ gậy do master ra, master tự xem lại).
+1. Không ai, trừ master, xử việc về tin hay cảnh cáo của **chính mình**, kể cả qua tài khoản dùng chung thiết bị.
+2. Việc cần hai người luôn là **hai người khác nhau** (trừ cảnh cáo do master ra, master tự xem lại).
 3. Master toàn quyền và mọi thao tác của master đều vào nhật ký.
 4. Không tin nào hiện với người khác khi chưa có kết quả máy cho **cả chữ lẫn mọi ảnh**, hoặc đang chờ duyệt.
-5. Máy chỉ có hai lối ra — cho qua hoặc giữ cho người. Máy không từ chối, không ra gậy, không hạ mức.
-6. Điều hành nhóm không ra gậy và không làm thay đổi gì trên tài khoản toàn hệ thống của ai.
+5. Máy chỉ có hai lối ra — cho qua hoặc giữ cho người. Máy không từ chối, không ghi cảnh cáo, không hạ mức.
+6. Điều hành nhóm không ghi cảnh cáo và không làm thay đổi gì trên tài khoản toàn hệ thống của ai.
 7. Mỗi việc của người có hạn xử; quá hạn chỉ chuyển cấp, **không tự mở tin**, trừ việc lấy mẫu.
 8. Mỗi tin có tối đa **một việc đang mở** và một người đang nhận.
-9. Mọi gậy có người ra, có điều luật được trích; trừ gậy nghiêm trọng, mọi gậy có ngày hết hạn đọc được.
-10. Mỗi gậy khiếu nại được một lần; người xét khác người ra gậy, trừ gậy của master.
+9. Mọi cảnh cáo có người ra, có điều luật được trích; trừ vi phạm nghiêm trọng, mọi cảnh cáo có ngày hết hạn đọc được.
+10. Mỗi cảnh cáo khiếu nại được một lần; người xét khác người ghi cảnh cáo, trừ cảnh cáo của master.
 11. Mức tin cậy tính lại hai lần ra cùng một kết quả.
 12. Mỗi email chỉ thuộc **một tài khoản**, so sau khi chuẩn hoá. Hệ thống không gửi SMS.
-13. Đăng ký lại bằng cùng email thì kế thừa gậy còn hiệu lực. Tài khoản có gậy nặng, nghiêm trọng, đang bị khoá, hoặc đang là chủ nhóm không tự xoá được; có báo cáo mở vẫn xoá được và báo cáo vẫn được xử.
+13. Đăng ký lại bằng cùng email thì kế thừa cảnh cáo còn hiệu lực. Tài khoản có cảnh cáo nặng, nghiêm trọng, đang bị khoá, hoặc đang là chủ nhóm không tự xoá được; có báo cáo mở vẫn xoá được và báo cáo vẫn được xử.
 14. Từ tài khoản thứ 4 đăng tin trên cùng một máy trong 90 ngày, không có tin nào tự lên bảng — nhưng không ai bị chặn đăng, và luôn được biết vì sao.
 15. Tài khoản T0 không có tin nào hiển thị đầy đủ ở nơi công khai.
 16. Tin chứa cụm từ cấm mức chắc không tự lên bảng; khi có cụm mới, tin đang hiện chứa nó bị rút về chờ duyệt.
@@ -1030,10 +1030,10 @@ Mỗi dòng kiểm chứng được — người kiểm thử dùng làm danh s�
 25. Báo cáo chỉ đóng bằng quyết định của người. Báo cáo lừa đảo, hàng cấm về tin trong nhóm luôn tới staff hoặc master.
 26. Mỗi tin chỉ bị tạm ẩn tự động một lần giữa hai quyết định của người.
 27. Mọi tin lên bảng — do máy hay do người cho lên — đều có khả năng được một người khác xem lại.
-28. Người bị khoá hoặc đang có gậy không giữ quyền staff.
+28. Người bị khoá hoặc đang có cảnh cáo không giữ quyền staff.
 29. Giá 0 không bị coi là giá bất thường theo phân phối, nhưng có luật riêng ở danh mục giá trị cao.
 30. Mỗi tin tối đa 6 ảnh; mọi ảnh hoặc có chủ, hoặc đang nằm trong diện dọn.
-31. Dữ liệu dính tới báo cáo, gậy, khiếu nại đang mở không bị xoá hẳn. Mọi dữ liệu cá nhân khác có hạn lưu; nhật ký giữ mãi nhưng không chứa nội dung tin.
+31. Dữ liệu dính tới báo cáo, cảnh cáo, khiếu nại đang mở không bị xoá hẳn. Mọi dữ liệu cá nhân khác có hạn lưu; nhật ký giữ mãi nhưng không chứa nội dung tin.
 32. Xác minh giấy tờ không chặn ai dùng app và không ảnh hưởng tới đăng tin, mức tin cậy, hạn mức hay máy duyệt.
 33. Mọi con số trong tài liệu này master chỉnh được mà không cần phát hành lại phần mềm, và mỗi kết quả của máy ghi lại nó đã dùng bộ con số nào.
 
@@ -1052,7 +1052,7 @@ Master chỉnh dần theo kết quả hậu kiểm, không cần phát hành l�
 | Máy duyệt                 | Dải Thấp dưới 30 · Vừa 30–59 · Cao từ 60 · giá bất thường cần 30 tin mẫu · giá tham chiếu cao từ 2 triệu · đăng dồn 10 / 30 lượt mỗi ngày · ảnh quá 5 phút thì giữ · 3 lượt dò cổng cứng trong 24 giờ thì chờ 24 giờ · cụm từ cấm mới chạy thử 7 ngày · chấm chữ tối đa 2 giây · tài khoản mới dưới 3 ngày · giá bất thường ngoài nửa P10 – gấp đôi P90 của 90 ngày · trùng tin của mình trong 30 ngày · bị giữ nhiều 3 lần / 7 ngày · ảnh trùng lệch tối đa 4 / 64 bit · ảnh: cạnh ngắn từ 480 điểm ảnh, độ nét từ 20, độ sáng 25–235 (chốt 24/10/2026) |
 | Hàng chờ                  | Máy giữ 24 giờ · báo cáo 72 giờ · khiếu nại 7 ngày · hạn chế do máy 72 giờ · chuyển từ nhóm 72 giờ · mẫu 7 ngày · nhận việc giữ 10 phút · nhắc master sau 72 giờ                                                                                                                                                                                                                                                                                                                                                                                         |
 | Hậu kiểm                  | 100% tin điểm 45–59 · 20% tin T0, T1 · 5% tin còn lại · 5% quyết định "đạt" của người duyệt · báo master khi làm xong dưới 80%                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| Gậy                       | Thường 1 điểm, 90 ngày · nặng 2 điểm, 180 ngày · từ 3 điểm khoá đăng tin · khiếu nại 14 ngày (nghiêm trọng 30 ngày) · khoá vĩnh viễn: master xem lại mỗi 2 năm                                                                                                                                                                                                                                                                                                                                                                                           |
+| Cảnh cáo                  | Thường 1 điểm, 90 ngày · nặng 2 điểm, 180 ngày · từ 3 điểm khoá đăng tin · khiếu nại 14 ngày (nghiêm trọng 30 ngày) · khoá vĩnh viễn: master xem lại mỗi 2 năm                                                                                                                                                                                                                                                                                                                                                                                           |
 | Báo cáo                   | 10 báo cáo mỗi giờ · tạm ẩn khi 3 người, 3 máy, từ T1, trong 24 giờ · điểm báo cáo dưới −3 không tính tạm ẩn, dưới −6 mất quyền 30 ngày                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | Tin đăng                  | Hiện 30 ngày · nhắc trước 7 ngày · gia hạn trong 7 ngày cuối (hạn mới = hạn cũ + 30 ngày) · tối đa 6 ảnh · chuyển tin đã rời nhóm lên sàn chung trong 30 ngày                                                                                                                                                                                                                                                                                                                                                                                            |
 | Nhóm                      | Đơn tự huỷ 21 ngày · chờ 7 ngày sau từ chối · 3 đơn chờ mỗi người · lời mời 14 ngày · lời chuyển chủ 14 ngày · mã nhóm 6 ký tự · thiếu chủ tối đa 30 ngày · thông báo của nhóm 5 mỗi ngày, tối đa 1000 ký tự                                                                                                                                                                                                                                                                                                                                             |
@@ -1089,7 +1089,7 @@ Master chỉnh dần theo kết quả hậu kiểm, không cần phát hành l�
 2. Tin đăng · mức tin cậy · hạn mức — phần tính toán thuần trước.
 3. Máy duyệt, kể cả kiểm ảnh trùng và kiểm chất lượng ảnh. Không kiểm nội dung ảnh (chốt 24/10/2026, thay cho change kiểm ảnh nhạy cảm tách ra 12/10/2026).
 4. Người duyệt: hàng máy giữ trước, rồi báo cáo, khiếu nại, hậu kiểm.
-5. Gậy.
+5. Cảnh cáo.
 6. Nhắn tin · báo tin nhắn mới. Đẩy thông báo lên điện thoại làm khi app sẵn sàng (chốt 11/10/2026).
 7. Lưu trữ và dọn dữ liệu.
 
@@ -1102,7 +1102,7 @@ Mỗi đợt xong khi mọi cam kết ở phần 27 thuộc đợt đó có các
 **Kiến trúc**
 
 - Một tiến trình, nhiều phần có ranh giới cứng: Định danh · Nền tảng & nhân sự · Nhóm · Danh mục · Tin đăng · Ảnh · Duyệt máy · Duyệt người · Uy tín & an toàn · Nhắn tin · Thông báo · Vận hành.
-- Mỗi phần sở hữu dữ liệu của mình; phần khác chỉ đọc qua giao diện hoặc nhận sự kiện. **Một loại quyết định, một chủ**: chỉ Duyệt máy ra kết quả máy; chỉ Duyệt người ghi quyết định của người; chỉ Uy tín & an toàn ghi gậy; chỉ Tin đăng đổi trạng thái tin.
+- Mỗi phần sở hữu dữ liệu của mình; phần khác chỉ đọc qua giao diện hoặc nhận sự kiện. **Một loại quyết định, một chủ**: chỉ Duyệt máy ra kết quả máy; chỉ Duyệt người ghi quyết định của người; chỉ Uy tín & an toàn ghi cảnh cáo; chỉ Tin đăng đổi trạng thái tin.
 - Tác động chéo đi qua sự kiện ghi vào **outbox trong cùng giao dịch** với thay đổi gốc; bên nghe phải chịu được nhận trùng.
 - Gọi đồng bộ chỉ bốn chỗ, đều là đọc, chấm nhanh hoặc xác nhận trong cùng giao dịch: Tin đăng hỏi Uy tín về hạn chế, hạn mức · Tin đăng gọi Duyệt máy chấm chữ lúc gửi · mọi phần hỏi Định danh "người này là ai" · chủ ảnh (Định danh, Tin đăng) gọi Ảnh xác nhận ảnh trong cùng giao dịch lưu, để lưu hỏng thì ảnh vẫn chưa xác nhận (chốt 11/10/2026).
 
@@ -1110,7 +1110,7 @@ Mỗi đợt xong khi mọi cam kết ở phần 27 thuộc đợt đó có các
 
 - **Ghi có điều kiện**: mọi quyết định của người ghi theo trạng thái lúc mở việc; tin đã đổi thì trả mã 409 và người xử tải lại.
 - **Ràng buộc duy nhất**: một việc mở mỗi tin.
-- **Trạng thái tin, cờ tạm ẩn, lý do hạn chế** là ba trường riêng; lý do hạn chế là một danh sách (máy · tài khoản mới · gậy).
+- **Trạng thái tin, cờ tạm ẩn, lý do hạn chế** là ba trường riêng; lý do hạn chế là một danh sách (máy · tài khoản mới · cảnh cáo).
 - **Bảng con số có phiên bản**; mức tin cậy và kết quả máy đều ghi phiên bản đã dùng. Mức tin cậy là hàm thuần của dữ kiện, lưu kèm dấu băm dữ kiện.
 - **Mã lỗi ổn định** trong một tập đóng; mỗi request có **mã truy vết** xuyên mọi dòng log.
 - **Trường giữ chỗ** có ngay từ đầu: vị trí xếp hạng (`rankAt`), hạn nổi bật (`featuredUntil`), số điện thoại, phí bằng 0.

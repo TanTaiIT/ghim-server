@@ -23,7 +23,7 @@ describe('CONFIG_KEYS', () => {
         'Máy duyệt',
         'Hàng chờ',
         'Hậu kiểm',
-        'Gậy',
+        'Cảnh cáo',
         'Báo cáo',
         'Tin đăng',
         'Nhóm',

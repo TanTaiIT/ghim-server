@@ -43,16 +43,20 @@ async function toOwner(
   return { ...empty(), drafts: [notice] };
 }
 
+/** Chữ người dùng đọc (rename-strike-to-warning): "gậy" trong code và spec là "cảnh cáo" trên app. */
 const KIND_LABEL: Record<StrikeNotice['kind'], string> = {
-  normal: 'gậy thường',
-  severe: 'gậy nặng',
-  serious: 'gậy nghiêm trọng',
+  normal: 'cảnh cáo',
+  severe: 'cảnh cáo nặng',
+  serious: 'vi phạm nghiêm trọng',
 };
 
 /** Điều do master soạn, có thể đã kết thúc bằng dấu chấm — bỏ đi để câu sau không thành "..". */
 const ruleLine = (strike: StrikeNotice) =>
   `Điều ${strike.ruleCode}: ${strike.ruleText.replace(/[\s.]+$/, '')}`;
 const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+/** Người mới biết hệ quả trước khi gặp lỗi lúc đăng tin (rename-strike-to-warning design mục 2). */
+const lockLine = (ctx: MatrixContext) =>
+  `Đủ ${ctx.postingLockPoints()} điểm vi phạm thì tạm dừng đăng tin mới.`;
 
 /** Tiêu đề tin của gậy — tin đã xoá hẳn thì không nêu tin và không mở tin. */
 async function listingOf(
@@ -84,12 +88,12 @@ export const TRUST_MATRIX: Record<string, Handler> = {
     return toOwner(ctx, strike.accountId, {
       type: 'trust.strike.issued',
       body: serious
-        ? 'Tài khoản bị khoá vì một gậy nghiêm trọng.'
+        ? 'Tài khoản bị khoá vì một vi phạm nghiêm trọng.'
         : `Bạn nhận một ${KIND_LABEL[strike.kind]}${title ? ` liên quan tới tin «${title}»` : ''}.`,
       detail: serious
-        ? `${ruleLine(strike)}. Gậy nghiêm trọng đang chờ master quyết, chưa có ngày hết hạn.${appeal}`
+        ? `${ruleLine(strike)}. Vi phạm nghiêm trọng đang chờ master quyết, chưa có ngày hết hạn.${appeal}`
         : `${ruleLine(strike)}. ${capitalize(KIND_LABEL[strike.kind])} ${strike.points} điểm, hết hạn ngày ` +
-          `${date(strike.expiresAt)}.${appeal}`,
+          `${date(strike.expiresAt)}. ${lockLine(ctx)}${appeal}`,
       data: { strikeId, listingId },
       alertable: true,
     });
@@ -103,7 +107,7 @@ export const TRUST_MATRIX: Record<string, Handler> = {
     if (strikes.length === 0) return empty();
     return toOwner(ctx, str(payload, 'accountId'), {
       type: 'trust.strike.inherited',
-      body: `Tài khoản mang theo ${strikes.length} gậy còn hiệu lực.`,
+      body: `Tài khoản mang theo ${strikes.length} cảnh cáo còn hiệu lực.`,
       detail: strikes
         .map((strike) =>
           strike.expiresAt
@@ -127,13 +131,13 @@ export const TRUST_MATRIX: Record<string, Handler> = {
     const { title, listingId } = await listingOf(ctx, strike);
     const kept =
       verdict === 'lost' && strike.expiresAt
-        ? `Gậy vẫn hết hạn ngày ${date(strike.expiresAt)}.`
+        ? `Cảnh cáo vẫn hết hạn ngày ${date(strike.expiresAt)}.`
         : null;
     return toOwner(ctx, strike.accountId, {
       type: 'trust.appeal.decided',
       body:
         verdict === 'won'
-          ? 'Khiếu nại được chấp nhận — gậy đã huỷ.'
+          ? 'Khiếu nại được chấp nhận — cảnh cáo đã xoá.'
           : 'Khiếu nại không được chấp nhận.',
       detail: verdict === 'won' ? restoredLine(title) : kept,
       data: { strikeId, listingId },
@@ -151,7 +155,7 @@ export const TRUST_MATRIX: Record<string, Handler> = {
     const { title, listingId } = await listingOf(ctx, strike);
     return toOwner(ctx, strike.accountId, {
       type: 'trust.strike.cancelled',
-      body: 'Một gậy của bạn đã được huỷ.',
+      body: `Một ${KIND_LABEL[strike.kind]} của bạn đã được xoá.`,
       detail: cause === 'serious_cancel' ? 'Tài khoản đã mở khoá.' : restoredLine(title),
       data: { strikeId, listingId },
       alertable: true,
@@ -194,11 +198,11 @@ export const TRUST_MATRIX: Record<string, Handler> = {
     // "đã hết hạn" và không phát `strike.expired`.
     return toOwner(ctx, strike.accountId, {
       type: 'trust.strike.decided',
-      body: 'Tài khoản đã mở khoá; gậy nghiêm trọng đã hạ thành gậy nặng.',
+      body: 'Tài khoản đã mở khoá; vi phạm nghiêm trọng đã hạ thành cảnh cáo nặng.',
       detail:
         strike.status === 'expired' || !strike.expiresAt
-          ? 'Gậy nặng này đã hết hạn.'
-          : `Gậy nặng ${strike.points} điểm, hết hạn ngày ${date(strike.expiresAt)}.`,
+          ? 'Cảnh cáo nặng này đã hết hạn.'
+          : `Cảnh cáo nặng ${strike.points} điểm, hết hạn ngày ${date(strike.expiresAt)}.`,
       data,
       alertable: true,
     });

@@ -360,7 +360,9 @@ jobs với handler thuần. `../booking` không có trong workspace này; chỉ 
    SQLSTATE ở `POSTGRES_ERRORS`: `23P01`, `23514` → 409). Cần thêm mã thì thêm vào bảng đó. Kho ảnh tạm không trả
    lời (bộ nối ném `StorageUnavailableError` của `src/lib/storage/storage.ts`) → 503 `STORAGE_UNAVAILABLE`.
    Thông báo lỗi cho người dùng viết tiếng Việt, ngắn, nói cách sửa. Lỗi tự sửa được thì nói cụ thể;
-   **dấu hiệu gian lận thì không** — chỉ "đang chờ người duyệt" (TK nguyên tắc 8).
+   **dấu hiệu gian lận thì không** — chỉ "đang chờ người duyệt" (TK nguyên tắc 8). Chữ người dùng và bàn vận hành đọc
+   gọi gậy là **cảnh cáo** (gậy nặng → cảnh cáo nặng, gậy nghiêm trọng → vi phạm nghiêm trọng, điểm gậy → điểm vi phạm);
+   code, spec, mã lỗi, `type` thông báo vẫn là gậy / `strike` (rename-strike-to-warning, 24/10/2026).
 4. Response (`src/common/schemas/response.ts`, `pagination.ts`):
    - Thành công: `{ success: true, data }` qua `toOk(x)`, schema `ok(itemSchema)`.
    - Lỗi: `{ success: false, error: { code, message } }`.

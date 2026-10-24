@@ -159,7 +159,7 @@ const capT1 = (tier: TrustTier): TrustTier => (tier === 'T0' ? 'T0' : 'T1');
 
 const STRIKE_PROMPT = {
   appeal: 'Khiếu nại: chọn chấp nhận hay bác',
-  serious: 'Gậy nghiêm trọng: chọn khoá vĩnh viễn, hạ thành gậy nặng hay huỷ',
+  serious: 'Vi phạm nghiêm trọng: chọn khoá vĩnh viễn, hạ thành cảnh cáo nặng hay xoá',
   permanent: 'Xem lại khoá vĩnh viễn: chọn giữ tiếp hay gỡ khoá',
 } as const;
 
@@ -213,7 +213,7 @@ export function createDecisionService(
   };
 
   /**
-   * Gậy chỉ kèm quyết định vi phạm hay báo cáo đúng; điều trích phải đang dùng (spec decisions "Thiếu điều trích" →
+   * Cảnh cáo chỉ kèm quyết định vi phạm hay báo cáo đúng; điều trích phải đang dùng (spec decisions "Thiếu điều trích" →
    * 400). Câu trích là lý do người đăng thấy trên tin.
    */
   const articleFor = async (
@@ -222,7 +222,7 @@ export function createDecisionService(
   ): Promise<RuleArticleDto | null> => {
     if (!body.strike) return null;
     if (body.outcome !== 'violation' && verdict !== 'upheld') {
-      throw invalid('Gậy chỉ kèm quyết định vi phạm hay báo cáo đúng');
+      throw invalid('Cảnh cáo chỉ kèm quyết định vi phạm hay báo cáo đúng');
     }
     const article = await trust.ruleArticle(body.strike.ruleArticleId);
     if (!article?.active) throw invalid('Chọn một điều đang dùng trong quy định sàn');
@@ -598,7 +598,7 @@ export function createDecisionService(
     if (!strike) throw taskClosed();
     if (body.outcome !== 'keep' || body.report || body.strike) {
       throw outcomeNotAllowed(
-        'Việc về gậy chỉ quyết khiếu nại, gậy nghiêm trọng hay xem lại khoá vĩnh viễn',
+        'Việc về cảnh cáo chỉ quyết khiếu nại, vi phạm nghiêm trọng hay xem lại khoá vĩnh viễn',
       );
     }
     const expected =
@@ -610,11 +610,11 @@ export function createDecisionService(
     const given = (['appeal', 'serious', 'permanent'] as const).filter((key) => body[key]);
     if (given.length !== 1 || given[0] !== expected) throw invalid(STRIKE_PROMPT[expected]);
     if (expected !== 'appeal' && role !== 'master') {
-      throw new ForbiddenError('Chỉ master quyết gậy nghiêm trọng');
+      throw new ForbiddenError('Chỉ master quyết vi phạm nghiêm trọng');
     }
     // Master xem lại gậy thường / nặng do mình ra (spec appeals); gậy nghiêm trọng thì master kia quyết.
     if (strike.issuedBy === actor.accountId && (expected !== 'appeal' || role !== 'master')) {
-      throw new ForbiddenError('Người ra gậy không tự quyết gậy đó');
+      throw new ForbiddenError('Người ghi cảnh cáo không tự quyết cảnh cáo đó');
     }
     if (expected === 'appeal' && strike.appeal?.status !== 'pending') throw taskClosed();
     const tier = await trust.tierOf(strike.accountId);
@@ -674,7 +674,9 @@ export function createDecisionService(
       if (!role) throw new ForbiddenError();
       // Việc về gậy: người ra gậy, người nhận và máy của họ có vai trên phạm vi, chỉ bị luật hai người chặn (spec appeals).
       if (task.strikeId && task.excludedIds.includes(actor.accountId)) {
-        throw new ForbiddenError('Việc về gậy cần một người khác người ra gậy hay người nhận gậy');
+        throw new ForbiddenError(
+          'Việc về cảnh cáo cần một người khác người ghi cảnh cáo hay người nhận cảnh cáo',
+        );
       }
       // Việc đã chuyển chỗ (chuyển master xoá người giữ) nói đúng chuyện trước khi nói "chưa nhận" (L11).
       if (!allowed) throw taskReassigned();
@@ -710,7 +712,7 @@ export function createDecisionService(
       const fault: ListingFault = body.outcome === 'violation' ? 'violation' : 'mistake';
       // Gậy chỉ từ staff danh mục, master (spec strikes) — điều hành nhóm có nút gỡ khỏi nhóm, không có nút vi phạm.
       if ((fault === 'violation' || body.strike) && GROUP_ROLES.has(role)) {
-        throw new ForbiddenError('Điều hành nhóm không ra gậy được');
+        throw new ForbiddenError('Điều hành nhóm không ghi cảnh cáo được');
       }
       const machineHeld = task.reasons.some((reason) => MACHINE_REASONS.has(reason));
       const escalated = task.reasons.includes('group_escalation');

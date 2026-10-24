@@ -154,11 +154,14 @@ export interface StrikeFact {
   appealPending: boolean;
 }
 
-const notFound = (): NotFoundError => new NotFoundError('Không có gậy này');
+const notFound = (): NotFoundError => new NotFoundError('Không có cảnh cáo này');
 const windowClosed = (): ConflictError =>
-  new ConflictError('Đã quá hạn khiếu nại gậy này', 'APPEAL_WINDOW_CLOSED');
+  new ConflictError('Đã quá hạn khiếu nại cảnh cáo này', 'APPEAL_WINDOW_CLOSED');
 const alreadyUsed = (): ConflictError =>
-  new ConflictError('Gậy này đã được khiếu nại — mỗi gậy khiếu nại một lần', 'APPEAL_ALREADY_USED');
+  new ConflictError(
+    'Cảnh cáo này đã được khiếu nại — mỗi cảnh cáo khiếu nại một lần',
+    'APPEAL_ALREADY_USED',
+  );
 
 const toArticle = (row: RuleArticle): RuleArticleDto => ({
   id: row.id,
@@ -189,7 +192,7 @@ const issuedEvent = (strike: Strike, inherited: boolean) =>
 
 const lockedSerious = async (strike: StrikeWithRelations): Promise<void> => {
   if (strike.kind !== 'serious' || strike.status !== 'active') {
-    throw new ConflictError('Gậy này không còn chờ quyết', 'STRIKE_NOT_PENDING');
+    throw new ConflictError('Cảnh cáo này không còn chờ quyết', 'STRIKE_NOT_PENDING');
   }
 };
 
@@ -420,13 +423,13 @@ export function createStrikeService(
         if (!strike || strike.accountId !== actor.accountId) throw notFound();
         if (strike.kind === 'serious') {
           throw new ConflictError(
-            'Gậy nghiêm trọng khiếu nại qua kênh hỗ trợ, không qua app',
+            'Vi phạm nghiêm trọng khiếu nại qua kênh hỗ trợ, không qua app',
             'APPEAL_VIA_SUPPORT',
           );
         }
         if (strike.appeal) throw alreadyUsed();
         if (!inForce(strike, now))
-          throw new ConflictError('Gậy này không còn hiệu lực', 'STRIKE_NOT_ACTIVE');
+          throw new ConflictError('Cảnh cáo này không còn hiệu lực', 'STRIKE_NOT_ACTIVE');
         if (!appealOpen(strike.issuedAt, now, rules().appealDays)) throw windowClosed();
         const appeal = await strikes.createAppeal(tx, {
           strikeId: strike.id,
@@ -579,7 +582,7 @@ export function createStrikeService(
       if (!strike) throw notFound();
       if (strike.status !== 'permanent') {
         throw new ConflictError(
-          'Gậy này không phải khoá vĩnh viễn đang chờ xem lại',
+          'Cảnh cáo này không phải khoá vĩnh viễn đang chờ xem lại',
           'STRIKE_NOT_PENDING',
         );
       }
@@ -647,12 +650,12 @@ export function createStrikeService(
           if (!strike || strike.accountId !== accountId) throw notFound();
           if (strike.kind === 'serious') {
             throw new ConflictError(
-              'Gậy nghiêm trọng quyết qua việc của master, không ân xá',
+              'Vi phạm nghiêm trọng quyết qua việc của master, không ân xá',
               'OUTCOME_NOT_ALLOWED',
             );
           }
           if (!inForce(strike, at)) {
-            throw new ConflictError('Gậy này không còn hiệu lực', 'STRIKE_NOT_ACTIVE');
+            throw new ConflictError('Cảnh cáo này không còn hiệu lực', 'STRIKE_NOT_ACTIVE');
           }
           events.push(...(await cancelIn(tx, strike, 'amnesty', actor.accountId, at)));
           await strikes.auditIn(tx, {
@@ -677,7 +680,9 @@ export function createStrikeService(
         if (grant?.status !== 'active') throw new ForbiddenError();
       }
       if (strike.issuedBy === actor.accountId) {
-        throw new ForbiddenError('Người ra gậy không ghi nhận xét vào hồ sơ gậy của mình');
+        throw new ForbiddenError(
+          'Người ghi cảnh cáo không ghi nhận xét vào hồ sơ cảnh cáo của mình',
+        );
       }
       await lockedSerious(strike);
       const row = await strikes.addComment({

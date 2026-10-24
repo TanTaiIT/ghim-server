@@ -79,7 +79,7 @@ Lỗi mạng thì client tự nối lại như thường.
 }
 ```
 
-Nhóm "mức tin cậy và gậy" (`category: 'trust_strikes'`, change `add-trust-notices`) — tiêu đề luôn "Ghim", `body` chỉ nói
+Nhóm "mức tin cậy và cảnh cáo" — chữ hiển thị của gậy là "cảnh cáo" (`category: 'trust_strikes'`, change `add-trust-notices`) — tiêu đề luôn "Ghim", `body` chỉ nói
 chuyện gì xảy ra, điều luật / hạn / hệ quả nằm trong `detail`:
 
 | `type`                        | Khi nào                                                        | Nhắc  | `data`                    |

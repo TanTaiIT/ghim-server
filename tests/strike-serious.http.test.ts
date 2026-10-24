@@ -314,7 +314,7 @@ describe('Khoá vĩnh viễn và xem lại mỗi 2 năm', () => {
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     });
     expect(notices.map((row) => [row.type, row.body])).toEqual([
-      ['trust.strike.issued', 'Tài khoản bị khoá vì một gậy nghiêm trọng.'],
+      ['trust.strike.issued', 'Tài khoản bị khoá vì một vi phạm nghiêm trọng.'],
       ['trust.strike.decided', 'Tài khoản bị khoá vĩnh viễn.'],
       ['trust.strike.lifted', 'Khoá vĩnh viễn đã được gỡ.'],
     ]);

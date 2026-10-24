@@ -67,7 +67,7 @@ export const listingUnderViolation = (): ConflictError =>
   );
 export const listingDeleteBlocked = (): ConflictError =>
   new ConflictError(
-    'Tin bị gỡ vì vi phạm là hồ sơ của gậy — chưa xoá được',
+    'Tin bị gỡ vì vi phạm là hồ sơ của cảnh cáo — chưa xoá được',
     'LISTING_DELETE_BLOCKED',
   );
 

@@ -96,13 +96,13 @@ describe('N49 — nhận gậy', () => {
       title: 'Ghim',
       alertable: true,
       groupId: null,
-      body: 'Bạn nhận một gậy thường liên quan tới tin «Xe đạp cũ».',
+      body: 'Bạn nhận một cảnh cáo liên quan tới tin «Xe đạp cũ».',
       data: { strikeId: STRIKE, listingId: LISTING },
     });
     expect(draft.body).not.toMatch(/Q3|2027|2026/);
     expect(draft.detail).toBe(
-      'Điều Q3: Không đăng tin sai sự thật về món đồ. Gậy thường 1 điểm, hết hạn ngày 20/01/2027. ' +
-        'Khiếu nại được tới ngày 05/11/2026.',
+      'Điều Q3: Không đăng tin sai sự thật về món đồ. Cảnh cáo 1 điểm, hết hạn ngày 20/01/2027. ' +
+        'Đủ 3 điểm vi phạm thì tạm dừng đăng tin mới. Khiếu nại được tới ngày 05/11/2026.',
     );
   });
 
@@ -116,7 +116,7 @@ describe('N49 — nhận gậy', () => {
       contextWith({ strikes: { [STRIKE]: strike } }),
     );
     expect(draft.detail).toMatch(
-      /^Điều Q3: Không đăng bán hàng hoá, dịch vụ pháp luật cấm mua bán\. Gậy thường/,
+      /^Điều Q3: Không đăng bán hàng hoá, dịch vụ pháp luật cấm mua bán\. Cảnh cáo 1 điểm/,
     );
     expect(draft.detail).not.toContain('..');
   });
@@ -128,8 +128,8 @@ describe('N49 — nhận gậy', () => {
       issued,
       contextWith({ strikes: { [STRIKE]: strike }, titles: { [LISTING]: 'Xe đạp cũ' } }),
     );
-    expect(draft.body).toBe('Bạn nhận một gậy nặng liên quan tới tin «Xe đạp cũ».');
-    expect(draft.detail).toContain('Gậy nặng 2 điểm, hết hạn ngày 20/04/2027.');
+    expect(draft.body).toBe('Bạn nhận một cảnh cáo nặng liên quan tới tin «Xe đạp cũ».');
+    expect(draft.detail).toContain('Cảnh cáo nặng 2 điểm, hết hạn ngày 20/04/2027.');
   });
 
   it('gậy từ báo cáo về người (không có tin): không nêu tin, vẫn có điều luật và hạn', async () => {
@@ -138,7 +138,7 @@ describe('N49 — nhận gậy', () => {
       issued,
       contextWith({ strikes: { [STRIKE]: strikeOf({ listingId: null }) } }),
     );
-    expect(draft.body).toBe('Bạn nhận một gậy thường.');
+    expect(draft.body).toBe('Bạn nhận một cảnh cáo.');
     expect(draft.data).toEqual({ strikeId: STRIKE, listingId: null });
     expect(draft.detail).toContain('Điều Q3');
   });
@@ -155,9 +155,9 @@ describe('N49 — nhận gậy', () => {
       issued,
       contextWith({ strikes: { [STRIKE]: strike } }),
     );
-    expect(draft.body).toBe('Tài khoản bị khoá vì một gậy nghiêm trọng.');
+    expect(draft.body).toBe('Tài khoản bị khoá vì một vi phạm nghiêm trọng.');
     expect(draft.detail).toBe(
-      'Điều Q3: Không đăng tin sai sự thật về món đồ. Gậy nghiêm trọng đang chờ master quyết, chưa có ngày hết hạn. ' +
+      'Điều Q3: Không đăng tin sai sự thật về món đồ. Vi phạm nghiêm trọng đang chờ master quyết, chưa có ngày hết hạn. ' +
         'Khiếu nại được tới ngày 21/11/2026.',
     );
   });
@@ -168,7 +168,7 @@ describe('N49 — nhận gậy', () => {
       issued,
       contextWith({ strikes: { [STRIKE]: strikeOf() } }),
     );
-    expect(draft.body).toBe('Bạn nhận một gậy thường.');
+    expect(draft.body).toBe('Bạn nhận một cảnh cáo.');
     expect(draft.data.listingId).toBeNull();
   });
 
@@ -213,8 +213,8 @@ describe('N50 — gậy kế thừa', () => {
       recipients: [OWNER],
       type: 'trust.strike.inherited',
       alertable: true,
-      body: 'Tài khoản mang theo 2 gậy còn hiệu lực.',
-      detail: 'Một gậy thường, hết hạn ngày 20/01/2027. Một gậy nặng, hết hạn ngày 20/04/2027.',
+      body: 'Tài khoản mang theo 2 cảnh cáo còn hiệu lực.',
+      detail: 'Một cảnh cáo, hết hạn ngày 20/01/2027. Một cảnh cáo nặng, hết hạn ngày 20/04/2027.',
     });
   });
 
@@ -240,7 +240,7 @@ describe('N51 — kết quả khiếu nại', () => {
     expect(draft).toMatchObject({
       type: 'trust.appeal.decided',
       alertable: true,
-      body: 'Khiếu nại được chấp nhận — gậy đã huỷ.',
+      body: 'Khiếu nại được chấp nhận — cảnh cáo đã xoá.',
       detail: 'Tin «Xe đạp cũ» được khôi phục.',
     });
   });
@@ -253,7 +253,7 @@ describe('N51 — kết quả khiếu nại', () => {
     );
     expect(draft).toMatchObject({
       body: 'Khiếu nại không được chấp nhận.',
-      detail: 'Gậy vẫn hết hạn ngày 20/01/2027.',
+      detail: 'Cảnh cáo vẫn hết hạn ngày 20/01/2027.',
     });
   });
 
@@ -280,7 +280,7 @@ describe('N52 — gậy huỷ ngoài khiếu nại', () => {
     expect(draft).toMatchObject({
       type: 'trust.strike.cancelled',
       alertable: true,
-      body: 'Một gậy của bạn đã được huỷ.',
+      body: 'Một cảnh cáo của bạn đã được xoá.',
       detail: 'Tin «Xe đạp cũ» được khôi phục.',
     });
   });
@@ -336,15 +336,15 @@ describe('N53, N54 — master quyết gậy nghiêm trọng, gỡ khoá vĩnh vi
       serious({ kind: 'severe', points: 2, expiresAt: '2027-04-20T03:00:00.000Z' }),
     );
     expect(downgraded).toMatchObject({
-      body: 'Tài khoản đã mở khoá; gậy nghiêm trọng đã hạ thành gậy nặng.',
-      detail: 'Gậy nặng 2 điểm, hết hạn ngày 20/04/2027.',
+      body: 'Tài khoản đã mở khoá; vi phạm nghiêm trọng đã hạ thành cảnh cáo nặng.',
+      detail: 'Cảnh cáo nặng 2 điểm, hết hạn ngày 20/04/2027.',
     });
     const late = await one(
       'trust.strike.decided',
       { strikeId: STRIKE, accountId: OWNER, decision: 'downgrade' },
       serious({ kind: 'severe', points: 2, status: 'expired' }),
     );
-    expect(late.detail).toBe('Gậy nặng này đã hết hạn.');
+    expect(late.detail).toBe('Cảnh cáo nặng này đã hết hạn.');
   });
 
   it('gỡ khoá vĩnh viễn khi xem lại: N54', async () => {
@@ -383,7 +383,7 @@ describe('N55 — gậy hết hạn', () => {
     expect(draft).toMatchObject({
       type: 'trust.strike.expired',
       alertable: false,
-      body: 'Một gậy thường của bạn đã hết hạn. Bạn đã đăng tin lại được.',
+      body: 'Một cảnh cáo của bạn đã hết hạn. Bạn đã đăng tin lại được.',
     });
   });
 
@@ -393,13 +393,13 @@ describe('N55 — gậy hết hạn', () => {
       { strikeId: STRIKE, accountId: OWNER },
       contextWith({ strikes: { [STRIKE]: strikeOf({ status: 'expired' }) }, points: 3 }),
     );
-    expect(stillLocked.body).toBe('Một gậy thường của bạn đã hết hạn.');
+    expect(stillLocked.body).toBe('Một cảnh cáo của bạn đã hết hạn.');
     const neverLocked = await one(
       'trust.strike.expired',
       { strikeId: STRIKE, accountId: OWNER },
       contextWith({ strikes: { [STRIKE]: strikeOf({ status: 'expired' }) }, points: 0 }),
     );
-    expect(neverLocked.body).toBe('Một gậy thường của bạn đã hết hạn.');
+    expect(neverLocked.body).toBe('Một cảnh cáo của bạn đã hết hạn.');
   });
 });
 

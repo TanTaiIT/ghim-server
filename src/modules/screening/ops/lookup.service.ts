@@ -13,7 +13,7 @@ export interface ScreeningLookupService {
 const FLAG_LABELS: Readonly<Record<AccountFlagKind, string>> = {
   many_accounts_on_device: 'Nhiều tài khoản trên một máy',
   device_of_locked_account: 'Dùng máy của tài khoản bị khoá',
-  device_of_struck_account: 'Dùng máy của tài khoản có gậy',
+  device_of_struck_account: 'Dùng máy của tài khoản có cảnh cáo',
 };
 
 const isFlagKind = (kind: string): kind is AccountFlagKind =>

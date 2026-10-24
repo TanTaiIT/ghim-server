@@ -103,7 +103,7 @@ export const RULE_LABELS: Readonly<Record<RuleCode, string>> = {
   gibberish: 'Chữ như gõ bừa',
   zero_price_high_value: 'Giá 0 ở danh mục giá trị cao',
   shared_device_locked: 'Trùng thiết bị với tài khoản bị khoá',
-  shared_device_strike: 'Trùng thiết bị với tài khoản có gậy',
+  shared_device_strike: 'Trùng thiết bị với tài khoản có cảnh cáo',
   ambiguous_phrase: 'Cụm từ cấm mức mơ hồ',
   abnormal_price: 'Giá bất thường',
   off_platform_contact: 'Liên hệ ngoài sàn',
