@@ -7,6 +7,7 @@ import type {
   PrismaClient,
 } from '@prisma/client';
 
+import { type DayCount, SHOP_TIME_ZONE } from '../../common/time/time.js';
 import { appendAudit, type AuditEntry } from '../../common/audit/audit.js';
 import { appendEvents, type OutboxEventInput } from '../../common/outbox/outbox.js';
 import type { CursorKey } from '../../common/schemas/cursor.js';
@@ -163,6 +164,9 @@ export interface ListingRepository {
     after: string | null,
     take: number,
   ): Promise<Pick<Listing, 'id' | 'version' | 'ownerId' | 'title' | 'description' | 'imageIds'>[]>;
+
+  /** Tin lên bảng lần đầu trong `[from, to)` đếm theo ngày Việt Nam (add-ops-daily-stats). */
+  firstLiveByDay(from: Date, to: Date): Promise<DayCount[]>;
 
   // ── HẠN LƯU (add-data-retention) ──
   /** Tin khớp điều kiện một luật hạn lưu, theo trang con trỏ `id` (tin đang tạm giữ bị bỏ qua nên trang không lùi). */
@@ -494,6 +498,14 @@ export function createListingRepository(prisma: PrismaClient): ListingRepository
           imageIds: true,
         },
       }),
+
+    firstLiveByDay: (from, to) =>
+      prisma.$queryRaw<DayCount[]>`
+        SELECT to_char((first_live_at AT TIME ZONE ${SHOP_TIME_ZONE})::date, 'YYYY-MM-DD') AS day, count(*)::int AS count
+          FROM listings
+         WHERE first_live_at >= ${from} AND first_live_at < ${to}
+         GROUP BY 1
+         ORDER BY 1`,
 
     retentionDue: (where, after, limit) =>
       prisma.listing.findMany({

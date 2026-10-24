@@ -73,6 +73,7 @@ export type IdentityOpsService = Pick<
   | 'purgeDue'
   | 'purgeDeletedAccount'
   | 'purgeDeviceData'
+  | 'newAccountsByDay'
   | 'pseudonymOf'
 >;
 
@@ -591,6 +592,7 @@ export function createIdentityOpsService(
     },
 
     purgeDeviceData: (before) => repository.purgeDeviceData(before),
+    newAccountsByDay: (from, to) => repository.newAccountsByDay(from, to),
 
     pseudonymOf: (accountId) => pseudonymOf(accountId, hashKey),
   };

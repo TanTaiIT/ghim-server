@@ -1,3 +1,4 @@
+import type { DayRuns } from '../../ops/calc/daily-stats.calc.js';
 import { sequentially } from '../../../common/utils/sequential.js';
 import type { LiveListingFacts } from '../../listing/listing.ports.js';
 import { buildPhraseMatcher } from '../calc/phrase.calc.js';
@@ -29,6 +30,8 @@ export interface ScreeningUpkeepService {
    * kiểm" cùng mốc xoá. Theo trang tới khi hết.
    */
   foldRuns(startedBefore: Date): Promise<{ folded: number; deleted: number; marks: number }>;
+  /** Cổng cho `ops`: lượt gửi và kết quả máy theo ngày Việt Nam, nửa mở `[from, to)` (add-ops-daily-stats). */
+  runsByDay(from: Date, to: Date): Promise<DayRuns[]>;
 }
 
 export function createUpkeepService(
@@ -139,6 +142,8 @@ export function createUpkeepService(
         return recalled.filter(Boolean).length;
       });
     },
+
+    runsByDay: (from, to) => repository.runsByDay(from, to),
 
     async foldRuns(startedBefore) {
       const drain = async (sum: {

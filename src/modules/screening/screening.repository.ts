@@ -14,6 +14,8 @@ import {
   type ScreeningTrigger,
 } from '@prisma/client';
 
+import type { DayRuns } from '../ops/calc/daily-stats.calc.js';
+import { SHOP_TIME_ZONE } from '../../common/time/time.js';
 import { type AuditEntry, appendAudit } from '../../common/audit/audit.js';
 import { appendEvents, type OutboxEventInput } from '../../common/outbox/outbox.js';
 import type { HELD_MANY_CAUSES } from './calc/decide.calc.js';
@@ -184,6 +186,8 @@ export interface ScreeningRepository {
    * kết quả, nguyên nhân, dải, từng mã luật đã trúng và dòng tổng `*`) rồi xoá; lượt chưa kết luận chỉ xoá. Một transaction.
    */
   foldRunsBefore(startedBefore: Date, limit: number): Promise<{ folded: number; deleted: number }>;
+  /** Lượt bắt đầu và lượt kết luận trong `[from, to)` theo ngày Việt Nam — kết quả đếm theo ngày kết luận (add-ops-daily-stats). */
+  runsByDay(from: Date, to: Date): Promise<DayRuns[]>;
   deleteMarksBefore(markedBefore: Date): Promise<number>;
   /** Tin trong `listingIds` đã từng bị rút về vì cụm này (cụm nằm trong `hits` của lượt `recall`), ở phiên bản nào cũng được. */
   recalledFor(phraseId: string, listingIds: string[]): Promise<Set<string>>;
@@ -521,6 +525,21 @@ export function createScreeningRepository(prisma: PrismaClient): ScreeningReposi
           }),
 
     findRunByLookupCode: (code) => prisma.screeningRun.findUnique({ where: { lookupCode: code } }),
+
+    runsByDay: (from, to) =>
+      prisma.$queryRaw<DayRuns[]>`
+        SELECT day, sum(started)::int AS started, sum(pass_full)::int AS "passFull",
+               sum(pass_limited)::int AS "passLimited", sum(hold)::int AS hold
+          FROM (
+            SELECT to_char((started_at AT TIME ZONE ${SHOP_TIME_ZONE})::date, 'YYYY-MM-DD') AS day, 1 AS started, 0 AS pass_full, 0 AS pass_limited, 0 AS hold
+              FROM screening_runs WHERE started_at >= ${from} AND started_at < ${to}
+            UNION ALL
+            SELECT to_char((decided_at AT TIME ZONE ${SHOP_TIME_ZONE})::date, 'YYYY-MM-DD'), 0, (outcome = 'pass_full')::int, (outcome = 'pass_limited')::int,
+                   (outcome = 'hold')::int
+              FROM screening_runs WHERE decided_at >= ${from} AND decided_at < ${to}
+          ) marks
+         GROUP BY day
+         ORDER BY day`,
 
     foldRunsBefore: (startedBefore, limit) =>
       prisma.$transaction(async (tx) => {

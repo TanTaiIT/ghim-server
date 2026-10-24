@@ -43,10 +43,21 @@ export function formatMomentVN(date: Date): string {
 
 /** Việt Nam là UTC+7 quanh năm, không đổi giờ mùa hè — nên đầu ngày là một phép trừ, không cần thư viện múi giờ. */
 const VN_OFFSET_MS = 7 * 3_600_000;
-const DAY_MS = 86_400_000;
+export const DAY_MS = 86_400_000;
 
 /** 00:00 theo giờ Việt Nam của ngày chứa `at` — trần "mỗi ngày" tính theo ngày của người dùng, không theo UTC. */
 export function startOfDayVN(at: Date): Date {
   const shifted = at.getTime() + VN_OFFSET_MS;
   return new Date(shifted - (shifted % DAY_MS) - VN_OFFSET_MS);
+}
+
+/** Khoá ngày `YYYY-MM-DD` theo giờ Việt Nam — cùng phép tính với `startOfDayVN`, khớp `to_char(… AT TIME ZONE …)` trong SQL. */
+export function dayKeyVN(at: Date): string {
+  return new Date(at.getTime() + VN_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/** Một dòng đếm theo ngày Việt Nam (`day` = khoá của `dayKeyVN`) — các module trả cho `ops` qua cổng (add-ops-daily-stats). */
+export interface DayCount {
+  day: string;
+  count: number;
 }

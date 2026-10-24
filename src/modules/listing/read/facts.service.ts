@@ -47,6 +47,7 @@ export function createListingFactsService(shared: ListingShared): ListingFactsSe
     },
     countSubmissions: (accountId, since) => repository.countSubmissions(accountId, since),
     priceSamples: (categoryId, since) => repository.priceSamples(categoryId, since),
+    firstLiveByDay: (from, to) => repository.firstLiveByDay(from, to),
 
     async liveListings(after, take) {
       const rows = await repository.liveBatch(after, take);
