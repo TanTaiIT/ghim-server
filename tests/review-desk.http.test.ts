@@ -490,6 +490,34 @@ describe('Không ai, trừ master, xử việc của chính mình', () => {
     expect(listingIdsOf(await opsQueue(s))).not.toContain(held.id);
   });
 
+  it('tài khoản phụ chỉ đăng nhập trên máy của staff: việc của B không hiện cho S, nhận bằng mã → 404', async () => {
+    const category = await seedCategory();
+    const s = await staffOf([category]);
+    const b = await newUser(app);
+    // S chưa từng đăng tin: chỉ có dấu đăng nhập trên máy riêng; B đăng tin từ chính máy đó (add-login-device-marks).
+    const device = `may-rieng-${randomUUID()}`;
+    await prisma.deviceLogin.create({
+      data: { deviceHash: device, accountId: s.id, firstSeenAt: TEST_NOW, lastSeenAt: TEST_NOW },
+    });
+    await prisma.devicePost.create({
+      data: {
+        deviceHash: device,
+        accountId: b.id,
+        firstPostedAt: TEST_NOW,
+        lastPostedAt: TEST_NOW,
+      },
+    });
+    const held = await heldBy(b, { categoryId: category });
+    expect(listingIdsOf(await opsQueue(s))).not.toContain(held.id);
+    const claim = await api(
+      app,
+      'POST',
+      `/ops/review/tasks/${await taskIdOf(held.id)}/claim`,
+      s.token,
+    );
+    expect(claim.statusCode).toBe(404);
+  });
+
   it('chuỗi trong nhóm: điều hành viên duy nhất của lớp đăng tin → điều hành cả nhóm', async () => {
     const category = await seedCategory();
     const group = await createActiveGroup(app, { master });

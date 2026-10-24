@@ -269,7 +269,9 @@ export interface IdentityRepository {
   /** Lượt dọn xong: ghi `purged_at`, xoá hồ sơ xác minh giấy tờ (số giấy tờ là dữ liệu cá nhân, không giữ mãi). */
   markAccountPurged(id: string, at: Date): Promise<void>;
   /** Dữ liệu thiết bị quá hạn lưu (TK 8): lượt ghi dấu máy, đánh dấu đã gỡ, địa chỉ mạng của phiên mở trước mốc. */
-  purgeDeviceData(before: Date): Promise<{ posts: number; flags: number; sessionIps: number }>;
+  purgeDeviceData(
+    before: Date,
+  ): Promise<{ posts: number; logins: number; flags: number; sessionIps: number }>;
   /**
    * Khoá dòng tài khoản rồi mới đọc trạng thái, ghi trạng thái đó vào `statusBeforeLock` (fix-audit-identity-low,
    * L1). `false` = không có tài khoản, hoặc nó không còn `active` / `pending_verification` (lượt khoá khác vừa chạy)
@@ -341,6 +343,8 @@ export interface IdentityRepository {
 
   findDevicePosts(deviceHash: string): Promise<DevicePost[]>;
   upsertDevicePost(input: { deviceHash: string; accountId: string; at: Date }): Promise<DevicePost>;
+  /** Dấu đăng nhập (add-login-device-marks): lần đầu giữ nguyên, lần gần nhất = `at`. */
+  upsertDeviceLogin(input: { deviceHash: string; accountId: string; at: Date }): Promise<void>;
   findLockedAccountsOnDevice(deviceHash: string): Promise<LockedOnDevice[]>;
   /** Tài khoản khác đã đăng tin từ một máy mà `accountId` cũng đăng tin từ đó, cả hai lượt kể từ `since`. */
   accountsSharingDevice(accountId: string, since: Date): Promise<string[]>;
@@ -554,15 +558,21 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
         await tx.account.update({ where: { id }, data: { purgedAt: at } });
       }),
     async purgeDeviceData(before) {
-      const [posts, flags, sessions] = await Promise.all([
+      const [posts, logins, flags, sessions] = await Promise.all([
         prisma.devicePost.deleteMany({ where: { lastPostedAt: { lt: before } } }),
+        prisma.deviceLogin.deleteMany({ where: { lastSeenAt: { lt: before } } }),
         prisma.accountFlag.deleteMany({ where: { clearedAt: { lt: before } } }),
         prisma.session.updateMany({
           where: { createdAt: { lt: before }, ip: { not: null } },
           data: { ip: null },
         }),
       ]);
-      return { posts: posts.count, flags: flags.count, sessionIps: sessions.count };
+      return {
+        posts: posts.count,
+        logins: logins.count,
+        flags: flags.count,
+        sessionIps: sessions.count,
+      };
     },
     lockAccount: ({ accountId, reason, lockedBy, at, events, audit }) =>
       prisma.$transaction(async (tx) => {
@@ -766,14 +776,26 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
         create: { deviceHash, accountId, firstPostedAt: at, lastPostedAt: at },
         update: { lastPostedAt: at },
       }),
+    async upsertDeviceLogin({ deviceHash, accountId, at }) {
+      await prisma.deviceLogin.upsert({
+        where: { deviceHash_accountId: { deviceHash, accountId } },
+        create: { deviceHash, accountId, firstSeenAt: at, lastSeenAt: at },
+        update: { lastSeenAt: at },
+      });
+    },
+    // Hai nguồn dấu máy (đăng tin, đăng nhập) hợp lại rồi tự nối theo máy: A đăng tin, B chỉ đăng nhập cùng máy vẫn là
+    // một cặp (add-login-device-marks). Mỗi nguồn lọc cửa sổ riêng trước khi nối.
     async accountsSharingDevice(accountId, since) {
       const rows = await prisma.$queryRaw<{ account_id: string }[]>`
+        WITH marks AS (
+          SELECT device_hash, account_id FROM device_posts WHERE last_posted_at >= ${since}
+          UNION ALL
+          SELECT device_hash, account_id FROM device_logins WHERE last_seen_at >= ${since}
+        )
         SELECT DISTINCT other.account_id::text AS account_id
-          FROM device_posts mine
-          JOIN device_posts other ON other.device_hash = mine.device_hash AND other.account_id <> mine.account_id
-         WHERE mine.account_id = ${accountId}::uuid
-           AND mine.last_posted_at >= ${since}
-           AND other.last_posted_at >= ${since}`;
+          FROM marks mine
+          JOIN marks other ON other.device_hash = mine.device_hash AND other.account_id <> mine.account_id
+         WHERE mine.account_id = ${accountId}::uuid`;
       return rows.map((row) => row.account_id);
     },
 

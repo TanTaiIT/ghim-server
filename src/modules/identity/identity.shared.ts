@@ -23,7 +23,7 @@ import type {
 import type { CodePurpose } from './identity.schema.js';
 import { checkPassword, type PasswordIssue } from './calc/password.calc.js';
 import { isReservedName } from './calc/reserved-names.calc.js';
-import type { RequiredFlag } from './calc/device.calc.js';
+import { hashDeviceId, type RequiredFlag } from './calc/device.calc.js';
 import type {
   IdentityServiceDeps,
   ProfileImages,
@@ -325,7 +325,7 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
    */
   const openSession = async (
     account: Account,
-    input: Pick<LoginInput, 'deviceName' | 'ip' | 'userAgent'> & {
+    input: Pick<LoginInput, 'deviceName' | 'ip' | 'userAgent' | 'deviceId'> & {
       /** Có quyền thì trần phiên thấp hơn; người gọi hỏi sẵn để mỗi lượt đăng nhập chỉ hỏi một lần. */
       privileged: boolean;
     },
@@ -345,6 +345,15 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
         : config.get('identity.sessionCapUser'),
     });
     for (const id of evictedIds) deps.sessionsRevoked?.session(id);
+    // Dấu đăng nhập chỉ nuôi luật xung đột lợi ích và người hỏi mua (add-login-device-marks) — không đi qua
+    // `recordListingSubmission`, nên không đặt đánh dấu nào. Băm như `deviceToken`: cùng máy, cùng dấu ở hai bảng.
+    if (input.deviceId) {
+      await repository.upsertDeviceLogin({
+        deviceHash: hashDeviceId(input.deviceId, hashKey),
+        accountId: account.id,
+        at,
+      });
+    }
     return { sessionId: session.id, refreshToken };
   };
 

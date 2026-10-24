@@ -208,10 +208,3 @@ export type FeedQuery = z.infer<typeof feedQuerySchema>;
 export type ListingDto = z.infer<typeof listingSchema>;
 export type OwnListingDto = z.infer<typeof ownListingSchema>;
 
-/**
- * Mã máy của app (D2): tuỳ chọn ở đây để thiếu header ra đúng 400 ở bước 3 của thứ tự kiểm (design mục 5), sau 404 và
- * `INVALID_TRANSITION` — schema chặn sớm thì thứ tự lỗi đổi theo header.
- */
-export const deviceHeadersSchema = z.object({
-  'x-device-id': z.string().trim().max(200).optional(),
-});

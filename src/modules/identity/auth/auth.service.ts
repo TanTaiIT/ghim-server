@@ -121,7 +121,7 @@ export function createIdentityAuthService(
 
     // ── PHIÊN ───────────────────────────────────────────────────────────────────────────────────
 
-    async login({ email, password, deviceName, ip, userAgent }) {
+    async login({ email, password, deviceName, ip, userAgent, deviceId }) {
       const now = clock();
       const account = await repository.findAccountByEmail(normalizeEmail(email));
       // Tài khoản chỉ có Google không có mật khẩu: với người gõ mật khẩu, nó như không tồn tại.
@@ -133,7 +133,7 @@ export function createIdentityAuthService(
       if (account.status === 'locked') throw accountLocked(account);
 
       const privileged = await isPrivileged(account);
-      return openSession(account, { deviceName, ip, userAgent, privileged }, now);
+      return openSession(account, { deviceName, ip, userAgent, privileged, deviceId }, now);
     },
 
     async refresh(refreshToken) {
@@ -191,7 +191,7 @@ export function createIdentityAuthService(
       deps.sessionsRevoked?.session(actor.sessionId);
     },
 
-    async loginWithGoogle({ idToken, deviceName, ip, userAgent }) {
+    async loginWithGoogle({ idToken, deviceName, ip, userAgent, deviceId }) {
       const now = clock();
       const google = await googleVerifier.verify(idToken);
       if (!google) throw invalidCredentials('Không xác thực được với Google, thử đăng nhập lại');
@@ -262,7 +262,7 @@ export function createIdentityAuthService(
         });
       }
       const privileged = await isPrivileged(account);
-      return openSession(account, { deviceName, ip, userAgent, privileged }, now);
+      return openSession(account, { deviceName, ip, userAgent, privileged, deviceId }, now);
     },
 
     // ── MẬT KHẨU ────────────────────────────────────────────────────────────────────────────────
