@@ -364,8 +364,8 @@ describe('Gậy đi theo email (spec identity/registration, email-change)', () =
       {
         category: 'trust_strikes',
         alert: true,
-        body: 'Tài khoản mang theo 1 gậy còn hiệu lực.',
-        detail: expect.stringMatching(/^Một gậy nặng, hết hạn ngày \d{2}\/\d{2}\/\d{4}\.$/),
+        body: 'Tài khoản mang theo 1 cảnh cáo còn hiệu lực.',
+        detail: expect.stringMatching(/^Một cảnh cáo nặng, hết hạn ngày \d{2}\/\d{2}\/\d{4}\.$/),
       },
     ]);
   });
@@ -433,7 +433,7 @@ describe('Gậy đi theo email (spec identity/registration, email-change)', () =
       expect.objectContaining({ strikeIds: expect.arrayContaining(copies.map((row) => row.id)) }),
     ]);
     expect(await inheritedNotices(fresh?.id ?? '')).toMatchObject([
-      { body: 'Tài khoản mang theo 2 gậy còn hiệu lực.' },
+      { body: 'Tài khoản mang theo 2 cảnh cáo còn hiệu lực.' },
     ]);
   });
 });
@@ -446,7 +446,7 @@ describe('Tự xoá tài khoản (spec identity/account-deletion)', () => {
     const blocked = await deleteMe(severe);
     expect(blocked.statusCode).toBe(409);
     expect(codeOf(blocked)).toBe('ACCOUNT_DELETE_BLOCKED');
-    expect(blocked.body).toContain('gậy nặng');
+    expect(blocked.body).toContain('cảnh cáo nặng');
 
     const normal = await realUser();
     await struck(app, { staff, poster: normal, categoryId, kind: 'normal' });

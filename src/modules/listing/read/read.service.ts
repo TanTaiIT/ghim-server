@@ -4,6 +4,7 @@ import type { Actor } from '../../../common/auth/actor.js';
 import { NotFoundError } from '../../../common/errors/app-error.js';
 import { type CursorKey, toCursorPage } from '../../../common/schemas/cursor.js';
 import { fold } from '../../../common/text/fold.js';
+import { attributeFilterIssue, attributeFilterWhere } from '../calc/attribute-filter.calc.js';
 import { isDetached, placementsHiddenOnLeave } from '../calc/hide.calc.js';
 import type {
   ConversationCard,
@@ -12,7 +13,7 @@ import type {
   ReviewSubject,
 } from '../listing.ports.js';
 import type { FeedQuery, ListingDto, OwnListingDto } from '../listing.schema.js';
-import { type ListingShared, listingNotFound } from '../listing.shared.js';
+import { type ListingShared, listingNotFound, validationError } from '../listing.shared.js';
 import { canView, type ListSurface, visibleWhere } from '../calc/visibility.calc.js';
 
 export interface CursorPage<T> {
@@ -90,7 +91,7 @@ const keywordWhere = (q: string | undefined): Prisma.ListingWhereInput =>
   q ? { searchFolded: { contains: fold(q) } } : {};
 
 export function createListingReadService(shared: ListingShared): ListingReadService {
-  const { repository, groups, clock, viewerFor, toDtos, toOwnDtos, toOwnDto } = shared;
+  const { repository, groups, categories, clock, viewerFor, toDtos, toOwnDtos, toOwnDto } = shared;
 
   const backlogIds = async (where: Prisma.ListingWhereInput): Promise<string[]> => {
     const rows = await repository.list({
@@ -116,6 +117,19 @@ export function createListingReadService(shared: ListingShared): ListingReadServ
     return { items: await map(items), nextCursor };
   };
 
+  /**
+   * Bộ lọc theo mẫu thông tin (add-listing-filters): kiểm theo mẫu HIỆN HÀNH của danh mục rồi mới thành điều kiện —
+   * mục đã bỏ ở bản mẫu mới là 400 nêu mục, app đọc lại mẫu và bỏ bộ lọc đó (design, Risks).
+   */
+  const templateWhere = async (query: FeedQuery): Promise<Prisma.ListingWhereInput[]> => {
+    if (!query.attrs || Object.keys(query.attrs).length === 0) return [];
+    if (!query.categoryId) throw validationError('Chọn danh mục để lọc theo mẫu thông tin');
+    const { fields } = await categories.currentTemplate(query.categoryId);
+    const issue = attributeFilterIssue(fields, query.attrs);
+    if (issue) throw validationError(issue.message, { field: issue.field });
+    return attributeFilterWhere(fields, query.attrs);
+  };
+
   return {
     async get(actor, id) {
       const listing = await repository.findById(id);
@@ -126,7 +140,7 @@ export function createListingReadService(shared: ListingShared): ListingReadServ
       return shared.toDto(listing);
     },
 
-    feed(actor, query) {
+    async feed(actor, query) {
       const surface: ListSurface = query.q ? 'search' : query.categoryId ? 'category' : 'feed';
       const viewer = { accountId: actor?.accountId ?? null, memberGroupIds: new Set<string>() };
       const filters: Prisma.ListingWhereInput = {
@@ -143,7 +157,8 @@ export function createListingReadService(shared: ListingShared): ListingReadServ
           : {}),
         ...keywordWhere(query.q),
       };
-      return page({ AND: [visibleWhere(viewer, surface), filters] }, query, toDtos);
+      const byTemplate = await templateWhere(query);
+      return page({ AND: [visibleWhere(viewer, surface), filters, ...byTemplate] }, query, toDtos);
     },
 
     async suggestions(actor, id) {

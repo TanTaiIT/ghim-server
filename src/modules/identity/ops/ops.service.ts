@@ -230,7 +230,7 @@ export function createIdentityOpsService(
       // Khoá vì gậy nghiêm trọng chỉ mở bằng quyết định về gậy đó (chốt 17/10/2026).
       if (await deps.strikes?.seriousLockOf(accountId)) {
         throw new ConflictError(
-          'Tài khoản đang khoá vì gậy nghiêm trọng — quyết gậy đó mới mở khoá được',
+          'Tài khoản đang khoá vì vi phạm nghiêm trọng — quyết vi phạm đó mới mở khoá được',
           'LOCKED_BY_STRIKE',
         );
       }

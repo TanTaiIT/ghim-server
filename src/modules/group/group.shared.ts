@@ -72,7 +72,7 @@ export const isModerator = (ctx: GroupContext): boolean =>
 
 /** Chủ nhóm, điều hành viên đang có gậy nặng: nói đúng chuyện thay vì 403 chung (spec group-roles). */
 const roleSuspended = (): ForbiddenError =>
-  new ForbiddenError('Bạn đang tạm mất vai trong nhóm vì có gậy nặng', 'GROUP_ROLE_SUSPENDED');
+  new ForbiddenError('Bạn đang tạm mất vai trong nhóm vì có cảnh cáo nặng', 'GROUP_ROLE_SUSPENDED');
 export const isWholeModerator = (ctx: GroupContext): boolean =>
   isModerator(ctx) && ctx.member?.moderatorUnitId === null;
 

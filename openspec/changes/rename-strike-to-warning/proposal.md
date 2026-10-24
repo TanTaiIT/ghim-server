@@ -37,9 +37,8 @@ ngữ kỹ thuật kèm ghi chú chữ hiển thị.
 ### Modified Capabilities
 
 - `identity/account-deletion`: lý do của 409 `ACCOUNT_DELETE_BLOCKED` khi đang có cảnh cáo nặng đổi chữ.
-
-Câu thông báo N49–N58 nằm trong delta `notification/trust-notices` của change `add-trust-notices` (chưa archive) — sửa
-thẳng ở đó trong cùng lượt.
+- `notification/trust-notices` (archive từ `add-trust-notices` ngày 24/10/2026): tên nhóm thông báo "mức tin cậy và
+  cảnh cáo"; thông báo nhận gậy thường / nặng nói thêm ngưỡng tạm dừng đăng tin.
 
 ## Impact
 

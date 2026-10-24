@@ -217,7 +217,7 @@ export const decisionBodySchema = z
   .strict()
   .refine(hasNoteWhenEscalating, noteRequired)
   .refine((body) => body.outcome !== 'violation' || body.strike !== undefined, {
-    message: 'Quyết định vi phạm thì chọn loại gậy và trích một điều trong quy định sàn',
+    message: 'Quyết định vi phạm thì chọn loại cảnh cáo và trích một điều trong quy định sàn',
     path: ['strike'],
   });
 

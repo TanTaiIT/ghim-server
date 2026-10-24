@@ -320,7 +320,7 @@ change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-cate
 `harden-production-runtime` → `add-groups` → `add-notification-core` (kéo từ đợt 6, chốt 11/10/2026) — mười change
 này đã archive 10–11/10/2026 · đợt 2
 `add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` (cả hai đã archive 12/10/2026) · đợt 3 `add-screening` (đã archive 13/10/2026) → `add-image-moderation` (tách ra 12/10/2026, bỏ 24/10/2026: không kiểm nội dung ảnh) · đợt 4 `add-review-queues` (đã archive 15/10/2026) → **sửa lỗi rà soát 15/10/2026 trước mọi tính năng** (`docs/RA-SOAT-15-10-2026.md`; đợt 1 bảo mật = `fix-audit-security`) →
-`add-reports` (đã archive 16/10/2026) · đợt 5 `add-strikes` (đã archive 17/10/2026) · đợt 6 `add-messaging` → `add-notifications` (cả hai đã archive 17/10/2026) → `add-price-offers` → `add-team-conversations` → `add-activity-status` (làm 18/10/2026 theo yêu cầu của app `ghim-app`, cả ba đã archive 22/10/2026) → `add-join-request-status` (cũng từ lượt nối `ghim-app`, đã archive 18/10/2026) → `add-trust-notices` (thông báo gậy, khiếu nại, mức tin cậy, thời gian chờ + N36 — rơi giữa `add-strikes`, `add-notifications`, `add-review-queues`; đã archive 24/10/2026) → `add-me-staff-flag` (`/me` có cờ `staff` thay `twoFactorEnabled` cho lối vào bàn vận hành của `ghim-app`) → `add-image-quality-checks` (kiểm chất lượng ảnh thay kiểm nội dung) — cả ba gộp vào `main` qua PR #14, archive 24/10/2026 · đợt 7
+`add-reports` (đã archive 16/10/2026) · đợt 5 `add-strikes` (đã archive 17/10/2026) · đợt 6 `add-messaging` → `add-notifications` (cả hai đã archive 17/10/2026) → `add-price-offers` → `add-team-conversations` → `add-activity-status` (làm 18/10/2026 theo yêu cầu của app `ghim-app`, cả ba đã archive 22/10/2026) → `add-join-request-status` (cũng từ lượt nối `ghim-app`, đã archive 18/10/2026) → `add-trust-notices` (thông báo gậy, khiếu nại, mức tin cậy, thời gian chờ + N36 — rơi giữa `add-strikes`, `add-notifications`, `add-review-queues`; đã archive 24/10/2026) → `add-me-staff-flag` (`/me` có cờ `staff` thay `twoFactorEnabled` cho lối vào bàn vận hành của `ghim-app`) → `add-image-quality-checks` (kiểm chất lượng ảnh thay kiểm nội dung) — cả ba gộp vào `main` qua PR #14, archive 24/10/2026 → `add-listing-filters` (lọc tin theo mẫu thông tin của danh mục qua `attrs` của `GET /listings`, TK 11 — việc app chờ ở `docs/VIEC-DANG-DO.md` mục 8; duyệt 24/10/2026) · đợt 7
 `add-data-retention` (đã archive 17/10/2026) · giữ chỗ gói đẩy tin `prepare-promotions` (đã archive 17/10/2026;
 kế hoạch `docs/KE-HOACH-GOI-DAY-TIN.md`) → `add-wallet` → `add-promotions` → `add-topup` (nằm chờ chủ dự án chốt).
 
@@ -360,7 +360,9 @@ jobs với handler thuần. `../booking` không có trong workspace này; chỉ 
    SQLSTATE ở `POSTGRES_ERRORS`: `23P01`, `23514` → 409). Cần thêm mã thì thêm vào bảng đó. Kho ảnh tạm không trả
    lời (bộ nối ném `StorageUnavailableError` của `src/lib/storage/storage.ts`) → 503 `STORAGE_UNAVAILABLE`.
    Thông báo lỗi cho người dùng viết tiếng Việt, ngắn, nói cách sửa. Lỗi tự sửa được thì nói cụ thể;
-   **dấu hiệu gian lận thì không** — chỉ "đang chờ người duyệt" (TK nguyên tắc 8).
+   **dấu hiệu gian lận thì không** — chỉ "đang chờ người duyệt" (TK nguyên tắc 8). Chữ người dùng và bàn vận hành đọc
+   gọi gậy là **cảnh cáo** (gậy nặng → cảnh cáo nặng, gậy nghiêm trọng → vi phạm nghiêm trọng, điểm gậy → điểm vi phạm);
+   code, spec, mã lỗi, `type` thông báo vẫn là gậy / `strike` (rename-strike-to-warning, 24/10/2026).
 4. Response (`src/common/schemas/response.ts`, `pagination.ts`):
    - Thành công: `{ success: true, data }` qua `toOk(x)`, schema `ok(itemSchema)`.
    - Lỗi: `{ success: false, error: { code, message } }`.
@@ -559,7 +561,7 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   `messaging/blocking`, `messaging/conversation-deletion`, `notification/inbox`, `notification/realtime`;
   `add-activity-status` tạo `messaging/activity-status`, thêm "Công tắc hiện trạng thái hoạt động" vào
   `identity/profile`.
-  `remove-two-factor` (23/10/2026, người dùng chốt bỏ lớp thứ hai) bỏ "Đăng nhập hai lớp cho master và staff", thêm "Bàn
+  `remove-two-factor` (23/10/2026, người dùng chốt bỏ lớp thứ hai; archive 24/10/2026) bỏ "Đăng nhập hai lớp cho master và staff", thêm "Bàn
   vận hành chỉ đòi phiên đăng nhập hợp lệ" vào `identity/sessions`; thay "Xin đổi email phải nhập lại mật khẩu" bằng "Xin
   đổi email chỉ đòi mật khẩu hiện tại" (`identity/email-change`), "Đúng một master" bằng "Hệ thống chỉ có một master"
   (`platform/master-accounts`); bỏ chữ lớp thứ hai khỏi `platform/staff-permissions`, `review/queues`.

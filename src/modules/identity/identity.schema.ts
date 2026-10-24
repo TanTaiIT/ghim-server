@@ -27,7 +27,7 @@ export const DISPOSABLE_DOMAIN_SOURCES = ['seed', 'manual'] as const;
 export const FLAG_CLEARED_REASONS = {
   unlocked: 'Tài khoản liên quan đã được mở khoá',
   recomputed: 'Không còn thoả điều kiện ở lượt gửi tin mới',
-  strikeEnded: 'Gậy của tài khoản liên quan đã hết hiệu lực',
+  strikeEnded: 'Cảnh cáo của tài khoản liên quan đã hết hiệu lực',
 } as const;
 
 /**

@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { cursorQuerySchema } from '../../common/schemas/cursor.js';
 import { priceSchema } from '../../common/schemas/money.js';
+import type { AttributeFilters, NumberRange } from './calc/attribute-filter.calc.js';
 
 /** Tuple của các enum Prisma — đổi enum thì đổi luôn ở đây (CLAUDE.md luật 5). */
 export const LISTING_STATES = [
@@ -82,6 +83,42 @@ export const badgeParamsSchema = z.object({ groupId: z.uuid(), listingId: z.uuid
 const keyword = z.string().trim().min(1).max(QUERY_MAX).optional();
 
 /** Không `q` = bảng tin / danh mục (chỉ mức đầy đủ); có `q` = tìm kiếm (gồm tin hạn chế) — TK 15. */
+/** Một mục chọn lọc theo tối đa ngần này giá trị — đủ cho "vài hãng", chặn chuỗi OR dài vô cớ. */
+export const ATTRIBUTE_FILTER_VALUES_MAX = 20;
+
+const choiceFilterSchema = z
+  .array(z.string().trim().min(1))
+  .min(1)
+  .max(ATTRIBUTE_FILTER_VALUES_MAX);
+const rangeFilterSchema: z.ZodType<NumberRange> = z
+  .object({ min: z.number().optional(), max: z.number().optional() })
+  .refine((range) => range.min !== undefined || range.max !== undefined, {
+    message: 'Khoảng số cần ít nhất một đầu',
+  })
+  .refine((range) => range.min === undefined || range.max === undefined || range.min <= range.max, {
+    message: 'Đầu dưới của khoảng số không được lớn hơn đầu trên',
+  });
+/** Tên mục → mảng giá trị (mục chọn) hay khoảng số; đúng mẫu hay không là việc của service. */
+export const attributeFiltersSchema: z.ZodType<AttributeFilters> = z.record(
+  z.string().min(1),
+  z.union([choiceFilterSchema, rangeFilterSchema]),
+);
+/**
+ * `attrs` là JSON trong MỘT tham số (design add-listing-filters mục 1): tên tham số đổi theo danh mục nên không khai
+ * được từng mục trong Swagger. JSON hỏng hay sai hình dạng → 400 `VALIDATION_ERROR` ngay ở tầng HTTP.
+ */
+const attrsQuerySchema = z
+  .string()
+  .transform((value, ctx) => {
+    try {
+      return JSON.parse(value) as unknown;
+    } catch {
+      ctx.addIssue({ code: 'custom', message: 'Bộ lọc theo mẫu phải là JSON' });
+      return z.NEVER;
+    }
+  })
+  .pipe(attributeFiltersSchema);
+
 export const feedQuerySchema = cursorQuerySchema.extend({
   q: keyword,
   categoryId: z.uuid().optional(),
@@ -89,6 +126,7 @@ export const feedQuerySchema = cursorQuerySchema.extend({
   wardCode: z.coerce.number().int().positive().optional(),
   priceMin: z.coerce.number().int().nonnegative().optional(),
   priceMax: z.coerce.number().int().nonnegative().optional(),
+  attrs: attrsQuerySchema.optional(),
 });
 export const groupFeedQuerySchema = cursorQuerySchema.extend({ q: keyword });
 export const myListingsQuerySchema = cursorQuerySchema.extend({

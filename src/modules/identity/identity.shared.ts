@@ -427,7 +427,7 @@ export function createIdentityShared(deps: IdentityServiceDeps) {
     // Gậy nặng, nghiêm trọng còn hiệu lực chặn tự xoá; gậy thường thì không — nó đi theo email (spec account-deletion).
     if (await deps.strikes?.blocksDeletion(account.id)) {
       throw new ConflictError(
-        'Bạn đang có gậy nặng — hết gậy rồi mới xoá được tài khoản',
+        'Bạn đang có cảnh cáo nặng — hết cảnh cáo rồi mới xoá được tài khoản',
         'ACCOUNT_DELETE_BLOCKED',
       );
     }

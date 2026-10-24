@@ -1,5 +1,10 @@
 # Gậy — hướng dẫn cho app và bàn vận hành
 
+> **Chữ người dùng và bàn vận hành đọc** (rename-strike-to-warning, 24/10/2026): gậy → **cảnh cáo**, gậy nặng →
+> **cảnh cáo nặng**, gậy nghiêm trọng → **vi phạm nghiêm trọng**, điểm gậy → **điểm vi phạm**, ra gậy → **ghi cảnh cáo**,
+> huỷ gậy → **xoá cảnh cáo**. Tài liệu này, spec và code giữ thuật ngữ kỹ thuật "gậy" / `strike`; mã lỗi, `type` thông
+> báo, sự kiện không đổi. Câu lỗi và câu thông báo server trả đã theo chữ mới — app hiện nguyên văn.
+
 Gậy là hình phạt do **người** (staff danh mục, master) ra khi quyết một việc ở mức **vi phạm**; máy không bao giờ ra
 gậy. Chỉ `trust` ghi gậy; mọi hệ quả (hạn chế tin, trần mức, khoá, treo quyền, mất vai) do module khác nghe sự kiện của
 `trust` mà áp. Hợp đồng đầy đủ: `openspec/specs/trust/{strikes,appeals,amnesty,serious-strikes}`; thiết kế ở
@@ -105,7 +110,7 @@ người bán — có ở mọi việc). Quyết:
 
 ## Người dùng được báo gì
 
-Change `add-trust-notices` (nhóm "mức tin cậy và gậy", ký "Ghim", không nêu ai ra gậy — bảng loại thông báo ở
+Change `add-trust-notices` (nhóm "mức tin cậy và cảnh cáo" — trước gọi "mức tin cậy và gậy", ký "Ghim", không nêu ai ra gậy — bảng loại thông báo ở
 `docs/realtime.md`): nhận gậy (loại, điều trích, tin, ngày hết hạn, hạn khiếu nại — chỉ trong `detail`); khiếu nại có kết
 quả, kể cả tự thắng khi quá 7 ngày (gậy nặng chuyển master thì chờ master quyết); ân xá, master quyết gậy nghiêm trọng,
 gỡ khoá vĩnh viễn; gậy hết hạn và mức lên (không nhắc); mức xuống; vào thời gian chờ gửi tin; đăng ký lại mang theo gậy

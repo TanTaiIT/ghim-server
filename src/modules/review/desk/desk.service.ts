@@ -170,7 +170,9 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
       (wouldHandle || viewer.isMaster) &&
       task.excludedIds.includes(viewer.accountId)
     ) {
-      return new ForbiddenError('Việc về gậy cần một người khác người ra gậy hay người nhận gậy');
+      return new ForbiddenError(
+        'Việc về cảnh cáo cần một người khác người ghi cảnh cáo hay người nhận cảnh cáo',
+      );
     }
     return taskNotFound();
   };

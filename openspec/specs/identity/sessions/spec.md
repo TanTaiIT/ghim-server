@@ -138,40 +138,6 @@ khác, giữ lại phiên đang thao tác.
 - **WHEN** người dùng nhập sai mật khẩu hiện tại
 - **THEN** response có HTTP 401 `INVALID_CREDENTIALS` và mật khẩu không đổi
 
-### Requirement: Đăng nhập hai lớp cho master và staff
-
-Tài khoản master và tài khoản mang quyền staff SHALL đăng nhập hai lớp bằng ứng dụng tạo mã. Chưa thiết lập
-lớp thứ hai thì không làm được thao tác nào của bàn vận hành. Lớp thứ hai đã bật thì MUST NOT thiết lập lại được
-qua app: mất hay muốn đổi ứng dụng tạo mã thì đội kỹ thuật đặt lại bằng công cụ chạy tay (chốt 15/10/2026).
-
-#### Scenario: Staff đăng nhập đủ hai lớp
-
-- **WHEN** tài khoản mang quyền staff nhập đúng mật khẩu và đúng mã từ ứng dụng tạo mã
-- **THEN** người đó vào được bàn vận hành
-
-#### Scenario: Sai mã lớp thứ hai
-
-- **WHEN** tài khoản mang quyền staff nhập đúng mật khẩu nhưng sai mã lớp thứ hai
-- **THEN** response có HTTP 401 `INVALID_CREDENTIALS` và không có phiên nào được tạo
-
-#### Scenario: Chưa thiết lập lớp thứ hai
-
-- **WHEN** tài khoản vừa được gắn quyền staff, chưa thiết lập ứng dụng tạo mã, gọi một thao tác của bàn
-  vận hành
-- **THEN** response có HTTP 403 `TWO_FACTOR_REQUIRED`
-
-#### Scenario: Thiết lập lại khi đã bật
-
-- **WHEN** staff đã bật lớp thứ hai gọi thiết lập lớp thứ hai lần nữa
-- **THEN** response có HTTP 409 `TWO_FACTOR_ENABLED`, ứng dụng tạo mã cũ vẫn là lớp thứ hai, và đăng nhập vẫn đòi
-  mã của nó
-
-#### Scenario: Đội kỹ thuật đặt lại rồi thiết lập lại
-
-- **WHEN** đội kỹ thuật đặt lại lớp thứ hai của một staff, rồi staff đăng nhập bằng mật khẩu và thiết lập ứng
-  dụng tạo mã mới
-- **THEN** thiết lập thành công và từ đó đăng nhập đòi mã của ứng dụng mới
-
 ### Requirement: Làm mới phiên
 
 Thiết bị SHALL làm mới được phiên bằng token làm mới đang dùng: mỗi lần làm mới MUST cấp token truy cập mới và
@@ -216,3 +182,40 @@ Nhiều lượt đăng nhập cùng lúc của một tài khoản SHALL không l
 
 - **WHEN** một tài khoản người dùng đang có 19 phiên và đăng nhập cùng lúc trên ba thiết bị nữa
 - **THEN** cả ba lượt đăng nhập thành công và tài khoản vẫn không có quá 20 phiên cùng hoạt động
+
+### Requirement: Bàn vận hành chỉ đòi phiên đăng nhập hợp lệ
+
+Master và tài khoản mang quyền staff đúng phạm vi SHALL làm được thao tác của bàn vận hành ngay khi có phiên đăng nhập
+hợp lệ, dù phiên mở bằng mật khẩu hay bằng Google. Hệ thống MUST NOT đòi lớp xác thực thứ hai, MUST NOT có thao tác
+thiết lập lớp thứ hai, và đăng nhập MUST NOT đọc mã từ ứng dụng tạo mã (chốt 23/10/2026).
+
+#### Scenario: Staff vừa được gắn quyền làm việc ngay
+
+- **WHEN** tài khoản vừa được gắn quyền staff danh mục Điện thoại đăng nhập bằng đúng mật khẩu rồi mở hàng chờ của
+  danh mục đó
+- **THEN** response có HTTP 200 với hàng chờ của danh mục Điện thoại
+
+#### Scenario: Master đăng nhập bằng mật khẩu rồi dùng bàn vận hành
+
+- **WHEN** master đăng nhập bằng đúng email và mật khẩu, không gửi mã nào, rồi gọi một thao tác của bàn vận hành
+- **THEN** thao tác được thực hiện
+
+#### Scenario: Tài khoản có quyền đăng nhập bằng Google
+
+- **WHEN** tài khoản mang quyền staff đã liên kết Google đăng nhập bằng Google
+- **THEN** phiên được mở và người đó làm được thao tác của bàn vận hành trong phạm vi quyền của mình
+
+#### Scenario: Client cũ vẫn gửi mã lúc đăng nhập
+
+- **WHEN** master đăng nhập bằng đúng mật khẩu và gửi kèm một mã 6 số bất kỳ
+- **THEN** phiên được mở; mã bị bỏ qua
+
+#### Scenario: Gọi thao tác thiết lập lớp thứ hai cũ
+
+- **WHEN** staff gọi thao tác bắt đầu hay xác nhận thiết lập lớp thứ hai
+- **THEN** response có HTTP 404 `NOT_FOUND`
+
+#### Scenario: Staff ngoài phạm vi vẫn bị chặn
+
+- **WHEN** staff chỉ mang danh mục Điện thoại mở hàng chờ của danh mục Xe cộ
+- **THEN** response có HTTP 403 `FORBIDDEN`

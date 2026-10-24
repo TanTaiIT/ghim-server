@@ -24,8 +24,12 @@ export class AppError extends Error {
  * ý mật khẩu, `EMAIL_DISPOSABLE` bảo dùng email thường, `CODE_EXPIRED` mở nút gửi lại mã.
  */
 export class BadRequestError extends AppError {
-  constructor(message = 'Yêu cầu không hợp lệ', code = 'BAD_REQUEST') {
-    super(400, code, message);
+  constructor(
+    message = 'Yêu cầu không hợp lệ',
+    code = 'BAD_REQUEST',
+    details?: Record<string, unknown>,
+  ) {
+    super(400, code, message, details);
   }
 }
 

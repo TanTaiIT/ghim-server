@@ -51,6 +51,13 @@ export const readRoutes: FastifyPluginAsyncZod<ListingRoutesOptions> = async (ap
       security: optionalBearer,
       summary:
         'Không `q` = bảng tin / danh mục (tin hiện đầy đủ); có `q` = tìm kiếm (gồm tin hạn chế)',
+      description: [
+        'Lọc theo mẫu thông tin của danh mục (TK 11) qua `attrs` — JSON, chỉ khi có `categoryId`: mục chọn một /',
+        'chọn nhiều nhận mảng giá trị (tin khớp khi có một trong số đó), mục số nhận `{ "min", "max" }` (một hay',
+        'cả hai đầu). Ví dụ `attrs={"hang":["Apple","Samsung"],"nam_san_xuat":{"min":2018,"max":2020}}`.',
+        'Mục chữ, mục không có trong mẫu hiện hành, giá trị ngoài lựa chọn → 400 `VALIDATION_ERROR` kèm',
+        '`details.field`. Tin không có mục đang lọc không hiện; thứ tự và luật ai thấy tin giữ nguyên.',
+      ].join(' '),
       querystring: feedQuerySchema,
       response: { 200: ok(cursorPaginated(listingSchema)), 400: errorResponse },
     },

@@ -125,8 +125,7 @@ master. Master SHALL thấy và xử được mọi việc.
 ### Requirement: Quyền master với việc chỉ dùng ở bàn vận hành
 
 Ở các thao tác hàng chờ của nhóm, master MUST NOT mang quyền master. Ở đó chỉ vai trong nhóm được tính, mà master không
-vào nhóm nào (TK 5). Master SHALL thấy và xử mọi việc, kể cả việc của nhóm, ở bàn vận hành, nơi đòi lớp thứ hai (chốt
-15/10/2026).
+vào nhóm nào (TK 5). Master SHALL thấy và xử mọi việc, kể cả việc của nhóm, ở bàn vận hành (chốt 15/10/2026).
 
 #### Scenario: Master mở việc của nhóm qua thao tác của nhóm
 
@@ -140,7 +139,7 @@ vào nhóm nào (TK 5). Master SHALL thấy và xử mọi việc, kể cả vi�
 
 #### Scenario: Master xử việc của nhóm ở bàn vận hành
 
-- **WHEN** master đã qua lớp thứ hai nhận và quyết một việc về tin trong nhóm ở bàn vận hành
+- **WHEN** master nhận và quyết một việc về tin trong nhóm ở bàn vận hành
 - **THEN** quyết định được ghi dưới vai master
 
 ### Requirement: Xem hàng chờ

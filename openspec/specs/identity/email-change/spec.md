@@ -37,27 +37,6 @@ nhất.
 - **WHEN** người dùng đã đổi email 10 ngày trước và xin đổi tiếp
 - **THEN** response có HTTP 429 `EMAIL_CHANGE_TOO_SOON` kèm ngày được đổi lại
 
-### Requirement: Xin đổi email phải nhập lại mật khẩu
-
-Lượt xin đổi email SHALL đòi mật khẩu hiện tại, và mã từ ứng dụng tạo mã nếu tài khoản đã bật lớp thứ hai; sai hay
-thiếu thì response có HTTP 401 `INVALID_CREDENTIALS` và không mã nào được gửi. Tài khoản chưa có mật khẩu (chỉ đăng
-nhập bằng Google) MUST NOT xin đổi email được: response có HTTP 409 `PASSWORD_NOT_SET` (chốt 15/10/2026).
-
-#### Scenario: Sai mật khẩu
-
-- **WHEN** người dùng xin đổi email kèm mật khẩu sai
-- **THEN** response có HTTP 401 `INVALID_CREDENTIALS`, và không thư mã nào được gửi tới email mới
-
-#### Scenario: Đã bật lớp thứ hai mà không gửi mã
-
-- **WHEN** staff đã bật lớp thứ hai xin đổi email kèm đúng mật khẩu nhưng không có mã từ ứng dụng tạo mã
-- **THEN** response có HTTP 401 `INVALID_CREDENTIALS`, và không thư mã nào được gửi
-
-#### Scenario: Tài khoản chỉ đăng nhập bằng Google
-
-- **WHEN** người dùng chỉ đăng nhập bằng Google, chưa đặt mật khẩu, xin đổi email
-- **THEN** response có HTTP 409 `PASSWORD_NOT_SET`
-
 ### Requirement: Đổi email xong báo email cũ và đăng xuất thiết bị khác
 
 Khi email mới được xác nhận, hệ thống SHALL gửi thư báo tới email cũ, nêu email mới đã che bớt, và mọi phiên khác của
@@ -88,3 +67,24 @@ về sau được tạo bằng email cũ hay email mới (so sau chuẩn hoá) �
 
 - **WHEN** gậy của A đã hết hạn trước khi khách tạo tài khoản mới bằng `an@ghim.vn`
 - **THEN** tài khoản mới không có gậy nào
+
+### Requirement: Xin đổi email chỉ đòi mật khẩu hiện tại
+
+Lượt xin đổi email SHALL đòi mật khẩu hiện tại; sai hay thiếu thì response có HTTP 401 `INVALID_CREDENTIALS` và không
+mã nào được gửi. Lượt xin MUST NOT đòi mã từ ứng dụng tạo mã, kể cả với master và staff (chốt 23/10/2026). Tài khoản
+chưa có mật khẩu (chỉ đăng nhập bằng Google) MUST NOT xin đổi email được: response có HTTP 409 `PASSWORD_NOT_SET`.
+
+#### Scenario: Sai mật khẩu
+
+- **WHEN** người dùng xin đổi email kèm mật khẩu sai
+- **THEN** response có HTTP 401 `INVALID_CREDENTIALS`, và không thư mã nào được gửi tới email mới
+
+#### Scenario: Staff xin đổi email chỉ với mật khẩu
+
+- **WHEN** staff xin đổi email kèm đúng mật khẩu và không gửi mã nào khác
+- **THEN** thư mã xác nhận được gửi tới email mới
+
+#### Scenario: Tài khoản chỉ đăng nhập bằng Google
+
+- **WHEN** người dùng chỉ đăng nhập bằng Google, chưa đặt mật khẩu, xin đổi email
+- **THEN** response có HTTP 409 `PASSWORD_NOT_SET`

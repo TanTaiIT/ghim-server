@@ -67,7 +67,7 @@ export const listingUnderViolation = (): ConflictError =>
   );
 export const listingDeleteBlocked = (): ConflictError =>
   new ConflictError(
-    'Tin bị gỡ vì vi phạm là hồ sơ của gậy — chưa xoá được',
+    'Tin bị gỡ vì vi phạm là hồ sơ của cảnh cáo — chưa xoá được',
     'LISTING_DELETE_BLOCKED',
   );
 
@@ -98,8 +98,10 @@ export function placementError(code: PlacementBlock): AppError {
   return status === 403 ? new ForbiddenError(message, code) : new ConflictError(message, code);
 }
 
-export const validationError = (message: string): BadRequestError =>
-  new BadRequestError(message, 'VALIDATION_ERROR');
+export const validationError = (
+  message: string,
+  details?: Record<string, unknown>,
+): BadRequestError => new BadRequestError(message, 'VALIDATION_ERROR', details);
 
 // ── CHUNG ────────────────────────────────────────────────────────────────────────────────────────
 

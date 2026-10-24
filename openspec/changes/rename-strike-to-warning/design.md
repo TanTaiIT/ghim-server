@@ -1,6 +1,6 @@
 # Design
 
-> **Chờ duyệt.** Cách gọi và phạm vi do người dùng chốt 22/10/2026 (proposal, mục Why).
+> **Đã duyệt 24/10/2026.** Cách gọi và phạm vi do người dùng chốt 22/10/2026 (proposal, mục Why).
 
 ## Context
 
