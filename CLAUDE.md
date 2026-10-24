@@ -320,7 +320,7 @@ change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-cate
 `harden-production-runtime` → `add-groups` → `add-notification-core` (kéo từ đợt 6, chốt 11/10/2026) — mười change
 này đã archive 10–11/10/2026 · đợt 2
 `add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` (cả hai đã archive 12/10/2026) · đợt 3 `add-screening` (đã archive 13/10/2026) → `add-image-moderation` (tách ra 12/10/2026, bỏ 24/10/2026: không kiểm nội dung ảnh) · đợt 4 `add-review-queues` (đã archive 15/10/2026) → **sửa lỗi rà soát 15/10/2026 trước mọi tính năng** (`docs/RA-SOAT-15-10-2026.md`; đợt 1 bảo mật = `fix-audit-security`) →
-`add-reports` (đã archive 16/10/2026) · đợt 5 `add-strikes` (đã archive 17/10/2026) · đợt 6 `add-messaging` → `add-notifications` (cả hai đã archive 17/10/2026) → `add-price-offers` → `add-team-conversations` → `add-activity-status` (làm 18/10/2026 theo yêu cầu của app `ghim-app`, cả ba đã archive 22/10/2026) → `add-join-request-status` (cũng từ lượt nối `ghim-app`, đã archive 18/10/2026) → `add-trust-notices` (thông báo gậy, khiếu nại, mức tin cậy, thời gian chờ + N36 — rơi giữa `add-strikes`, `add-notifications`, `add-review-queues`; code xong 23/10/2026, archive sau khi gộp vào `main`) → `add-me-staff-flag` (`/me` có cờ `staff` thay `twoFactorEnabled` cho lối vào bàn vận hành của `ghim-app`, 23/10/2026) → `add-image-quality-checks` (kiểm chất lượng ảnh thay kiểm nội dung, 24/10/2026) · đợt 7
+`add-reports` (đã archive 16/10/2026) · đợt 5 `add-strikes` (đã archive 17/10/2026) · đợt 6 `add-messaging` → `add-notifications` (cả hai đã archive 17/10/2026) → `add-price-offers` → `add-team-conversations` → `add-activity-status` (làm 18/10/2026 theo yêu cầu của app `ghim-app`, cả ba đã archive 22/10/2026) → `add-join-request-status` (cũng từ lượt nối `ghim-app`, đã archive 18/10/2026) → `add-trust-notices` (thông báo gậy, khiếu nại, mức tin cậy, thời gian chờ + N36 — rơi giữa `add-strikes`, `add-notifications`, `add-review-queues`; đã archive 24/10/2026) → `add-me-staff-flag` (`/me` có cờ `staff` thay `twoFactorEnabled` cho lối vào bàn vận hành của `ghim-app`) → `add-image-quality-checks` (kiểm chất lượng ảnh thay kiểm nội dung) — cả ba gộp vào `main` qua PR #14, archive 24/10/2026 · đợt 7
 `add-data-retention` (đã archive 17/10/2026) · giữ chỗ gói đẩy tin `prepare-promotions` (đã archive 17/10/2026;
 kế hoạch `docs/KE-HOACH-GOI-DAY-TIN.md`) → `add-wallet` → `add-promotions` → `add-topup` (nằm chờ chủ dự án chốt).
 
@@ -563,7 +563,8 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   vận hành chỉ đòi phiên đăng nhập hợp lệ" vào `identity/sessions`; thay "Xin đổi email phải nhập lại mật khẩu" bằng "Xin
   đổi email chỉ đòi mật khẩu hiện tại" (`identity/email-change`), "Đúng một master" bằng "Hệ thống chỉ có một master"
   (`platform/master-accounts`); bỏ chữ lớp thứ hai khỏi `platform/staff-permissions`, `review/queues`.
-  `add-me-staff-flag` thêm "Hồ sơ của tôi cho biết quyền staff" vào `identity/profile`. `add-image-quality-checks` thêm
+  `add-trust-notices` (archive 24/10/2026) tạo `notification/trust-notices` (N49–N58), thêm N36 vào
+  `notification/group-notices`. `add-me-staff-flag` thêm "Hồ sơ của tôi cho biết quyền staff" vào `identity/profile`. `add-image-quality-checks` thêm
   "Ảnh hỏng giữ cho người kèm cách sửa", "Đo chất lượng từng ảnh", "Luật chất lượng ảnh bật thì giữ cho người", "Ngưỡng
   chất lượng ảnh trong bảng con số" vào `screening/image-checks`, "Phiếu tải ảnh cho biết cạnh ngắn tối thiểu" vào
   `media/image-storage`; sửa hai requirement của `screening/hard-gates` và hai của `screening/explanations`.

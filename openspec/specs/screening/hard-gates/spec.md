@@ -10,8 +10,8 @@ thời gian chờ thay vì phạt (TK 8, TK 11, TK 13).
 ### Requirement: Tin dính cổng cứng luôn giữ cho người
 
 Tin dính ít nhất một cổng cứng — cụm từ cấm mức chắc, ảnh trùng với tin của tài khoản khác, giá vượt trần danh
-mục — SHALL bị giữ cho người, bất kể điểm rủi ro, dải và mức tin cậy. Cổng "ảnh nhạy cảm" thêm ở
-`add-image-moderation` (chốt 12/10/2026).
+mục — SHALL bị giữ cho người, bất kể điểm rủi ro, dải và mức tin cậy. Máy không kiểm nội dung ảnh nên không có cổng
+"ảnh nhạy cảm" (chốt 24/10/2026).
 
 #### Scenario: Tài khoản T3 dùng ảnh của người khác
 
@@ -118,7 +118,8 @@ tin cậy.
 ### Requirement: Chỉ cổng cứng mới tính là dò
 
 Chỉ cổng cứng SHALL được đếm vào lượt dò. Tin bị giữ vì danh mục luôn duyệt tay, vì đánh dấu theo thiết
-bị, vì điểm rủi ro hay vì lỗi của máy MUST NOT được đếm — để người dùng thật không bị chặn đăng (TK 8).
+bị, vì chất lượng ảnh, vì điểm rủi ro hay vì lỗi của máy MUST NOT được đếm — để người dùng thật không bị chặn đăng
+(TK 8).
 
 #### Scenario: Ba tin thú cưng trong một ngày
 
@@ -130,6 +131,11 @@ bị, vì điểm rủi ro hay vì lỗi của máy MUST NOT được đếm —
 
 - **WHEN** tài khoản đang bị đánh dấu "nhiều tài khoản trên một máy" gửi 3 tin trong 24 giờ, không tin nào
   dính cổng cứng
+- **THEN** cả ba tin bị giữ cho người và tài khoản không vào thời gian chờ
+
+#### Scenario: Ba tin ảnh mờ trong một ngày
+
+- **WHEN** luật "ảnh mờ" đang bật và một tài khoản gửi 3 tin có ảnh mờ trong 24 giờ, không tin nào dính cổng cứng
 - **THEN** cả ba tin bị giữ cho người và tài khoản không vào thời gian chờ
 
 ### Requirement: Trong thời gian chờ không gửi được tin mới
