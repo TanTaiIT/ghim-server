@@ -20,13 +20,6 @@ export function createCategoryModule(deps: CategoryModuleDeps): {
       routes: async (app) => {
         await app.register(categoryRoutes, { category: service });
       },
-      // Khu vực nạp một lần khi bảng rỗng; cập nhật địa giới về sau là một migration dữ liệu riêng.
-      startup: async () => {
-        const seeded = await service.seedRegionsIfEmpty();
-        return seeded.provinces > 0
-          ? { seededProvinces: seeded.provinces, seededWards: seeded.wards }
-          : null;
-      },
     },
   };
 }

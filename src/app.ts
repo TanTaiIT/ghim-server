@@ -36,6 +36,12 @@ import {
   type CategoryRepository,
 } from './modules/category/category.repository.js';
 import type { CategoryService } from './modules/category/category.service.js';
+import { createRegionModule } from './modules/region/region.module.js';
+import {
+  createRegionRepository,
+  type RegionRepository,
+} from './modules/region/region.repository.js';
+import type { RegionService } from './modules/region/region.service.js';
 import { healthRoutes } from './modules/health/health.routes.js';
 import {
   createGoogleTokenVerifier,
@@ -124,6 +130,7 @@ export interface AppServices {
   identity: IdentityService;
   platform: PlatformService;
   category: CategoryService;
+  region: RegionService;
   group: GroupService;
   notification: NotificationService;
   media: MediaService;
@@ -139,6 +146,7 @@ export interface Repositories {
   identity: IdentityRepository;
   platform: PlatformRepository;
   category: CategoryRepository;
+  region: RegionRepository;
   group: GroupRepository;
   media: MediaRepository;
   listing: ListingRepository;
@@ -236,6 +244,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     identity: overrides.repositories?.identity ?? createIdentityRepository(prisma),
     platform: overrides.repositories?.platform ?? createPlatformRepository(prisma),
     category: overrides.repositories?.category ?? createCategoryRepository(prisma),
+    region: overrides.repositories?.region ?? createRegionRepository(prisma),
     group: overrides.repositories?.group ?? createGroupRepository(prisma),
     media: overrides.repositories?.media ?? createMediaRepository(prisma),
     listing: overrides.repositories?.listing ?? createListingRepository(prisma),
@@ -354,6 +363,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     disposableDomainsUrl: env.DISPOSABLE_DOMAINS_URL,
   });
   const category = createCategoryModule({ repository: repositories.category, clock: deps.clock });
+  const region = createRegionModule({ repository: repositories.region });
   const platform = createPlatformModule({
     repository: repositories.platform,
     identity: identity.service,
@@ -383,6 +393,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     repository: repositories.listing,
     groups: group.service,
     categories: category.service,
+    regions: region.service,
     media: media.service,
     identity: identity.service,
     trust,
@@ -524,6 +535,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     media.module,
     identity.module,
     category.module,
+    region.module,
     platform.module,
     group.module,
     listing.module,
@@ -623,6 +635,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     identity: identity.service,
     platform: platform.service,
     category: category.service,
+    region: region.service,
     group: group.service,
     notification: notification.service,
     media: media.service,

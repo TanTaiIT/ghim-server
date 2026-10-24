@@ -158,8 +158,18 @@ export const screeningInput = (input: {
  * một lượt sai luôn ra cùng một lỗi; không dòng nào đổi khi bất kỳ bước nào ném (spec submission).
  */
 export function createSubmission(shared: ListingShared) {
-  const { repository, groups, categories, media, identity, trust, screening, config, clock } =
-    shared;
+  const {
+    repository,
+    groups,
+    categories,
+    regions,
+    media,
+    identity,
+    trust,
+    screening,
+    config,
+    clock,
+  } = shared;
 
   /** Bước 3: tài khoản và mã máy — mọi lượt gửi bắt buộc `x-device-id` (D2, TK 8). */
   const assertCanPost = async (
@@ -217,7 +227,7 @@ export function createSubmission(shared: ListingShared) {
       throw new BadRequestError('Tin sàn chung cần tỉnh / thành và phường / xã', 'REGION_REQUIRED');
     }
     if (after.provinceCode !== null) {
-      const issue = await categories.validateRegion(after.provinceCode, after.wardCode);
+      const issue = await regions.validateRegion(after.provinceCode, after.wardCode);
       if (issue) throw validationError(issue);
     }
     return templateVersion;

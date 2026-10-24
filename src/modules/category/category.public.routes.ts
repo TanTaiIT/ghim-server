@@ -1,23 +1,13 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
-import {
-  CACHE_CATALOG,
-  CACHE_IMMUTABLE,
-  CACHE_REGIONS,
-  cacheFor,
-} from '../../common/http/cache.js';
+import { CACHE_CATALOG, CACHE_IMMUTABLE, cacheFor } from '../../common/http/cache.js';
 import { errorResponse, ok, toOk } from '../../common/schemas/response.js';
 import {
   categoryIdParamsSchema,
-  provinceCodeParamsSchema,
-  provinceSchema,
   publicCategorySchema,
-  regionHitSchema,
-  regionSearchQuerySchema,
   templateSchema,
   templateVersionParamsSchema,
-  wardSchema,
 } from './category.schema.js';
 import type { CategoryService } from './category.service.js';
 
@@ -26,9 +16,8 @@ export interface CategoryPublicRoutesOptions {
 }
 
 const TAGS_CATEGORIES = ['Categories'];
-const TAGS_REGIONS = ['Regions'];
 
-/** Khách đọc được hết: danh mục đang bật, mẫu theo phiên bản, khu vực. Không có cài đặt máy duyệt ở đây (design 2). */
+/** Khách đọc được hết: danh mục đang bật, mẫu theo phiên bản. Không có cài đặt máy duyệt ở đây (design 2). */
 export const categoryPublicRoutes: FastifyPluginAsyncZod<CategoryPublicRoutesOptions> = async (
   app,
   { category },
@@ -67,37 +56,5 @@ export const categoryPublicRoutes: FastifyPluginAsyncZod<CategoryPublicRoutesOpt
         CACHE_IMMUTABLE,
         toOk(await category.templateVersion(request.params.id, request.params.version)),
       ),
-  });
-
-  app.get('/regions/provinces', {
-    schema: {
-      tags: TAGS_REGIONS,
-      summary: '34 tỉnh, thành sau sáp nhập kèm tên cũ và tên gọi tắt',
-      response: { 200: ok(z.array(provinceSchema)) },
-    },
-    handler: async (_request, reply) =>
-      cacheFor(reply, CACHE_REGIONS, toOk(await category.listProvinces())),
-  });
-
-  app.get('/regions/provinces/:code/wards', {
-    schema: {
-      tags: TAGS_REGIONS,
-      summary: 'Phường, xã của một tỉnh, thành',
-      params: provinceCodeParamsSchema,
-      response: { 200: ok(z.array(wardSchema)), 404: errorResponse },
-    },
-    handler: async (request, reply) =>
-      cacheFor(reply, CACHE_REGIONS, toOk(await category.listWards(request.params.code))),
-  });
-
-  app.get('/regions/search', {
-    schema: {
-      tags: TAGS_REGIONS,
-      summary: 'Tìm khu vực theo tên mới, tên cũ hay tên gọi tắt (bỏ dấu) — tỉnh trước, phường sau',
-      querystring: regionSearchQuerySchema,
-      response: { 200: ok(z.array(regionHitSchema)) },
-    },
-    handler: async (request, reply) =>
-      cacheFor(reply, CACHE_REGIONS, toOk(await category.searchRegions(request.query.q))),
   });
 };

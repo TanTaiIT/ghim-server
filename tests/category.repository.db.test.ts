@@ -7,7 +7,7 @@ import { createCategoryService } from '../src/modules/category/category.service.
 import { prisma, truncateAll } from './db-helpers.js';
 import { TEST_AUDIT } from './test-app.js';
 
-/* `category` trên Postgres thật: nạp khu vực + tìm bằng `search_text`, phiên bản cài đặt và mẫu. */
+/* `category` trên Postgres thật: phiên bản cài đặt và mẫu (khu vực: `region.repository.db.test.ts`). */
 const NOW = new Date('2026-10-10T04:00:00.000Z');
 const repository = createCategoryRepository(prisma);
 const service = createCategoryService({ repository, clock: () => NOW });
@@ -43,43 +43,6 @@ const DEFAULTS = {
   alwaysManual: false,
   groupReview: 'group' as const,
 };
-
-describe('khu vực', () => {
-  it('nạp regions.json một lượt: 34 tỉnh, 3.321 phường; nạp lần hai không thêm gì', async () => {
-    expect(await service.seedRegionsIfEmpty()).toEqual({ provinces: 34, wards: 3321 });
-    expect(await service.seedRegionsIfEmpty()).toEqual({ provinces: 0, wards: 0 });
-    expect(await prisma.ward.count()).toBe(3321);
-  });
-
-  it('tìm "binh duong" ra Hồ Chí Minh; phường ghi rõ tỉnh chứa; không khớp thì rỗng', async () => {
-    await service.seedRegionsIfEmpty();
-    expect(await service.searchRegions('binh duong')).toContainEqual(
-      expect.objectContaining({ kind: 'province', name: 'Hồ Chí Minh' }),
-    );
-    expect(await service.searchRegions('Bến Thành')).toContainEqual(
-      expect.objectContaining({
-        kind: 'ward',
-        name: 'Phường Bến Thành',
-        provinceName: 'Hồ Chí Minh',
-      }),
-    );
-    expect(await service.searchRegions('zzqqxx')).toEqual([]);
-  });
-
-  it('tên cũ chia cho hai phường → tìm ra cả hai', async () => {
-    await repository.seedRegions({
-      provinces: [{ code: 1, name: 'Thử', fullName: 'Tỉnh Thử', formerNames: [], aliases: [] }],
-      wards: [
-        { code: 10, provinceCode: 1, name: 'Phường Mới A', formerNames: ['Phường Cũ Đông Hoà'] },
-        { code: 11, provinceCode: 1, name: 'Phường Mới B', formerNames: ['Phường Cũ Đông Hoà'] },
-      ],
-    });
-    expect((await service.searchRegions('dong hoa')).map((hit) => hit.name)).toEqual([
-      'Phường Mới A',
-      'Phường Mới B',
-    ]);
-  });
-});
 
 const draftAudit = (id: string) => ({
   actorId: '00000000-0000-7000-8000-00000000000a',

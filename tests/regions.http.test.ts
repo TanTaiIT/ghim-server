@@ -8,7 +8,7 @@ import { buildTestApp } from './test-app.js';
 
 /* Spec regions trên đúng file dữ liệu sẽ nạp ở production (`data/regions.json`). */
 const regions = JSON.parse(
-  readFileSync(new URL('../src/modules/category/data/regions.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('../src/modules/region/data/regions.json', import.meta.url), 'utf8'),
 ) as RegionsFile;
 const HCM = regions.provinces.find((row) => row.name === 'Hồ Chí Minh');
 
@@ -17,7 +17,7 @@ let app: FastifyInstance;
 beforeAll(async () => {
   app = await buildTestApp();
   await app.ready();
-  expect(await app.modules.category.seedRegionsIfEmpty()).toEqual({ provinces: 34, wards: 3321 });
+  expect(await app.modules.region.seedRegionsIfEmpty()).toEqual({ provinces: 34, wards: 3321 });
 });
 
 afterAll(() => app.close());

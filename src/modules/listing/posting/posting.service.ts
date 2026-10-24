@@ -106,6 +106,7 @@ export function createListingPostingService(shared: ListingShared): ListingPosti
     repository,
     groups,
     categories,
+    regions,
     media,
     openWork,
     config,
@@ -131,7 +132,7 @@ export function createListingPostingService(shared: ListingShared): ListingPosti
       throw validationError('Chọn tỉnh / thành trước khi chọn phường / xã');
     }
     if (fields.provinceCode !== null) {
-      const issue = await categories.validateRegion(fields.provinceCode, fields.wardCode);
+      const issue = await regions.validateRegion(fields.provinceCode, fields.wardCode);
       if (issue) throw validationError(issue);
     }
     if (fields.badgeGroupId !== null && fields.placement !== 'marketplace') {

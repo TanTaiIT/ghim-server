@@ -107,10 +107,10 @@ Mailpit).
 | `pnpm db:drift`                                               | Kiểm migration đã áp có khớp `schema.prisma` không                                                                 |
 | `pnpm db:studio`                                              | Mở Prisma Studio                                                                                                   |
 | `pnpm cli:create-master`                                      | Tạo master (một lần, chỉ khi chưa có)                                                                              |
-| `pnpm cli:build-regions`                                      | Sinh lại `category/data/regions.json` từ provinces.open-api.vn                                                     |
+| `pnpm cli:build-regions`                                      | Sinh lại `region/data/regions.json` từ provinces.open-api.vn                                                       |
 
 **Cập nhật địa giới hành chính**: `pnpm cli:build-regions` tải API, trộn tên cũ cấp tỉnh từ
-`src/modules/category/data/province-former-names.json` (biên soạn tay) và dừng nếu dữ liệu lệch kỳ vọng.
+`src/modules/region/data/province-former-names.json` (biên soạn tay) và dừng nếu dữ liệu lệch kỳ vọng.
 Đọc diff của `regions.json` rồi commit. DB đã có khu vực thì không tự nạp lại — cập nhật DB đang chạy là
 một migration dữ liệu riêng. Tên cũ cấp phường chưa có nguồn: cột có sẵn, file đang để trống.
 

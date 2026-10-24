@@ -1,23 +1,15 @@
-import { readFileSync } from 'node:fs';
-
 import type { Prisma } from '@prisma/client';
 
 import { auditActor } from '../../common/audit/audit.js';
 import type { Actor } from '../../common/auth/actor.js';
 import { ConflictError, NotFoundError } from '../../common/errors/app-error.js';
-import { fold } from '../../common/text/fold.js';
 import type {
   CategoryRepository,
   CategoryRow,
   CategorySettingsInput,
   CategorySettingVersion,
-  Province,
-  RegionsSeed,
   TemplateVersion,
-  Ward,
-  WardWithProvince,
 } from './category.repository.js';
-import { REGION_SEARCH_LIMIT } from './category.schema.js';
 import { attributeIssues, lockedFieldIssue, type TemplateField } from './calc/template.calc.js';
 
 export interface CategoryServiceDeps {
@@ -65,30 +57,6 @@ export interface SaveDraftInput {
   version?: number | undefined;
 }
 
-export interface ProvinceDto {
-  code: number;
-  name: string;
-  fullName: string;
-  formerNames: string[];
-  aliases: string[];
-}
-
-export interface WardDto {
-  code: number;
-  provinceCode: number;
-  name: string;
-  formerNames: string[];
-}
-
-export interface RegionHitDto {
-  kind: 'province' | 'ward';
-  code: number;
-  name: string;
-  provinceCode: number;
-  provinceName: string;
-  formerNames: string[];
-}
-
 export interface CategoryService {
   create(actor: Actor, input: { name: string } & CategorySettingsInput): Promise<CategoryAdminDto>;
   rename(actor: Actor, id: string, name: string): Promise<CategoryAdminDto>;
@@ -115,8 +83,6 @@ export interface CategoryService {
    * lượt gửi, bên nghe tắt thấy tin đã gửi (fix-audit-listing, T15). `null` = không có danh mục.
    */
   lockStatus(tx: Prisma.TransactionClient, id: string): Promise<{ enabled: boolean } | null>;
-  /** Lỗi của cặp tỉnh / phường (mã lạ, phường không thuộc tỉnh); `null` = hợp lệ. */
-  validateRegion(provinceCode: number, wardCode: number | null): Promise<string | null>;
   /**
    * Thông tin món đồ theo phiên bản mẫu `version` (null = danh mục chưa phát hành mẫu, chỉ nhận rỗng). `complete` đòi
    * đủ mục bắt buộc — lúc gửi, không lúc lưu nháp (design add-listings D9).
@@ -134,12 +100,6 @@ export interface CategoryService {
   publish(actor: Actor, id: string): Promise<TemplateDto>;
   currentTemplate(id: string): Promise<TemplateDto>;
   templateVersion(id: string, version: number): Promise<TemplateDto>;
-
-  listProvinces(): Promise<ProvinceDto[]>;
-  listWards(provinceCode: number): Promise<WardDto[]>;
-  searchRegions(query: string): Promise<RegionHitDto[]>;
-  /** Nạp `data/regions.json` khi bảng tỉnh rỗng — chạy lúc khởi động, idempotent. */
-  seedRegionsIfEmpty(): Promise<{ provinces: number; wards: number }>;
 }
 
 function toSettingsDto(row: CategorySettingVersion): CategorySettingsDto {
@@ -180,39 +140,6 @@ function toTemplateDto(row: TemplateVersion): TemplateDto {
     publishedAt: row.publishedAt.toISOString(),
   };
 }
-
-const toProvinceDto = ({ code, name, fullName, formerNames, aliases }: Province): ProvinceDto => ({
-  code,
-  name,
-  fullName,
-  formerNames,
-  aliases,
-});
-
-const toWardDto = ({ code, provinceCode, name, formerNames }: Ward): WardDto => ({
-  code,
-  provinceCode,
-  name,
-  formerNames,
-});
-
-const provinceHit = (row: Province): RegionHitDto => ({
-  kind: 'province',
-  code: row.code,
-  name: row.name,
-  provinceCode: row.code,
-  provinceName: row.name,
-  formerNames: row.formerNames,
-});
-
-const wardHit = (row: WardWithProvince): RegionHitDto => ({
-  kind: 'ward',
-  code: row.code,
-  name: row.name,
-  provinceCode: row.provinceCode,
-  provinceName: row.province.name,
-  formerNames: row.formerNames,
-});
 
 const settingsInput = (settings: CategorySettingsInput): CategorySettingsInput => ({
   priceCap: settings.priceCap,
@@ -340,16 +267,6 @@ export function createCategoryService({ repository, clock }: CategoryServiceDeps
     async lockStatus(tx, id) {
       const status = await repository.lockStatus(tx, id);
       return status === null ? null : { enabled: status === 'active' };
-    },
-
-    async validateRegion(provinceCode, wardCode) {
-      if (!(await repository.provinceExists(provinceCode))) return 'Không có tỉnh / thành này';
-      if (wardCode === null) return null;
-      const ward = await repository.findWard(wardCode);
-      if (!ward) return 'Không có phường / xã này';
-      return ward.provinceCode === provinceCode
-        ? null
-        : 'Phường / xã không thuộc tỉnh / thành đã chọn';
     },
 
     async validateAttributes(categoryId, version, attributes, options) {
@@ -485,31 +402,6 @@ export function createCategoryService({ repository, clock }: CategoryServiceDeps
       const row = await repository.findTemplateVersion(id, version);
       if (!row) throw new NotFoundError(`Không có phiên bản mẫu ${version}`);
       return toTemplateDto(row);
-    },
-
-    // ── KHU VỰC ─────────────────────────────────────────────────────────────────────────────────
-
-    async listProvinces() {
-      return (await repository.listProvinces()).map(toProvinceDto);
-    },
-    async listWards(provinceCode) {
-      if (!(await repository.findProvince(provinceCode))) {
-        throw new NotFoundError('Không có tỉnh, thành này');
-      }
-      return (await repository.listWards(provinceCode)).map(toWardDto);
-    },
-    async searchRegions(query) {
-      const folded = fold(query);
-      if (folded.length === 0) return [];
-      const { provinces, wards } = await repository.searchRegions(folded, REGION_SEARCH_LIMIT);
-      return [...provinces.map(provinceHit), ...wards.map(wardHit)];
-    },
-    async seedRegionsIfEmpty() {
-      if ((await repository.countProvinces()) > 0) return { provinces: 0, wards: 0 };
-      const seed = JSON.parse(
-        readFileSync(new URL('./data/regions.json', import.meta.url), 'utf8'),
-      ) as RegionsSeed;
-      return repository.seedRegions(seed);
     },
   };
 }

@@ -462,6 +462,7 @@ describe('Nơi đăng khi sửa', () => {
       repository: repositories.listing,
       groups: app.modules.group,
       categories: app.modules.category,
+      regions: app.modules.region,
       media: app.modules.media,
       identity: app.modules.identity,
       trust: createInterimTrust('T1'),
