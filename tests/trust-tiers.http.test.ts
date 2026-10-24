@@ -7,7 +7,7 @@ import { createStaticRuntimeConfig } from '../src/common/config/runtime-config.j
 import { createPlatformPrivilegeSource } from '../src/modules/platform/platform.service.js';
 import { TRUST_JOBS } from '../src/modules/trust/trust.jobs.js';
 import { createTrustService, type TrustService } from '../src/modules/trust/trust.service.js';
-import { genericHolds, noBuyerInterest } from '../src/modules/trust/trust.shared.js';
+import { genericHolds, noBuyerInterest } from './fakes/trust-ports.fake.js';
 import { prisma } from './db-helpers.js';
 import type { FakeJobs } from './fakes/jobs.fake.js';
 import { deliverAll, newMaster, newUser, type TestUser } from './group-helpers.js';

@@ -146,7 +146,3 @@ phần **Hoãn lại** của TK 29 thì là quyết định sản phẩm, ghi ra
 | Bàn vận hành: doanh thu                                                       | Danh bạ tài khoản `GET /ops/accounts`, `/ops/accounts/:id` (change `add-ops-account-directory`, 24/10/2026); số theo ngày `GET /ops/stats/daily` (`add-ops-daily-stats`); còn `/ops/review/stats/*`, `/ops/jobs/runs`, khoá / mở khoá — chưa doanh thu (chờ gói đẩy tin) |
 | Số liệu máy duyệt                                                             | `screening_run_stats` được ghi (`screening.repository.ts`) nhưng chưa route nào đọc                                                                                                                                                                                      |
 | Ảnh trong tin nhắn, khu vực mặc định của người dùng                           | Chưa có                                                                                                                                                                                                                                                                  |
-
-Dọn nhỏ (comment "tạm" đã lỗi thời, sửa khi chạm tới file): `trust/trust.shared.ts` (`noBuyerInterest`,
-`genericHolds` chỉ còn test dùng), `category/category.service.ts` (`settingsOf` "sau này" — screening đã dùng),
-`prisma/schema.prisma` (`ImageOwnerKind`: "chưa có chủ nào loại `listing`").

@@ -6,7 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createStaticRuntimeConfig } from '../src/common/config/runtime-config.js';
 import { createPlatformPrivilegeSource } from '../src/modules/platform/platform.service.js';
 import { createTrustService } from '../src/modules/trust/trust.service.js';
-import { noBuyerInterest } from '../src/modules/trust/trust.shared.js';
+import { noBuyerInterest } from './fakes/trust-ports.fake.js';
 import { prisma } from './db-helpers.js';
 import { deliverAll, newUser, seedTier, type TestUser } from './group-helpers.js';
 import { liveListing, seedCategory, seedListing } from './listing-helpers.js';
