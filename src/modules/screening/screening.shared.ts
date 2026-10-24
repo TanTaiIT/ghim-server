@@ -8,6 +8,7 @@ import type { IdentityService } from '../identity/identity.service.js';
 import type { ListingFactsService, ScreeningSubmission } from '../listing/listing.ports.js';
 import type { MediaService } from '../media/media.service.js';
 import { buildPhraseMatcher, type PhraseMatcher } from './calc/phrase.calc.js';
+import type { QualityLimits } from './calc/quality.calc.js';
 import type { BandThresholds, RawHit, RuleSnapshot } from './calc/score.calc.js';
 import { cooldownSentence } from './screening.outbox.js';
 import { INITIAL_RULES } from './screening.rules.js';
@@ -36,9 +37,21 @@ export interface ScreeningTrustPort {
   strikePointsOf(accountId: string): Promise<number>;
 }
 
-/** Băm ảnh sau cổng (design mục 3): `sharp` ở app thật — đổi sang pHash về sau không sửa luật. */
-export interface ImageHasher {
-  dhash(bytes: Uint8Array): Promise<bigint>;
+/** Số đo một ảnh: dHash để so trùng, cỡ sau khi xoay theo EXIF, độ nét và độ sáng để so ngưỡng chất lượng. */
+export interface ImageMeasure {
+  dhash: bigint;
+  width: number;
+  height: number;
+  sharpness: number;
+  brightness: number;
+}
+
+/**
+ * Đo ảnh sau cổng (design mục 3, add-image-quality-checks mục 1): `sharp` ở app thật — đổi sang pHash hay đổi phép đo
+ * về sau không sửa luật. Ném khi tệp không giải mã được.
+ */
+export interface ImageInspector {
+  inspect(bytes: Uint8Array): Promise<ImageMeasure>;
 }
 
 export interface ScreeningServiceDeps {
@@ -48,7 +61,7 @@ export interface ScreeningServiceDeps {
   identity: ScreeningIdentityPort;
   media: ScreeningMediaPort;
   trust: ScreeningTrustPort;
-  hasher: ImageHasher;
+  inspector: ImageInspector;
   jobs: Jobs;
   config: RuntimeConfig;
   clock: () => Date;
@@ -77,6 +90,8 @@ export type TextResult =
       rankAsListingId: string | null;
       bands: BandThresholds;
       imageMaxDistance: number;
+      /** Trống ở lượt mở trước add-image-quality-checks: lượt đó không xét chất lượng ảnh. */
+      imageQuality?: QualityLimits;
     }
   | {
       status: 'error';
@@ -108,7 +123,7 @@ export interface LoadedRules {
 
 /** Phiên bản 0: chưa khởi tạo (test không chạy bước khởi động) — luật đúng TK 14, không cụm, không ghi đè. */
 const UNSEEDED: RuleSnapshot = {
-  rules: INITIAL_RULES.map((rule) => ({ ...rule, mode: 'on' })),
+  rules: INITIAL_RULES.map((rule) => ({ ...rule, mode: rule.mode ?? 'on' })),
   overrides: [],
   bands: [],
   phrases: [],
@@ -159,6 +174,13 @@ export const MINUTE_MS = 60_000;
 export const bandThresholds = (config: RuntimeConfig): BandThresholds => ({
   mediumFrom: config.get('screening.mediumBandFrom'),
   highFrom: config.get('screening.highBandFrom'),
+});
+
+export const qualityLimits = (config: RuntimeConfig): QualityLimits => ({
+  minShortSide: config.get('screening.imageMinShortSide'),
+  minSharpness: config.get('screening.imageMinSharpness'),
+  minBrightness: config.get('screening.imageMinBrightness'),
+  maxBrightness: config.get('screening.imageMaxBrightness'),
 });
 
 export const signalLimits = (config: RuntimeConfig): SignalLimits => ({

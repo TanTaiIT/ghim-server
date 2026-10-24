@@ -31,7 +31,7 @@ const isUuid = (value: string): boolean => z.uuid().safeParse(value).success;
  * và staff của danh mục đó, design mục 3).
  */
 export function createListsService(shared: ScreeningShared): ScreeningListsService {
-  const { repository, media, hasher, categories, clock } = shared;
+  const { repository, media, inspector, categories, clock } = shared;
 
   return {
     async listWhitelist() {
@@ -43,7 +43,7 @@ export function createListsService(shared: ScreeningShared): ScreeningListsServi
       if (!bytes) throw imageNotInStorage();
       let hash: bigint;
       try {
-        hash = await hasher.dhash(bytes);
+        ({ dhash: hash } = await inspector.inspect(bytes));
       } catch {
         throw new BadRequestError('Không đọc được ảnh này', 'IMAGE_UNREADABLE');
       }

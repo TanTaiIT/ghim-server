@@ -7,7 +7,15 @@ import { RULE_CODES } from './screening.rules.js';
 export const RULE_MODES = ['on', 'trial', 'off'] as const;
 export const PHRASE_LEVELS = ['certain', 'ambiguous'] as const;
 const OUTCOMES = ['pass_full', 'pass_limited', 'hold'] as const;
-const CAUSES = ['score', 'gate', 'always_manual', 'device', 'error', 'timeout'] as const;
+const CAUSES = [
+  'score',
+  'gate',
+  'image_quality',
+  'always_manual',
+  'device',
+  'error',
+  'timeout',
+] as const;
 const BANDS = ['low', 'medium', 'high'] as const;
 const TIERS = ['T0', 'T1', 'T2', 'T3'] as const;
 
@@ -58,7 +66,7 @@ export const bandsBodySchema = z
 const ruleSchema = z.object({
   code: z.enum(RULE_CODES),
   label: z.string(),
-  kind: z.enum(['signal', 'gate']),
+  kind: z.enum(['signal', 'gate', 'quality']),
   weight: z.number().int(),
   mode: z.enum(RULE_MODES),
 });

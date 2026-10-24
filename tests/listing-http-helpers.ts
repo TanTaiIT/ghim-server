@@ -28,6 +28,11 @@ export interface OwnListing {
   wardCode: number | null;
   images: { id: string; url: string }[];
   badge: { groupId: string; name: string } | null;
+  machineNotice: {
+    kind: string;
+    message: string;
+    fixes: { code: string; message: string }[];
+  } | null;
   badgeGroupId: string | null;
   hideReasons: string[];
   restrictions: string[];

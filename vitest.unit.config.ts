@@ -17,6 +17,7 @@ const PURE_TESTS = [
   'tests/env.test.ts',
   'tests/error-handler.test.ts',
   'tests/health.service.test.ts',
+  'tests/image-inspector.test.ts',
   'tests/job-runs.test.ts',
   'tests/listing-ports.test.ts',
   'tests/lookup-code.test.ts',

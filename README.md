@@ -22,7 +22,7 @@ Trong Claude Code, mở thư mục này làm workspace rồi:
 Cần CLI `openspec` trên PATH, cùng phiên bản trong `package.json`:
 `npm i -g @fission-ai/openspec@1.14.1`.
 
-Hiện trạng (đợt 1–7, trừ kiểm ảnh nhạy cảm và gói đẩy tin — xem [`docs/VIEC-DANG-DO.md`](docs/VIEC-DANG-DO.md)):
+Hiện trạng (đợt 1–7, trừ gói đẩy tin — xem [`docs/VIEC-DANG-DO.md`](docs/VIEC-DANG-DO.md)):
 hạ tầng (HTTP, lỗi, response, Swagger, health, việc nền pg-boss, gửi thư, outbox, realtime socket.io ở `/realtime`,
 đẩy lên điện thoại qua Expo) và các module:
 
@@ -51,7 +51,8 @@ hạ tầng (HTTP, lỗi, response, Swagger, health, việc nền pg-boss, gửi
   dấu theo thiết bị, dò cổng cứng → thời gian chờ 24 giờ; kiểm ảnh qua hàng việc (`sharp`), lưới an toàn mỗi 5 phút,
   thống kê giá 02:00, quét lại tin đang hiện khi bật cụm; câu báo cho người đăng và mã tra cứu cho hỗ trợ; bàn vận
   hành luật, cụm từ, danh sách trắng ảnh mẫu, từ khoá danh mục dưới `/api/v1/ops/screening` — hướng dẫn cho app ở
-  [`docs/screening.md`](docs/screening.md). Chưa kiểm ảnh nhạy cảm (`add-image-moderation`).
+  [`docs/screening.md`](docs/screening.md). Ảnh: so trùng và chất lượng (hỏng, quá nhỏ, mờ, quá tối, quá sáng), không
+  kiểm nội dung (chốt 24/10/2026, `add-image-quality-checks`).
 - **`review`** (đợt 4): hàng việc cho người duyệt (máy giữ, báo cáo, việc về gậy, máy hạn chế, nhóm chuyển lên, hậu
   kiểm), nhận việc và quyết định trên bàn vận hành `/api/v1/ops/review` và ở app cho quản trị nhóm, lý do từ chối mẫu,
   số liệu cho master; báo cáo tin và báo cáo người — hướng dẫn ở [`docs/review.md`](docs/review.md).

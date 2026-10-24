@@ -147,3 +147,43 @@ describe('Hiện đầy đủ, hiện hạn chế', () => {
     expect(held(['new_account'], 'score', { outcome: 'pass_limited' })).toBeNull();
   });
 });
+
+describe('Câu giải thích lỗi ảnh (add-image-quality-checks)', () => {
+  const IMAGES = ['anh-a', 'anh-b', 'anh-c'];
+  const imageHit = (code: RuleCode, refs: string[], mode: 'on' | 'trial' = 'on'): AppliedHit => ({
+    code,
+    weight: 0,
+    mode,
+    refs,
+  });
+  const heldForImages = (hits: AppliedHit[]) =>
+    explain({ outcome: 'hold', cause: 'image_quality', hits, recall: false, imageIds: IMAGES });
+
+  it('câu theo vị trí ảnh, lỗi ảnh xếp theo ảnh đầu tiên trúng nó, sau lỗi chữ', () => {
+    const explanation = heldForImages([
+      imageHit('image_too_small', ['anh-b']),
+      on('abnormal_price'),
+      imageHit('image_blurry', ['anh-c', 'anh-a']),
+    ]);
+    expect(explanation).toEqual({
+      kind: 'plain',
+      fixable: ['abnormal_price', 'image_blurry', 'image_too_small'],
+      images: { image_too_small: [2], image_blurry: [1, 3] },
+    });
+    expect(render(explanation).fixes.map((fix) => fix.message)).toEqual([
+      'Giá của tin lệch xa mức thường thấy trong danh mục này. Kiểm tra lại đơn vị (đồng) và số 0.',
+      'Ảnh 1, 3 bị mờ. Chụp lại, giữ yên máy và đủ sáng.',
+      'Ảnh 2 quá nhỏ. Thay bằng ảnh chụp rõ hơn.',
+    ]);
+  });
+
+  it('luật chất lượng chạy thử không sinh câu; câu lưu trước change này (không có vị trí) vẫn đọc được', () => {
+    expect(heldForImages([imageHit('image_too_dark', ['anh-a'], 'trial')])).toEqual({
+      kind: 'plain',
+      fixable: [],
+    });
+    expect(
+      render({ kind: 'plain', fixable: ['image_unreadable'] }).fixes.map((fix) => fix.message),
+    ).toEqual(['Một ảnh không mở được. Xoá ảnh đó rồi tải ảnh khác.']);
+  });
+});

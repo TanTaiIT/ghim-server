@@ -15,7 +15,7 @@ import {
   type RuleBook,
   scoreOf,
 } from './score.calc.js';
-import { isGate } from '../screening.rules.js';
+import { isGate, isQuality } from '../screening.rules.js';
 
 export interface Decision {
   outcome: ScreeningOutcome;
@@ -42,8 +42,9 @@ const pass = (outcome: ScreeningOutcome, restrictMachine = false): Decision => (
 export type Failure = Extract<ScreeningCause, 'error' | 'timeout'>;
 
 /**
- * Kết luận một lượt (design mục 5 bước 4): lỗi → cổng cứng đang bật → luôn duyệt tay → đánh dấu thiết bị → ma trận dải ×
- * mức tin cậy. Máy không bao giờ từ chối (TK 13). `tier` `null` = chấm chữ lỗi, không đọc được mức — đi cùng `failure`.
+ * Kết luận một lượt (design mục 5 bước 4): lỗi → cổng cứng đang bật → chất lượng ảnh (add-image-quality-checks: sau cổng
+ * cứng để tin vừa dùng ảnh người khác vừa mờ vẫn tính dò, trước luôn duyệt tay để lý do ghi lại là thứ người đăng tự sửa
+ * được) → luôn duyệt tay → đánh dấu thiết bị → ma trận dải × mức tin cậy. Máy không bao giờ từ chối (TK 13). `tier` `null` = chấm chữ lỗi, không đọc được mức — đi cùng `failure`.
  */
 export function decide(input: {
   failure: Failure | null;
@@ -58,6 +59,8 @@ export function decide(input: {
 }): Decision {
   if (input.failure) return hold(input.failure);
   if (input.hits.some((hit) => hit.mode === 'on' && isGate(hit.code))) return hold('gate');
+  if (input.hits.some((hit) => hit.mode === 'on' && isQuality(hit.code)))
+    return hold('image_quality');
   if (input.alwaysManual) return hold('always_manual');
   if (input.deviceFlagged) return hold('device');
   if (input.band === 'high' || input.tier === null) return hold('score');
@@ -96,11 +99,13 @@ export function conclude(input: {
   tier: TrustTier | null;
   struck: boolean;
   placement: ListingPlacement;
+  /** Ảnh của lượt theo thứ tự trong tin — câu báo nói ảnh thứ mấy. */
+  imageIds: readonly string[];
 }): Verdict {
   const hits = applyRules(input.raw, input.book, input.categoryId);
   const score = scoreOf(hits);
   const band = bandOf(score, input.book, input.categoryId);
   const decision = decide({ ...input, hits, band });
-  const explanation = explain({ ...decision, hits, recall: false });
+  const explanation = explain({ ...decision, hits, recall: false, imageIds: input.imageIds });
   return { ...decision, score, band, hits, explanation };
 }

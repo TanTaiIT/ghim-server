@@ -14,11 +14,24 @@ beforeEach(truncateAll);
 afterAll(() => prisma.$disconnect());
 
 describe('khởi tạo luật lúc khởi động', () => {
-  it('bảng rỗng: 13 dấu hiệu và 3 cổng cứng bật đúng trọng số TK 14, cùng phiên bản luật 1', async () => {
-    expect(await repository.seedRules(INITIAL_RULES, NOW)).toEqual({ version: 1, added: 16 });
+  it('bảng rỗng: 13 dấu hiệu, 3 cổng cứng bật đúng trọng số TK 14, 4 luật chất lượng ảnh chạy thử, phiên bản luật 1', async () => {
+    expect(await repository.seedRules(INITIAL_RULES, NOW)).toEqual({ version: 1, added: 20 });
     const rows = await prisma.screeningRule.findMany();
-    expect(rows).toHaveLength(16);
-    expect(rows.every((row) => row.mode === 'on')).toBe(true);
+    expect(rows).toHaveLength(20);
+    expect(rows.filter((row) => row.kind !== 'quality').every((row) => row.mode === 'on')).toBe(
+      true,
+    );
+    expect(
+      rows
+        .filter((row) => row.kind === 'quality')
+        .map((row) => [row.code, row.mode, row.weight])
+        .toSorted(),
+    ).toEqual([
+      ['image_blurry', 'trial', 0],
+      ['image_too_bright', 'trial', 0],
+      ['image_too_dark', 'trial', 0],
+      ['image_too_small', 'trial', 0],
+    ]);
     expect(
       rows
         .filter((row) => row.kind === 'gate')
@@ -37,7 +50,7 @@ describe('khởi tạo luật lúc khởi động', () => {
     );
     expect(book.rules.get('gibberish')).toEqual({ weight: 30, mode: 'on' });
     expect(book.rules.get('new_account')).toEqual({ weight: 10, mode: 'on' });
-    expect(book.rules.size).toBe(16);
+    expect(book.rules.size).toBe(20);
     const version = await prisma.screeningRuleVersion.findUniqueOrThrow({ where: { version: 1 } });
     expect(version).toMatchObject({ createdBy: null, createdAt: NOW });
   });
@@ -54,9 +67,9 @@ describe('khởi tạo luật lúc khởi động', () => {
       repository.seedRules(INITIAL_RULES, NOW),
       repository.seedRules(INITIAL_RULES, NOW),
     ]);
-    expect(results.filter((result) => result !== null)).toEqual([{ version: 1, added: 16 }]);
+    expect(results.filter((result) => result !== null)).toEqual([{ version: 1, added: 20 }]);
     expect(await prisma.screeningRuleVersion.count()).toBe(1);
-    expect(await prisma.screeningRule.count()).toBe(16);
+    expect(await prisma.screeningRule.count()).toBe(20);
   });
 
   it('luật đưa vào sau phiên bản 1 bắt đầu ở chạy thử, luật cũ giữ nguyên', async () => {

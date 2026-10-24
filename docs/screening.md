@@ -22,6 +22,17 @@ tin (`GET /api/v1/listings/{id}`) hay nghe thông báo để biết kết quả:
 
 Quá 5 phút chưa đủ kết quả ảnh thì tin chuyển sang chờ người duyệt — app không cần làm gì.
 
+## Ảnh: so trùng và chất lượng, không kiểm nội dung
+
+Mỗi ảnh được đo một lần (dHash để so trùng, cùng cỡ, độ nét, độ sáng). Máy **không kiểm nội dung ảnh** (chốt
+24/10/2026). Ảnh hỏng (không mở được) luôn làm tin bị giữ. Bốn luật chất lượng — quá nhỏ, mờ, quá tối, quá sáng — giữ tin
+cho người khi master bật, chạy thử hay tắt được trên bàn vận hành, và không tính là dò cổng cứng. Ngưỡng nằm trong bảng
+con số (`screening.imageMinShortSide` 480, `imageMinSharpness` 20, `imageMinBrightness` 25, `imageMaxBrightness` 235).
+
+App chặn ảnh quá nhỏ **trước khi tải lên**: phiếu tải ảnh (`POST /api/v1/media/uploads`) trả `minShortSide` — cạnh
+ngắn của ảnh (sau khi xoay theo EXIF) dưới số này thì báo người dùng chọn ảnh khác, không tải. Độ nét, độ sáng chỉ server
+đo; tin trúng thì `machineNotice.fixes` nói ảnh nào cần thay.
+
 ## Câu báo trên tin của mình: `machineNotice`
 
 Tin của chính người đăng (`GET /api/v1/listings/{id}`, danh sách tin của mình) có trường `machineNotice`, `null` khi
@@ -49,6 +60,9 @@ không có gì để báo:
 - `fixes` — lỗi người đăng tự sửa được, mỗi lỗi một câu kèm việc làm ngay. `code` để app gắn nút (vd `price_over_cap`,
   `abnormal_price` → mở ô giá; `wrong_category` → mở chọn danh mục; `off_platform_contact` → nhắc thêm số điện thoại vào
   hồ sơ thay vì ghi trong mô tả). Hiện `message` như server gửi, không dịch lại.
+- `fixes` về ảnh (add-image-quality-checks) nói ảnh thứ mấy: `image_unreadable` (ảnh không mở được), `image_too_small`,
+  `image_blurry`, `image_too_dark`, `image_too_bright` — vd "Ảnh 2 quá nhỏ. Thay bằng ảnh chụp rõ hơn." App gắn nút mở
+  màn sửa ảnh của tin.
 
 Tin chỉ hiện câu khi còn đúng trạng thái: câu của lần giữ nằm trên tin `pending`, câu hạn chế nằm trên tin `live` còn
 bị hạn chế. Người đăng sửa và gửi lại thì máy chấm lại, câu cũ không còn.

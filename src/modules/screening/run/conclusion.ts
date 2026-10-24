@@ -5,11 +5,13 @@ import { logger } from '../../../lib/logger.js';
 import { sequentially } from '../../../common/utils/sequential.js';
 import type { LiveListingFacts } from '../../listing/listing.ports.js';
 import { bandsOf, hamming } from '../calc/dhash.calc.js';
+import { type ImageQuality, type QualityLimits, qualityIssues } from '../calc/quality.calc.js';
 import { conclude as concludeCalc, type Failure } from '../calc/decide.calc.js';
 import { explain } from '../calc/explanation.calc.js';
 import { type AppliedHit, type RawHit, ruleBookOf } from '../calc/score.calc.js';
 import type { Tx } from '../screening.repository.js';
 import { SCREENING_EVENTS, screeningEvent } from '../screening.outbox.js';
+import { type QualityCode, UNREADABLE_IMAGE } from '../screening.rules.js';
 import {
   bandThresholds,
   DAY_MS,
@@ -20,6 +22,33 @@ import {
 } from '../screening.shared.js';
 
 export const newLookupCode = (): string => `${LOOKUP_PREFIX}${generateLookupCode()}`;
+
+/** Ảnh kiểm trước add-image-quality-checks không có số đo: không trúng luật chất lượng nào (spec image-checks). */
+const qualityOf = (check: ImageCheck): ImageQuality | null =>
+  check.width === null ||
+  check.height === null ||
+  check.sharpness === null ||
+  check.brightness === null
+    ? null
+    : {
+        width: check.width,
+        height: check.height,
+        sharpness: check.sharpness,
+        brightness: check.brightness,
+      };
+
+/** Mỗi luật chất lượng một lượt trúng, `refs` là các ảnh trúng nó. */
+function qualityHits(checks: readonly ImageCheck[], limits: QualityLimits): RawHit[] {
+  const byCode = new Map<QualityCode, string[]>();
+  for (const check of checks) {
+    const quality = qualityOf(check);
+    if (!quality) continue;
+    for (const code of qualityIssues(quality, limits)) {
+      byCode.set(code, [...(byCode.get(code) ?? []), check.imageId]);
+    }
+  }
+  return [...byCode].map(([code, refs]) => ({ code, refs }));
+}
 
 /**
  * Kết luận của một lượt (design mục 5 bước 4–5) — mọi đường kết luận đi qua đây: lúc mở lượt, lúc ảnh cuối về, lúc lưới
@@ -56,25 +85,35 @@ export function createConclusion(shared: ScreeningShared) {
     return !whitelist.some((entry) => near(entry.dhash));
   };
 
-  /** Kết quả ảnh của lượt: còn ảnh chưa kiểm xong → `null`; có ảnh lỗi → `failed`; còn lại → ảnh trùng. */
+  /**
+   * Kết quả ảnh của lượt: còn ảnh chưa kiểm xong → `null`; kho không trả lời → `failed`; còn lại → lượt trúng ảnh hỏng,
+   * ảnh trùng, chất lượng ảnh (add-image-quality-checks).
+   */
   const imagesOf = async (
     tx: Tx,
     run: ScreeningRun,
-    maxDistance: number,
-  ): Promise<{ failed: boolean; duplicates: string[] } | null> => {
+    limits: { imageMaxDistance: number; imageQuality?: QualityLimits },
+  ): Promise<{ failed: boolean; hits: RawHit[] } | null> => {
     const checks = await repository.imageChecks(run.imageIds, tx);
     const settled = checks.filter((check) => check.status !== 'pending');
     if (settled.length < run.imageIds.length) return null;
-    if (settled.some((check) => check.status === 'error')) return { failed: true, duplicates: [] };
+    const broken = settled.filter((check) => check.status === 'error');
+    // Lỗi ghi trước khi có loại lỗi tính như kho không trả lời — đúng như trước change này.
+    if (broken.some((check) => check.errorKind !== 'permanent')) return { failed: true, hits: [] };
+    const done = settled.filter((check) => check.status === 'done');
     // Lần lượt trên kết nối của transaction: song song thì mỗi ảnh xin thêm một kết nối của pool (T24).
     const flags: boolean[] = [];
-    await sequentially(settled, async (check) => {
-      flags.push(await duplicateOf(tx, check, run, maxDistance));
+    await sequentially(done, async (check) => {
+      flags.push(await duplicateOf(tx, check, run, limits.imageMaxDistance));
     });
-    return {
-      failed: false,
-      duplicates: settled.filter((_, index) => flags[index]).map((check) => check.imageId),
-    };
+    const duplicates = done.filter((_, index) => flags[index]).map((check) => check.imageId);
+    const hits: RawHit[] = [];
+    if (broken.length > 0) {
+      hits.push({ code: UNREADABLE_IMAGE, refs: broken.map((check) => check.imageId) });
+    }
+    if (duplicates.length > 0) hits.push({ code: 'duplicate_image', refs: duplicates });
+    if (limits.imageQuality) hits.push(...qualityHits(done, limits.imageQuality));
+    return { failed: false, hits };
   };
 
   /**
@@ -105,14 +144,14 @@ export function createConclusion(shared: ScreeningShared) {
     const raw: RawHit[] = text.status === 'ok' ? [...text.hits] : [];
     let failure: Failure | null = text.status === 'error' ? 'error' : null;
     if (text.status === 'ok') {
-      const images = await imagesOf(tx, run, text.imageMaxDistance);
+      const images = await imagesOf(tx, run, text);
       if (!images) {
         if (!timedOut) return null;
         failure = 'timeout';
       } else if (images.failed) {
         failure = 'error';
-      } else if (images.duplicates.length > 0) {
-        raw.push({ code: 'duplicate_image', refs: images.duplicates });
+      } else {
+        raw.push(...images.hits);
       }
     }
     return { raw, failure, rules: await shared.rules.at(run.ruleVersion, tx) };
@@ -147,6 +186,7 @@ export function createConclusion(shared: ScreeningShared) {
       deviceFlagged: (ok?.deviceFlags.length ?? 0) > 0,
       tier: ok?.tier ?? null,
       placement: text.placement,
+      imageIds: run.imageIds,
     });
     const now = clock();
     const rankAsListingId = ok?.rankAsListingId ?? null;

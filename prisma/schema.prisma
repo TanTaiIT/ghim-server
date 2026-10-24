@@ -1352,6 +1352,8 @@ enum ScreeningCause {
   device
   error
   timeout
+  /// Ảnh hỏng hay luật chất lượng ảnh đang bật trúng (add-image-quality-checks): lỗi tự sửa được, không tính dò.
+  image_quality
 
   @@map("screening_cause")
 }
@@ -1385,6 +1387,8 @@ enum ImageCheckErrorKind {
 enum ScreeningRuleKind {
   signal
   gate
+  /// Luật chất lượng ảnh: trúng thì giữ cho người như cổng cứng, nhưng tắt được và không tính dò (add-image-quality-checks).
+  quality
 
   @@map("screening_rule_kind")
 }
@@ -1470,6 +1474,13 @@ model ImageCheck {
   /// ảnh thì được xếp lại — mỗi ảnh một lần mỗi khoảng, không dồn việc trùng (fix-audit-image-checks).
   queuedAt       DateTime?            @map("queued_at") @db.Timestamptz(3)
   errorKind      ImageCheckErrorKind? @map("error_kind")
+  /// Số đo chất lượng (add-image-quality-checks), trống với ảnh kiểm trước change đó. Rộng, cao sau khi xoay theo EXIF.
+  width          Int?
+  height         Int?
+  /// Phương sai sau toán tử Laplace trên ảnh xám thu về cạnh dài 512 px.
+  sharpness      Float?
+  /// Trung bình kênh xám, 0–255.
+  brightness     Float?
 
   @@index([queuedAt], where: raw("status = 'pending'"), map: "image_checks_pending_queued_idx")
   @@index([band0], where: raw("status = 'done'"), map: "image_checks_band0_idx")

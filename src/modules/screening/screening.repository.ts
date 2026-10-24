@@ -18,6 +18,7 @@ import { type AuditEntry, appendAudit } from '../../common/audit/audit.js';
 import { appendEvents, type OutboxEventInput } from '../../common/outbox/outbox.js';
 import type { HELD_MANY_CAUSES } from './calc/decide.calc.js';
 import type { PriceRange } from './calc/price-stats.calc.js';
+import type { ImageQuality } from './calc/quality.calc.js';
 import type { RuleSnapshot } from './calc/score.calc.js';
 
 export type Tx = Prisma.TransactionClient;
@@ -216,7 +217,9 @@ export interface ScreeningRepository {
   /** Ghi kết quả khi dòng còn `pending`; `false` = việc kiểm khác đã ghi trước (việc trùng không ghi đè). */
   finishImageCheck(
     imageId: string,
-    result: ({ status: 'done' } & StoredHash) | { status: 'error'; kind: ImageCheckErrorKind },
+    result:
+      | ({ status: 'done'; quality: ImageQuality } & StoredHash)
+      | { status: 'error'; kind: ImageCheckErrorKind },
     at: Date,
   ): Promise<boolean>;
   /**
@@ -607,7 +610,13 @@ export function createScreeningRepository(prisma: PrismaClient): ScreeningReposi
         where: { imageId, status: 'pending' },
         data:
           result.status === 'done'
-            ? { status: 'done', dhash: result.dhash, ...bandColumns(result.bands), checkedAt: at }
+            ? {
+                status: 'done',
+                dhash: result.dhash,
+                ...bandColumns(result.bands),
+                ...result.quality,
+                checkedAt: at,
+              }
             : { status: 'error', errorKind: result.kind, checkedAt: at },
       });
       return count === 1;

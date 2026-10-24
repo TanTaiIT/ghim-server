@@ -149,6 +149,12 @@ export const CONFIG_KEYS = {
   'screening.heldManyDays': days(7, SCREENING, { min: 0 }),
   // dHash chia 5 dải, ứng viên tìm bằng dải trùng: lệch từ 5 bit trở lên không bao giờ thấy.
   'screening.imageDuplicateMaxDistance': int(4, SCREENING, { min: 0, max: 4 }),
+  // Chất lượng ảnh (add-image-quality-checks): độ nét là phương sai Laplace trên ảnh xám 512 px, độ sáng là trung bình
+  // kênh xám 0–255.
+  'screening.imageMinShortSide': int(480, SCREENING, { min: 100, max: 2000 }),
+  'screening.imageMinSharpness': int(20, SCREENING, { min: 0, max: 5000 }),
+  'screening.imageMinBrightness': int(25, SCREENING, { min: 0, max: 255 }),
+  'screening.imageMaxBrightness': int(235, SCREENING, { min: 0, max: 255 }),
   // Hàng chờ
   'review.machineHoldHours': hours(24, REVIEW),
   'review.reportHours': hours(72, REVIEW),
@@ -262,6 +268,11 @@ const RELATIONS: { holds: (values: ConfigValues) => boolean; issue: string }[] =
     holds: (v) => v['screening.mediumBandFrom'] < v['screening.highBandFrom'],
     issue:
       'screening.mediumBandFrom phải nhỏ hơn screening.highBandFrom — không thì dải Vừa không bao giờ xảy ra',
+  },
+  {
+    holds: (v) => v['screening.imageMinBrightness'] < v['screening.imageMaxBrightness'],
+    issue:
+      'screening.imageMinBrightness phải nhỏ hơn screening.imageMaxBrightness — không thì mọi ảnh vừa quá tối vừa quá sáng',
   },
   {
     holds: (v) => v['identity.passwordMinLength'] <= v['identity.passwordMaxLength'],

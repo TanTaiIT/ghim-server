@@ -13,7 +13,7 @@ export interface ScreeningImageService {
    * mọi tin sau (fix-audit-image-checks, C2). Trả số việc đã gửi.
    */
   scheduleChecks(input: { listingId: string; version: number; ownerId: string }): Promise<number>;
-  /** Việc `screening.check-image`: băm, ghi kết quả, rồi thử kết luận mọi lượt đang chờ ảnh này. */
+  /** Việc `screening.check-image`: đo ảnh (dHash, cỡ, độ nét, độ sáng), ghi kết quả, rồi kết luận mọi lượt đang chờ nó. */
   checkImage(imageId: string): Promise<void>;
   /**
    * Bên nghe `media.images.deleted`: dấu ảnh đi theo ảnh — ảnh đã xoá không còn là ứng viên trùng (rà soát L10). Lượt
@@ -28,7 +28,7 @@ export function createImageService(
   conclusion: Conclusion,
   imageQueue: ImageQueue,
 ): ScreeningImageService {
-  const { repository, media, hasher, clock } = shared;
+  const { repository, media, inspector, clock } = shared;
 
   /** Lần lượt: mỗi lượt kết luận giữ một kết nối trong transaction của nó — song song thì cạn pool khi đông (T24). */
   const concludeWaiting = async (imageId: string): Promise<void> => {
@@ -62,13 +62,23 @@ export function createImageService(
         bytes = null;
         storageDown = true;
       }
-      // Kho mất tệp hay tệp không giải mã được thì thử lại cũng vậy: ghi lỗi ngay.
-      const hash = bytes ? await hasher.dhash(bytes).catch(() => null) : null;
+      // Kho mất tệp hay tệp không giải mã được thì thử lại cũng vậy: ghi lỗi ngay — kết luận coi đó là ảnh hỏng.
+      const measure = bytes ? await inspector.inspect(bytes).catch(() => null) : null;
       const recorded = await repository.finishImageCheck(
         imageId,
-        hash === null
+        measure === null
           ? { status: 'error', kind: storageDown ? 'transient' : 'permanent' }
-          : { status: 'done', dhash: toStored(hash), bands: bandsOf(hash) },
+          : {
+              status: 'done',
+              dhash: toStored(measure.dhash),
+              bands: bandsOf(measure.dhash),
+              quality: {
+                width: measure.width,
+                height: measure.height,
+                sharpness: measure.sharpness,
+                brightness: measure.brightness,
+              },
+            },
         clock(),
       );
       // Việc trùng (xếp lại trúng lúc việc cũ chạy chậm) đã ghi trước: lượt kết luận là của nó.
