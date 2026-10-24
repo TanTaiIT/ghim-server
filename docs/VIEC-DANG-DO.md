@@ -73,7 +73,7 @@ DeviceCheck) là quyết định sản phẩm, không phải việc dở — xem
 
 ## 5. Bảo mật và vận hành
 
-- [ ] Production chạy migration `remove_two_factor` (xoá 3 cột) khi deploy. `ghim-app` đã bỏ `TwoFactorGate`, ô mã ở
+- [x] Production chạy migration `remove_two_factor` (xoá 3 cột) khi deploy — xong 24/10/2026 cùng `add_image_quality_checks` (PR #14); app bản bỏ 2FA lên `main` cùng ngày. `ghim-app` đã bỏ `TwoFactorGate`, ô mã ở
       màn đăng nhập và hàm gọi `/me/two-factor/*`, lấy lối vào bàn vận hành từ cờ `staff` của `/me` (23/10/2026, change
       `add-me-staff-flag`) — bản app đó cần server có cờ này.
 - [ ] Tạo lại khoá Cloudinary "moderation" (API secret đã gửi qua chat 15/10/2026), dán vào `.env.development`; nếu hệ
