@@ -238,7 +238,10 @@ export function createRetentionService(deps: RetentionDeps, hold: EvidenceHold):
 
   const devicesStep = (): Step => async () => {
     const result = await identity.purgeDeviceData(days(clock(), 'device.dataRetentionDays'));
-    return { count: result.posts + result.flags + result.sessionIps, done: true };
+    return {
+      count: result.posts + result.logins + result.flags + result.sessionIps,
+      done: true,
+    };
   };
 
   const conversationsStep = (pageSize: number): Step => {

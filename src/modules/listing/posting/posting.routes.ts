@@ -1,11 +1,11 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 
 import { actorOf } from '../../../common/auth/actor.js';
+import { deviceHeadersSchema } from '../../../common/schemas/device-headers.js';
 import { errorResponse, ok, toOk } from '../../../common/schemas/response.js';
 import { emptySchema } from '../../identity/identity.schema.js';
 import {
   createListingBodySchema,
-  deviceHeadersSchema,
   listingParamsSchema,
   moveListingBodySchema,
   ownListingSchema,

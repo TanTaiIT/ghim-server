@@ -125,6 +125,7 @@ export interface GoogleLoginInput {
   deviceName: string;
   ip: string | null;
   userAgent: string | null;
+  deviceId: string | null;
 }
 
 export interface PublicProfileDto {
@@ -194,6 +195,8 @@ export interface LoginInput {
   deviceName: string;
   ip: string | null;
   userAgent: string | null;
+  /** Mã máy app gửi (`x-device-id`); có thì ghi dấu đăng nhập (spec device-registry, add-login-device-marks). */
+  deviceId: string | null;
 }
 
 /** Phiên vừa mở: route ký access token từ `sessionId` và quyết định refresh token đi body hay cookie. */
@@ -292,7 +295,9 @@ export interface IdentityService extends ActorResolver {
    * `ops` đi qua `listing`, `media` trước; dòng tài khoản giữ cho lịch sử chống gian lận.
    */
   purgeDeletedAccount(accountId: string): Promise<void>;
-  purgeDeviceData(before: Date): Promise<{ posts: number; flags: number; sessionIps: number }>;
+  purgeDeviceData(
+    before: Date,
+  ): Promise<{ posts: number; logins: number; flags: number; sessionIps: number }>;
   /** Mã giả thay mã tài khoản khi ẩn danh hoá gậy: HMAC khoá ngoài DB, dạng UUID — cùng người cùng mã, không dò ngược. */
   pseudonymOf(accountId: string): string;
 
@@ -306,8 +311,9 @@ export interface IdentityService extends ActorResolver {
   /** `screening` hỏi lúc chấm chữ, trước khi bên nghe kịp ghi lượt đăng: tính như đã ghi, không ghi gì. */
   deviceFlagsFor(accountId: string, deviceHash: string, at: Date): Promise<DeviceFlags>;
   /**
-   * Tài khoản từng đăng tin từ cùng một máy với `accountId` kể từ `since` — `review` loại họ khỏi việc của nhau (TK 8,
-   * 16). Chỉ trả mã tài khoản, không bao giờ trả dấu máy.
+   * Tài khoản từng đăng tin hay đăng nhập từ cùng một máy với `accountId` kể từ `since` — `review` loại họ khỏi việc
+   * của nhau (TK 8, 16), `messaging` không tính họ là người hỏi mua (TK 20). Chỉ trả mã tài khoản, không bao giờ trả
+   * dấu máy.
    */
   sharedDeviceAccounts(accountId: string, since: Date): Promise<string[]>;
   /** Master đang hoạt động — người nhận nhắc hạn và cảnh báo của hàng chờ (design add-review-queues mục 10). */

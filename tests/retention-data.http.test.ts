@@ -65,9 +65,14 @@ const strikeRow = (id: string) =>
   prisma.strike.findUniqueOrThrow({ where: { id }, include: { appeal: true } });
 
 describe('Dữ liệu thiết bị', () => {
-  it('lượt ghi dấu máy 100 ngày còn, hơn 180 ngày xoá; địa chỉ mạng của phiên cũ bị xoá mà phiên và tài khoản vẫn dùng; đánh dấu đã gỡ xoá, đánh dấu đang mở giữ', async () => {
+  it('dấu đăng tin và dấu đăng nhập 100 ngày còn, hơn 180 ngày xoá; địa chỉ mạng của phiên cũ bị xoá mà phiên và tài khoản vẫn dùng; đánh dấu đã gỡ xoá, đánh dấu đang mở giữ', async () => {
     const user = await newUser(app);
     await repositories.identity.upsertDevicePost({
+      deviceHash: 'may-1',
+      accountId: user.id,
+      at: TEST_NOW,
+    });
+    await repositories.identity.upsertDeviceLogin({
       deviceHash: 'may-1',
       accountId: user.id,
       at: TEST_NOW,
@@ -99,11 +104,13 @@ describe('Dữ liệu thiết bị', () => {
     now = day(100);
     await retention();
     expect(await prisma.devicePost.count({ where: { accountId: user.id } })).toBe(1);
+    expect(await prisma.deviceLogin.count({ where: { accountId: user.id } })).toBe(1);
 
     now = day(181);
     const result = await retention();
-    expect(result.counts.devices).toBe(3);
+    expect(result.counts.devices).toBe(4);
     expect(await prisma.devicePost.count({ where: { accountId: user.id } })).toBe(0);
+    expect(await prisma.deviceLogin.count({ where: { accountId: user.id } })).toBe(0);
     expect(await prisma.session.findUniqueOrThrow({ where: { id: session.id } })).toMatchObject({
       ip: null,
       userAgent: 'Ghim/1.0',

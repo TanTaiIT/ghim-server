@@ -141,6 +141,7 @@ model Account {
   verificationCodes     VerificationCode[]
   sessions              Session[]
   devicePosts           DevicePost[]
+  deviceLogins          DeviceLogin[]
   deviceClearances      DeviceClearance[]
   flags                 AccountFlag[]
   idVerifications       IdVerification[]
@@ -250,6 +251,24 @@ model DevicePost {
   @@index([accountId])
   @@index([lastPostedAt])
   @@map("device_posts")
+}
+
+/// CHECK tay (migration add_device_logins):
+///   device_logins_order_check: last_seen_at >= first_seen_at
+model DeviceLogin {
+  /// HMAC của mã thiết bị app gửi lúc đăng nhập (add-login-device-marks). Chỉ nuôi luật xung đột lợi ích và luật
+  /// người hỏi mua — không nuôi đánh dấu gian lận, thứ vẫn chỉ tính lượt đăng tin (`device_posts`).
+  deviceHash  String   @map("device_hash")
+  accountId   String   @map("account_id") @db.Uuid
+  firstSeenAt DateTime @map("first_seen_at") @db.Timestamptz(3)
+  lastSeenAt  DateTime @map("last_seen_at") @db.Timestamptz(3)
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@id([deviceHash, accountId])
+  @@index([accountId])
+  @@index([lastSeenAt])
+  @@map("device_logins")
 }
 
 model DeviceClearance {

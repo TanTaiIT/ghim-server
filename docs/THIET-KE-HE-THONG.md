@@ -284,7 +284,7 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 
 **Dấu thiết bị còn dùng ở đâu**
 
-- **Không ai xử việc của tài khoản dùng chung máy với mình** (phần 16). Staff lập tài khoản phụ trên máy mình để tự duyệt sẽ bị nhận ra.
+- **Không ai xử việc của tài khoản dùng chung máy với mình** (phần 16). Staff lập tài khoản phụ trên máy mình để tự duyệt sẽ bị nhận ra — cho luật này (và luật người hỏi mua ở phần 20), dấu máy ghi cả **lúc đăng nhập** chứ không chỉ lúc đăng tin (chốt 24/10/2026), nên staff chưa từng đăng tin từ máy mình vẫn bị nhận ra. Ba đánh dấu ở trên vẫn chỉ tính lượt đăng tin.
 - **Báo cáo hạ tin**: ngưỡng tạm ẩn đếm người báo trên **các máy khác nhau** (phần 23).
 - Người duyệt thấy "tài khoản này dùng chung thiết bị với tài khoản X" khi xử việc, nhưng không thấy mã máy.
 

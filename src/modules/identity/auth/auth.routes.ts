@@ -23,6 +23,7 @@ import {
   tokensSchema,
   verifyEmailBodySchema,
 } from '../identity.schema.js';
+import { deviceHeadersSchema } from '../../../common/schemas/device-headers.js';
 import type { IdentityService, SessionOpened } from '../identity.service.js';
 
 export interface IdentityAuthRoutesOptions {
@@ -120,6 +121,7 @@ export const identityAuthRoutes: FastifyPluginAsyncZod<IdentityAuthRoutesOptions
     schema: {
       tags: TAGS,
       summary: 'Đăng nhập bằng email và mật khẩu',
+      headers: deviceHeadersSchema,
       body: loginBodySchema,
       response: { 200: ok(tokensSchema), 401: errorResponse, 403: errorResponse },
     },
@@ -131,6 +133,7 @@ export const identityAuthRoutes: FastifyPluginAsyncZod<IdentityAuthRoutesOptions
         deviceName: deviceNameOf(request, deviceName),
         ip: request.ip,
         userAgent: request.headers['user-agent'] ?? null,
+        deviceId: request.headers['x-device-id'] ?? null,
       });
       return issueTokens(reply, opened, client);
     },
@@ -141,6 +144,7 @@ export const identityAuthRoutes: FastifyPluginAsyncZod<IdentityAuthRoutesOptions
     schema: {
       tags: TAGS,
       summary: 'Đăng ký hoặc đăng nhập bằng ID token Google',
+      headers: deviceHeadersSchema,
       body: googleBodySchema,
       response: {
         200: ok(tokensSchema),
@@ -157,6 +161,7 @@ export const identityAuthRoutes: FastifyPluginAsyncZod<IdentityAuthRoutesOptions
         deviceName: deviceNameOf(request, deviceName),
         ip: request.ip,
         userAgent: request.headers['user-agent'] ?? null,
+        deviceId: request.headers['x-device-id'] ?? null,
       });
       return issueTokens(reply, opened, client);
     },
