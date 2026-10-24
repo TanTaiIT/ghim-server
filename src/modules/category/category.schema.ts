@@ -17,8 +17,6 @@ export const CATEGORY_NAME_MAX = 60;
 export const TEMPLATE_FIELDS_MAX = 40;
 export const TEMPLATE_OPTIONS_MAX = 100;
 export const TEMPLATE_LABEL_MAX = 80;
-export const REGION_QUERY_MAX = 60;
-export const REGION_SEARCH_LIMIT = 50;
 
 export const categoryIdParamsSchema = z.object({ id: z.uuid() });
 export const settingsVersionParamsSchema = categoryIdParamsSchema.extend({
@@ -154,36 +152,4 @@ export const templateSchema = z.object({
   version: z.number().int().nullable(),
   fields: z.array(templateFieldSchema),
   publishedAt: z.iso.datetime().nullable(),
-});
-
-// ── KHU VỰC ─────────────────────────────────────────────────────────────────────────────────────
-
-export const provinceCodeParamsSchema = z.object({ code: z.coerce.number().int().positive() });
-
-export const regionSearchQuerySchema = z.object({
-  q: z.string().trim().min(1).max(REGION_QUERY_MAX),
-});
-
-export const provinceSchema = z.object({
-  code: z.number().int(),
-  name: z.string(),
-  fullName: z.string(),
-  formerNames: z.array(z.string()),
-  aliases: z.array(z.string()),
-});
-
-export const wardSchema = z.object({
-  code: z.number().int(),
-  provinceCode: z.number().int(),
-  name: z.string(),
-  formerNames: z.array(z.string()),
-});
-
-export const regionHitSchema = z.object({
-  kind: z.enum(['province', 'ward']),
-  code: z.number().int(),
-  name: z.string(),
-  provinceCode: z.number().int(),
-  provinceName: z.string(),
-  formerNames: z.array(z.string()),
 });

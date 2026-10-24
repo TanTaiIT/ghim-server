@@ -207,4 +207,3 @@ export type PatchListingBody = z.infer<typeof patchListingBodySchema>;
 export type FeedQuery = z.infer<typeof feedQuerySchema>;
 export type ListingDto = z.infer<typeof listingSchema>;
 export type OwnListingDto = z.infer<typeof ownListingSchema>;
-

@@ -82,7 +82,7 @@ export interface Region {
 
 /** Khu vực có thật (bảng `regions.json` nạp vào DB lần đầu) — tin sàn chung bắt buộc có. */
 export async function someRegion(app: FastifyInstance): Promise<Region> {
-  await app.modules.category.seedRegionsIfEmpty();
+  await app.modules.region.seedRegionsIfEmpty();
   const ward = await prisma.ward.findFirstOrThrow({ orderBy: { code: 'asc' } });
   return { provinceCode: ward.provinceCode, wardCode: ward.code };
 }

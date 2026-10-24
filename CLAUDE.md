@@ -182,7 +182,7 @@ src/
     data/                     ← (nếu có) file tĩnh đi kèm, đọc bằng `new URL('./data/…', import.meta.url)`;
                                 tsc không chép nên `pnpm run build` có bước `build:data` chép `src/**/data` sang dist
   cli/                        ← script chạy tay, không qua HTTP: `create-master`
-                                (dùng `cli-identity.ts`), `build-regions` (sinh `category/data/regions.json`)
+                                (dùng `cli-identity.ts`), `build-regions` (sinh `region/data/regions.json`)
 tests/*.test.ts               ← phẳng, không chia thư mục con; chạy trên Postgres test
 tests/*.db.test.ts            ← ghi thẳng bằng Prisma để kiểm ràng buộc của DB, tiện ích ở `tests/db-helpers.ts`
 ```
@@ -200,9 +200,9 @@ tests/*.db.test.ts            ← ghi thẳng bằng Prisma để kiểm ràng b
   "luật" là khái niệm nghiệp vụ (`ops/rules.service.ts` — luật của máy duyệt). Calc đọc file dữ liệu thì đường dẫn
   là `new URL('../data/…', import.meta.url)` — typecheck không bắt sai đường dẫn này, chỉ khởi động server mới bắt.
 - **Không có `<module>.types.ts`**: DTO chính là response schema Zod trong `<module>.schema.ts`.
-- Tên module kebab-case, **số ít**. Đang có: `health`, `identity`, `platform`, `category`, `group`,
-  `notification`, `media`, `listing`, `trust`, `screening`, `review`.
-- `buildApp(overrides)` nhận `repositories: { identity, platform, category, group, media, listing, trust, screening,
+- Tên module kebab-case, **số ít**. Đang có: `health`, `identity`, `platform`, `category`, `region`, `group`,
+  `notification`, `media`, `listing`, `trust`, `screening`, `review`, `messaging`, `ops`.
+- `buildApp(overrides)` nhận `repositories: { identity, platform, category, region, group, media, listing, trust, screening,
 review }`,
   `storage`, `trust` (cổng mức tin cậy và hạn mức mà `listing`, `group` hỏi — bỏ trống là module `trust` thật),
   `screening` (cổng máy duyệt `listing` gọi trong lượt gửi — bỏ trống là module `screening` thật) và hạ tầng dùng chung
@@ -218,20 +218,21 @@ review }`,
 
 ### Module theo TK phần 30 — thứ tự xây theo TK phần 29
 
-| Đợt  | Module         | Phần TK    | Sở hữu (chỉ module này được GHI)                                                   |
-| ---- | -------------- | ---------- | ---------------------------------------------------------------------------------- |
-| 1    | `identity`     | 7, 8       | Tài khoản, email chuẩn hoá + dấu băm, phiên đăng nhập, Google, 2 lớp, dấu thiết bị |
-| 1    | `platform`     | 5, 6, 28   | Master, quyền staff theo danh mục, **bảng con số có phiên bản**                    |
-| 1    | `group`        | 9, 10      | Nhóm, chế độ, thành viên + đường vào, huy hiệu, đơn vị con, chủ nhóm               |
-| 1    | `category`     | 11         | Danh mục, mẫu thông tin, trần giá, giá tham chiếu, mức rủi ro                      |
-| 2    | `media`        | 25         | Ảnh, nhãn "chưa xác nhận", dọn ảnh (kiểm ảnh thuộc `screening`)                    |
-| 2    | `listing`      | 12, 18, 19 | **Trạng thái tin**, nháp, nơi đăng, ngày hiển thị, cờ tạm ẩn                       |
-| 2, 5 | `trust`        | 20, 21, 22 | Mức tin cậy, hạn mức, tin sạch (đợt 2); gậy, khiếu nại, ân xá (đợt 5)              |
-| 3    | `screening`    | 13, 14     | **Kết quả máy**, cụm từ cấm, luật + trọng số, kiểm ảnh, lý do hạn chế `machine`    |
-| 4    | `review`       | 16, 17, 23 | **Việc** và hàng chờ, nhận việc 10 phút, quyết định của người, hậu kiểm, báo cáo   |
-| 6    | `messaging`    | 24         | Hội thoại, tin nhắn, chặn người                                                    |
-| 1, 6 | `notification` | 24         | Hộp thư, nhóm bật/tắt, tắt tiếng nhóm, realtime (đợt 1); đẩy thông báo (đợt 6)     |
-| 7    | `ops`          | 25, 26     | Dọn dữ liệu theo hạn lưu, tạm giữ bằng chứng, sổ việc nền `job_runs`, dọn outbox   |
+| Đợt  | Module         | Phần TK    | Sở hữu (chỉ module này được GHI)                                                                             |
+| ---- | -------------- | ---------- | ------------------------------------------------------------------------------------------------------------ |
+| 1    | `identity`     | 7, 8       | Tài khoản, email chuẩn hoá + dấu băm, phiên đăng nhập, Google, 2 lớp, dấu thiết bị                           |
+| 1    | `platform`     | 5, 6, 28   | Master, quyền staff theo danh mục, **bảng con số có phiên bản**                                              |
+| 1    | `group`        | 9, 10      | Nhóm, chế độ, thành viên + đường vào, huy hiệu, đơn vị con, chủ nhóm                                         |
+| 1    | `category`     | 11         | Danh mục, mẫu thông tin, trần giá, giá tham chiếu, mức rủi ro                                                |
+| 1    | `region`       | 11         | Tỉnh, phường sau sáp nhập, tên cũ, tìm bỏ dấu — tách khỏi `category` 24/10/2026, spec vẫn `category/regions` |
+| 2    | `media`        | 25         | Ảnh, nhãn "chưa xác nhận", dọn ảnh (kiểm ảnh thuộc `screening`)                                              |
+| 2    | `listing`      | 12, 18, 19 | **Trạng thái tin**, nháp, nơi đăng, ngày hiển thị, cờ tạm ẩn                                                 |
+| 2, 5 | `trust`        | 20, 21, 22 | Mức tin cậy, hạn mức, tin sạch (đợt 2); gậy, khiếu nại, ân xá (đợt 5)                                        |
+| 3    | `screening`    | 13, 14     | **Kết quả máy**, cụm từ cấm, luật + trọng số, kiểm ảnh, lý do hạn chế `machine`                              |
+| 4    | `review`       | 16, 17, 23 | **Việc** và hàng chờ, nhận việc 10 phút, quyết định của người, hậu kiểm, báo cáo                             |
+| 6    | `messaging`    | 24         | Hội thoại, tin nhắn, chặn người                                                                              |
+| 1, 6 | `notification` | 24         | Hộp thư, nhóm bật/tắt, tắt tiếng nhóm, realtime (đợt 1); đẩy thông báo (đợt 6)                               |
+| 7    | `ops`          | 25, 26     | Dọn dữ liệu theo hạn lưu, tạm giữ bằng chứng, sổ việc nền `job_runs`, dọn outbox                             |
 
 `media` lên đợt 2 (TK 29 xếp ở đợt 3) vì nháp tin đăng đã cần ảnh; chỉ phần **kiểm** ảnh ở đợt 3.
 `notification` nghe `group.*`, các `listing.*` có dòng ma trận (`notification.listing-matrix.ts`) và
@@ -320,7 +321,7 @@ change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-cate
 `harden-production-runtime` → `add-groups` → `add-notification-core` (kéo từ đợt 6, chốt 11/10/2026) — mười change
 này đã archive 10–11/10/2026 · đợt 2
 `add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` (cả hai đã archive 12/10/2026) · đợt 3 `add-screening` (đã archive 13/10/2026) → `add-image-moderation` (tách ra 12/10/2026, bỏ 24/10/2026: không kiểm nội dung ảnh) · đợt 4 `add-review-queues` (đã archive 15/10/2026) → **sửa lỗi rà soát 15/10/2026 trước mọi tính năng** (`docs/RA-SOAT-15-10-2026.md`; đợt 1 bảo mật = `fix-audit-security`) →
-`add-reports` (đã archive 16/10/2026) · đợt 5 `add-strikes` (đã archive 17/10/2026) · đợt 6 `add-messaging` → `add-notifications` (cả hai đã archive 17/10/2026) → `add-price-offers` → `add-team-conversations` → `add-activity-status` (làm 18/10/2026 theo yêu cầu của app `ghim-app`, cả ba đã archive 22/10/2026) → `add-join-request-status` (cũng từ lượt nối `ghim-app`, đã archive 18/10/2026) → `add-trust-notices` (thông báo gậy, khiếu nại, mức tin cậy, thời gian chờ + N36 — rơi giữa `add-strikes`, `add-notifications`, `add-review-queues`; đã archive 24/10/2026) → `add-me-staff-flag` (`/me` có cờ `staff` thay `twoFactorEnabled` cho lối vào bàn vận hành của `ghim-app`) → `add-image-quality-checks` (kiểm chất lượng ảnh thay kiểm nội dung) — cả ba gộp vào `main` qua PR #14, archive 24/10/2026 → `add-listing-filters` (lọc tin theo mẫu thông tin của danh mục qua `attrs` của `GET /listings`, TK 11 — việc app chờ ở `docs/VIEC-DANG-DO.md` mục 8; gộp `main` qua PR #15, archive 24/10/2026) → `add-login-device-marks` (dấu máy ghi lúc đăng nhập — `device_logins` — cho luật xung đột lợi ích và người hỏi mua; việc dở `VIEC-DANG-DO.md` mục 1; duyệt 24/10/2026) · đợt 7
+`add-reports` (đã archive 16/10/2026) · đợt 5 `add-strikes` (đã archive 17/10/2026) · đợt 6 `add-messaging` → `add-notifications` (cả hai đã archive 17/10/2026) → `add-price-offers` → `add-team-conversations` → `add-activity-status` (làm 18/10/2026 theo yêu cầu của app `ghim-app`, cả ba đã archive 22/10/2026) → `add-join-request-status` (cũng từ lượt nối `ghim-app`, đã archive 18/10/2026) → `add-trust-notices` (thông báo gậy, khiếu nại, mức tin cậy, thời gian chờ + N36 — rơi giữa `add-strikes`, `add-notifications`, `add-review-queues`; đã archive 24/10/2026) → `add-me-staff-flag` (`/me` có cờ `staff` thay `twoFactorEnabled` cho lối vào bàn vận hành của `ghim-app`) → `add-image-quality-checks` (kiểm chất lượng ảnh thay kiểm nội dung) — cả ba gộp vào `main` qua PR #14, archive 24/10/2026 → `add-listing-filters` (lọc tin theo mẫu thông tin của danh mục qua `attrs` của `GET /listings`, TK 11 — việc app chờ ở `docs/VIEC-DANG-DO.md` mục 8; gộp `main` qua PR #15, archive 24/10/2026) → `add-login-device-marks` (dấu máy ghi lúc đăng nhập — `device_logins` — cho luật xung đột lợi ích và người hỏi mua; việc dở `VIEC-DANG-DO.md` mục 1; gộp `main` qua PR #16, archive 24/10/2026) · đợt 7
 `add-data-retention` (đã archive 17/10/2026) · giữ chỗ gói đẩy tin `prepare-promotions` (đã archive 17/10/2026;
 kế hoạch `docs/KE-HOACH-GOI-DAY-TIN.md`) → `add-wallet` → `add-promotions` → `add-topup` (nằm chờ chủ dự án chốt).
 

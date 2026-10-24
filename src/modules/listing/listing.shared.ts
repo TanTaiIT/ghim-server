@@ -15,6 +15,7 @@ import type {
   ListingCategoryPort,
   ListingGroupPort,
   ListingMediaPort,
+  ListingRegionPort,
   ListingScreeningPort,
   ListingTrustPort,
   MachineNotice,
@@ -35,6 +36,7 @@ export interface ListingServiceDeps {
   repository: ListingRepository;
   groups: ListingGroupPort;
   categories: ListingCategoryPort;
+  regions: ListingRegionPort;
   media: ListingMediaPort;
   identity: {
     deviceToken(deviceId: string): string;

@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { fold } from '../common/text/fold.js';
 
 /*
- * Sinh `src/modules/category/data/regions.json` — nguồn mã số chính thức là API công khai
+ * Sinh `src/modules/region/data/regions.json` — nguồn mã số chính thức là API công khai
  * provinces.open-api.vn (v2 = sau sáp nhập 01/07/2025, depth=2 = tỉnh kèm phường); tên cũ và tên
  * gọi tắt cấp tỉnh trộn từ `province-former-names.json` (biên soạn tay, chép từ hệ thống cũ).
  *
@@ -15,7 +15,7 @@ import { fold } from '../common/text/fold.js';
  */
 const API_URL = 'https://provinces.open-api.vn/api/v2/?depth=2';
 const EXPECTED_PROVINCES = 34;
-const DATA_DIR = new URL('../modules/category/data/', import.meta.url);
+const DATA_DIR = new URL('../modules/region/data/', import.meta.url);
 
 interface ApiWard {
   code: number;

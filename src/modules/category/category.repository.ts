@@ -4,42 +4,24 @@ import type {
   CategoryStatus,
   Prisma,
   PrismaClient,
-  Province,
   TemplateDraft,
   TemplateVersion,
-  Ward,
 } from '@prisma/client';
 
 import { appendAudit, type AuditEntry } from '../../common/audit/audit.js';
 import { appendEvents } from '../../common/outbox/outbox.js';
 import { CATEGORY_EVENTS } from './category.outbox.js';
-import { fold } from '../../common/text/fold.js';
 import { fieldsToJson, type TemplateField } from './calc/template.calc.js';
 
-export type {
-  Category,
-  CategorySettingVersion,
-  CategoryStatus,
-  Province,
-  TemplateDraft,
-  TemplateVersion,
-  Ward,
-};
+export type { Category, CategorySettingVersion, CategoryStatus, TemplateDraft, TemplateVersion };
 
 /** Danh mục kèm dòng cài đặt hiện hành (`version = settings_version`). */
 export type CategoryRow = Category & { settings: CategorySettingVersion };
-
-export type WardWithProvince = Ward & { province: Province };
 
 export type CategorySettingsInput = Pick<
   CategorySettingVersion,
   'priceCap' | 'referencePrice' | 'riskLevel' | 'alwaysManual' | 'groupReview'
 >;
-
-export interface RegionsSeed {
-  provinces: Array<Pick<Province, 'code' | 'name' | 'fullName' | 'formerNames' | 'aliases'>>;
-  wards: Array<Pick<Ward, 'code' | 'provinceCode' | 'name' | 'formerNames'>>;
-}
 
 export interface Audited {
   at: Date;
@@ -63,8 +45,6 @@ export interface CategoryRepository {
   ): Promise<{ id: string; status: CategoryStatus; templateVersion: number | null }[]>;
   /** Trong transaction của `listing`: `FOR SHARE` dòng danh mục tới khi lượt gửi commit. */
   lockStatus(tx: Tx, id: string): Promise<CategoryStatus | null>;
-  findWard(code: number): Promise<{ provinceCode: number } | null>;
-  provinceExists(code: number): Promise<boolean>;
   /** Phiên bản kế + tăng `settings_version` cùng transaction; phiên bản cũ không đụng. */
   addSettingsVersion(
     input: { id: string; settings: CategorySettingsInput; changedBy: string } & Audited,
@@ -99,31 +79,6 @@ export interface CategoryRepository {
       publishedBy: string;
     } & Audited,
   ): Promise<TemplateVersion | null>;
-
-  countProvinces(): Promise<number>;
-  /** Nạp cả file một lượt; `search_text` dựng ở đây để cùng hàm `fold` với lúc tìm. */
-  seedRegions(seed: RegionsSeed): Promise<{ provinces: number; wards: number }>;
-  listProvinces(): Promise<Province[]>;
-  findProvince(code: number): Promise<Province | null>;
-  listWards(provinceCode: number): Promise<Ward[]>;
-  /** `folded` đã qua `fold`; tỉnh và phường tìm riêng, mỗi bên tới `limit` dòng. */
-  searchRegions(
-    folded: string,
-    limit: number,
-  ): Promise<{ provinces: Province[]; wards: WardWithProvince[] }>;
-}
-
-/** 5 tham số một dòng phường → 5000 mỗi lô, dưới xa trần 65535 của Postgres. */
-const WARD_BATCH_SIZE = 1_000;
-
-export function provinceSearchText(
-  row: Pick<Province, 'name' | 'fullName' | 'formerNames' | 'aliases'>,
-): string {
-  return fold([row.name, row.fullName, ...row.formerNames, ...row.aliases].join(' | '));
-}
-
-export function wardSearchText(row: Pick<Ward, 'name' | 'formerNames'>): string {
-  return fold([row.name, ...row.formerNames].join(' | '));
 }
 
 type Tx = Prisma.TransactionClient;
@@ -134,14 +89,6 @@ async function currentRow(tx: Tx, id: string): Promise<CategoryRow> {
     where: { categoryId_version: { categoryId: id, version: category.settingsVersion } },
   });
   return { ...category, settings };
-}
-
-function chunk<T>(items: T[], size: number): T[][] {
-  const batches: T[][] = [];
-  for (let start = 0; start < items.length; start += size) {
-    batches.push(items.slice(start, start + size));
-  }
-  return batches;
 }
 
 export function createCategoryRepository(prisma: PrismaClient): CategoryRepository {
@@ -232,12 +179,6 @@ export function createCategoryRepository(prisma: PrismaClient): CategoryReposito
       const [row] = await tx.$queryRaw<{ status: CategoryStatus }[]>`
         SELECT status FROM categories WHERE id = ${id}::uuid FOR SHARE`;
       return row?.status ?? null;
-    },
-
-    findWard: (code) => prisma.ward.findUnique({ where: { code }, select: { provinceCode: true } }),
-
-    async provinceExists(code) {
-      return (await prisma.province.count({ where: { code } })) > 0;
     },
 
     addSettingsVersion: ({ id, settings, changedBy, at, audit }) =>
@@ -331,48 +272,5 @@ export function createCategoryRepository(prisma: PrismaClient): CategoryReposito
         await appendAudit(tx, audit);
         return row;
       }),
-
-    countProvinces: () => prisma.province.count(),
-
-    async seedRegions({ provinces, wards }) {
-      // Một transaction, các lô chạy lần lượt trên một kết nối: nạp hỏng giữa chừng thì không để lại tỉnh
-      // thiếu phường khiến lần khởi động sau bỏ qua, và không chiếm cả pool của request.
-      const [provinceResult, ...wardResults] = await prisma.$transaction([
-        prisma.province.createMany({
-          data: provinces.map((row) => ({ ...row, searchText: provinceSearchText(row) })),
-          skipDuplicates: true,
-        }),
-        ...chunk(wards, WARD_BATCH_SIZE).map((batch) =>
-          prisma.ward.createMany({
-            data: batch.map((row) => ({ ...row, searchText: wardSearchText(row) })),
-            skipDuplicates: true,
-          }),
-        ),
-      ]);
-      return {
-        provinces: provinceResult.count,
-        wards: wardResults.reduce((sum, { count }) => sum + count, 0),
-      };
-    },
-    listProvinces: () => prisma.province.findMany({ orderBy: { code: 'asc' } }),
-    findProvince: (code) => prisma.province.findUnique({ where: { code } }),
-    listWards: (provinceCode) =>
-      prisma.ward.findMany({ where: { provinceCode }, orderBy: { code: 'asc' } }),
-    async searchRegions(folded, limit) {
-      const [provinces, wards] = await Promise.all([
-        prisma.province.findMany({
-          where: { searchText: { contains: folded } },
-          orderBy: { code: 'asc' },
-          take: limit,
-        }),
-        prisma.ward.findMany({
-          where: { searchText: { contains: folded } },
-          orderBy: { code: 'asc' },
-          take: limit,
-          include: { province: true },
-        }),
-      ]);
-      return { provinces, wards };
-    },
   };
 }

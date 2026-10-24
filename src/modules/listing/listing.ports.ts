@@ -11,6 +11,7 @@ import type {
 import type { CategoryService } from '../category/category.service.js';
 import type { GroupService } from '../group/group.service.js';
 import type { MediaService } from '../media/media.service.js';
+import type { RegionService } from '../region/region.service.js';
 import type { PostingFee } from './calc/fee.calc.js';
 
 /*
@@ -109,8 +110,10 @@ export type ListingGroupPort = Pick<
 >;
 export type ListingCategoryPort = Pick<
   CategoryService,
-  'statusOf' | 'lockStatus' | 'validateRegion' | 'validateAttributes' | 'currentTemplate'
+  'statusOf' | 'lockStatus' | 'validateAttributes' | 'currentTemplate'
 >;
+/** Cặp tỉnh / phường của tin phải có thật — `region` tách khỏi `category` 24/10/2026. */
+export type ListingRegionPort = Pick<RegionService, 'validateRegion'>;
 export type ListingMediaPort = Pick<
   MediaService,
   'resolve' | 'attach' | 'viewUrl' | 'copyImages' | 'purgeOwners'

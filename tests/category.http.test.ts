@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { auditOf, outboxEvents, prisma } from './db-helpers.js';
+import { auditOf, outboxEvents } from './db-helpers.js';
 import { seedAccount, tokenFor } from './ops-helpers.js';
 import { buildTestApp, repositories } from './test-app.js';
 
@@ -239,22 +239,6 @@ describe('bật, tắt, không xoá', () => {
       enabled: true,
       templateVersion: null,
     });
-  });
-
-  it('kiểm khu vực cho tin đăng: mã lạ, phường không thuộc tỉnh, cặp đúng', async () => {
-    const category = app.modules.category;
-    await category.seedRegionsIfEmpty();
-    const wards = await prisma.ward.findMany({ take: 1, include: { province: true } });
-    const ward = wards[0];
-    if (!ward) throw new Error('Chưa nạp khu vực');
-    const other = await prisma.province.findFirstOrThrow({
-      where: { code: { not: ward.provinceCode } },
-    });
-    expect(await category.validateRegion(ward.provinceCode, ward.code)).toBeNull();
-    expect(await category.validateRegion(ward.provinceCode, null)).toBeNull();
-    expect(await category.validateRegion(other.code, ward.code)).toMatch(/không thuộc/);
-    expect(await category.validateRegion(99_999, null)).toMatch(/Không có tỉnh/);
-    expect(await category.validateRegion(ward.provinceCode, 99_999_999)).toMatch(/Không có phường/);
   });
 
   it('xoá → 404 NOT_FOUND vì không có thao tác đó, danh mục vẫn còn', async () => {
