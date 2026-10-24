@@ -61,6 +61,8 @@ export type IdentityOpsService = Pick<
   | 'accountState'
   | 'lockAccountStatus'
   | 'accountSummaries'
+  | 'searchAccounts'
+  | 'accountCard'
   | 'avatarUrls'
   | 'recordSeen'
   | 'activityOf'
@@ -503,6 +505,8 @@ export function createIdentityOpsService(
 
     lockAccountStatus: (tx, accountId) => repository.lockAccountStatus(tx, accountId),
 
+    searchAccounts: (input) => repository.searchAccounts(input),
+    accountCard: (id) => repository.findAccountCard(id),
     async accountSummaries(ids) {
       const rows = await repository.findAccountSummaries([...new Set(ids)]);
       const hidden = await hiddenNames(

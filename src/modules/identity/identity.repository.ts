@@ -224,12 +224,40 @@ export type IdVerificationPatch = Pick<
  * Đơn vị công việc nhiều bước (khoá, xoá, tiêu mã, đổi đánh dấu) là MỘT method và ghi outbox
  * trong cùng transaction — service đưa `events` vào, không bao giờ thấy `tx`.
  */
+/** Một dòng danh bạ bàn vận hành: có email (hỗ trợ đối chiếu thư), không dấu băm, không mã máy. */
+export type AccountCardRow = Pick<
+  Account,
+  'id' | 'displayName' | 'email' | 'role' | 'status' | 'createdAt' | 'lockedAt' | 'lockedReason'
+>;
+const ACCOUNT_CARD_SELECT = {
+  id: true,
+  displayName: true,
+  email: true,
+  role: true,
+  status: true,
+  createdAt: true,
+  lockedAt: true,
+  lockedReason: true,
+} as const;
+
 export interface IdentityRepository {
   findAccountById(id: string): Promise<Account | null>;
   findAccountByEmail(emailNormalized: string): Promise<Account | null>;
   findAccountSummaries(
     ids: string[],
   ): Promise<Pick<Account, 'id' | 'role' | 'status' | 'displayName' | 'createdAt'>[]>;
+  /**
+   * Danh bạ bàn vận hành (add-ops-account-directory): tài khoản chưa xoá, mới nhất trước; `q` khớp tên hiển thị không
+   * phân biệt hoa thường hay email chuẩn hoá chứa chuỗi; `status` lọc một trạng thái.
+   */
+  searchAccounts(input: {
+    q: string | null;
+    status: Account['status'] | null;
+    skip: number;
+    take: number;
+  }): Promise<{ rows: AccountCardRow[]; total: number }>;
+  /** Thẻ một tài khoản chưa xoá, `null` khi không có. */
+  findAccountCard(id: string): Promise<AccountCardRow | null>;
   /** Mốc "lần cuối hoạt động" — tài khoản đã xoá không ghi: kết nối của nó đóng ngay sau lượt xoá (add-activity-status). */
   recordSeen(accountId: string, at: Date): Promise<void>;
   findActivity(ids: string[]): Promise<Pick<Account, 'id' | 'showActivity' | 'lastSeenAt'>[]>;
@@ -448,6 +476,35 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
             where: { id: { in: ids } },
             select: { id: true, role: true, status: true, displayName: true, createdAt: true },
           }),
+    async searchAccounts({ q, status, skip, take }) {
+      const where = {
+        status: status ?? { not: 'deleted' as const },
+        ...(q
+          ? {
+              OR: [
+                { displayName: { contains: q, mode: 'insensitive' as const } },
+                { emailNormalized: { contains: q.toLowerCase() } },
+              ],
+            }
+          : {}),
+      };
+      const [rows, total] = await Promise.all([
+        prisma.account.findMany({
+          where,
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          skip,
+          take,
+          select: ACCOUNT_CARD_SELECT,
+        }),
+        prisma.account.count({ where }),
+      ]);
+      return { rows, total };
+    },
+    findAccountCard: (id) =>
+      prisma.account.findFirst({
+        where: { id, status: { not: 'deleted' } },
+        select: ACCOUNT_CARD_SELECT,
+      }),
     async recordSeen(accountId, at) {
       await prisma.account.updateMany({
         where: { id: accountId, status: { not: 'deleted' } },

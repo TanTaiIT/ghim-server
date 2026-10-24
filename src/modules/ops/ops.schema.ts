@@ -1,3 +1,4 @@
+import { paginationQuerySchema } from '../../common/schemas/pagination.js';
 import { z } from 'zod';
 
 /** Tuple của enum `job_run_status` (CLAUDE.md luật 5). */
@@ -51,3 +52,32 @@ export const dailyStatsSchema = z.object({
   days: z.array(dayStatsSchema),
 });
 export type DailyStatsDto = z.infer<typeof dailyStatsSchema>;
+
+/** Chuỗi tìm: tên hay email, đủ dài cho một địa chỉ email. */
+export const ACCOUNT_SEARCH_MAX = 100;
+/** Trạng thái liệt kê được — `deleted` không vào danh bạ (spec ops/account-directory). */
+export const ACCOUNT_LISTED_STATUSES = ['pending_verification', 'active', 'locked'] as const;
+
+export const accountListQuerySchema = paginationQuerySchema.extend({
+  q: z.string().trim().min(1).max(ACCOUNT_SEARCH_MAX).optional(),
+  status: z.enum(ACCOUNT_LISTED_STATUSES).optional(),
+});
+export type AccountListQuery = z.infer<typeof accountListQuerySchema>;
+
+export const opsAccountSchema = z.object({
+  id: z.uuid(),
+  displayName: z.string(),
+  email: z.string(),
+  role: z.enum(['user', 'master']),
+  status: z.enum(ACCOUNT_LISTED_STATUSES),
+  createdAt: z.iso.datetime(),
+  lockedAt: z.iso.datetime().nullable(),
+  lockedReason: z.string().nullable(),
+  tier: z.enum(['T0', 'T1', 'T2', 'T3']),
+  /** Đang có cảnh cáo tính điểm. */
+  struck: z.boolean(),
+});
+export type OpsAccountDto = z.infer<typeof opsAccountSchema>;
+
+export const opsAccountCardSchema = opsAccountSchema.extend({ strikePoints: z.number().int() });
+export type OpsAccountCardDto = z.infer<typeof opsAccountCardSchema>;
