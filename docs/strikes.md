@@ -103,6 +103,15 @@ người bán — có ở mọi việc). Quyết:
 | 409  | `STRIKE_NOT_ACTIVE`       | Khiếu nại / ân xá gậy đã hết hiệu lực                              |
 | 409  | `STRIKE_NOT_PENDING`      | Quyết / nhận xét gậy nghiêm trọng đã quyết                         |
 
+## Người dùng được báo gì
+
+Change `add-trust-notices` (nhóm "mức tin cậy và gậy", ký "Ghim", không nêu ai ra gậy — bảng loại thông báo ở
+`docs/realtime.md`): nhận gậy (loại, điều trích, tin, ngày hết hạn, hạn khiếu nại — chỉ trong `detail`); khiếu nại có kết
+quả, kể cả tự thắng khi quá 7 ngày (gậy nặng chuyển master thì chờ master quyết); ân xá, master quyết gậy nghiêm trọng,
+gỡ khoá vĩnh viễn; gậy hết hạn và mức lên (không nhắc); mức xuống; vào thời gian chờ gửi tin; đăng ký lại mang theo gậy
+(một dòng). Không báo: tự gửi khiếu nại, máy bị đánh dấu, master xem lại khoá vĩnh viễn và giữ nguyên. Sự kiện cho việc
+này: `trust.appeal.decided { verdict }` (mọi lượt có kết quả khiếu nại) và `trust.strike.inherited { strikeIds }`.
+
 ## Việc theo lịch và sự kiện
 
 `trust.strikes-expire` (mỗi giờ, phút 5): gậy tới hạn → `expired`, phát `trust.strike.expired` + `trust.strike.standing`.

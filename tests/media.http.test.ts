@@ -7,6 +7,7 @@ import { createStaticRuntimeConfig } from '../src/common/config/runtime-config.j
 import { imageKey } from '../src/lib/storage/storage.js';
 import { prisma } from './db-helpers.js';
 import { newUser, type TestUser } from './group-helpers.js';
+import { createDraft } from './listing-http-helpers.js';
 import { firstByteAt, requestUpload } from './media-helpers.js';
 import { fakeJpeg, storageOf, uploadWith } from './storage-helpers.js';
 import { buildTestApp, TEST_NOW } from './test-app.js';
@@ -136,6 +137,32 @@ describe('Ảnh đã tải không bị ghi đè', () => {
     expect((await uploadWith(grant.upload, fakeJpeg(2048, 0x11))).status).toBe(200);
     expect((await uploadWith(grant.upload, fakeJpeg(2048, 0x22))).status).toBe(412);
     expect(await firstByteAt(await storage.viewUrl(imageKey(grant.imageId), 3600))).toBe(0x11);
+  });
+});
+
+const minShortSideOf = async (target: FastifyInstance) => {
+  const user = await newUser(target);
+  const draft = await createDraft(target, user);
+  const res = await requestUpload(target, user, { ownerKind: 'listing', ownerId: draft.id });
+  expect(res.statusCode, res.body).toBe(201);
+  return (res.json() as { data: { minShortSide: number } }).data.minShortSide;
+};
+
+describe('Phiếu tải ảnh cho biết cạnh ngắn tối thiểu (add-image-quality-checks)', () => {
+  it('xin tải ảnh cho bản nháp: phiếu kèm cạnh ngắn tối thiểu 480 của bảng con số', async () => {
+    expect(await minShortSideOf(app)).toBe(480);
+  });
+
+  it('bảng con số đặt 600: phiếu xin sau đó kèm 600', async () => {
+    const changed = await buildTestApp({
+      clock: () => now,
+      config: createStaticRuntimeConfig({ 'screening.imageMinShortSide': 600 }),
+    });
+    try {
+      expect(await minShortSideOf(changed)).toBe(600);
+    } finally {
+      await changed.close();
+    }
   });
 });
 

@@ -135,6 +135,15 @@ cho `mistake` / `violation`); `listingState: null` với việc về một ngư�
 | 403  | `REPORTING_SUSPENDED` | Đang mất quyền báo cáo — `details.reportAgainAt`                                                                                   |
 | 429  | `REPORT_RATE_LIMITED` | Quá 10 báo cáo trong 60 phút — `details.retryAt`                                                                                   |
 
+## Thông báo cho quản trị nhóm
+
+N36 (change `add-trust-notices`): tin trong nhóm bị máy giữ mà việc vào hàng của quản trị nhóm thì những người đang xử
+được việc đó nhận thông báo `group.review.pending`, nhóm "nhóm của bạn", có nhắc, `data { groupId }` — mở hàng chờ của
+nhóm (`/groups/{groupId}/review/tasks`). Mỗi người một dòng gộp theo nhóm: chưa đọc thì câu cập nhật theo số tin đang
+chờ **hiện tại** trong phạm vi của người đó ("«Lớp 12A1» có 3 tin chờ duyệt."), nhắc lại tối đa mỗi 30 phút. Không báo
+việc do sàn duyệt (danh mục đặt `groupReview: platform`), không báo người đăng về tin của chính mình, không nêu lý do
+máy giữ hay tên người đăng. Tắt tiếng nhóm thì thôi nhắc.
+
 ## Thông báo cho master
 
 N40 việc ở hàng master quá hạn nhắc, N41 một nửa số việc đang chờ sắp chạm hạn trong 24 giờ, N42 hậu kiểm tuần trước

@@ -17,6 +17,7 @@ const run = (
     deviceFlagged?: boolean;
     struck?: boolean;
     book?: RuleBook;
+    imageIds?: string[];
   } = {},
 ) =>
   conclude({
@@ -29,6 +30,7 @@ const run = (
     struck: options.struck ?? false,
     tier: options.tier ?? 'T2',
     placement: options.placement ?? 'marketplace',
+    imageIds: options.imageIds ?? [],
   });
 const outcomeOf = (...args: Parameters<typeof run>) => {
   const { outcome, cause, restrictMachine } = run(...args);

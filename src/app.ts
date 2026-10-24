@@ -71,7 +71,7 @@ import {
   type ReportRepository,
 } from './modules/review/report/report.repository.js';
 import type { ReviewService } from './modules/review/review.service.js';
-import { sharpHasher } from './modules/screening/run/image-hash.js';
+import { sharpInspector } from './modules/screening/run/image-inspector.js';
 import { createScreeningModule } from './modules/screening/screening.module.js';
 import {
   createScreeningRepository,
@@ -421,7 +421,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
       tierOf: (accountId) => trust.tierOf(accountId),
       strikePointsOf: (accountId) => trust.strikePointsOf(accountId),
     },
-    hasher: sharpHasher,
+    inspector: sharpInspector,
     jobs: deps.jobs,
     config: deps.config,
     clock: deps.clock,
@@ -492,6 +492,11 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
       previewOf: (messageId) => messaging.service.previewOf(messageId),
       viewingSessions: (conversationId) => messaging.service.viewingSessions(conversationId),
     },
+    trust: {
+      strikeDetail: (strikeId) => trustModule.service.strikeDetail(strikeId),
+      standingOf: (accountId) => trustModule.service.standingOf(accountId),
+    },
+    review: { groupHeldNotice: (taskId) => review.service.groupHeldNotice(taskId) },
     push: deps.push,
     jobs: deps.jobs,
     realtime,

@@ -14,6 +14,7 @@ import {
   codeOf,
   dataOf,
   decideStrike,
+  eventsOf,
   myStrikes,
   staffOf,
   strikeTaskOf,
@@ -218,6 +219,9 @@ describe('Khiếu nại thắng, thua', () => {
     ]);
     expect(await getOwn(app, poster, listing.id)).toMatchObject({ state: 'live', fault: null });
     expect((await strikeTaskOf(strike.id))?.status).toBe('decided');
+    expect(await eventsOf('trust.appeal.decided', 'strikeId', strike.id)).toEqual([
+      expect.objectContaining({ accountId: poster.id, verdict: 'won' }),
+    ]);
   });
 
   it('thua: hạn gậy không đổi, tin vẫn bị từ chối, khiếu nại lại → 409 APPEAL_ALREADY_USED', async () => {
@@ -245,6 +249,21 @@ describe('Khiếu nại thắng, thua', () => {
     const again = await appeal(app, poster, strike.id);
     expect(again.statusCode).toBe(409);
     expect(codeOf(again)).toBe('APPEAL_ALREADY_USED');
+    // Thua không đổi gậy nên không có `strike.*` nào — sự kiện kết quả là thứ duy nhất `notification` nghe được.
+    expect(await eventsOf('trust.appeal.decided', 'strikeId', strike.id)).toEqual([
+      expect.objectContaining({ accountId: poster.id, verdict: 'lost' }),
+    ]);
+    await expect(
+      prisma.$transaction((tx) =>
+        app.modules.trust.decideAppeal(tx, {
+          strikeId: strike.id,
+          verdict: 'won',
+          by: null,
+          at: now,
+        }),
+      ),
+    ).rejects.toMatchObject({ code: 'APPEAL_DECIDED' });
+    expect(await eventsOf('trust.appeal.decided', 'strikeId', strike.id)).toHaveLength(1);
   });
 
   it('nút không khớp việc: 400 VALIDATION_ERROR; đổi tin hay kèm báo cáo: 409 OUTCOME_NOT_ALLOWED', async () => {
@@ -300,6 +319,9 @@ describe('Hạn xét 7 ngày', () => {
       closeCause: 'expired',
     });
     expect((await getOwn(app, await signedInAt(app, poster, now), listing.id)).state).toBe('live');
+    expect(await eventsOf('trust.appeal.decided', 'strikeId', strike.id)).toEqual([
+      expect.objectContaining({ verdict: 'won' }),
+    ]);
   });
 
   it('gậy nặng chờ 7 ngày: chuyển master, gậy vẫn 2 điểm; thêm 10 ngày ở master vẫn không tự thắng', async () => {
@@ -315,6 +337,7 @@ describe('Hạn xét 7 ngày', () => {
     expect(await app.modules.review.everyMinute()).toMatchObject({ escalated: 0, expired: 0 });
     expect(await points(poster.id)).toBe(2);
     expect((await strikeRow(strike.id)).appeal?.status).toBe('pending');
+    expect(await eventsOf('trust.appeal.decided', 'strikeId', strike.id)).toEqual([]);
   });
 });
 

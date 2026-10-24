@@ -58,6 +58,17 @@ export interface ReviewDeskService {
   onAccountLocked(accountId: string): Promise<number>;
   /** Nhóm thôi cho điều hành (bị khoá…): trả việc của nhóm đang ở tay người không còn xử được. */
   recheckGroupClaims(groupId: string): Promise<number>;
+  /**
+   * N36 (add-trust-notices): việc máy giữ về tin trong nhóm đang ở cấp quản trị nhóm → người xử được kèm số việc máy giữ
+   * đang mở trong nhóm mà mỗi người xử được, cùng phép lọc của `groupQueue`. Việc đã đóng, rời hàng 0, về staff hay
+   * master (danh mục do sàn duyệt, đã chuyển cấp) → `null`. Đọc lúc gửi thông báo, nên số là số hiện tại.
+   */
+  groupHeldNotice(taskId: string): Promise<GroupHeldNotice | null>;
+}
+
+export interface GroupHeldNotice {
+  groupId: string;
+  recipients: { accountId: string; pending: number }[];
 }
 
 export function createDeskService(shared: ReviewShared): ReviewDeskService {
@@ -317,6 +328,33 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
           ({ route }) => GROUP_LEVELS.has(route.level) && route.handlers.includes(actor.accountId),
         );
       return paged(routed, actor.accountId, query);
+    },
+
+    async groupHeldNotice(taskId) {
+      const task = await repository.findTask(taskId);
+      if (!task?.groupId || task.status !== 'open' || task.queue !== 0) return null;
+      const tasks = await repository.openTasks({ groupId: task.groupId });
+      // Trần đọc `OPEN_TASKS_CAP` có thể bỏ sót chính việc này — tính người xử của nó riêng, vẫn chung lượt nạp.
+      const routeOf = await routesFor(
+        tasks.some((open) => open.id === task.id) ? tasks : [...tasks, task],
+      );
+      const route = routeOf(task);
+      if (!GROUP_LEVELS.has(route.level)) return null;
+      const pending = new Map<string, number>();
+      for (const open of tasks) {
+        if (open.queue !== 0) continue;
+        const openRoute = routeOf(open);
+        if (!GROUP_LEVELS.has(openRoute.level)) continue;
+        for (const handler of openRoute.handlers)
+          pending.set(handler, (pending.get(handler) ?? 0) + 1);
+      }
+      return {
+        groupId: task.groupId,
+        recipients: route.handlers.map((accountId) => ({
+          accountId,
+          pending: Math.max(pending.get(accountId) ?? 0, 1),
+        })),
+      };
     },
 
     async task(actor, taskId, surface) {

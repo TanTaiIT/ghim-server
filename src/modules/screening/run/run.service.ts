@@ -8,6 +8,7 @@ import {
   bandThresholds,
   DAY_MS,
   type LoadedRules,
+  qualityLimits,
   type ScreeningShared,
   signalLimits,
   type TextResult,
@@ -120,6 +121,7 @@ export function createRunService(
       rankAsListingId: collected.rankAsListingId,
       bands: bandThresholds(config),
       imageMaxDistance: config.get('screening.imageDuplicateMaxDistance'),
+      imageQuality: qualityLimits(config),
     };
   };
 

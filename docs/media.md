@@ -28,6 +28,7 @@ thiết kế ở `openspec/changes/archive/2026-10-11-add-media/design.md` và, 
    ```json
    {
      "imageId": "0199…",
+     "minShortSide": 480,
      "upload": {
        "method": "POST",
        "url": "https://api.cloudinary.com/v1_1/…/image/upload",
@@ -37,6 +38,9 @@ thiết kế ở `openspec/changes/archive/2026-10-11-add-media/design.md` và, 
      }
    }
    ```
+
+   `minShortSide`: cạnh ngắn tối thiểu (điểm ảnh, sau khi xoay theo EXIF) mà máy duyệt áp cho ảnh của tin. Ảnh nhỏ
+   hơn thì báo người dùng chọn ảnh khác thay vì tải (xem `docs/screening.md`). Ảnh đại diện không bị kiểm chất lượng.
 
 3. **Tải lên** theo `upload.method`:
    - `POST` (Cloudinary): gửi **biểu mẫu multipart** tới `upload.url` gồm **đúng nguyên văn** mọi cặp trong

@@ -35,6 +35,13 @@ const contextWith = (
   listingTargets: unused,
   masterIds: () => Promise.resolve(masters),
   messagePreview: unused,
+  strike: unused,
+  standing: unused,
+  postingLockPoints: () => {
+    throw new Error('ma trận này không được hỏi ngưỡng khoá đăng tin');
+  },
+  liveAccounts: unused,
+  groupHeldNotice: unused,
   machineNotice: unused,
 });
 
@@ -198,5 +205,58 @@ describe('N45 — người duyệt quyết về tin (notify-listing-decisions)',
     ).toEqual([]);
     expect((await decided({ outcome: 'dismissed' })).drafts).toEqual([]);
     expect((await decided({ outcome: 'approved', ownerId: null })).drafts).toEqual([]);
+  });
+});
+
+describe('N36 — tin trong nhóm bị máy giữ chờ duyệt (add-trust-notices)', () => {
+  const GROUP = '0199a000-0000-7000-8000-0000000000e1';
+  const UNIT_MOD = '0199a000-0000-7000-8000-0000000000e2';
+  const OTHER_MOD = '0199a000-0000-7000-8000-0000000000e3';
+  const held = (notice: Awaited<ReturnType<MatrixContext['groupHeldNotice']>>): MatrixContext => ({
+    ...contextWith([], { groups: { [GROUP]: 'Lớp 12A1' } }),
+    groupHeldNotice: () => Promise.resolve(notice),
+  });
+  const run = (ctx: MatrixContext) => {
+    const handler = REVIEW_MATRIX[REVIEW_EVENTS.groupHeld];
+    if (!handler) throw new Error('Thiếu dòng N36');
+    return handler({ taskId: '0199a000-0000-7000-8000-0000000000e9', groupId: GROUP }, ctx);
+  };
+
+  it('mỗi người xử được một dòng: số việc đang chờ của chính họ, gộp theo nhóm, có nhắc, theo tắt tiếng nhóm', async () => {
+    const { drafts } = await run(
+      held({
+        groupId: GROUP,
+        recipients: [
+          { accountId: UNIT_MOD, pending: 3 },
+          { accountId: OTHER_MOD, pending: 1 },
+        ],
+      }),
+    );
+    expect(drafts).toHaveLength(2);
+    expect(drafts[0]).toMatchObject({
+      recipients: [UNIT_MOD],
+      category: 'your_groups',
+      type: 'group.review.pending',
+      title: 'Lớp 12A1',
+      body: '«Lớp 12A1» có 3 tin chờ duyệt.',
+      data: { groupId: GROUP },
+      groupId: GROUP,
+      alertable: true,
+      personal: false,
+    });
+    expect(drafts[1]?.body).toBe('«Lớp 12A1» có 1 tin chờ duyệt.');
+    // Số là số hiện tại lúc gửi, không phải số lượt từ lúc đọc như N20.
+    expect(drafts[0]?.collapse?.key).toBe(`group:${GROUP}:held`);
+    expect(drafts[0]?.collapse?.render(9)).toBe('«Lớp 12A1» có 3 tin chờ duyệt.');
+  });
+
+  it('việc đã đóng, không còn ở cấp quản trị nhóm, hay nhóm không còn: không dòng nào', async () => {
+    expect((await run(held(null))).drafts).toEqual([]);
+    expect((await run(held({ groupId: GROUP, recipients: [] }))).drafts).toEqual([]);
+    const gone: MatrixContext = {
+      ...held({ groupId: GROUP, recipients: [{ accountId: UNIT_MOD, pending: 1 }] }),
+      group: () => Promise.resolve(null),
+    };
+    expect((await run(gone)).drafts).toEqual([]);
   });
 });

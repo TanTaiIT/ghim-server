@@ -2,7 +2,7 @@ import type { TrustTier } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
-import { INITIAL_WEIGHTS, RULE_CODES } from '../src/modules/screening/screening.rules.js';
+import { INITIAL_RULES } from '../src/modules/screening/screening.rules.js';
 import { prisma } from './db-helpers.js';
 import { api, newMaster, newUser, type TestUser } from './group-helpers.js';
 import { seedCategory } from './listing-helpers.js';
@@ -42,10 +42,10 @@ beforeAll(async () => {
 
 afterEach(async () => {
   await Promise.all(
-    RULE_CODES.map((code) =>
+    INITIAL_RULES.map((rule) =>
       prisma.screeningRule.update({
-        where: { code },
-        data: { weight: INITIAL_WEIGHTS[code], mode: 'on' },
+        where: { code: rule.code },
+        data: { weight: rule.weight, mode: rule.mode ?? 'on' },
       }),
     ),
   );

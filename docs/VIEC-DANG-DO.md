@@ -1,74 +1,15 @@
 # Việc đang dở — calendar-ghim
 
-> Cập nhật 17/10/2026, sau khi archive `add-strikes` (rà soát 15/10/2026 xong cả 48 mục). Một chỗ để nhìn lại những gì đã
+> Cập nhật 22/10/2026, sau khi archive `add-price-offers`, `add-team-conversations`, `add-activity-status` và quét lại
+> code tìm việc dở (rà soát 15/10/2026 đã xong cả 48 mục — `docs/RA-SOAT-15-10-2026.md`). Một chỗ để nhìn lại những gì đã
 > bắt đầu, đã hoãn, hay đang chờ quyết. Làm xong việc nào thì **xoá dòng đó** (git giữ lịch sử); có việc mới bị gác lại
 > thì thêm vào đúng mục. Mỗi dòng ghi **nguồn** để mở ra đọc chi tiết — file này chỉ tóm tắt, không thay TK, change hay
 > spec.
-
-## 0. Ưu tiên: sửa lỗi rà soát 15/10/2026 — trước mọi tính năng mới
-
-Rà soát đọc code mọi module đã làm tìm ra 48 mục: 11 mức cao, 24 trung bình, 13 thấp. Chi tiết, chỗ trong code, kịch bản
-và hướng sửa ở **`docs/RA-SOAT-15-10-2026.md`** (đánh dấu từng mục khi sửa xong). Chốt 15/10/2026: sửa hết trước khi làm
-`add-reports` hay tính năng nào khác.
-
-| Đợt | Mục                          | Nội dung                                                                                                                      |
-| --- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| 1 ✔ | C3, C4, C5, C6, T10          | Bảo mật: chiếm tài khoản qua Google, master tự xoá / khoá, đăng ký lại lớp thứ hai, master qua app nhóm, trần / sàn cấu hình  |
-| 2 ✔ | C1, C2, C7, C8, C9, C10, C11 | Dữ liệu kẹt hay mất: bên nghe đối chiếu trạng thái hiện tại, kiểm ảnh bị bỏ, lý do ẩn bám theo, việc mất, xoá cứng dây chuyền |
-| 3 ✔ | T1–T24                       | Mức trung bình — xong (A1, A2, A3, B, C)                                                                                      |
-| 4 ✔ | L1–L13                       | Mức thấp — xong (phần 1 tài khoản, phần 2 nhóm, phần 3 mức tin cậy + ảnh; L13 chuyển `add-data-retention`)                    |
-
-Mục nào đổi hành vi so với spec đang chạy thì đi qua một change OpenSpec (proposal có câu hỏi mở → bạn duyệt → code);
-mục code lệch spec thì sửa kèm test.
-
-**Đang dừng ở (16/10/2026):** người dùng giao tech lead chọn phương án. Đã xong và đã push (nhánh
-`add-listings`), mỗi phần một change đã archive, một commit:
-
-- đợt 1 — `fix-audit-security` (C3, C4, C5, C6, T10);
-- đợt 2 — `fix-audit-stuck-data` (C7, C8, C9, C10, T13), `fix-audit-image-checks` (C2, T20, L8, C11),
-  `fix-audit-listeners` (C1);
-- đợt 3 phần C — `fix-audit-screening-trust` (T21–T24, cặp tin sạch của `trust`);
-- đợt 3 phần B — `fix-audit-review` (T1–T9, L11);
-- đợt 3 phần A1 — `fix-audit-identity` (T11 ân hạn 30 giây, T12 đổi email đòi mật khẩu + mã, báo email cũ, thu phiên
-  khác). **Phá vỡ API**: body `POST /me/email-change` thêm `currentPassword` (bắt buộc), `totpCode` (tuỳ);
-- đợt 3 phần A2 — `fix-audit-listing` (T14, T15, T16);
-- đợt 3 phần A3 — `fix-audit-group` (T17 gỡ cấm khi nhận làm chủ, T18 một thứ tự khoá + P2034 → 409, T19 danh sách
-  lời mời / người bị cấm, lời mời "mù" — migration `group_invitations_blind`). Thêm API: `GET /groups/:groupId/invitations`,
-  `GET /groups/:groupId/bans`. Test HTTP / DB chạy trên CI khi mở PR;
-- đợt 4 phần 1 — `fix-audit-identity-low` (L1 mở khoá trả về trạng thái lúc khoá — migration `account_status_before_lock`, L2
-  không tự xử việc của mình + duyệt giấy tờ có điều kiện, L3 trần phiên trong một transaction, L12 mở khoá phát `flag_cleared`);
-- đợt 4 phần 2 — `fix-audit-group-low` (L3 chủ bị xoá → thiếu chủ, L4 chuyển xong sang riêng tư rồi mới thiếu chủ, L5 huỷ kèm
-  theo phát sự kiện, L6 `GROUP_MODE_CONFLICT` + khoá ngoại thông báo → đơn vị — migration `group_announcement_unit_fk`);
-- đợt 4 phần 3 — `fix-audit-trust-media-low` (L7 đọc mức trong transaction, L9 T3 còn tin sạch chưa tính thì tính lại, L10
-  sự kiện mới `media.images.deleted` → `screening` dọn dấu ảnh; L13 chuyển vào proposal `add-data-retention`).
-
-CI đã chạy hết qua PR #3, #5, #6 (16/10/2026, xanh). Production còn cần `pnpm db:deploy:prod` cho ba migration
-`group_invitations_blind`, `account_status_before_lock`, `group_announcement_unit_fk` trước khi bật bản mới.
-
-Phần hoãn cuối của rà soát — thông báo nhóm theo trạng thái hiện tại (N3, N6, N10–N14, N26–N28) — xong ở
-`fix-stale-group-notices` (16/10/2026). `add-reports` xong cùng ngày (người dùng giao tech lead chốt 14 câu hỏi mở —
-design mục 11; migration `add_reports_enums`, `add_reports` — production cần `pnpm db:deploy:prod`). `add-strikes` xong
-17/10/2026 (tech lead chốt 14 câu hỏi mở — design mục 12; migration `add_strikes_enums`, `add_strikes`,
-`add_strikes_close_cause`; hướng dẫn `docs/strikes.md`; CI xanh qua PR #7, merge `main` `15493d2`). `add-messaging` xong cùng ngày (tech lead
-chốt 11 câu hỏi mở — design mục 10; migration `add_messaging`; hướng dẫn `docs/messaging.md`). Production cần `pnpm db:deploy:prod`
-cho 10 migration từ `group_invitations_blind` tới `add_notifications`. `add-notifications` xong cùng ngày (người dùng chốt
-Expo Push qua HTTP, làm cả ba phần; migration `add_notifications`; biến môi trường tuỳ chọn `EXPO_PUSH_URL`,
-`EXPO_ACCESS_TOKEN`). `add-data-retention` (đợt 7) xong cùng ngày (tech lead chốt 14 câu hỏi mở — design mục 11; migration
-`add_data_retention`: bỏ FK `conversations.listing_id`, `strikes.account_id`, bảng `job_runs`, `screening_run_stats`, trigger
-`audit_log_immutable` viết lại; hướng dẫn `docs/retention.md`). Production cần `pnpm db:deploy:prod` cho **11** migration từ
-`group_invitations_blind` tới `add_data_retention`. **Còn lại:** `add-image-moderation` chờ chọn dịch vụ kiểm ảnh.
-Phía bạn: tạo tài khoản Expo / EAS, khoá FCM + APNs khi app sẵn sàng, điền `EXPO_ACCESS_TOKEN` nếu bật Enhanced Security.
-
-Lượt nối app `ghim-app` (18/10/2026) lộ hai lỗi hợp đồng HTTP, sửa ở `fix-web-api-contract` (archive cùng ngày, không
-migration): CORS mở đủ sáu phương thức — trước chỉ `GET`/`HEAD`/`POST`, nên bản web của app và bàn vận hành bị chặn mọi
-`PATCH`/`PUT`/`DELETE`; năm route đọc tin khai phiên tuỳ chọn trong tài liệu để SDK sinh ra gửi kèm phiên. Phía app:
-sinh lại SDK, gỡ chỗ tự xin Bearer (`VIEWER`).
 
 ## 1. Đang chờ quyết hoặc chờ duyệt
 
 | Việc                                       | Tình trạng                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Bước tiếp                                                                                                                                   |
 | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| PR nhánh `add-listings`                    | Đã mở; CI xanh 15/10/2026 (lượt 38719075637: check + 2069 test + `db:drift`). `add-review-queues`, `notify-missing-images` đã archive cùng ngày                                                                                                                                                                                                                                                                                                                              | Duyệt rồi merge vào `main`                                                                                                                  |
 | Bốn điểm chốt lúc code `add-review-queues` | Agent tự chốt vì TK, spec chưa nói rõ (ghi "đổi lúc code" trong design): (1) quyết định kiểm vai trước, kiểm việc giữ sau — người bị bãi nhiệm nhận 403 như spec; (2) gỡ khỏi nhóm trực tiếp: chủ nhóm, điều hành cả nhóm, điều hành đơn vị của tin, không theo chuỗi chuyển tiếp; (3) việc ở hàng master từ lúc sinh (danh mục chưa có staff) không "chuyển" khi quá hạn, mốc nhắc 72 giờ tính từ lúc sinh; (4) sáu lý do mẫu khởi đầu chèn ở bước khởi động khi bảng trống | Bạn xác nhận. Điểm nào muốn đổi thì một change nhỏ. Nguồn: `openspec/changes/archive/2026-10-15-add-review-queues/design.md` mục 2, 5, 6, 9 |
 | Thư mục Cloudinary dev dùng chung          | Máy này đã dùng thư mục riêng `ghim-server-dev-pc13` (15/10/2026). `ghim-server-dev` còn ảnh của máy kia — lượt đối chiếu của máy này đã lỡ xoá 2 tệp ở đó trước khi đổi                                                                                                                                                                                                                                                                                                     | Máy khác cũng dùng thư mục riêng: `?folder=ghim-server-dev-<tên máy>` trong `.env.development`                                              |
 | Ghi dấu máy lúc đăng nhập của staff        | Luật "không xử việc của tài khoản dùng chung máy" chỉ biết hai tài khoản chung máy qua lượt **đăng tin** (`device_posts`). Staff chưa từng đăng tin từ máy mình thì tài khoản phụ của họ lọt                                                                                                                                                                                                                                                                                 | Change nhỏ: ghi dấu máy lúc staff, điều hành viên đăng nhập. Nguồn: design `add-review-queues` Risks, proposal câu 2                        |
@@ -76,7 +17,6 @@ sinh lại SDK, gỡ chỗ tự xin Bearer (`VIEWER`).
 | Skill `/debug`                             | Muốn: đặt breakpoint xong gõ `/debug` là tự vào chế độ debug. Chưa chốt kiểu (mở launch config của VS Code, hay chạy `node --inspect` nền rồi gắn vào)                                                                                                                                                                                                                                                                                                                       | Chọn kiểu rồi viết skill                                                                                                                    |
 | Ý tưởng "quản lý hệ thống"                 | Bạn mở đầu "điều gì làm một luồng business đi trật hướng khỏi hệ thống" nhưng chưa gửi phần ý tưởng                                                                                                                                                                                                                                                                                                                                                                          | Gửi ý tưởng để bàn                                                                                                                          |
 | Gói đẩy tin, ví Xu                         | Kế hoạch 17/10/2026 ở `docs/KE-HOACH-GOI-DAY-TIN.md`. Bước 0 (`prepare-promotions`) đã archive cùng ngày: `rank_at`, `featured_until`, `quota.fee` 0 Xu. Proposal `add-wallet`, `add-promotions` nằm chờ trong `openspec/changes/`                                                                                                                                                                                                                                           | Chốt 8 câu hỏi mục 7 của kế hoạch và duyệt phụ lục A (bản nháp TK) rồi làm bước 1                                                           |
-| Kiểm ảnh nhạy cảm (NSFW)                   | Gác lại 15/10/2026. Ứng viên `nsfwjs` (mô hình tự chạy, ảnh không rời hệ thống) — rủi ro: chỉ bắt khiêu dâm; `@tensorflow/tfjs-node` không cập nhật từ 01/2025, chưa chắc cài được trên Node 24 Windows; ngưỡng chưa chốt                                                                                                                                                                                                                                                    | Khi làm: chạy thử trong thư mục tạm (cài, đo tốc độ, chấm ảnh mẫu) rồi viết `add-image-moderation`                                          |
 
 ## 2. Change OpenSpec còn lại — theo thứ tự TK 29
 
@@ -84,17 +24,18 @@ Nguồn: CLAUDE.md mục **Thứ tự change**, `openspec/changes/`. Mỗi chang
 mở** trong proposal trước khi `/opsx:apply`. Cột ghi chú kể cả phần `add-review-queues` cố ý để lại cho change sau
 (proposal của nó, mục "Không làm").
 
-| Đợt | Change                   | Điều kiện / ghi chú                                                                                                                                                        |
-| --- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 3   | `add-image-moderation`   | Chờ chọn dịch vụ kiểm ảnh (mục 1) và rà soát pháp lý nếu gửi ảnh ra ngoài (TK 29 còn mở số 3)                                                                              |
-| 4 ✔ | `add-reports`            | Archive 16/10/2026. Còn để cho change sau: báo cáo đúng kèm gậy (`add-strikes`), báo cáo từ hội thoại (`add-messaging`), giữ bằng chứng quá hạn lưu (`add-data-retention`) |
-| 5 ✔ | `add-strikes`            | Archive 17/10/2026. Còn để cho change sau: thông báo khi nhận gậy / có kết quả khiếu nại (`add-notifications`), hạn lưu hồ sơ gậy (`add-data-retention`)                   |
-| 6 ✔ | `add-messaging`          | Archive 17/10/2026. Còn để cho change sau: xoá hẳn và tạm giữ hội thoại → `add-data-retention`                                                                             |
-| 6 ✔ | `add-notifications`      | Archive 17/10/2026 (N47 tin nhắn, push Expo gắn phiên, không đẩy hội thoại đang mở). Chưa có app nên chưa có token thật — gửi push thật chưa thử trên máy                  |
-| 7 ✔ | `add-data-retention`     | Archive 17/10/2026. Hạn lưu TK 25, tạm giữ bằng chứng, sổ `job_runs`; khoá vĩnh viễn chỉ ẩn danh hoá sau khi gỡ (design câu 3)                                             |
-| 6   | `add-price-offers`       | Proposal 18/10/2026, chờ duyệt. Người mua trả giá, người bán chấp nhận / từ chối, chấp nhận chỉ ghi nhận; hội thoại có ảnh bìa, giá, ảnh đại diện                          |
-| 6   | `add-team-conversations` | Proposal 18/10/2026, chờ duyệt — sau `add-price-offers`. Hội thoại với Hỗ trợ Ghim (hàng chung trên bàn vận hành) và với quản trị một nhóm; đổi luật TK 24                 |
-| 6   | `add-activity-status`    | Proposal 18/10/2026, chờ duyệt — sau `add-team-conversations`. Chỉ bên kia của hội thoại về tin thấy, tắt hai chiều, lần cuối hoạt động trong 7 ngày (con số đề xuất)      |
+| Đợt | Change                     | Điều kiện / ghi chú                                                                                                                                                                                                                                                                                                                                                                       |
+| --- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3   | `add-image-quality-checks` | Thay `add-image-moderation` (bỏ 24/10/2026: không kiểm nội dung ảnh). Code xong 24/10/2026, archive sau khi gộp vào `main`; master bật "ảnh quá nhỏ" sau deploy, ba luật mờ / tối / sáng sau khi xem lượt trúng chạy thử                                                                                                                                                                  |
+| 4 ✔ | `add-reports`              | Archive 16/10/2026. Còn để cho change sau: báo cáo đúng kèm gậy (`add-strikes`), báo cáo từ hội thoại (`add-messaging`), giữ bằng chứng quá hạn lưu (`add-data-retention`)                                                                                                                                                                                                                |
+| 5 ✔ | `add-strikes`              | Archive 17/10/2026. Phần thông báo nhận gậy / kết quả khiếu nại đẩy sang `add-notifications` nhưng change đó đã thu hẹp còn tin nhắn và push — **rơi mất**, nay ở `add-trust-notices`. Hạn lưu hồ sơ gậy xong ở `add-data-retention`                                                                                                                                                      |
+| 6 ✔ | `add-messaging`            | Archive 17/10/2026. Còn để cho change sau: xoá hẳn và tạm giữ hội thoại → `add-data-retention`                                                                                                                                                                                                                                                                                            |
+| 6 ✔ | `add-notifications`        | Archive 17/10/2026 (N47 tin nhắn, push Expo gắn phiên, không đẩy hội thoại đang mở). Chưa có app nên chưa có token thật — gửi push thật chưa thử trên máy                                                                                                                                                                                                                                 |
+| 7 ✔ | `add-data-retention`       | Archive 17/10/2026. Hạn lưu TK 25, tạm giữ bằng chứng, sổ `job_runs`; khoá vĩnh viễn chỉ ẩn danh hoá sau khi gỡ (design câu 3)                                                                                                                                                                                                                                                            |
+| 6 ✔ | `add-price-offers`         | Archive 22/10/2026 (code vào `main` 18/10/2026). Người mua trả giá, người bán chấp nhận / từ chối, chấp nhận chỉ ghi nhận; hội thoại có ảnh bìa, giá, ảnh đại diện                                                                                                                                                                                                                        |
+| 6 ✔ | `add-team-conversations`   | Archive 22/10/2026. Hội thoại với Hỗ trợ Ghim và với quản trị một nhóm. Còn để cho change sau: báo cáo một hội thoại với đội (`messaging/block.service.ts`, `docs/messaging.md`)                                                                                                                                                                                                          |
+| 6 ✔ | `add-activity-status`      | Archive 22/10/2026. Chỉ bên kia của hội thoại về tin thấy, tắt hai chiều, lần cuối hoạt động trong 7 ngày                                                                                                                                                                                                                                                                                 |
+| 6   | `add-trust-notices`        | Đã duyệt và code xong 22/10/2026 (17/17 task), chờ archive sau khi người dùng duyệt kết quả. N49–N58: báo nhận gậy, gậy kế thừa, kết quả khiếu nại, ân xá / quyết gậy nghiêm trọng / gỡ khoá vĩnh viễn, gậy hết hạn, mức lên / xuống, thời gian chờ gửi tin; N36 báo quản trị nhóm có tin chờ duyệt. Hai sự kiện mới của `trust`, một của `review`; câu 429 `SUBMISSION_COOLDOWN` có ngày |
 
 ## 3. Chuyển kho ảnh Cloudinary → Cloudflare R2
 
@@ -125,26 +66,28 @@ Nguồn: `docs/THIET-KE-HE-THONG.md` phần 29.
    có dòng (design add-data-retention câu 8): báo cáo kể cả danh tính người báo, điểm tin cậy báo cáo, chặn người, thành
    viên nhóm đang hoạt động, tài khoản bỏ không lâu năm — chốt cùng luật sư rồi thêm bước vào `retention.service.ts`.
    TK 28 nên thêm các dòng `retention.*` (chủ TK sửa).
-3. Dịch vụ kiểm ảnh nhạy cảm (mục 1, mục 2).
+3. ~~Dịch vụ kiểm ảnh nhạy cảm~~ — chốt 24/10/2026: không kiểm nội dung ảnh (TK 29 còn mở số 3).
 
 Phần **Hoãn lại** của TK 29 (ví Xu, đẩy tin, đánh giá người bán, lưu tin, xác thực số điện thoại, đọc chữ trong ảnh,
 DeviceCheck) là quyết định sản phẩm, không phải việc dở — xem ở đó.
 
 ## 5. Bảo mật và vận hành
 
-- [ ] `ghim-app` sau `remove-two-factor` (23/10/2026, bỏ lớp đăng nhập thứ hai): `npm run api:sync`, bỏ `TwoFactorGate`
-      (`app/ops/_layout.tsx`), ô mã ở `app/login.tsx`, hàm gọi `/me/two-factor/*` (`src/api/client.ts`,
-      `src/queries/auth.ts`). Production chạy migration `remove_two_factor` (xoá 3 cột) khi deploy.
+- [ ] Production chạy migration `remove_two_factor` (xoá 3 cột) khi deploy. `ghim-app` đã bỏ `TwoFactorGate`, ô mã ở
+      màn đăng nhập và hàm gọi `/me/two-factor/*`, lấy lối vào bàn vận hành từ cờ `staff` của `/me` (23/10/2026, change
+      `add-me-staff-flag`) — bản app đó cần server có cờ này.
 - [ ] Tạo lại khoá Cloudinary "moderation" (API secret đã gửi qua chat 15/10/2026), dán vào `.env.development`; nếu hệ
       cũ `docs/Vue` dùng chung tài khoản thì sửa cả bên đó.
 - [ ] Neon: xoá project cũ `us-east-1` (chuỗi cũ còn ở dòng comment trong `.env.development` — xoá luôn dòng đó), rồi
       reset mật khẩu `neondb_owner` của project Singapore (chuỗi kết nối đã gửi qua chat 15/10/2026) và cập nhật
       `DATABASE_URL`.
-- [ ] App `ghim-app`: bỏ EXIF (vị trí GPS) khi nén ảnh — server không thấy ảnh nên không gỡ được (`docs/media.md` bước 1).
-- [ ] CI: đã nâng lên `actions/checkout@v6`, `actions/setup-node@v6`, `pnpm/action-setup@v6` (chạy Node 24) ngày
-      15/10/2026 — xem lượt CI kế tiếp còn xanh và hết cảnh báo Node 20 thì xoá dòng này.
-- [ ] CI: `runs-on: ubuntu-latest` chuyển sang Ubuntu 26 từ **19/10/2026** — xem lượt CI đầu tiên sau ngày đó (Postgres,
-      RustFS trong container); hỏng thì ghim `ubuntu-24.04`. Nguồn: cảnh báo của cùng lượt CI.
+- [ ] CI: `runs-on: ubuntu-latest` chuyển dần sang Ubuntu 26 từ **19/10/2026** — lượt `main` cuối cùng (19/10/2026,
+      `39284904930`) vẫn xanh cả ba job nhưng chưa chắc đã chạy trên 26; xem lượt kế tiếp (Postgres, RustFS trong
+      container), hỏng thì ghim `ubuntu-24.04`. Nguồn: thông báo trong annotations của lượt CI.
+- [ ] Production (Render) chưa có master nên bàn vận hành chưa dùng được ở đó — tạo theo README (bản free không có
+      Shell: chạy `dist/cli/create-master.js` từ máy mình vào External Database URL).
+- [ ] Push thật: tạo tài khoản Expo / EAS, khoá FCM + APNs khi app sẵn sàng, điền `EXPO_ACCESS_TOKEN` nếu bật Enhanced
+      Security; rồi thử một lượt push với token thật trên máy.
 
 ## 6. Theo dõi khi có người dùng thật
 
@@ -191,3 +134,21 @@ Không phải việc dở — ghi để lần sau khỏi dò lại.
   cần đăng nhập — chụp màn hình.
 - VS Code báo lỗi kiểu Prisma (không thấy `reviewTask`…) sau khi đổi schema: language server dùng client cũ — chạy
   "TypeScript: Restart TS Server". `pnpm run typecheck` mới là chuẩn.
+
+## 8. App `ghim-app` còn chờ server
+
+Lộ ra khi nối app với server (18–21/10/2026): app ẩn phần đó, đọc dữ liệu mẫu, hoặc ghi "Chưa có API". Việc nào thuộc
+phần **Hoãn lại** của TK 29 thì là quyết định sản phẩm, ghi ra để biết app đang chờ gì.
+
+| Việc                                                                          | Hiện trạng ở server                                                                 |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Tin đã lưu, tìm kiếm đã lưu                                                   | Chưa có — "lưu tin" nằm trong phần hoãn của TK 29; app vẫn đọc mock                 |
+| Đánh giá người bán, số giao dịch, thời gian phản hồi, lượt xem, tình trạng đồ | Chưa có trường nào — đánh giá người bán hoãn ở TK 29; app ẩn khi null               |
+| Tìm kiếm: sắp xếp, lọc theo mẫu thông tin của danh mục (TK 11)                | Chỉ khớp chuỗi trên tiêu đề + mô tả, lọc danh mục / tỉnh / phường / giá             |
+| Bàn vận hành: số liệu theo ngày, danh sách / tìm người dùng, doanh thu        | Chỉ có `/ops/review/stats/*`, `/ops/jobs/runs`; khoá / mở khoá theo mã tài khoản    |
+| Số liệu máy duyệt                                                             | `screening_run_stats` được ghi (`screening.repository.ts`) nhưng chưa route nào đọc |
+| Ảnh trong tin nhắn, khu vực mặc định của người dùng                           | Chưa có                                                                             |
+
+Dọn nhỏ (comment "tạm" đã lỗi thời, sửa khi chạm tới file): `trust/trust.shared.ts` (`noBuyerInterest`,
+`genericHolds` chỉ còn test dùng), `category/category.service.ts` (`settingsOf` "sau này" — screening đã dùng),
+`prisma/schema.prisma` (`ImageOwnerKind`: "chưa có chủ nào loại `listing`").

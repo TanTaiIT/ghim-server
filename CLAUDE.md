@@ -81,9 +81,9 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
   - Không có lớp đăng nhập thứ hai (change `remove-two-factor`, chốt 23/10/2026): `requireMaster` chỉ kiểm vai,
     `requireOps` / `requireCategoryOps` kiểm quyền treo và phạm vi. Số giấy tờ mã hoá AES-256-GCM
     (`src/common/crypto/secrets.ts`).
-  - Băm ảnh so trùng (đồng ý 12/10/2026): **sharp** — thu ảnh về 9×8 xám rồi dHash 64 bit, đứng sau cổng
-    `ImageHasher` (`src/modules/screening/run/image-hash.ts`). Kiểm ảnh nhạy cảm chưa chọn dịch vụ
-    (`add-image-moderation`).
+  - Đo ảnh (đồng ý 12/10/2026, mở rộng 24/10/2026): **sharp** — dHash 64 bit trên ảnh 9×8 xám để so trùng, cùng cỡ,
+    độ nét (phương sai Laplace), độ sáng cho luật chất lượng ảnh, đứng sau cổng `ImageInspector`
+    (`src/modules/screening/run/image-inspector.ts`). Không kiểm nội dung ảnh (chốt 24/10/2026).
   - Danh sách email dùng một lần (TK 7): hạt giống `src/modules/identity/data/disposable-domains.seed.txt`
     (dự án `disposable-email-domains`, ~96k miền), nạp khi bảng rỗng lúc khởi động
     (`identity.seedDisposableDomainsIfEmpty` trong `server.ts`); việc `identity.refresh-disposable-domains`
@@ -109,7 +109,8 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
   qua `fetch` thuần, không package; `EXPO_PUSH_URL` có mặc định, `EXPO_ACCESS_TOKEN` tuỳ chọn; token gắn phiên
   (`sessions.push_token`, `identity` sở hữu); test dùng `tests/fakes/push.fake.ts`, `buildTestApp` mặc định `noopPush`.
   Tài khoản Expo / EAS, khoá FCM và APNs do chủ dự án tạo khi app sẵn sàng — server chỉ gửi khi có token đăng ký.
-- **(chưa có)** — vẫn phải hỏi trước vì chưa chọn: kiểm ảnh nhạy cảm, theo dõi lỗi (hệ thống cũ dùng Sentry).
+- **(chưa có)** — vẫn phải hỏi trước vì chưa chọn: theo dõi lỗi (hệ thống cũ dùng Sentry). Kiểm nội dung ảnh: không
+  làm (chốt 24/10/2026) — đừng đề xuất dịch vụ hay mô hình nhận diện ảnh.
 
 ## Cấu trúc thư mục (BẮT BUỘC tuân theo)
 
@@ -244,6 +245,13 @@ mũi tên `hold`, `recall` của `listing.state.changed` (N43, N44 — câu củ
 đang mở đúng hội thoại (`messaging.viewingSessions`), gửi qua cổng `PushSender`, ticket vào `push_tickets`;
 `notification.push-receipts` mỗi 15 phút đọc biên nhận, `DeviceNotRegistered` → `identity.forgetPushToken`;
 câu cần tiêu đề hay người đăng của tin thì hỏi `listing` qua cổng (`titles`, `noticeTargets`), không đọc bảng của nó.
+Gậy, khiếu nại, mức tin cậy, thời gian chờ (`notification.trust-matrix.ts`, N49–N58 — change `add-trust-notices`): nghe
+`trust.strike.issued` / `inherited` / `cancelled` / `decided` / `expired`, `trust.appeal.decided`, `trust.tier.changed` và
+`screening.cooldown.started`; câu dựng từ trạng thái lúc gửi qua ba cửa đọc `trust.strikeDetail`, `trust.standingOf`,
+`identity.accountSummaries` (lọc tài khoản đã xoá — gậy ra được trên bản lưu của tài khoản đã xoá); nhóm `trust_strikes`,
+ký "Ghim". Cố ý không báo: `strike.issued { inherited }` (N50 nói thay), `strike.cancelled { cause: 'appeal' }` (N51 nói
+thay), `strike.decided` `cancel` / `kept`, `strike.standing`, `strike.review_due`, `appeal.filed`, `appeal.closed`. Câu thời
+gian chờ là `cooldownSentence` của `screening.outbox.ts` — chung với lỗi 429 `SUBMISSION_COOLDOWN`.
 `screening` nghe `media.images.deleted` (`{ imageIds }`, phát cùng transaction với ba lượt xoá dòng ảnh của `media`) để
 bỏ dấu ảnh — ảnh đã xoá hẳn không còn là ứng viên trùng (change `fix-audit-trust-media-low`).
 
@@ -280,6 +288,9 @@ trả 0 Xu — TK 29), `trust` đưa vào `quota.fee` của bảng uy tín qua c
 lực, điểm, mốc hết tạm khoá). Mọi thay đổi phát `trust.strike.standing` — `listing` (lý do `strike`, `strike_wave`), `identity`
 (khoá / mở, dấu máy, chặn email), `platform` (treo quyền), `group` (mất vai, thiếu chủ), `review` (việc về gậy, hàng 2) nghe và
 hỏi lại `trust` qua cổng nối muộn. Gậy đi theo dấu băm email: `identity.account.created` / `email_changed` mang `emailHash`.
+Cho `notification` (change `add-trust-notices`): `trust.appeal.decided { verdict }` phát mọi lượt có kết quả khiếu nại, kể cả
+thua và lượt tự thắng khi quá hạn; `trust.strike.inherited { strikeIds }` phát một lần cho cả lượt kế thừa, cạnh các
+`strike.issued { inherited: true }`.
 
 `review` (change `add-review-queues`, hướng dẫn cho bàn vận hành và app ở `docs/review.md`): `queue/` sinh, gộp, huỷ
 việc theo `listing.state.changed` và sự kiện `group`, `platform`, `identity`; `desk/` hàng chờ, nhận việc, quyết
@@ -288,7 +299,10 @@ việc theo `listing.state.changed` và sự kiện `group`, `platform`, `identi
 cổng của `listing` (`review`, `confirmLive`, `detachByGroup`) với hook `after(tx)` — đóng việc, ghi nhật ký, quay mẫu
 người duyệt trong cùng transaction đổi tin. Ngược lại `review` cài `OpenWork.blocksPlacement` cho `listing`. Mã lỗi
 riêng: `TASK_CLAIMED`, `TASK_NOT_CLAIMED`, `TASK_CLOSED`, `TASK_REASSIGNED`, `TASK_OPEN`, `LISTING_CHANGED`,
-`OUTCOME_NOT_ALLOWED` (409).
+`OUTCOME_NOT_ALLOWED` (409). N36 (change `add-trust-notices`): `addReason` phát `review.task.group_held { taskId, groupId }`
+cùng transaction khi việc về tin trong nhóm **chuyển vào** hàng 0 (gộp vào việc đã ở hàng 0, `backfill` thì im);
+`notification` hỏi lại `groupHeldNotice(taskId)` (`desk/`) lúc gửi — người xử theo `routesFor`, chỉ cấp quản trị nhóm,
+kèm số việc hàng 0 đang mở mỗi người xử được, cùng phép lọc của `groupQueue`.
 Báo cáo (change `add-reports`): `report/` — `POST /reports`, `GET /me/reports`, bảng `reports` / `report_entries` /
 `reporter_scores`. Báo cáo về tin là lý do `report` / `report_severe` (hàng 1) trên việc của tin; báo cáo về một
 người là việc gắn `review_tasks.account_id` (không có tin), bậc `safety_staff` (scope `user_reports`). Lý do báo cáo
@@ -305,8 +319,8 @@ change trước): đợt 1 `add-identity` → `add-platform-roles` → `add-cate
 `harden-module-infra` → `tune-hot-paths` → `cache-public-reads-revoke-deleted-staff` →
 `harden-production-runtime` → `add-groups` → `add-notification-core` (kéo từ đợt 6, chốt 11/10/2026) — mười change
 này đã archive 10–11/10/2026 · đợt 2
-`add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` (cả hai đã archive 12/10/2026) · đợt 3 `add-screening` (đã archive 13/10/2026) → `add-image-moderation` (khi chọn được dịch vụ kiểm ảnh, tách ra 12/10/2026) · đợt 4 `add-review-queues` (đã archive 15/10/2026) → **sửa lỗi rà soát 15/10/2026 trước mọi tính năng** (`docs/RA-SOAT-15-10-2026.md`; đợt 1 bảo mật = `fix-audit-security`) →
-`add-reports` (đã archive 16/10/2026) · đợt 5 `add-strikes` (đã archive 17/10/2026) · đợt 6 `add-messaging` → `add-notifications` (cả hai đã archive 17/10/2026) → `add-price-offers` → `add-team-conversations` → `add-activity-status` (đã apply 18/10/2026 theo yêu cầu của app `ghim-app`, chờ archive) → `add-join-request-status` (cũng từ lượt nối `ghim-app`, đã archive 18/10/2026) · đợt 7
+`add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` (cả hai đã archive 12/10/2026) · đợt 3 `add-screening` (đã archive 13/10/2026) → `add-image-moderation` (tách ra 12/10/2026, bỏ 24/10/2026: không kiểm nội dung ảnh) · đợt 4 `add-review-queues` (đã archive 15/10/2026) → **sửa lỗi rà soát 15/10/2026 trước mọi tính năng** (`docs/RA-SOAT-15-10-2026.md`; đợt 1 bảo mật = `fix-audit-security`) →
+`add-reports` (đã archive 16/10/2026) · đợt 5 `add-strikes` (đã archive 17/10/2026) · đợt 6 `add-messaging` → `add-notifications` (cả hai đã archive 17/10/2026) → `add-price-offers` → `add-team-conversations` → `add-activity-status` (làm 18/10/2026 theo yêu cầu của app `ghim-app`, cả ba đã archive 22/10/2026) → `add-join-request-status` (cũng từ lượt nối `ghim-app`, đã archive 18/10/2026) → `add-trust-notices` (thông báo gậy, khiếu nại, mức tin cậy, thời gian chờ + N36 — rơi giữa `add-strikes`, `add-notifications`, `add-review-queues`; code xong 23/10/2026, archive sau khi gộp vào `main`) → `add-me-staff-flag` (`/me` có cờ `staff` thay `twoFactorEnabled` cho lối vào bàn vận hành của `ghim-app`, 23/10/2026) → `add-image-quality-checks` (kiểm chất lượng ảnh thay kiểm nội dung, 24/10/2026) · đợt 7
 `add-data-retention` (đã archive 17/10/2026) · giữ chỗ gói đẩy tin `prepare-promotions` (đã archive 17/10/2026;
 kế hoạch `docs/KE-HOACH-GOI-DAY-TIN.md`) → `add-wallet` → `add-promotions` → `add-topup` (nằm chờ chủ dự án chốt).
 
@@ -386,7 +400,9 @@ Mỗi luật dưới đây là một cam kết ở TK phần 27; số trong ngo�
     (`applyBatch` `prepare`), ở module khác chặn đầu bên nghe (change `fix-audit-listeners`). Gọi đồng bộ chỉ sáu chỗ (TK 30; hai chỗ sau thêm ở add-messaging: `messaging` hỏi `trust` mức để tính hạn mức hội thoại mới và hỏi `screening` bộ lọc cụm lúc gửi tin nhắn — chỉ đọc, không ghi chéo): `listing` hỏi `trust` hạn chế/hạn mức, `listing`
     gọi `screening` chấm chữ lúc gửi, mọi module hỏi `identity` "người này là ai", và chủ ảnh (`identity`,
     `listing`) gọi `media` xác nhận ảnh: `resolve` trước transaction lưu, `attach(tx)` trong transaction lưu — lưu hỏng
-    thì ảnh vẫn "chưa xác nhận". Bảng `outbox_events`
+    thì ảnh vẫn "chưa xác nhận". Ngoài sáu chỗ đó chỉ có cửa **đọc** cho câu thông báo: bên nghe của `notification` hỏi
+    `group`, `listing`, `screening`, `messaging`, và từ add-trust-notices `trust` (gậy, điểm gậy) và `review` (người xử
+    việc nhóm, số việc đang chờ — N36) — không ghi chéo. Bảng `outbox_events`
     và `appendEvent(tx, type, payload)` ở `src/common/outbox/outbox.ts` đã có — hàm chỉ nhận `tx` nên
     không gọi được ngoài transaction. Bộ phát `src/common/outbox/dispatcher.ts` do `buildApp` dựng
     (`app.outbox`, đã nối bên nghe của mọi module), `server.ts` bật (10 giây/lượt, và một lượt sớm sau mỗi
@@ -535,10 +551,22 @@ Bốn nơi, mỗi nơi trả lời một câu hỏi:
   `security: optionalBearer` — thiếu thì SDK sinh từ tài liệu gọi ẩn danh cả khi đã đăng nhập.
   `add-join-request-status` (archive 18/10/2026, cũng từ lượt nối `ghim-app`) thêm "Người xin thấy đơn đang chờ của
   mình" vào `group/membership`: hồ sơ nhóm của người dùng mang `joinRequest`, hồ sơ quản trị và vận hành thì không.
+  Ba change từ lượt nối `ghim-app` ngày 18/10/2026, code đã vào `main` cùng ngày, archive 22/10/2026:
+  `add-price-offers` tạo `messaging/price-offers`, thêm "Hội thoại cho biết tin và người kia" vào
+  `messaging/conversations`, "Báo đề nghị giá và câu trả lời" vào `notification/inbox`; `add-team-conversations` tạo
+  `messaging/support-chat`, `messaging/group-admin-chat`, sửa ba requirement của `messaging/conversations` (một tin
+  một người mua một hội thoại, người ngoài nhận "không tìm thấy", bộ lọc cụm từ cấm) và thêm hai, thêm requirement vào
+  `messaging/blocking`, `messaging/conversation-deletion`, `notification/inbox`, `notification/realtime`;
+  `add-activity-status` tạo `messaging/activity-status`, thêm "Công tắc hiện trạng thái hoạt động" vào
+  `identity/profile`.
   `remove-two-factor` (23/10/2026, người dùng chốt bỏ lớp thứ hai) bỏ "Đăng nhập hai lớp cho master và staff", thêm "Bàn
   vận hành chỉ đòi phiên đăng nhập hợp lệ" vào `identity/sessions`; thay "Xin đổi email phải nhập lại mật khẩu" bằng "Xin
   đổi email chỉ đòi mật khẩu hiện tại" (`identity/email-change`), "Đúng một master" bằng "Hệ thống chỉ có một master"
   (`platform/master-accounts`); bỏ chữ lớp thứ hai khỏi `platform/staff-permissions`, `review/queues`.
+  `add-me-staff-flag` thêm "Hồ sơ của tôi cho biết quyền staff" vào `identity/profile`. `add-image-quality-checks` thêm
+  "Ảnh hỏng giữ cho người kèm cách sửa", "Đo chất lượng từng ảnh", "Luật chất lượng ảnh bật thì giữ cho người", "Ngưỡng
+  chất lượng ảnh trong bảng con số" vào `screening/image-checks`, "Phiếu tải ảnh cho biết cạnh ngắn tối thiểu" vào
+  `media/image-storage`; sửa hai requirement của `screening/hard-gates` và hai của `screening/explanations`.
 - Mỗi scenario là một ca test. Archive một change thì mọi scenario nó thêm phải đã có test.
 - Luật cho từng artifact (trích TK, ghi status + `error.code`, con số là giá trị khởi đầu, test đi
   cùng nhóm task…) nằm ở `openspec/config.yaml`. Sửa luật ở đó, không chép vào đây.

@@ -79,6 +79,26 @@ Lỗi mạng thì client tự nối lại như thường.
 }
 ```
 
+Nhóm "mức tin cậy và gậy" (`category: 'trust_strikes'`, change `add-trust-notices`) — tiêu đề luôn "Ghim", `body` chỉ nói
+chuyện gì xảy ra, điều luật / hạn / hệ quả nằm trong `detail`:
+
+| `type`                        | Khi nào                                                        | Nhắc  | `data`                    |
+| ----------------------------- | -------------------------------------------------------------- | ----- | ------------------------- |
+| `trust.strike.issued`         | Nhận gậy (gậy nghiêm trọng: tài khoản bị khoá, chờ master)     | có    | `{ strikeId, listingId }` |
+| `trust.strike.inherited`      | Đăng ký lại bằng email cũ, mang theo gậy còn hiệu lực          | có    | `{}`                      |
+| `trust.appeal.decided`        | Khiếu nại có kết quả (thắng / thua)                            | có    | `{ strikeId, listingId }` |
+| `trust.strike.cancelled`      | Gậy được ân xá, hay master huỷ gậy nghiêm trọng                | có    | `{ strikeId, listingId }` |
+| `trust.strike.decided`        | Master quyết gậy nghiêm trọng: khoá vĩnh viễn, hạ thành nặng   | có    | `{ strikeId, listingId }` |
+| `trust.strike.lifted`         | Khoá vĩnh viễn được gỡ khi xem lại                             | có    | `{ strikeId, listingId }` |
+| `trust.strike.expired`        | Gậy hết hạn (kèm "đã đăng tin lại được" khi hết khoá đăng tin) | không | `{ strikeId, listingId }` |
+| `trust.tier.raised`           | Lên mức tin cậy                                                | không | `{}`                      |
+| `trust.tier.lowered`          | Xuống mức tin cậy                                              | có    | `{}`                      |
+| `listing.submission.cooldown` | Vào thời gian chờ gửi tin mới — đúng câu lỗi 429; dòng gộp     | có    | `{ retryAt }`             |
+
+Dòng gậy mở bảng uy tín (`GET /me/trust`, `GET /me/strikes`); `listingId` chỉ có khi tin còn. Quản trị nhóm còn nhận
+`group.review.pending` (nhóm "nhóm của bạn", `data { groupId }`) khi tin trong nhóm bị máy giữ chờ duyệt — xem
+`docs/review.md`.
+
 ## Cờ `alert` — khi nào làm phiền người dùng
 
 Mọi thông báo đều vào hộp thư. `alert` chỉ quyết **có hiện banner / rung / tiếng** hay không:
@@ -90,7 +110,7 @@ Mọi thông báo đều vào hộp thư. `alert` chỉ quyết **có hiện ban
   - người dùng tắt tiếng nhóm này — **trừ** chuyện về chính tư cách của họ (bị gỡ, bị cấm, đơn được duyệt, lời mời,
     lời giao chủ, đổi vai): tắt tiếng một nhóm ồn không được làm người ta lỡ việc của mình;
   - dòng gộp chỉ nhắc lại sau 30 phút (con số `notification.collapseAlertMinutes`).
-- Push lên điện thoại chưa làm (design mục 3). Ngày có push, push cũng chỉ gửi khi `alert` là `true`.
+- Push lên điện thoại cũng chỉ gửi khi `alert` là `true` — xem mục đẩy lên điện thoại bên dưới.
 
 ## HTTP đi kèm
 

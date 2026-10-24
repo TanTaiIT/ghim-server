@@ -26,6 +26,16 @@ export const TRUST_EVENTS = {
   appealFiled: 'trust.appeal.filed',
   /** Khiếu nại đóng không qua người xét (ân xá, gậy được quyết đường khác) — `review` đóng việc. */
   appealClosed: 'trust.appeal.closed',
+  /**
+   * Khiếu nại có kết quả qua người xét hay lượt tự thắng khi quá hạn (add-trust-notices): phát cả khi thua — lượt thua
+   * không đổi gậy nên không có `strike.*` nào để `notification` nghe.
+   */
+  appealDecided: 'trust.appeal.decided',
+  /**
+   * Một lần cho cả lượt kế thừa khi đăng ký lại (add-trust-notices): `strike.issued { inherited }` phát từng gậy và
+   * không mang mã lượt, nên `notification` không gom được thành một thông báo.
+   */
+  strikeInherited: 'trust.strike.inherited',
 } as const satisfies Record<string, OutboxEventType>;
 
 export const trustEvent = (

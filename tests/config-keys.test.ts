@@ -84,6 +84,11 @@ describe('khoảng hợp lệ (design fix-audit-security mục 5)', () => {
     ['screening.abnormalPricePercentile', 50, true],
     ['screening.abnormalPricePercentile', 51, false],
     ['screening.imageDuplicateMaxDistance', 0, true],
+    // Chất lượng ảnh (add-image-quality-checks): cạnh ngắn 100–2000 điểm ảnh, độ sáng thang 0–255.
+    ['screening.imageMinShortSide', 99, false],
+    ['screening.imageMinShortSide', 2001, false],
+    ['screening.imageMinSharpness', 0, true],
+    ['screening.imageMaxBrightness', 256, false],
     ['screening.imageDuplicateMaxDistance', 5, false],
     ['screening.textScoreTimeoutMs', 2_147_483_648, false],
     ['listing.maxImages', 51, false],
@@ -118,6 +123,7 @@ describe('ràng buộc giữa khoá', () => {
     [{ 'media.uploadGrantMinutes': 2881 }, 'media.uploadGrantMinutes'],
     [{ 'identity.resendCooldownSeconds': 601 }, 'identity.resendCooldownSeconds'],
     [{ 'identity.codeTtlMinutes': 10_080 }, 'identity.codeTtlMinutes'],
+    [{ 'screening.imageMinBrightness': 235 }, 'screening.imageMinBrightness'],
   ])('%o → lỗi nêu %s', (changes, key) => {
     const issues = issuesWith(changes);
     expect(issues).toHaveLength(1);

@@ -16,6 +16,13 @@ const TIME_VN = new Intl.DateTimeFormat('vi-VN', {
   hour12: false,
 });
 
+const HOUR_MINUTE_VN = new Intl.DateTimeFormat('vi-VN', {
+  timeZone: SHOP_TIME_ZONE,
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+});
+
 /** `dd/mm/yyyy` theo giờ Việt Nam — cho câu báo lỗi "được đăng ký lại từ …". */
 export function formatDateVN(date: Date): string {
   return DATE_VN.format(date);
@@ -24,6 +31,14 @@ export function formatDateVN(date: Date): string {
 /** `HH:mm:ss` theo giờ Việt Nam — cho câu "xin gửi lại sau …". */
 export function formatTimeVN(date: Date): string {
   return TIME_VN.format(date);
+}
+
+/**
+ * `HH:mm ngày dd/mm/yyyy` theo giờ Việt Nam — cho mốc xa hơn vài phút (thời gian chờ 24 giờ): giờ trần không nói hôm
+ * nay hay mai, giây chỉ là nhiễu. Lỗi 429 và thông báo cùng dùng để hai câu khớp từng chữ (add-trust-notices).
+ */
+export function formatMomentVN(date: Date): string {
+  return `${HOUR_MINUTE_VN.format(date)} ngày ${DATE_VN.format(date)}`;
 }
 
 /** Việt Nam là UTC+7 quanh năm, không đổi giờ mùa hè — nên đầu ngày là một phép trừ, không cần thư viện múi giờ. */

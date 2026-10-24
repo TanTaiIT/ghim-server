@@ -2,14 +2,15 @@ import type { ListingPlacement, ScreeningRun, TrustTier } from '@prisma/client';
 
 import type { RuntimeConfig } from '../../common/config/runtime-config.js';
 import { TooManyRequestsError } from '../../common/errors/app-error.js';
-import { formatTimeVN } from '../../common/time/time.js';
 import type { Jobs } from '../../lib/jobs.js';
 import type { CategoryService } from '../category/category.service.js';
 import type { IdentityService } from '../identity/identity.service.js';
 import type { ListingFactsService, ScreeningSubmission } from '../listing/listing.ports.js';
 import type { MediaService } from '../media/media.service.js';
 import { buildPhraseMatcher, type PhraseMatcher } from './calc/phrase.calc.js';
+import type { QualityLimits } from './calc/quality.calc.js';
 import type { BandThresholds, RawHit, RuleSnapshot } from './calc/score.calc.js';
+import { cooldownSentence } from './screening.outbox.js';
 import { INITIAL_RULES } from './screening.rules.js';
 import type { ScreeningRepository, Tx } from './screening.repository.js';
 import type { SignalLimits } from './calc/signals.calc.js';
@@ -36,9 +37,21 @@ export interface ScreeningTrustPort {
   strikePointsOf(accountId: string): Promise<number>;
 }
 
-/** Băm ảnh sau cổng (design mục 3): `sharp` ở app thật — đổi sang pHash về sau không sửa luật. */
-export interface ImageHasher {
-  dhash(bytes: Uint8Array): Promise<bigint>;
+/** Số đo một ảnh: dHash để so trùng, cỡ sau khi xoay theo EXIF, độ nét và độ sáng để so ngưỡng chất lượng. */
+export interface ImageMeasure {
+  dhash: bigint;
+  width: number;
+  height: number;
+  sharpness: number;
+  brightness: number;
+}
+
+/**
+ * Đo ảnh sau cổng (design mục 3, add-image-quality-checks mục 1): `sharp` ở app thật — đổi sang pHash hay đổi phép đo
+ * về sau không sửa luật. Ném khi tệp không giải mã được.
+ */
+export interface ImageInspector {
+  inspect(bytes: Uint8Array): Promise<ImageMeasure>;
 }
 
 export interface ScreeningServiceDeps {
@@ -48,7 +61,7 @@ export interface ScreeningServiceDeps {
   identity: ScreeningIdentityPort;
   media: ScreeningMediaPort;
   trust: ScreeningTrustPort;
-  hasher: ImageHasher;
+  inspector: ImageInspector;
   jobs: Jobs;
   config: RuntimeConfig;
   clock: () => Date;
@@ -77,6 +90,8 @@ export type TextResult =
       rankAsListingId: string | null;
       bands: BandThresholds;
       imageMaxDistance: number;
+      /** Trống ở lượt mở trước add-image-quality-checks: lượt đó không xét chất lượng ảnh. */
+      imageQuality?: QualityLimits;
     }
   | {
       status: 'error';
@@ -108,7 +123,7 @@ export interface LoadedRules {
 
 /** Phiên bản 0: chưa khởi tạo (test không chạy bước khởi động) — luật đúng TK 14, không cụm, không ghi đè. */
 const UNSEEDED: RuleSnapshot = {
-  rules: INITIAL_RULES.map((rule) => ({ ...rule, mode: 'on' })),
+  rules: INITIAL_RULES.map((rule) => ({ ...rule, mode: rule.mode ?? 'on' })),
   overrides: [],
   bands: [],
   phrases: [],
@@ -161,6 +176,13 @@ export const bandThresholds = (config: RuntimeConfig): BandThresholds => ({
   highFrom: config.get('screening.highBandFrom'),
 });
 
+export const qualityLimits = (config: RuntimeConfig): QualityLimits => ({
+  minShortSide: config.get('screening.imageMinShortSide'),
+  minSharpness: config.get('screening.imageMinSharpness'),
+  minBrightness: config.get('screening.imageMinBrightness'),
+  maxBrightness: config.get('screening.imageMaxBrightness'),
+});
+
 export const signalLimits = (config: RuntimeConfig): SignalLimits => ({
   newAccountDays: config.get('screening.newAccountDays'),
   abnormalPriceMinSamples: config.get('screening.abnormalPriceMinSamples'),
@@ -174,13 +196,10 @@ export const signalLimits = (config: RuntimeConfig): SignalLimits => ({
 
 // ── LỖI ──────────────────────────────────────────────────────────────────────────────────────────
 
-/** Không nêu cổng cứng nào (TK 13) — chỉ mốc gửi lại, như bảng uy tín. */
 export const submissionCooldown = (until: Date): TooManyRequestsError =>
-  new TooManyRequestsError(
-    `Tạm thời chưa gửi được tin mới — gửi lại từ ${formatTimeVN(until)}`,
-    'SUBMISSION_COOLDOWN',
-    { retryAt: until.toISOString() },
-  );
+  new TooManyRequestsError(cooldownSentence(until), 'SUBMISSION_COOLDOWN', {
+    retryAt: until.toISOString(),
+  });
 
 /** Mã tra cứu của máy duyệt: cùng bộ chữ với mã đánh dấu của `identity`, tiền tố riêng để hỗ trợ biết tra ở đâu. */
 export const LOOKUP_PREFIX = 'S';

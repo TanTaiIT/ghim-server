@@ -5,7 +5,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { hamming } from '../src/modules/screening/calc/dhash.calc.js';
-import { sharpHasher } from '../src/modules/screening/run/image-hash.js';
+import { sharpInspector } from '../src/modules/screening/run/image-inspector.js';
 import { prisma } from './db-helpers.js';
 import { createFakeJobs, type FakeJobs } from './fakes/jobs.fake.js';
 import { api, deliverAll, newUser, type TestUser } from './group-helpers.js';
@@ -109,14 +109,21 @@ describe('Tin chỉ hiện khi có kết quả cho chữ và mọi ảnh', () =>
     expect(await runOf(listing.id)).toMatchObject({ outcome: 'pass_full', score: 0 });
   });
 
-  it('ảnh không giải mã được: kiểm ảnh báo lỗi, tin bị giữ cho người', async () => {
+  it('ảnh không đọc được: ảnh hỏng, tin bị giữ cho người kèm câu sửa nói ảnh thứ mấy (add-image-quality-checks)', async () => {
     const user = await userAt('T2');
     const draft = await readyDraft(app, user);
     await submit(app, user, draft, deviceOf(user));
     await deliverAll(app);
     await checkAll();
-    expect(await runOf(draft.id)).toMatchObject({ outcome: 'hold', cause: 'error' });
-    expect((await getOwn(app, user, draft.id)).state).toBe('pending');
+    expect(await runOf(draft.id)).toMatchObject({ outcome: 'hold', cause: 'image_quality' });
+    const held = await getOwn(app, user, draft.id);
+    expect(held.state).toBe('pending');
+    expect(held.machineNotice?.fixes).toEqual([
+      {
+        code: 'image_unreadable',
+        message: 'Ảnh 1 không mở được. Xoá ảnh đó rồi tải ảnh khác.',
+      },
+    ]);
   });
 });
 
@@ -124,11 +131,11 @@ describe('Ảnh trùng với tin của tài khoản khác là cổng cứng', ()
   it('ảnh chép lại hay nén lại vẫn ra dHash gần như cũ', async () => {
     const original = await pngOf(40);
     const [a, b] = await Promise.all([
-      sharpHasher.dhash(original),
-      sharpHasher.dhash(await recompressed(original)),
+      sharpInspector.inspect(original).then((m) => m.dhash),
+      sharpInspector.inspect(await recompressed(original)).then((m) => m.dhash),
     ]);
     expect(hamming(a, b)).toBeLessThanOrEqual(4);
-    expect(hamming(a, await sharpHasher.dhash(await pngOf(41)))).toBeGreaterThan(4);
+    expect(hamming(a, (await sharpInspector.inspect(await pngOf(41))).dhash)).toBeGreaterThan(4);
   });
 
   it('B dùng lại ảnh trong tin của A, nguyên bản hay nén lại: dính "ảnh trùng"; A dùng lại ảnh của mình thì không', async () => {
@@ -276,7 +283,7 @@ describe('Lỗi tạm thời của kho được kiểm lại ở lượt gửi s
     expect((await getOwn(app, user, listing.id)).state).toBe('live');
   });
 
-  it('ảnh lỗi thật (tệp không đọc được): sửa gửi lại giữ cho người ngay, không kiểm lại', async () => {
+  it('ảnh lỗi thật (tệp không đọc được): sửa gửi lại giữ cho người ngay vì ảnh hỏng, không kiểm lại', async () => {
     const user = await userAt('T2');
     const listing = await submittedWith(user, [await png(932)]);
     const imageId = listing.images[0]?.id ?? '';
@@ -299,7 +306,7 @@ describe('Lỗi tạm thời của kho được kiểm lại ở lượt gửi s
     const edited = await patch(app, user, held, { title: 'Đồ dùng sửa lần nữa' }, deviceOf(user));
     expect(edited.statusCode, edited.body).toBe(200);
     await deliverAll(app);
-    expect(await runOf(listing.id)).toMatchObject({ outcome: 'hold', cause: 'error' });
+    expect(await runOf(listing.id)).toMatchObject({ outcome: 'hold', cause: 'image_quality' });
     expect(checkJobsFor(imageId)).toHaveLength(0);
   });
 });

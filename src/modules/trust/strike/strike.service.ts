@@ -503,9 +503,18 @@ export function createStrikeService(
         decidedBy: by,
       });
       if (!appeal) throw new ConflictError('Khiếu nại này đã có kết quả', 'APPEAL_DECIDED');
-      if (verdict === 'lost' || !inForce(strike, at)) return;
+      const decided = trustEvent(TRUST_EVENTS.appealDecided, {
+        appealId: appeal.id,
+        strikeId: strike.id,
+        accountId: strike.accountId,
+        verdict,
+      });
+      if (verdict === 'lost' || !inForce(strike, at)) {
+        await strikes.emitIn(tx, [decided]);
+        return;
+      }
       const events = await cancelIn(tx, strike, 'appeal', by, at);
-      await strikes.emitIn(tx, [...events, await standingEvents(tx, strike.accountId)]);
+      await strikes.emitIn(tx, [decided, ...events, await standingEvents(tx, strike.accountId)]);
     },
 
     async decideSerious(tx, { strikeId, decision, by, at }) {
@@ -735,6 +744,7 @@ export function createStrikeService(
         const mine = await strikes.listOf(accountId, tx);
         const fresh = live.filter((row) => !mine.some((own) => own.inheritedFromId === row.id));
         const events: OutboxEventInput[] = [];
+        const inherited: string[] = [];
         await sequentially(fresh, async (source) => {
           const copy = await strikes.insert(tx, {
             accountId,
@@ -754,9 +764,14 @@ export function createStrikeService(
             expiresAt: source.expiresAt,
           });
           events.push(issuedEvent(copy, true));
+          inherited.push(copy.id);
         });
         if (events.length > 0) {
-          await strikes.emitIn(tx, [...events, await standingEvents(tx, accountId)]);
+          await strikes.emitIn(tx, [
+            ...events,
+            trustEvent(TRUST_EVENTS.strikeInherited, { accountId, strikeIds: inherited }),
+            await standingEvents(tx, accountId),
+          ]);
         }
       });
     },

@@ -170,6 +170,7 @@ export function createMediaService(deps: MediaServiceDeps): MediaService {
       });
       return {
         imageId: image.id,
+        minShortSide: config.get('screening.imageMinShortSide'),
         upload: {
           method: grant.method,
           url: grant.url,

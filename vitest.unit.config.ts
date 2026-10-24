@@ -17,6 +17,7 @@ const PURE_TESTS = [
   'tests/env.test.ts',
   'tests/error-handler.test.ts',
   'tests/health.service.test.ts',
+  'tests/image-inspector.test.ts',
   'tests/job-runs.test.ts',
   'tests/listing-ports.test.ts',
   'tests/lookup-code.test.ts',
@@ -25,11 +26,13 @@ const PURE_TESTS = [
   'tests/notification-listing-matrix.test.ts',
   'tests/notification-media-matrix.test.ts',
   'tests/notification-review-matrix.test.ts',
+  'tests/notification-trust-matrix.test.ts',
   'tests/outbox-retry.test.ts',
   'tests/pagination.test.ts',
   'tests/runtime-config.test.ts',
   'tests/secrets.test.ts',
   'tests/smoke-mail.test.ts',
+  'tests/time.test.ts',
   'tests/trust-proxy.test.ts',
 ];
 

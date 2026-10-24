@@ -170,7 +170,7 @@ describe('Lỗi khi chấm thì giữ cho người', () => {
     expect((await getOwn(app, user, draft.id)).state).toBe('pending');
   });
 
-  it('chữ không trúng gì nhưng kiểm một ảnh báo lỗi: giữ cho người', async () => {
+  it('chữ không trúng gì nhưng kiểm một ảnh báo lỗi (ảnh hỏng): giữ cho người', async () => {
     const user = await userAt('T2');
     const draft = await readyDraft(app, user, {}, 2);
     const [first, second] = draft.images;
@@ -185,7 +185,7 @@ describe('Lỗi khi chấm thì giữ cho người', () => {
     });
     await submit(app, user, draft, deviceOf(user));
     await deliverAll(app);
-    expect(await runOf(draft.id)).toMatchObject({ outcome: 'hold', cause: 'error' });
+    expect(await runOf(draft.id)).toMatchObject({ outcome: 'hold', cause: 'image_quality' });
   });
 });
 

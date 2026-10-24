@@ -28,6 +28,11 @@ export const uploadBodySchema = z
 export const uploadGrantSchema = z.object({
   imageId: z.uuid(),
   /**
+   * Cạnh ngắn tối thiểu (điểm ảnh, sau khi xoay theo EXIF) mà máy duyệt áp cho ảnh của tin — app chặn ảnh nhỏ hơn trước
+   * khi tải (add-image-quality-checks). Ảnh đại diện không bị kiểm chất lượng.
+   */
+  minShortSide: z.number().int(),
+  /**
    * `PUT` (kho chuẩn S3): gửi thân tệp kèm nguyên văn `headers` và `Content-Length` đúng `byteSize`. `POST` (Cloudinary):
    * gửi biểu mẫu multipart gồm nguyên văn `fields`, tệp ở trường `file` sau cùng. Hướng dẫn ở `docs/media.md`.
    */

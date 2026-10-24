@@ -308,6 +308,16 @@ describe('Khoá vĩnh viễn và xem lại mỗi 2 năm', () => {
     await deliverAll(app);
     expect((await strikeRow(strikeId)).status).toBe('lifted');
     expect((await account(poster.id))?.status).toBe('active');
+    // N49, N53, N54 (add-trust-notices): nhận gậy nghiêm trọng, khoá vĩnh viễn, gỡ khoá; giữ tiếp khi xem lại thì không.
+    const notices = await prisma.notification.findMany({
+      where: { recipientId: poster.id, category: 'trust_strikes' },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+    expect(notices.map((row) => [row.type, row.body])).toEqual([
+      ['trust.strike.issued', 'Tài khoản bị khoá vì một gậy nghiêm trọng.'],
+      ['trust.strike.decided', 'Tài khoản bị khoá vĩnh viễn.'],
+      ['trust.strike.lifted', 'Khoá vĩnh viễn đã được gỡ.'],
+    ]);
   });
 
   it('email của tài khoản khoá vĩnh viễn (đã xoá, hết thời gian giữ) bị chặn đăng ký 403 EMAIL_BANNED tới khi master gỡ khoá', async () => {

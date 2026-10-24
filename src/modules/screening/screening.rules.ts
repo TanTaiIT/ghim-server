@@ -21,19 +21,36 @@ export const SIGNAL_CODES = [
 /** Cổng cứng: trúng là giữ cho người, mọi mức tin cậy (TK 13) — chạy thử được, không tắt được (câu 19). */
 export const GATE_CODES = ['certain_phrase', 'duplicate_image', 'price_over_cap'] as const;
 
+/**
+ * Chất lượng ảnh (add-image-quality-checks): trúng là giữ cho người như cổng cứng, nhưng tắt được, không cộng điểm, không
+ * tính dò. `image_unreadable` (ảnh hỏng) không có dòng trong bảng luật: luôn bật, không chỉnh được (design mục 4).
+ */
+export const QUALITY_CODES = [
+  'image_unreadable',
+  'image_too_small',
+  'image_blurry',
+  'image_too_dark',
+  'image_too_bright',
+] as const;
+export const UNREADABLE_IMAGE = 'image_unreadable';
+
 export type SignalCode = (typeof SIGNAL_CODES)[number];
 export type GateCode = (typeof GATE_CODES)[number];
-export type RuleCode = SignalCode | GateCode;
+export type QualityCode = (typeof QUALITY_CODES)[number];
+export type RuleCode = SignalCode | GateCode | QualityCode;
 
-export const RULE_CODES: readonly RuleCode[] = [...SIGNAL_CODES, ...GATE_CODES];
+export const RULE_CODES: readonly RuleCode[] = [...SIGNAL_CODES, ...GATE_CODES, ...QUALITY_CODES];
 
 const GATES: ReadonlySet<RuleCode> = new Set(GATE_CODES);
 export const isGate = (code: RuleCode): code is GateCode => GATES.has(code);
 
+const QUALITY: ReadonlySet<RuleCode> = new Set(QUALITY_CODES);
+export const isQuality = (code: RuleCode): code is QualityCode => QUALITY.has(code);
+
 const KNOWN: ReadonlySet<string> = new Set(RULE_CODES);
 export const isRuleCode = (code: string): code is RuleCode => KNOWN.has(code);
 
-/** Phiên bản luật 1: mọi luật bật (spec rule-management); cổng cứng giữ tin chứ không cộng điểm nên trọng số 0. */
+/** Phiên bản luật 1: mọi luật bật (spec rule-management); cổng cứng, chất lượng ảnh giữ tin chứ không cộng điểm nên 0. */
 export const INITIAL_WEIGHTS: Readonly<Record<RuleCode, number>> = {
   gibberish: 30,
   zero_price_high_value: 30,
@@ -51,25 +68,34 @@ export const INITIAL_WEIGHTS: Readonly<Record<RuleCode, number>> = {
   certain_phrase: 0,
   duplicate_image: 0,
   price_over_cap: 0,
+  image_unreadable: 0,
+  image_too_small: 0,
+  image_blurry: 0,
+  image_too_dark: 0,
+  image_too_bright: 0,
 };
 
-/** Dòng `screening_rules` lúc khởi tạo; chế độ do `seedRules` đặt (phiên bản 1 bật, luật thêm về sau chạy thử). */
 /**
- * Luật thêm sau phiên bản 1 mặc định chạy thử; `shared_device_strike` (add-strikes) chèn ở chế độ bật vì spec
- * risk-scoring đòi cộng điểm ngay — luật master thêm tay vẫn chạy thử.
+ * Dòng `screening_rules` lúc khởi tạo; chế độ do `seedRules` đặt — phiên bản 1 bật, luật thêm về sau chạy thử. Hai ngoại
+ * lệ đặt chế độ sẵn:
+ * - `shared_device_strike` (add-strikes) bật ngay, vì spec risk-scoring đòi cộng điểm ngay;
+ * - luật chất lượng ảnh chạy thử cả ở phiên bản 1, để DB mới tinh không giữ tin vì một ngưỡng chưa chỉnh.
+ *
+ * Luật master thêm tay vẫn chạy thử.
  */
 const ON_FROM_START: ReadonlySet<RuleCode> = new Set(['shared_device_strike']);
 
 export const INITIAL_RULES: readonly {
   code: RuleCode;
-  kind: 'signal' | 'gate';
+  kind: 'signal' | 'gate' | 'quality';
   weight: number;
-  mode?: 'on';
-}[] = RULE_CODES.map((code) => ({
+  mode?: 'on' | 'trial';
+}[] = RULE_CODES.filter((code) => code !== UNREADABLE_IMAGE).map((code) => ({
   code,
-  kind: isGate(code) ? 'gate' : 'signal',
+  kind: isGate(code) ? 'gate' : isQuality(code) ? 'quality' : 'signal',
   weight: INITIAL_WEIGHTS[code],
   ...(ON_FROM_START.has(code) ? { mode: 'on' as const } : {}),
+  ...(isQuality(code) ? { mode: 'trial' as const } : {}),
 }));
 
 /** Tên luật cho bàn vận hành và hỗ trợ — không bao giờ tới người đăng (TK 13). */
@@ -90,6 +116,11 @@ export const RULE_LABELS: Readonly<Record<RuleCode, string>> = {
   certain_phrase: 'Cụm từ cấm mức chắc',
   duplicate_image: 'Ảnh trùng',
   price_over_cap: 'Giá vượt trần',
+  image_unreadable: 'Ảnh hỏng',
+  image_too_small: 'Ảnh quá nhỏ',
+  image_blurry: 'Ảnh mờ',
+  image_too_dark: 'Ảnh quá tối',
+  image_too_bright: 'Ảnh quá sáng',
 };
 
 /** Lỗi người đăng tự sửa được — câu báo nói cách sửa (spec explanations). */
@@ -98,6 +129,7 @@ export const FIXABLE_CODES: ReadonlySet<RuleCode> = new Set([
   'price_over_cap',
   'wrong_category',
   'off_platform_contact',
+  ...QUALITY_CODES,
 ]);
 
 /**

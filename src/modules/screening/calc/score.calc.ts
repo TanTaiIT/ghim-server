@@ -1,7 +1,13 @@
 import type { BannedPhraseLevel, ScreeningBand, ScreeningRuleKind } from '@prisma/client';
 
 import type { RuleMode } from './phrase.calc.js';
-import { isGate, isRuleCode, type RuleCode } from '../screening.rules.js';
+import {
+  isGate,
+  isQuality,
+  isRuleCode,
+  type RuleCode,
+  UNREADABLE_IMAGE,
+} from '../screening.rules.js';
 
 export interface RuleSetting {
   weight: number;
@@ -87,9 +93,12 @@ export type AppliedHit = {
 
 /** Luật có trong mã mà chưa có dòng — chỉ ghi, không đổi kết quả, như mọi luật mới (spec rule-management). */
 const UNSEEDED: RuleSetting = { weight: 0, mode: 'trial' };
+/** Ảnh hỏng không có dòng luật nào để chỉnh (design add-image-quality-checks mục 4). */
+const ALWAYS_ON: RuleSetting = { weight: 0, mode: 'on' };
 
 /** Ghi đè của danh mục trước, giá trị chung sau (spec rule-management). */
 export function ruleFor(book: RuleBook, code: RuleCode, categoryId: string | null): RuleSetting {
+  if (code === UNREADABLE_IMAGE) return ALWAYS_ON;
   const base = book.rules.get(code) ?? UNSEEDED;
   const override = categoryId ? book.overrides[categoryId]?.[code] : undefined;
   return { weight: override?.weight ?? base.weight, mode: override?.mode ?? base.mode };
@@ -121,10 +130,10 @@ export function applyRules(
   return [...applied.values()];
 }
 
-/** Điểm = tổng trọng số các dấu hiệu đang bật đã trúng; cổng cứng không có điểm, chạy thử không cộng. */
+/** Điểm = tổng trọng số các dấu hiệu đang bật đã trúng; cổng cứng, chất lượng ảnh không có điểm, chạy thử không cộng. */
 export function scoreOf(hits: readonly AppliedHit[]): number {
   return hits
-    .filter((hit) => hit.mode === 'on' && !isGate(hit.code))
+    .filter((hit) => hit.mode === 'on' && !isGate(hit.code) && !isQuality(hit.code))
     .reduce((sum, hit) => sum + hit.weight, 0);
 }
 

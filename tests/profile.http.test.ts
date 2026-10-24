@@ -4,7 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createFakeMailer, type FakeMailer } from '../src/lib/mailer.js';
 import { hashPassword } from '../src/modules/identity/calc/password.calc.js';
 import { createFakeJobs, type FakeJobs } from './fakes/jobs.fake.js';
-import { tokenFor } from './ops-helpers.js';
+import { seedAccount, tokenFor } from './ops-helpers.js';
 import { buildTestApp, grantStaff, repositories, TEST_AUDIT } from './test-app.js';
 
 /* Spec `profile` (5 scenario) và spec `email-change` (4 scenario). */
@@ -67,7 +67,7 @@ async function account(
 }
 
 const api = (
-  method: 'GET' | 'POST' | 'PATCH',
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   url: string,
   options: { token?: string; payload?: object } = {},
 ) =>
@@ -181,8 +181,8 @@ describe('GET / PATCH /me', () => {
       email,
       emailVerified: true,
       role: 'user',
-      twoFactorEnabled: false,
     });
+    expect(res.json().data).not.toHaveProperty('twoFactorEnabled');
     expect(JSON.stringify(res.json())).not.toMatch(/device|flag|thiết bị|đánh dấu|ABCDEFGH|may-1/i);
   });
 
@@ -197,6 +197,52 @@ describe('GET / PATCH /me', () => {
       (await api('PATCH', '/me', { token, payload: { displayName: ' Lan Hoàng ' } })).json().data
         .displayName,
     ).toBe('Lan Hoàng');
+  });
+});
+
+const staffFlag = async (token: string) =>
+  (await api('GET', '/me', { token })).json().data.staff as boolean;
+
+describe('Hồ sơ của tôi cho biết quyền staff (add-me-staff-flag)', () => {
+  it('staff còn hiệu lực → đúng, không kèm phạm vi hay danh mục; PATCH /me cũng trả cờ; người dùng thường → sai', async () => {
+    const [staff, user] = [await account(), await account()];
+    await grantStaff(staff.id, ['support'], []);
+    const token = await login(staff.email);
+    const res = await api('GET', '/me', { token });
+    expect(res.json().data.staff).toBe(true);
+    expect(JSON.stringify(res.json())).not.toMatch(/scope|categor|support/i);
+    const patched = await api('PATCH', '/me', { token, payload: { showActivity: true } });
+    expect(patched.json().data.staff).toBe(true);
+    expect(await staffFlag(await login(user.email))).toBe(false);
+  });
+
+  it('quyền đang treo → sai', async () => {
+    const staff = await account();
+    await grantStaff(staff.id, ['support'], []);
+    const token = await login(staff.email);
+    await repositories.platform.suspendStaff({ accountId: staff.id, reason: 'Thử', at: now });
+    expect(await staffFlag(token)).toBe(false);
+  });
+
+  it('master thu toàn bộ quyền → lần đọc hồ sơ sau là sai', async () => {
+    const staff = await account();
+    await grantStaff(staff.id, ['support'], []);
+    const token = await login(staff.email);
+    expect(await staffFlag(token)).toBe(true);
+    const master = await seedAccount({ role: 'master' }, now);
+    const revoked = await api('DELETE', `/ops/staff/${staff.id}`, {
+      token: await tokenFor(app, master.id, now),
+    });
+    expect(revoked.statusCode).toBe(204);
+    expect(await staffFlag(token)).toBe(false);
+  });
+
+  it('hồ sơ công khai của staff không có cờ', async () => {
+    const staff = await account();
+    await grantStaff(staff.id, ['support'], []);
+    const res = await api('GET', `/users/${staff.id}`);
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data).not.toHaveProperty('staff');
   });
 });
 
