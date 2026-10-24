@@ -10,16 +10,22 @@ về gậy nghiêm trọng, gậy hết hạn, mức tin cậy lên xuống, th�
 
 ### Requirement: Báo người nhận gậy
 
-Khi một gậy được ra cho một tài khoản, chủ tài khoản SHALL được báo, có nhắc, trong nhóm "mức tin cậy và gậy" (TK 24).
-Nội dung xem trong app SHALL nêu loại gậy, điều luật được trích, tin liên quan nếu có, ngày hết hạn — gậy nghiêm trọng
-thì nói đang chờ master quyết — và hạn khiếu nại: 14 ngày, gậy nghiêm trọng 30 ngày (giá trị khởi đầu). Thông báo SHALL
-ký "Ghim" và MUST NOT nêu tên hay vai của người ra gậy. Thông báo mở được bảng uy tín của người nhận.
+Khi một gậy được ra, chủ tài khoản SHALL được báo có nhắc, nhóm "mức tin cậy và cảnh cáo" (TK 24), ký "Ghim",
+MUST NOT nêu người ra gậy, mở được bảng uy tín. Nội dung trong app SHALL nêu loại gậy, điều luật trích, tin liên quan
+nếu có, hạn gậy (nghiêm trọng: chờ master quyết) và hạn khiếu nại (14 ngày; nghiêm trọng 30). Gậy thường, nặng SHALL
+nói đủ bao nhiêu điểm thì tạm dừng đăng tin (`strike.postingLockFromPoints`). Chữ người đọc: "cảnh cáo", "vi phạm
+nghiêm trọng", "điểm vi phạm" (TK 3).
 
 #### Scenario: Gậy thường khi tin bị gỡ vì vi phạm
 
 - **WHEN** ngày 22/10/2026 staff gỡ tin "Xe đạp cũ" vì vi phạm và ra gậy thường trích điều 3 của quy định sàn
 - **THEN** người đăng nhận thông báo có nhắc ký "Ghim"; nội dung trong app nêu một gậy thường, điều 3, tin "Xe đạp
   cũ", hết hạn ngày 20/01/2027 và khiếu nại được tới ngày 05/11/2026
+
+#### Scenario: Gậy thường nói ngưỡng tạm dừng đăng tin
+
+- **WHEN** ngưỡng tạm dừng đăng tin là 3 điểm và người dùng nhận một gậy thường
+- **THEN** nội dung trong app có câu "Đủ 3 điểm vi phạm thì tạm dừng đăng tin mới." và câu nhắc gọi đó là một cảnh cáo
 
 #### Scenario: Gậy nặng
 
@@ -188,7 +194,7 @@ trúng (TK 4 nguyên tắc 8).
 
 Câu nhắc hiện trên màn hình — banner trong app và đẩy lên điện thoại — SHALL chỉ nói chuyện gì xảy ra và tiêu đề tin
 liên quan nếu có. Điều luật được trích, ngày hết hạn, hạn khiếu nại và hệ quả MUST NOT nằm trong câu nhắc; chúng chỉ nằm
-trong nội dung xem trong app (TK 24: màn hình khoá ai cũng đọc được). Người dùng tắt nhóm "mức tin cậy và gậy" thì thông
+trong nội dung xem trong app (TK 24: màn hình khoá ai cũng đọc được). Người dùng tắt nhóm "mức tin cậy và cảnh cáo" thì thông
 báo vẫn vào hộp thư, chỉ thôi nhắc.
 
 #### Scenario: Đẩy lên điện thoại
@@ -198,7 +204,7 @@ báo vẫn vào hộp thư, chỉ thôi nhắc.
 
 #### Scenario: Tắt nhóm "mức tin cậy và gậy"
 
-- **WHEN** người dùng đã tắt nhóm "mức tin cậy và gậy" và nhận một gậy
+- **WHEN** người dùng đã tắt nhóm "mức tin cậy và cảnh cáo" và nhận một gậy
 - **THEN** thông báo vào hộp thư, không hiện banner và không đẩy lên điện thoại
 
 ### Requirement: Những chuyện về gậy và mức không báo

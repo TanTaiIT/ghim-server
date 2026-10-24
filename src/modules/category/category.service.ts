@@ -72,7 +72,7 @@ export interface CategoryService {
 
   /** Cửa đọc cho `platform` (kiểm grant) — đọc, không ghi (design 5). */
   existingIds(ids: string[]): Promise<Set<string>>;
-  /** Cửa đọc cho `screening` sau này: cài đặt hiện hành kèm số phiên bản. */
+  /** Cửa đọc cho `screening`: cài đặt hiện hành kèm số phiên bản — máy chấm ghi lại phiên bản đã dùng (cam kết 33). */
   settingsOf(id: string): Promise<CategorySettingsDto>;
   /** Cửa cho `listing`: danh mục có đang bật không, và phiên bản mẫu hiện hành để ghim lúc gửi lần đầu (TK 11). */
   statusOf(

@@ -995,7 +995,7 @@ model GroupNotificationMute {
 
 // ── MEDIA ────────────────────────────────────────────────────────────────────────────────────────
 
-/// Loại chủ của một ảnh. `listing` khai sẵn để `add-listings` nối vào, chưa có chủ nào loại này.
+/// Loại chủ của một ảnh: ảnh đại diện của tài khoản (`profile`) hay ảnh của tin (`listing`).
 enum ImageOwnerKind {
   profile
   listing

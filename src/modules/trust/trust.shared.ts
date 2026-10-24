@@ -107,20 +107,3 @@ export const quotaSettings = (config: RuntimeConfig, tier: TrustTier): QuotaSett
   perHour: config.get(`quota.submitsPerHour${tier}`),
   outsiderPerGroup: config.get('quota.outsiderLiveListingsPerGroup'),
 });
-
-/** Bản tạm tới `add-messaging`: chưa có tin nhắn thì chưa ai hỏi mua. */
-export const noBuyerInterest: BuyerInterest = {
-  hasInquiry: () => Promise.resolve(false),
-};
-
-const WAITING_FOR_REVIEWER: HoldNotice = {
-  reason: 'Đang chờ người duyệt',
-  estimatedWait: null,
-  lookupCode: null,
-};
-
-/** Bản tạm tới `add-screening`: mọi tin chờ duyệt nhận câu "đang chờ người duyệt". */
-export const genericHolds: HoldExplanation = {
-  explain: (ids) => Promise.resolve(new Map(ids.map((id) => [id, WAITING_FOR_REVIEWER]))),
-  cooldownOf: () => Promise.resolve(null),
-};
