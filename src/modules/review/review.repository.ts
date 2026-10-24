@@ -8,6 +8,8 @@ import type {
   ReviewTask,
 } from '@prisma/client';
 
+import type { DayDecisions } from '../ops/calc/daily-stats.calc.js';
+import { SHOP_TIME_ZONE } from '../../common/time/time.js';
 import { appendEvents, type OutboxEventInput } from '../../common/outbox/outbox.js';
 
 export type Tx = Prisma.TransactionClient;
@@ -135,6 +137,8 @@ export interface ReviewRepository {
     input: { strikeId: string; accountId: string; pseudonym: string },
   ): Promise<number>;
   findDecision(id: string): Promise<ReviewDecision | null>;
+  /** Quyết định về tin trong `[from, to)` theo ngày Việt Nam: đạt, và từ chối = reject / remove / violation (add-ops-daily-stats). */
+  decisionsByDay(from: Date, to: Date): Promise<DayDecisions[]>;
   /** Lý do mẫu: master thấy cả lý do đã tắt, người xử chỉ thấy lý do đang bật. */
   listTemplates(input: { includeInactive: boolean }): Promise<ReviewReasonTemplate[]>;
   findTemplate(id: string): Promise<ReviewReasonTemplate | null>;
@@ -310,6 +314,16 @@ export function createReviewRepository(prisma: PrismaClient): ReviewRepository {
         data: { issuedStrikeId: strikeId },
       });
     },
+
+    decisionsByDay: (from, to) =>
+      prisma.$queryRaw<DayDecisions[]>`
+        SELECT to_char((decided_at AT TIME ZONE ${SHOP_TIME_ZONE})::date, 'YYYY-MM-DD') AS day,
+               count(*) FILTER (WHERE outcome = 'pass')::int AS passed,
+               count(*) FILTER (WHERE outcome IN ('reject', 'remove', 'violation'))::int AS rejected
+          FROM review_decisions
+         WHERE listing_id IS NOT NULL AND decided_at >= ${from} AND decided_at < ${to}
+         GROUP BY 1
+         ORDER BY 1`,
 
     async pseudonymizeDecisions(tx, { strikeId, accountId, pseudonym }) {
       const { count } = await tx.reviewDecision.updateMany({

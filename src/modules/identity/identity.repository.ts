@@ -15,6 +15,7 @@ import type {
   VerificationCode,
 } from '@prisma/client';
 
+import { type DayCount, SHOP_TIME_ZONE } from '../../common/time/time.js';
 import { appendAudit, type AuditEntry } from '../../common/audit/audit.js';
 import { appendEvents, type OutboxEventInput } from '../../common/outbox/outbox.js';
 import { FLAG_CLEARED_REASONS } from './identity.schema.js';
@@ -272,6 +273,8 @@ export interface IdentityRepository {
   purgeDeviceData(
     before: Date,
   ): Promise<{ posts: number; logins: number; flags: number; sessionIps: number }>;
+  /** Tài khoản tạo trong `[from, to)` đếm theo ngày Việt Nam (add-ops-daily-stats). */
+  newAccountsByDay(from: Date, to: Date): Promise<DayCount[]>;
   /**
    * Khoá dòng tài khoản rồi mới đọc trạng thái, ghi trạng thái đó vào `statusBeforeLock` (fix-audit-identity-low,
    * L1). `false` = không có tài khoản, hoặc nó không còn `active` / `pending_verification` (lượt khoá khác vừa chạy)
@@ -557,6 +560,13 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
         await tx.idVerification.deleteMany({ where: { accountId: id } });
         await tx.account.update({ where: { id }, data: { purgedAt: at } });
       }),
+    newAccountsByDay: (from, to) =>
+      prisma.$queryRaw<DayCount[]>`
+        SELECT to_char((created_at AT TIME ZONE ${SHOP_TIME_ZONE})::date, 'YYYY-MM-DD') AS day, count(*)::int AS count
+          FROM accounts
+         WHERE created_at >= ${from} AND created_at < ${to}
+         GROUP BY 1
+         ORDER BY 1`,
     async purgeDeviceData(before) {
       const [posts, logins, flags, sessions] = await Promise.all([
         prisma.devicePost.deleteMany({ where: { lastPostedAt: { lt: before } } }),

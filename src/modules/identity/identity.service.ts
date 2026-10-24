@@ -1,5 +1,6 @@
 import type { AccountStatus, Prisma } from '@prisma/client';
 
+import type { DayCount } from '../../common/time/time.js';
 import type { Actor, ActorResolver } from '../../common/auth/actor.js';
 import type { PrivilegeSource } from '../../common/auth/privilege-source.js';
 import type { RuntimeConfig } from '../../common/config/runtime-config.js';
@@ -298,6 +299,8 @@ export interface IdentityService extends ActorResolver {
   purgeDeviceData(
     before: Date,
   ): Promise<{ posts: number; logins: number; flags: number; sessionIps: number }>;
+  /** Cổng cho `ops`: tài khoản tạo mới theo ngày Việt Nam, nửa mở `[from, to)` (add-ops-daily-stats). */
+  newAccountsByDay(from: Date, to: Date): Promise<DayCount[]>;
   /** Mã giả thay mã tài khoản khi ẩn danh hoá gậy: HMAC khoá ngoài DB, dạng UUID — cùng người cùng mã, không dò ngược. */
   pseudonymOf(accountId: string): string;
 

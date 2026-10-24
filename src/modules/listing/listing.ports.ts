@@ -1,3 +1,4 @@
+import type { DayCount } from '../../common/time/time.js';
 import type {
   ListingFault,
   ListingHideReason,
@@ -259,4 +260,6 @@ export interface ListingFactsService {
   countSubmissions(accountId: string, since: Date): Promise<number>;
   priceSamples(categoryId: string, since: Date): Promise<bigint[]>;
   liveListings(after: string | null, take: number): Promise<LiveListingFacts[]>;
+  /** Cổng cho `ops`: tin lên bảng lần đầu theo ngày Việt Nam, nửa mở `[from, to)` (add-ops-daily-stats). */
+  firstLiveByDay(from: Date, to: Date): Promise<DayCount[]>;
 }

@@ -1,3 +1,4 @@
+import type { DayDecisions } from '../../ops/calc/daily-stats.calc.js';
 import { overturnRate, ruleRates } from '../calc/stats.calc.js';
 import type { BoardDto, ReviewerRateDto, RuleRateDto } from '../review.schema.js';
 import type { ReviewShared } from '../review.shared.js';
@@ -9,6 +10,8 @@ export interface ReviewStatsService {
   reviewerRates(): Promise<ReviewerRateDto[]>;
   /** Tỉ lệ máy quá tay theo luật: trên tin máy giữ có quyết định của người, phần được cho đạt (delta rule-management). */
   ruleRates(): Promise<RuleRateDto[]>;
+  /** Cổng cho `ops`: quyết định về tin theo ngày Việt Nam — đạt / từ chối, nửa mở `[from, to)` (add-ops-daily-stats). */
+  decisionsByDay(from: Date, to: Date): Promise<DayDecisions[]>;
 }
 
 const HOUR_MS = 3_600_000;
@@ -18,6 +21,8 @@ export function createStatsService(shared: ReviewShared): ReviewStatsService {
   const { repository, identity, config, clock, routesFor } = shared;
 
   return {
+    decisionsByDay: (from, to) => repository.decisionsByDay(from, to),
+
     async board() {
       const now = clock();
       const open = await repository.openTasks({});
