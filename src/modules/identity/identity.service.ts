@@ -8,6 +8,7 @@ import type { SecretBox } from '../../common/crypto/secrets.js';
 import type { PaginationQuery, toPage } from '../../common/schemas/pagination.js';
 import type { Jobs } from '../../lib/jobs.js';
 import type {
+  AccountCardRow,
   Account,
   AccountFlag,
   DisposableDomain,
@@ -354,6 +355,15 @@ export interface IdentityService extends ActorResolver {
   lockAccountStatus(tx: Prisma.TransactionClient, accountId: string): Promise<AccountStatus | null>;
   /** Theo lô, bỏ qua mã không có; `group` đếm điều hành viên dùng được, `notification` lấy tên hiển thị. */
   accountSummaries(ids: string[]): Promise<Map<string, AccountSummary>>;
+  /** Cổng cho `ops` (add-ops-account-directory): danh bạ tài khoản chưa xoá, mới nhất trước — có email, không dấu băm. */
+  searchAccounts(input: {
+    q: string | null;
+    status: Account['status'] | null;
+    skip: number;
+    take: number;
+  }): Promise<{ rows: AccountCardRow[]; total: number }>;
+  /** Cổng cho `ops`: thẻ một tài khoản chưa xoá, `null` khi không có. */
+  accountCard(id: string): Promise<AccountCardRow | null>;
   /** Theo lô: ảnh đại diện đã ký của tài khoản chưa xoá có đặt ảnh — `messaging` vẽ đầu hội thoại (add-price-offers). */
   avatarUrls(ids: string[]): Promise<Map<string, string>>;
   /** Kênh realtime báo kết nối mở / kết nối cuối đóng: ghi mốc "lần cuối hoạt động" (add-activity-status). */

@@ -1,5 +1,10 @@
 import type { JobSummary } from '../../lib/jobs.js';
 import {
+  type AccountDirectoryDeps,
+  type AccountDirectoryService,
+  createAccountDirectoryService,
+} from './account-directory.service.js';
+import {
   createDailyStatsService,
   type DailyStatsDeps,
   type DailyStatsService,
@@ -13,10 +18,10 @@ import {
   type RetentionService,
 } from './retention.service.js';
 
-export type OpsServiceDeps = RetentionDeps & DailyStatsDeps;
+export type OpsServiceDeps = RetentionDeps & DailyStatsDeps & AccountDirectoryDeps;
 
 /** Vận hành (TK 25, 26; đợt 7): dọn dữ liệu theo hạn lưu với tạm giữ bằng chứng, sổ kết quả việc nền. */
-export interface OpsService extends RetentionService, DailyStatsService {
+export interface OpsService extends RetentionService, DailyStatsService, AccountDirectoryService {
   /** Các lượt việc theo lịch gần nhất cho bàn vận hành — master xem việc nào mới làm được một phần hay hỏng. */
   listRuns(query: JobRunsQuery): Promise<JobRunDto[]>;
 }
@@ -36,6 +41,7 @@ export function createOpsService(deps: OpsServiceDeps): OpsService {
   return {
     ...createRetentionService(deps, hold),
     ...createDailyStatsService(deps),
+    ...createAccountDirectoryService(deps),
     async listRuns(query) {
       return (await deps.repository.listRuns(query)).map(toJobRunDto);
     },
