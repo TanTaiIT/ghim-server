@@ -5,7 +5,10 @@ import { auditOf } from './db-helpers.js';
 import { seedAccount, tokenFor } from './ops-helpers.js';
 import { buildTestApp, grantStaff, repositories } from './test-app.js';
 
-/* Sáu scenario của spec `id-verification`, và số giấy tờ không xuất hiện ở bất kỳ response nào. */
+/*
+ * Các scenario của spec `id-verification` (kể cả "Người nộp xem được hồ sơ của mình", add-id-verification-status), và số
+ * giấy tờ không xuất hiện ở bất kỳ response nào.
+ */
 const NOW = new Date('2026-10-10T09:00:00+07:00');
 const DOCUMENT_NUMBER = '079123456789';
 
@@ -42,6 +45,13 @@ const submit = (
     payload,
   });
 
+const mine = (token: string | null) =>
+  app.inject({
+    method: 'GET',
+    url: '/api/v1/me/id-verification',
+    headers: token ? { authorization: `Bearer ${token}` } : {},
+  });
+
 const list = (token: string, query = '') =>
   app.inject({
     method: 'GET',
@@ -69,7 +79,7 @@ describe('POST /me/id-verification', () => {
       documentType: 'cccd',
     });
     expect(JSON.stringify(res.json())).not.toContain(DOCUMENT_NUMBER);
-    const row = await repository.findPendingIdVerification(user.id);
+    const row = await repository.findLatestIdVerification(user.id);
     expect(row?.documentNumberEnc).not.toContain(DOCUMENT_NUMBER);
   });
 
@@ -80,6 +90,54 @@ describe('POST /me/id-verification', () => {
     const res = await submit(token);
     expect(res.statusCode).toBe(409);
     expect(res.json().error.code).toBe('CONFLICT');
+  });
+});
+
+describe('GET /me/id-verification', () => {
+  it('chưa nộp lần nào → 200, không có hồ sơ', async () => {
+    const user = await seedAccount({}, NOW);
+    const res = await mine(await tokenFor(app, user.id));
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data).toBeNull();
+  });
+
+  it('vừa nộp → 200, chờ duyệt, không có số giấy tờ', async () => {
+    const user = await seedAccount({}, NOW);
+    const token = await tokenFor(app, user.id);
+    const { id } = (await submit(token)).json().data;
+    const res = await mine(token);
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data).toMatchObject({
+      id,
+      status: 'pending',
+      reviewedAt: null,
+      reason: null,
+    });
+    expect(res.body).not.toContain(DOCUMENT_NUMBER);
+  });
+
+  it('bị từ chối → 200, đúng lý do và lúc duyệt, không nêu người duyệt; nộp lại → hồ sơ mới chờ duyệt', async () => {
+    const user = await seedAccount({}, NOW);
+    const token = await tokenFor(app, user.id);
+    const { id } = (await submit(token)).json().data;
+    await decide(id, reviewerToken, { status: 'rejected', reason: 'Ảnh mờ' });
+    const rejected = await mine(token);
+    expect(rejected.statusCode).toBe(200);
+    expect(rejected.json().data).toMatchObject({
+      id,
+      status: 'rejected',
+      reason: 'Ảnh mờ',
+      reviewedAt: NOW.toISOString(),
+    });
+    expect(rejected.json().data).not.toHaveProperty('reviewedBy');
+    const again = (await submit(token)).json().data;
+    expect((await mine(token)).json().data).toMatchObject({ id: again.id, status: 'pending' });
+  });
+
+  it('khách → 401 UNAUTHORIZED', async () => {
+    const res = await mine(null);
+    expect(res.statusCode).toBe(401);
+    expect(res.json().error.code).toBe('UNAUTHORIZED');
   });
 });
 
@@ -159,7 +217,10 @@ describe('/ops/id-verifications', () => {
     const res = await decide(id, selfToken, { status: 'verified' });
     expect(res.statusCode).toBe(403);
     expect(res.json().error.code).toBe('FORBIDDEN');
-    expect(await repository.findPendingIdVerification(self.id)).toMatchObject({ id });
+    expect(await repository.findLatestIdVerification(self.id)).toMatchObject({
+      id,
+      status: 'pending',
+    });
     expect(await auditOf(id)).toEqual([]);
   });
 

@@ -153,6 +153,18 @@ export const identityMeRoutes: FastifyPluginAsyncZod<IdentityMeRoutesOptions> = 
     },
   });
 
+  app.get('/me/id-verification', {
+    preHandler: signedIn,
+    schema: {
+      tags: TAGS_ME,
+      summary:
+        'Hồ sơ xác minh gần nhất của tôi — chờ duyệt, đã xác minh, hay bị từ chối kèm lý do; chưa nộp thì null',
+      security: bearer,
+      response: { 200: ok(idVerificationSchema.nullable()), 401: errorResponse },
+    },
+    handler: async (request) => toOk(await identity.myIdVerification(actorOf(request))),
+  });
+
   app.post('/me/id-verification', {
     preHandler: signedIn,
     schema: {

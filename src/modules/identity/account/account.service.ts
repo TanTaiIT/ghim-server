@@ -51,6 +51,7 @@ export type IdentityAccountService = Pick<
   | 'changePassword'
   | 'deleteMyAccount'
   | 'submitIdVerification'
+  | 'myIdVerification'
 >;
 
 /**
@@ -297,7 +298,7 @@ export function createIdentityAccountService(
     // ── XÁC MINH GIẤY TỜ ────────────────────────────────────────────────────────────────────────
 
     async submitIdVerification(actor, { documentType, documentNumber, fullName }) {
-      if (await repository.findPendingIdVerification(actor.accountId)) {
+      if ((await repository.findLatestIdVerification(actor.accountId))?.status === 'pending') {
         throw new ConflictError('Bạn đang có một hồ sơ chờ duyệt');
       }
       const row = await repository.createIdVerification({
@@ -308,6 +309,11 @@ export function createIdentityAccountService(
         at: clock(),
       });
       return toIdVerificationDto(row);
+    },
+
+    async myIdVerification(actor) {
+      const row = await repository.findLatestIdVerification(actor.accountId);
+      return row ? toIdVerificationDto(row) : null;
     },
   };
 }

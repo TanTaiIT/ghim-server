@@ -251,7 +251,7 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 - Trong 90 ngày chờ xoá hẳn, **email đó chưa đăng ký lại được**: tài khoản còn nằm đó dưới dạng ẩn, nên luật mỗi email một tài khoản vẫn áp; app báo ngày được đăng ký lại.
 - **Đăng ký lại bằng cùng email** (sau chuẩn hoá) thì **kế thừa cảnh cáo còn hiệu lực**. Hệ thống chỉ giữ một **dấu băm** của email, tạo bằng một khoá bí mật nằm ngoài cơ sở dữ liệu, giữ 2 năm cùng cảnh cáo: đủ để nhận ra email khi có người đăng ký lại, nhưng không ai dò ngược ra được email gốc.
 
-**Xác minh giấy tờ:** tính năng phụ. Người dùng tự nguyện nộp; master hoặc staff được giao việc này duyệt. Kết quả chỉ được lưu lại — **không** chặn ai dùng app, **không** ảnh hưởng đăng tin, mức tin cậy, hạn mức hay máy duyệt. Số giấy tờ không bao giờ hiện ra ngoài.
+**Xác minh giấy tờ:** tính năng phụ. Người dùng tự nguyện nộp; master hoặc staff được giao việc này duyệt. Kết quả chỉ được lưu lại — **không** chặn ai dùng app, **không** ảnh hưởng đăng tin, mức tin cậy, hạn mức hay máy duyệt. Số giấy tờ không bao giờ hiện ra ngoài. Người nộp xem được hồ sơ gần nhất của mình — đang chờ, đã xác minh, hay bị từ chối kèm lý do — nhưng không biết ai đã duyệt (chốt 25/10/2026).
 
 | Con số                                          | Giá trị                                        |
 | ----------------------------------------------- | ---------------------------------------------- |
