@@ -10,18 +10,21 @@ import {
 } from '../../common/errors/app-error.js';
 import { IMAGE_KEY_PREFIX, imageKey, type Storage } from '../../lib/storage/storage.js';
 import type { ImageOwner, MediaRepository } from './media.repository.js';
+import type { UploadBody, UploadGrantDto } from './media.schema.js';
 
 /**
- * Chủ ảnh không phải hồ sơ do module sở hữu chủ trả lời (`listing` cho tin): `media` không đọc bảng của họ. Nối muộn
- * trong `buildApp` vì `listing` dựng sau `media`.
+ * Chủ ảnh không phải hồ sơ do module sở hữu chủ trả lời (`listing` cho tin, `messaging` cho hội thoại): `media` không
+ * đọc bảng của họ. Nối muộn trong `buildApp` vì hai module đó dựng sau `media`.
  */
 export interface ImageOwnership {
-  /** Người xin tải là chủ của chủ ảnh này, và chủ đó còn nhận ảnh (tin của mình, chưa xoá). */
+  /** Người xin tải được gắn ảnh vào chủ này: tin của mình chưa xoá, hội thoại mình đang ở trong. */
   canUpload(accountId: string, ownerId: string): Promise<boolean>;
   /** Chủ nào trong danh sách còn tồn tại — kể cả đã xoá mềm, vì xoá mềm giữ ảnh (spec image-cleanup). */
   existing(ownerIds: string[]): Promise<Set<string>>;
 }
-import type { UploadBody, UploadGrantDto } from './media.schema.js';
+
+/** Chủ `profile` là chính người tải, không cần cổng; mọi loại chủ khác hỏi module của nó. */
+type PortedOwnerKind = Exclude<ImageOwnerKind, 'profile'>;
 
 export interface MediaServiceDeps {
   repository: MediaRepository;
@@ -33,12 +36,12 @@ export interface MediaServiceDeps {
    * giờ thật. Test đẩy giờ này tới trước để một tệp vừa tải trông như đã cũ.
    */
   storageClock?: () => Date;
-  owners?: { listing?: ImageOwnership | undefined };
+  owners?: Partial<Record<PortedOwnerKind, ImageOwnership>>;
 }
 
 export interface ReconcileResult {
   released: number;
-  /** Ảnh của chủ đã xoá hẳn (tin) — xoá theo chủ khi bên xoá chủ chưa dọn. */
+  /** Ảnh của chủ đã xoá hẳn (tin, hội thoại) — xoá theo chủ khi bên xoá chủ chưa dọn. */
   ownerGone: number;
   orphans: number;
   missing: number;
@@ -54,10 +57,14 @@ export interface MediaService {
    * (lần đầu thì hỏi kho). Sai bất kỳ điều gì → cùng một lỗi `IMAGE_NOT_IN_STORAGE`, kể cả mã không phải dạng mã.
    */
   resolve(input: { owner: ImageOwner; uploaderId: string; imageIds: string[] }): Promise<void>;
-  /** Bước 2, TRONG transaction lưu của chủ: gỡ nhãn, đánh dấu ảnh bị bỏ; ảnh đã bị dọn mất thì ném, chủ quay lui. */
+  /**
+   * Bước 2, TRONG transaction lưu của chủ: gỡ nhãn, đánh dấu ảnh bị bỏ; ảnh đã bị dọn mất thì ném, chủ quay lui.
+   * `append` (tin nhắn): `imageIds` là ảnh thêm vào chủ, không phải cả bộ — ảnh cũ giữ nguyên, và ảnh đã gắn một lần
+   * không gắn lại được (mỗi ảnh thuộc đúng một tin nhắn).
+   */
   attach(
     tx: Prisma.TransactionClient,
-    input: { owner: ImageOwner; imageIds: string[] },
+    input: { owner: ImageOwner; imageIds: string[]; append?: boolean },
   ): Promise<void>;
   viewUrl(imageId: string): Promise<string>;
   /** Chủ của từng ảnh — người duyệt thấy ảnh trùng nằm ở tin nào (design add-review-queues mục 8). */
@@ -115,29 +122,34 @@ export function createMediaService(deps: MediaServiceDeps): MediaService {
   };
 
   /**
-   * Chủ `profile` có khoá ngoại (`uploader_id`) nên tự đi theo tài khoản; chủ `listing` không có, nên hỏi `listing` theo
-   * trang những tin nào còn, ảnh của tin đã xoá hẳn thì xoá — dòng trước, tệp sau như mọi lượt dọn.
+   * Chủ `profile` có khoá ngoại (`uploader_id`) nên tự đi theo tài khoản; tin và hội thoại không có, nên hỏi module của
+   * chủ theo trang những chủ nào còn, ảnh của chủ đã xoá hẳn thì xoá — dòng trước, tệp sau như mọi lượt dọn.
    */
-  const dropOwnerless = async (after: string | null, done = 0): Promise<number> => {
-    const port = deps.owners?.listing;
+  const dropOwnerless = async (
+    kind: PortedOwnerKind,
+    after: string | null,
+    done = 0,
+  ): Promise<number> => {
+    const port = deps.owners?.[kind];
     if (!port) return done;
-    const ownerIds = await repository.ownerIdsAfter('listing', after, BATCH);
+    const ownerIds = await repository.ownerIdsAfter(kind, after, BATCH);
     if (ownerIds.length === 0) return done;
     const alive = await port.existing(ownerIds);
     const gone = ownerIds.filter((id) => !alive.has(id));
-    const deleted = await repository.deleteByOwners('listing', gone);
+    const deleted = await repository.deleteByOwners(kind, gone);
     await storage.deleteMany(deleted.map(imageKey));
     const total = done + deleted.length;
-    return ownerIds.length === BATCH ? dropOwnerless(ownerIds.at(-1) ?? null, total) : total;
+    return ownerIds.length === BATCH ? dropOwnerless(kind, ownerIds.at(-1) ?? null, total) : total;
   };
 
   return {
     async requestUpload(actor, body) {
-      // Chủ của người khác và chủ không tồn tại trả cùng 404: không lộ tin nào có thật.
+      // Chủ của người khác và chủ không tồn tại trả cùng 404: không lộ tin hay hội thoại nào có thật.
       const owns =
         body.ownerKind === 'profile'
           ? body.ownerId === actor.accountId
-          : ((await deps.owners?.listing?.canUpload(actor.accountId, body.ownerId)) ?? false);
+          : ((await deps.owners?.[body.ownerKind]?.canUpload(actor.accountId, body.ownerId)) ??
+            false);
       if (!owns) throw new NotFoundError('Không có chỗ này để tải ảnh');
       const maxBytes = config.get('media.maxImageBytes');
       if (body.byteSize > maxBytes) {
@@ -203,11 +215,12 @@ export function createMediaService(deps: MediaServiceDeps): MediaService {
       );
     },
 
-    async attach(tx, { owner, imageIds }) {
+    async attach(tx, { owner, imageIds, append = false }) {
       const attached = await repository.attach(tx, {
         owner,
         imageIds: [...new Set(imageIds)],
         at: clock(),
+        append,
       });
       if (!attached) throw imageNotInStorage();
     },
@@ -263,7 +276,9 @@ export function createMediaService(deps: MediaServiceDeps): MediaService {
     async reconcile({ after, budgetMs, pageSize = BATCH }) {
       const startedAt = Date.now();
       const released = after ? 0 : await drain(() => repository.deleteReleased(BATCH));
-      const ownerGone = after ? 0 : await dropOwnerless(null);
+      const ownerGone = after
+        ? 0
+        : (await dropOwnerless('listing', null)) + (await dropOwnerless('conversation', null));
       // Tệp không có dòng nhưng mới hơn hạn một quyền tải thì để yên: lượt xét có thể chạy giữa lúc dòng vừa bị xoá.
       const orphanBefore =
         storageClock().getTime() - config.get('media.uploadGrantMinutes') * MINUTE_S * 1000;

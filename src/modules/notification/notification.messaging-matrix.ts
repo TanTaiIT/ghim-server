@@ -111,7 +111,9 @@ export const MESSAGING_MATRIX: Record<string, Handler> = {
     const { title, category } = await signatureOf(message, ctx);
     const body = message.offer
       ? `Trả giá ${formatMoneyVN(message.offer.amount)}`
-      : preview(message.body);
+      : message.body === ''
+        ? `Đã gửi ${message.imageCount} ảnh`
+        : preview(message.body);
     return conversationNotice(
       payload,
       { recipients, conversationId, messageId, type: 'messaging.message.received', category },

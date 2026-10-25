@@ -320,8 +320,8 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     disconnectSession: (sessionId) => gateway?.disconnectSession(sessionId),
     onlineAmong: (accountIds) => gateway?.onlineAmong(accountIds) ?? new Set(),
   };
-  // `media` trước `identity`: ảnh đại diện cần cổng xác nhận ảnh. `media` không hỏi ngược ai — chủ `profile` chính
-  // là người tải lên.
+  // `media` trước `identity`: ảnh đại diện cần cổng xác nhận ảnh. Chủ `profile` chính là người tải lên; chủ tin và
+  // hội thoại hỏi ngược `listing`, `messaging` — nối muộn.
   const media = createMediaModule({
     repository: repositories.media,
     storage: deps.storage,
@@ -332,6 +332,11 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
         canUpload: (accountId, listingId) =>
           listingService?.canUpload(accountId, listingId) ?? notBuilt('listing'),
         existing: (ids) => listingService?.existingListings(ids) ?? notBuilt('listing'),
+      },
+      conversation: {
+        canUpload: (accountId, conversationId) =>
+          lateMessaging().canAttachImages(accountId, conversationId),
+        existing: (ids) => lateMessaging().existingConversations(ids),
       },
     },
   });
@@ -475,6 +480,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     listings: listing.service,
     trust: { tierOf: (accountId) => trust.tierOf(accountId) },
     screening: screeningModule.service,
+    media: media.service,
     review: review.service,
     groups: group.service,
     platform: platform.service,

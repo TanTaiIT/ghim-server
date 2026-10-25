@@ -892,6 +892,7 @@ Người xử không bao giờ là người đăng tin bị báo cáo, người 
 - **Hội thoại đã mở thì tiếp tục được** dù sau đó tin đã bán, hết hạn, hay một bên rời nhóm.
 - Số **hội thoại mới mỗi ngày** theo mức tin cậy (phần 20) — để tài khoản vừa lập không nhắn hàng loạt.
 - Tin nhắn qua cùng bộ lọc cụm từ cấm như tin đăng.
+- **Ảnh trong tin nhắn** (chốt 25/10/2026): mỗi tin nhắn tối đa **4 ảnh**, kèm chữ hay không, trong mọi loại hội thoại; staff hỗ trợ trả lời chỉ bằng chữ. Ảnh qua cùng luật chất lượng của ảnh tin (phần 13) ngay lúc gửi — tin nhắn không chờ người duyệt, nên ảnh trúng luật là không gửi, kèm câu sửa như tin đăng. Không kiểm trùng, không kiểm nội dung. Chỉ người trong hội thoại thấy, và người xử khi hội thoại bị báo; ảnh theo hạn lưu của hội thoại.
 - **Chặn người**: một bên chặn thì không mở hội thoại mới, hội thoại cũ ngừng nhận tin. Không bên nào biết ai chặn.
 - **Báo cáo ngay từ hội thoại** khi bị quấy rối hay lừa đảo.
 - **Xoá hội thoại** chỉ ẩn ở phía mình. Hội thoại dính tới báo cáo, cảnh cáo hay khiếu nại đang mở thì không bị xoá hẳn, kể cả khi cả hai bên đã xoá.
@@ -934,7 +935,7 @@ Người xử không bao giờ là người đăng tin bị báo cáo, người 
   ghi đè được — đổi ảnh là tải ảnh mới.
 - **Kho riêng tư**: không ai mở ảnh bằng một đường dẫn cố định. Mọi lượt xem dùng đường xem có hạn do hệ thống cấp
   cho người được xem — ảnh tin chưa hiện chỉ người đăng và người duyệt mở được.
-- Mỗi ảnh có **đúng một chủ** suốt đời (hồ sơ, nháp, tin) và không dùng lại cho chủ khác. Tin chuyển lên sàn chung
+- Mỗi ảnh có **đúng một chủ** suốt đời (hồ sơ, nháp, tin, hội thoại) và không dùng lại cho chủ khác; ảnh gửi trong tin nhắn thuộc hội thoại và chỉ nằm trong một tin nhắn. Tin chuyển lên sàn chung
   "như một tin mới" (phần 9, 10) mang **bản sao** ảnh của tin cũ.
 - **Chỉ nhận ảnh nằm trong kho của hệ thống.** Ảnh để ở nơi người đăng kiểm soát thì họ đổi được ruột ảnh sau khi tin đã qua duyệt, và mỗi lượt xem là một lượt máy chủ của họ biết ai đang xem. Ngoại lệ duy nhất: ảnh đại diện lấy từ Google.
 - **Ảnh có chủ ngay từ lúc chọn**: nó thuộc về bản nháp, và được dọn theo nháp.
@@ -958,7 +959,7 @@ Người xử không bao giờ là người đăng tin bị báo cáo, người 
 | Dấu băm email kèm cảnh cáo                            | 2 năm cùng cảnh cáo                                            | Xoá                                                         |
 | Dấu băm email của tài khoản bị khoá vĩnh viễn         | Tới khi gỡ khoá; master xem lại mỗi 2 năm                      | Xoá khi gỡ khoá                                             |
 | Dấu thiết bị, địa chỉ mạng lúc đăng ký                | 180 ngày                                                       | Xoá; chỉ dùng chống gian lận                                |
-| Hội thoại                                             | Tới khi cả hai bên xoá, hoặc 1 năm không ai nhắn               | Xoá hẳn                                                     |
+| Hội thoại                                             | Tới khi cả hai bên xoá, hoặc 1 năm không ai nhắn               | Xoá hẳn kèm ảnh                                             |
 | Thông báo                                             | 90 ngày                                                        | Xoá                                                         |
 | Kết quả chấm điểm của máy                             | 180 ngày                                                       | Gộp thành số liệu thống kê                                  |
 | Cảnh cáo                                              | 2 năm sau khi hết hạn hoặc sau khi khoá                        | Ẩn danh hoá, kể cả nhật ký liên quan                        |

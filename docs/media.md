@@ -67,7 +67,8 @@ DELETE /api/v1/me/avatar                            ← bỏ ảnh
 ```
 
 Cả ba trả `GET /me` mới. Tin đăng (`add-listings`) dùng cùng cách: xin tải với `ownerKind: "listing"` và mã nháp, rồi
-lưu nháp kèm các `imageId`.
+lưu nháp kèm các `imageId`. Ảnh trong tin nhắn (`add-message-images`): xin tải với `ownerKind: "conversation"` và mã
+hội thoại, rồi gửi tin nhắn kèm `imageIds` (tối đa 4) — mỗi ảnh chỉ gửi được một lần.
 
 ## Hiện ảnh
 

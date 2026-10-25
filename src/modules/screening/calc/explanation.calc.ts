@@ -92,10 +92,14 @@ const IMAGE_FIX_MESSAGES: Readonly<Record<QualityCode, (which: string) => string
     `${which} quá sáng, gần như trắng xoá. Chụp lại, tránh đèn chiếu thẳng vào máy.`,
 };
 
+/** Câu sửa một lỗi ảnh — cũng là câu từ chối ảnh tin nhắn (add-message-images). */
+export const imageFixMessage = (code: QualityCode, which: string): string =>
+  IMAGE_FIX_MESSAGES[code](which);
+
 const fixMessage = (explanation: Explanation, code: RuleCode): string | undefined => {
   if (!isQuality(code)) return FIX_MESSAGES[code];
   const positions = explanation.images?.[code];
-  return IMAGE_FIX_MESSAGES[code](positions ? `Ảnh ${positions.join(', ')}` : 'Một ảnh');
+  return imageFixMessage(code, positions ? `Ảnh ${positions.join(', ')}` : 'Một ảnh');
 };
 
 export function renderExplanation(

@@ -8,10 +8,10 @@ import { emptySchema } from '../identity/identity.schema.js';
 import {
   conversationParamsSchema,
   conversationSchema,
-  messageBodySchema,
   messageSchema,
   messagesQuerySchema,
   supportQueueQuerySchema,
+  supportReplyBodySchema,
 } from './messaging.schema.js';
 import type { MessagingRoutesOptions } from './messaging.routes.js';
 
@@ -82,7 +82,7 @@ export const messagingOpsRoutes: FastifyPluginAsyncZod<MessagingRoutesOptions> =
         'Trả lời dưới tên Hỗ trợ Ghim — không qua bộ lọc cụm từ cấm; không trả lời hội thoại hỗ trợ của chính mình',
       security: bearer,
       params: conversationParamsSchema,
-      body: messageBodySchema,
+      body: supportReplyBodySchema,
       response: { 201: ok(messageSchema), 400: errorResponse, 409: errorResponse, ...errors },
     },
     handler: async (request, reply) =>

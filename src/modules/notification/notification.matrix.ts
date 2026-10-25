@@ -101,6 +101,8 @@ export interface MatrixContext {
     conversationId: string;
     senderId: string;
     body: string;
+    /** Tin chỉ có ảnh (add-message-images): `body` rỗng, câu nhắc nêu số ảnh. */
+    imageCount: number;
     /** Đề nghị giá (add-price-offers): không có chữ, câu nhắc nêu số tiền. */
     offer: { amount: bigint } | null;
     /** Câu nhắc ký theo phía gửi: tên người, hay tên đội (add-team-conversations). */

@@ -2,8 +2,8 @@ import { z } from 'zod';
 
 import type { OutboxEventType } from '../../common/outbox/outbox.js';
 
-/** Tuple của enum `image_owner_kind`. `listing` khai sẵn cho `add-listings`. */
-export const IMAGE_OWNER_KINDS = ['profile', 'listing'] as const;
+/** Tuple của enum `image_owner_kind`. `conversation` = ảnh gửi trong hội thoại (add-message-images). */
+export const IMAGE_OWNER_KINDS = ['profile', 'listing', 'conversation'] as const;
 
 /** TK 25: không HEIC — Android và web không hiển thị được, app chuyển định dạng trước khi tải. */
 export const IMAGE_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
@@ -28,8 +28,8 @@ export const uploadBodySchema = z
 export const uploadGrantSchema = z.object({
   imageId: z.uuid(),
   /**
-   * Cạnh ngắn tối thiểu (điểm ảnh, sau khi xoay theo EXIF) mà máy duyệt áp cho ảnh của tin — app chặn ảnh nhỏ hơn trước
-   * khi tải (add-image-quality-checks). Ảnh đại diện không bị kiểm chất lượng.
+   * Cạnh ngắn tối thiểu (điểm ảnh, sau khi xoay theo EXIF) mà máy duyệt áp cho ảnh của tin và ảnh tin nhắn — app chặn
+   * ảnh nhỏ hơn trước khi tải (add-image-quality-checks, add-message-images). Ảnh đại diện không bị kiểm chất lượng.
    */
   minShortSide: z.number().int(),
   /**

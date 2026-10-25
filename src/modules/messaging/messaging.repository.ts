@@ -63,6 +63,7 @@ export interface MessagingRepository {
       body: string;
       flagged: boolean;
       createdAt: Date;
+      imageIds?: string[];
       offerAmount?: bigint;
     },
   ): Promise<Message>;
@@ -86,7 +87,10 @@ export interface MessagingRepository {
   pendingSupportCount(): Promise<number>;
   /** Hội thoại với quản trị của một nhóm — `ops` dọn cùng nhóm đóng quá hạn lưu. */
   groupConversations(groupId: string): Promise<RetentionRow[]>;
-  deleteConversations(ids: string[]): Promise<number>;
+  /** Trả mã đã xoá — ảnh của hội thoại đi theo (add-message-images). */
+  deleteConversations(ids: string[]): Promise<string[]>;
+  /** Hội thoại nào trong danh sách còn — lượt đối chiếu ảnh của `media` hỏi theo trang. */
+  existingIds(ids: string[]): Promise<Set<string>>;
   appendAuditIn(tx: Tx, entry: AuditEntry): Promise<void>;
   markRead(id: string, side: Side, at: Date): Promise<void>;
   hide(id: string, side: Side, at: Date): Promise<void>;
@@ -119,8 +123,11 @@ export interface MessagingRepository {
     after: string | null,
     limit: number,
   ): Promise<RetentionRow[]>;
-  /** Xoá hẳn các hội thoại trong `ids` còn khớp `where` lúc xoá — tin nhắn, dấu đang mở đi theo khoá ngoại. */
-  purge(ids: string[], where: Prisma.ConversationWhereInput): Promise<number>;
+  /**
+   * Xoá hẳn các hội thoại trong `ids` còn khớp `where` lúc xoá — tin nhắn, dấu đang mở đi theo khoá ngoại. Trả mã đã
+   * xoá để ảnh đi theo.
+   */
+  purge(ids: string[], where: Prisma.ConversationWhereInput): Promise<string[]>;
   emitIn(tx: Tx, events: OutboxEventInput[]): Promise<void>;
 }
 
@@ -132,6 +139,29 @@ const sideColumns = (side: Side) =>
 const uuids = (ids: string[]) => Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`));
 
 export function createMessagingRepository(prisma: PrismaClient): MessagingRepository {
+  const existingIds = async (ids: string[]): Promise<Set<string>> => {
+    if (ids.length === 0) return new Set();
+    const rows = await prisma.conversation.findMany({
+      where: { id: { in: ids } },
+      select: { id: true },
+    });
+    return new Set(rows.map((row) => row.id));
+  };
+
+  /**
+   * Prisma `deleteMany` chỉ trả số dòng, mà ảnh cần mã: mã đã xoá = mã không còn sau lệnh xoá. Dòng lượt khác xoá cùng
+   * lúc cũng tính — nó cũng đã đi, ảnh của nó cũng phải đi.
+   */
+  const deleteReturning = async (
+    ids: string[],
+    where: Prisma.ConversationWhereInput = {},
+  ): Promise<string[]> => {
+    if (ids.length === 0) return [];
+    await prisma.conversation.deleteMany({ where: { ...where, id: { in: ids } } });
+    const left = await existingIds(ids);
+    return ids.filter((id) => !left.has(id));
+  };
+
   return {
     inTransaction: (write) => prisma.$transaction((tx) => write(tx)),
 
@@ -205,7 +235,8 @@ export function createMessagingRepository(prisma: PrismaClient): MessagingReposi
       const rows = await prisma.$queryRaw<Message[]>`
         SELECT DISTINCT ON (conversation_id) id, conversation_id AS "conversationId", sender_id AS "senderId",
           kind, body, flagged, offer_amount AS "offerAmount", offer_status AS "offerStatus",
-          offer_responded_at AS "offerRespondedAt", created_at AS "createdAt"
+          offer_responded_at AS "offerRespondedAt", image_ids::text[] AS "imageIds",
+          created_at AS "createdAt"
         FROM messages WHERE conversation_id IN (${uuids(conversationIds)})
         ORDER BY conversation_id, created_at DESC, id DESC`;
       return new Map(rows.map((row) => [row.conversationId, row]));
@@ -322,11 +353,8 @@ export function createMessagingRepository(prisma: PrismaClient): MessagingReposi
         select: { id: true, kind: true, listingId: true, buyerId: true, sellerId: true },
       }),
 
-    async deleteConversations(ids) {
-      if (ids.length === 0) return 0;
-      const { count } = await prisma.conversation.deleteMany({ where: { id: { in: ids } } });
-      return count;
-    },
+    deleteConversations: (ids) => deleteReturning(ids),
+    existingIds,
 
     appendAuditIn: (tx, entry) => appendAudit(tx, entry),
 
@@ -465,13 +493,7 @@ export function createMessagingRepository(prisma: PrismaClient): MessagingReposi
         select: { id: true, kind: true, listingId: true, buyerId: true, sellerId: true },
       }),
 
-    async purge(ids, where) {
-      if (ids.length === 0) return 0;
-      const { count } = await prisma.conversation.deleteMany({
-        where: { ...where, id: { in: ids } },
-      });
-      return count;
-    },
+    purge: (ids, where) => deleteReturning(ids, where),
 
     emitIn: (tx, events) => appendEvents(tx, events),
   };

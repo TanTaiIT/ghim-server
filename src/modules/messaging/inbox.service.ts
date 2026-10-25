@@ -13,6 +13,7 @@ import {
   DAY_MS,
   groupTeamName,
   isTeam,
+  type MessagingMediaPort,
   type MessagingServiceDeps,
   otherOf,
   ownedBy,
@@ -58,6 +59,8 @@ export interface MessagePreview {
   conversationId: string;
   senderId: string;
   body: string;
+  /** Tin chỉ có ảnh có `body` rỗng — câu thông báo nói số ảnh. */
+  imageCount: number;
   offer: { amount: bigint; status: OfferStatus } | null;
   /** Câu thông báo ký theo phía gửi: tên người, hay tên đội (add-team-conversations). */
   conversation: { kind: ConversationKind; groupId: string | null; buyerId: string };
@@ -95,13 +98,32 @@ export const viewerOf = (row: Conversation, accountId: string, side: Side): Mess
   maskTeam: isTeam(row) && side === 'buyer',
 });
 
-export const toMessageDto = (row: Message, viewer: MessageViewer): MessageDto => ({
+/** Đường xem ký tại chỗ cho ảnh của một lô tin nhắn — không gọi kho (add-message-images). */
+export type ImageUrls = ReadonlyMap<string, string>;
+export const NO_IMAGES: ImageUrls = new Map();
+
+export async function imageUrlsOf(
+  media: Pick<MessagingMediaPort, 'viewUrl'>,
+  rows: readonly Pick<Message, 'imageIds'>[],
+): Promise<ImageUrls> {
+  const ids = [...new Set(rows.flatMap((row) => row.imageIds))];
+  return new Map(await Promise.all(ids.map(async (id) => [id, await media.viewUrl(id)] as const)));
+}
+
+const imagesOf = (row: Pick<Message, 'imageIds'>, urls: ImageUrls) =>
+  row.imageIds.flatMap((id) => {
+    const url = urls.get(id);
+    return url ? [{ id, url }] : [];
+  });
+
+export const toMessageDto = (row: Message, viewer: MessageViewer, urls: ImageUrls): MessageDto => ({
   id: row.id,
   conversationId: row.conversationId,
   senderId: viewer.maskTeam && row.senderId !== viewer.buyerId ? null : row.senderId,
   fromMe: row.senderId === viewer.accountId,
   kind: row.kind,
   body: row.body,
+  images: imagesOf(row, urls),
   offer: offerOf(row),
   createdAt: row.createdAt.toISOString(),
 });
@@ -139,7 +161,7 @@ export function createInboxService(deps: MessagingServiceDeps): {
     options?: { asTeam?: boolean },
   ): Promise<ConversationDto[]>;
 } {
-  const { repository, identity, listings, groups, platform, realtime, config, clock } = deps;
+  const { repository, identity, listings, groups, media, platform, realtime, config, clock } = deps;
 
   const describe = async (
     rows: Conversation[],
@@ -163,7 +185,10 @@ export function createInboxService(deps: MessagingServiceDeps): {
         listings.conversationCards(present(rows.map((row) => row.listingId))),
         identity.accountSummaries(others),
         identity.avatarUrls(others),
-        repository.lastMessages(ids),
+        repository.lastMessages(ids).then(async (messages) => ({
+          messages,
+          urls: await imageUrlsOf(media, [...messages.values()]),
+        })),
         repository.unreadCounts(ids, viewerId),
         repository.blockedWith(viewerId, listingOthers),
         groups.groupsByIds(groupIds),
@@ -208,7 +233,7 @@ export function createInboxService(deps: MessagingServiceDeps): {
           ? !locked && !gone
           : !closed && !banned && !(side === 'seller' && gone);
       const card = row.listingId ? cards.get(row.listingId) : undefined;
-      const lastMessage = last.get(row.id);
+      const lastMessage = last.messages.get(row.id);
       return {
         id: row.id,
         kind: row.kind,
@@ -244,7 +269,9 @@ export function createInboxService(deps: MessagingServiceDeps): {
                 gone: false,
                 activity: null,
               },
-        lastMessage: lastMessage ? toMessageDto(lastMessage, viewerOf(row, viewerId, side)) : null,
+        lastMessage: lastMessage
+          ? toMessageDto(lastMessage, viewerOf(row, viewerId, side), last.urls)
+          : null,
         unreadCount: unread.get(row.id) ?? 0,
         locked,
         canSend,
@@ -296,8 +323,9 @@ export function createInboxService(deps: MessagingServiceDeps): {
           id: message.id,
         }));
         const viewer = viewerOf(row, actor.accountId, side);
+        const urls = await imageUrlsOf(media, page.items);
         return {
-          items: page.items.map((message) => toMessageDto(message, viewer)),
+          items: page.items.map((message) => toMessageDto(message, viewer, urls)),
           nextCursor: page.nextCursor,
         };
       },
@@ -316,6 +344,10 @@ export function createInboxService(deps: MessagingServiceDeps): {
           [...new Set(conversationIds)],
           TRANSCRIPT_MESSAGES,
         );
+        const urls = await imageUrlsOf(
+          media,
+          rows.flatMap((row) => row.messages),
+        );
         // Chỉ hội thoại về tin có lượt báo (hội thoại với một đội chưa báo cáo được — CONVERSATION_NOT_REPORTABLE).
         return new Map(
           rows.flatMap((row) =>
@@ -332,6 +364,7 @@ export function createInboxService(deps: MessagingServiceDeps): {
                         id: message.id,
                         senderId: message.senderId,
                         body: transcriptBody(message),
+                        images: imagesOf(message, urls),
                         flagged: message.flagged,
                         createdAt: message.createdAt.toISOString(),
                       })),
@@ -354,6 +387,7 @@ export function createInboxService(deps: MessagingServiceDeps): {
           conversationId: row.conversationId,
           senderId: row.senderId,
           body: row.body,
+          imageCount: row.imageIds.length,
           offer: offer ? { amount: offer.amount, status: offer.status } : null,
           conversation: {
             kind: conversation.kind,

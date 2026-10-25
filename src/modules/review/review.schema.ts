@@ -86,6 +86,8 @@ export const conversationTranscriptSchema = z.object({
       id: z.uuid(),
       senderId: z.uuid(),
       body: z.string(),
+      /** Ảnh của tin nhắn (add-message-images) — người xử thấy khi hội thoại bị báo. */
+      images: z.array(z.object({ id: z.uuid(), url: z.string() })),
       flagged: z.boolean(),
       createdAt: iso,
     }),
