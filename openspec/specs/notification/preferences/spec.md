@@ -9,13 +9,13 @@ báo về tài khoản luôn phải tới (TK 24).
 
 ### Requirement: Bật tắt từng nhóm thông báo
 
-Người dùng SHALL xem được trạng thái bật / tắt của cả chín nhóm thông báo và SHALL bật hoặc tắt được riêng từng
+Người dùng SHALL xem được trạng thái bật / tắt của cả mười nhóm thông báo và SHALL bật hoặc tắt được riêng từng
 nhóm, trừ nhóm "tài khoản". Thông báo thuộc nhóm đang tắt MUST vẫn vào hộp thư nhưng không được nhắc.
 
 #### Scenario: Xem cài đặt thông báo
 
 - **WHEN** người dùng mở cài đặt thông báo
-- **THEN** response có HTTP 200 với đủ chín nhóm và trạng thái bật / tắt của từng nhóm
+- **THEN** response có HTTP 200 với đủ mười nhóm và trạng thái bật / tắt của từng nhóm
 
 #### Scenario: Tắt một nhóm
 
@@ -34,7 +34,7 @@ nhóm, trừ nhóm "tài khoản". Thông báo thuộc nhóm đang tắt MUST v�
 
 #### Scenario: Tên nhóm không hợp lệ
 
-- **WHEN** người dùng bật hay tắt một nhóm không thuộc chín nhóm
+- **WHEN** người dùng bật hay tắt một nhóm không thuộc mười nhóm
 - **THEN** response có HTTP 400 `VALIDATION_ERROR`
 
 ### Requirement: Nhóm "tài khoản" luôn bật
@@ -49,7 +49,7 @@ Nhóm "tài khoản" MUST luôn bật, kể cả với tài khoản vừa lập;
 #### Scenario: Tài khoản vừa lập
 
 - **WHEN** một tài khoản vừa tạo mở cài đặt thông báo
-- **THEN** cả chín nhóm đang bật
+- **THEN** cả mười nhóm đang bật
 
 ### Requirement: Tắt tiếng từng nhóm
 

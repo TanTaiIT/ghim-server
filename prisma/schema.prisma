@@ -1268,6 +1268,8 @@ model SavedListing {
 /// Lượt tìm trên sàn chung người dùng lưu để được báo tin mới khớp (add-saved-searches, TK 24). `key` = từ khoá đã bỏ
 /// dấu cùng bộ lọc, viết thành một chuỗi: lưu lại đúng lượt tìm không thêm dòng, và cột nullable không cần NULLS NOT
 /// DISTINCT. Xoá tài khoản thì `listing` xoá qua sự kiện (tài khoản chỉ ẩn danh, không xoá dòng).
+/// CHECK viết tay (migration add_saved_searches): `saved_searches_q_folded_check` — từ khoá đã bỏ dấu không rỗng;
+/// `saved_searches_price_range_check` — giá từ không lớn hơn giá đến khi có cả hai.
 model SavedSearch {
   id           String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
   accountId    String   @map("account_id") @db.Uuid
