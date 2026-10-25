@@ -15,8 +15,8 @@ hoãn. Không đụng cam kết nào ở TK 27.
 
 - `PUT /api/v1/me/saved-listings/:listingId` — lưu một tin người đó đang mở được; lưu lại tin đã lưu không đổi gì.
 - `DELETE /api/v1/me/saved-listings/:listingId` — bỏ lưu; tin chưa lưu thì cũng không lỗi.
-- `GET /api/v1/me/saved-listings?cursor=&limit=` — tin đã lưu mà người lưu đang thấy được trên danh sách, lưu gần nhất
-  trước, phân trang con trỏ như mọi danh sách tin.
+- `GET /api/v1/me/saved-listings?cursor=&limit=` — tin đã lưu mà người lưu còn mở được (đang hiển thị, đã bán, hết hạn,
+  mỗi tin kèm trạng thái), lưu gần nhất trước, phân trang con trỏ như mọi danh sách tin.
 - `GET /api/v1/me/saved-listings/ids` — mã mọi tin đã lưu, để app tô nút trái tim trên thẻ.
 - Xoá tài khoản thì mọi tin người đó đã lưu bị bỏ.
 - `ghim-app`: mục "Đã lưu" và nút trái tim đọc / ghi server; bỏ dữ liệu mẫu tin đăng còn lại (màn chi tiết không còn
@@ -30,8 +30,8 @@ cần một change riêng); trần số tin được lưu (xem Câu hỏi mở).
 
 - **Trần số tin đã lưu**: TK 28 không có con số này nên change không đặt trần (luật của `openspec/config.yaml`: không
   tự đặt con số). Nếu muốn chặn lạm dụng thì thêm một khoá vào bảng con số bằng change sau.
-- **Tin đã bán, hết hạn trong danh sách đã lưu**: change này chỉ hiện tin đang hiển thị (design mục 2). Nếu muốn giữ tin
-  đã bán kèm nhãn "Đã bán" thì cần thêm một bề mặt vào luật "ai thấy một tin".
+- ~~Tin đã bán, hết hạn trong danh sách đã lưu~~ — người dùng chốt 25/10/2026: giữ, kèm trạng thái (design mục 2, bề mặt
+  `saved` của luật "ai thấy một tin").
 
 ## Capabilities
 

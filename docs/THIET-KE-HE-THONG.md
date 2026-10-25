@@ -598,7 +598,7 @@ Tin hạn chế khi còn **ít nhất một lý do**. Mỗi lý do đặt và g�
 
 > **Vì sao có mức hạn chế.** Nó cho tin của người chưa quen được lên mà không cần người duyệt, nhưng chỉ người chủ động tìm mới thấy. Đội duyệt còn mỏng không phải xem từng tin, còn kẻ lập tài khoản mới hàng loạt thì không được đưa tin lên trước mắt người mua.
 
-**Tin đã lưu.** Người đã đăng nhập lưu được tin mình mở được bằng đường link; tin không mở được trả lời như tin không có, nên lưu không thành cách dò tin ẩn. Danh sách "Đã lưu" theo đúng luật của hồ sơ người bán: tin thôi hiện (đã bán, hết hạn, tạm ẩn, bị gỡ, tin "chỉ thành viên" của nhóm mình đã rời) thì vắng, hiện lại thì có lại, vì lần lưu không mất. Không ai khác biết ai lưu tin, kể cả người đăng. Xoá tài khoản thì mọi lần lưu bị bỏ (chốt 25/10/2026).
+**Tin đã lưu.** Người đã đăng nhập lưu được tin mình mở được bằng đường link; tin không mở được trả lời như tin không có, nên lưu không thành cách dò tin ẩn. Danh sách "Đã lưu" giữ mọi tin mình còn mở được: tin đang hiển thị, kể cả hạn chế, và tin đã bán hay hết hạn — kèm nhãn "Đã bán", "Hết hạn". Tin tạm ẩn, bị gỡ, đã xoá, hay tin "chỉ thành viên" của nhóm mình đã rời thì vắng; mở được lại thì có lại, vì lần lưu không mất. Không ai khác biết ai lưu tin, kể cả người đăng. Xoá tài khoản thì mọi lần lưu bị bỏ (chốt 25/10/2026).
 
 ---
 
@@ -755,7 +755,7 @@ Ngoài các mũi tên này, không có cách nào khác để đổi trạng th�
 - Người đăng xoá mềm được tin của mình, **trừ** tin bị từ chối hay bị gỡ vì vi phạm: tin đó giữ tới khi cảnh cáo hết hạn thêm 30 ngày (vi phạm nghiêm trọng: 2 năm) hoặc khiếu nại thắng.
 - Tin đang có báo cáo mở vẫn xoá được, nhưng báo cáo **vẫn được xử** trên bản lưu, và nội dung giữ tới khi báo cáo đóng.
 
-**Ai thấy một tin:** tin đang hiển thị, đã bán hoặc hết hạn · không bị tạm ẩn · người xem nằm trong phạm vi nơi đăng · bề mặt đang xem nằm trong mức hiển thị. Bảng tin chỉ lấy tin đang hiển thị, mức đầy đủ. Hồ sơ, tìm kiếm và gợi ý cũng chỉ có tin **đang hiển thị**; tin đã bán, hết hạn chỉ mở được bằng đường link. Tin "nhóm công khai" chỉ tìm được trong nhóm của nó, không có trong tìm kiếm chung (chốt 12/10/2026).
+**Ai thấy một tin:** tin đang hiển thị, đã bán hoặc hết hạn · không bị tạm ẩn · người xem nằm trong phạm vi nơi đăng · bề mặt đang xem nằm trong mức hiển thị. Bảng tin chỉ lấy tin đang hiển thị, mức đầy đủ. Hồ sơ, tìm kiếm và gợi ý cũng chỉ có tin **đang hiển thị**; tin đã bán, hết hạn chỉ mở được bằng đường link, và còn trong danh sách "Đã lưu" của người đã lưu (phần 15). Tin "nhóm công khai" chỉ tìm được trong nhóm của nó, không có trong tìm kiếm chung (chốt 12/10/2026).
 
 ---
 

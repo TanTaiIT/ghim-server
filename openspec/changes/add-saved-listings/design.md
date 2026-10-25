@@ -28,17 +28,19 @@ không" là luật hiển thị của `listing`; khoá ngoại sang `accounts` n
 Lần lưu giữ nguyên khi tin thôi hiện (bán, hết hạn, tạm ẩn, xoá mềm): danh sách lọc lúc đọc, nên tin hiện lại thì tự có
 lại — không cần nghe sự kiện nào của tin. Tin bị xoá cứng (dọn dữ liệu) kéo theo dòng lưu qua khoá ngoại.
 
-### 2. Lưu theo luật đường link, xem theo luật bề mặt "hồ sơ"
+### 2. Lưu theo luật đường link, xem theo bề mặt mới `saved`
 
 - **Lưu** (`PUT`): đọc tin, `canView(listing, viewer, 'link')` như `GET /listings/:id` — không thấy là 404 y hệt tin
   không tồn tại, nên lưu không thành cách dò tin ẩn. Người đăng lưu được tin của chính mình (đường link của người đăng
   luôn mở) — vô hại, app không cần chặn.
-- **Xem** (`GET`): `visibleWhere(viewer, 'profile')` — tin đang hiển thị, kể cả tin hạn chế (người lưu đã từng mở nó),
-  tin "chỉ thành viên" chỉ khi còn là thành viên. Đây là bề mặt có sẵn nên test DB đối chiếu `visibleWhere` / `canView`
-  không đổi.
+- **Xem** (`GET`): `visibleWhere(viewer, 'saved')` — bề mặt thêm vào luật "ai thấy một tin": phạm vi như `profile`
+  (tin "chỉ thành viên" chỉ khi còn là thành viên, nhận cả tin hạn chế — người lưu đã từng mở nó), trạng thái như
+  `link` (đang hiển thị, đã bán, hết hạn). Mỗi tin trả `state`, app gắn nhãn "Đã bán" / "Hết hạn". Bộ test DB đối
+  chiếu `visibleWhere` / `canView` chạy thêm bề mặt này. Người đăng không có ngoại lệ trên danh sách, như mọi bề mặt
+  danh sách: nháp của chính mình không vào "Đã lưu".
 
-Phương án bị loại: thêm bề mặt `saved` nhận cả tin đã bán / hết hạn kèm nhãn. Đúng ý "xem lại món mình để ý" hơn nhưng
-phải sửa luật hiển thị dùng chung và bộ test đối chiếu của nó — để thành câu hỏi mở, làm bằng change sau nếu cần.
+Người dùng chốt giữ tin đã bán / hết hạn ngày 25/10/2026 (câu hỏi mở của bản đầu, khi danh sách theo bề mặt `profile` và
+tin đã bán biến mất): xem lại món mình để ý thì cần biết món đó đã bán, không phải thấy nó biến mất.
 
 ### 3. Phân trang con trỏ theo lúc lưu
 

@@ -68,6 +68,7 @@ const SURFACES: { surface: ListSurface; group?: 'own' | 'other' }[] = [
   { surface: 'search' },
   { surface: 'suggest' },
   { surface: 'profile' },
+  { surface: 'saved' },
   { surface: 'group_feed', group: 'own' },
   { surface: 'group_search', group: 'own' },
   { surface: 'group_feed', group: 'other' },

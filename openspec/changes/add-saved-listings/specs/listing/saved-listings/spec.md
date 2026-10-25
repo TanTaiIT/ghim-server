@@ -53,10 +53,10 @@ báo lỗi.
 
 ### Requirement: Danh sách tin đã lưu
 
-Người đã đăng nhập SHALL xem được những tin mình đã lưu mà mình đang thấy được trên danh sách — như ở trang của người
-bán: tin đang hiển thị, kể cả tin đang hạn chế; tin "chỉ thành viên" chỉ khi còn là thành viên nhóm đó — lưu gần nhất
-trước, theo trang. Tin đã lưu mà thôi hiện (đã bán, hết hạn, tạm ẩn, đã xoá, hay người lưu đã rời nhóm) MUST NOT có
-trong danh sách, nhưng lần lưu vẫn còn: tin hiện lại thì có lại trong danh sách.
+Người đã đăng nhập SHALL xem được những tin mình đã lưu mà mình còn mở được — tin đang hiển thị (kể cả hạn chế), đã bán
+hay hết hạn, mỗi tin kèm trạng thái; tin "chỉ thành viên" chỉ khi còn là thành viên nhóm đó — lưu gần nhất trước, theo
+trang. Tin tạm ẩn, bị gỡ, đã xoá, hay "chỉ thành viên" của nhóm người lưu đã rời MUST NOT có trong danh sách, nhưng lần
+lưu vẫn còn: tin mở được lại thì có lại trong danh sách.
 
 #### Scenario: Lưu gần nhất trước
 
@@ -68,10 +68,10 @@ trong danh sách, nhưng lần lưu vẫn còn: tin hiện lại thì có lại 
 - **WHEN** người dùng đã lưu 3 tin và mở danh sách với `limit=2`
 - **THEN** trang đầu có 2 tin kèm con trỏ, trang sau có tin còn lại và con trỏ rỗng
 
-#### Scenario: Tin đã bán
+#### Scenario: Tin đã bán, hết hạn
 
-- **WHEN** người đăng đánh dấu đã bán một tin người dùng đã lưu
-- **THEN** tin đó không có trong danh sách đã lưu của người dùng
+- **WHEN** người đăng đánh dấu đã bán một tin người dùng đã lưu, và một tin đã lưu khác hết hạn hiển thị
+- **THEN** cả hai tin vẫn có trong danh sách đã lưu, tin này mang trạng thái đã bán, tin kia mang trạng thái hết hạn
 
 #### Scenario: Tin tạm ẩn rồi hiện lại
 

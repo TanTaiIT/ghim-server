@@ -49,7 +49,7 @@ export interface ListingReadService {
    */
   save(actor: Actor, id: string): Promise<void>;
   unsave(actor: Actor, id: string): Promise<void>;
-  /** Tin đã lưu mà người lưu đang thấy trên danh sách — luật của trang người bán (design mục 2). */
+  /** Tin đã lưu mà người lưu còn mở được: đang hiện, đã bán, hết hạn — bề mặt `saved` (design mục 2). */
   saved(actor: Actor, query: Page): Promise<CursorPage<ListingDto>>;
   /** Mọi mã đã lưu, không lọc hiển thị: để app tô nút trái tim (design mục 4). */
   savedIds(actor: Actor): Promise<string[]>;
@@ -235,7 +235,7 @@ export function createListingReadService(shared: ListingShared): ListingReadServ
       };
       const rows = await repository.savedPage({
         accountId: actor.accountId,
-        visible: visibleWhere(viewer, 'profile'),
+        visible: visibleWhere(viewer, 'saved'),
         cursor: query.cursor,
         limit: query.limit,
       });

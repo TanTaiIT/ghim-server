@@ -54,6 +54,7 @@ const savedPage = async (user: TestUser, query = '') => {
   const data = res.json().data as { items: { id: string }[]; nextCursor: string | null };
   return { ids: data.items.map((item) => item.id), nextCursor: data.nextCursor };
 };
+const DAY_MS = 86_400_000;
 /** Mỗi lượt lưu một mốc giờ riêng: thứ tự "lưu gần nhất trước" không phụ thuộc tốc độ chạy test. */
 const tick = () => {
   now = new Date(now.getTime() + 1000);
@@ -142,15 +143,26 @@ describe('danh sách tin đã lưu', () => {
     expect(page2).toEqual({ ids: [a.id], nextCursor: null });
   });
 
-  it('tin đã bán thôi có trong danh sách', async () => {
+  it('tin đã bán, hết hạn vẫn có trong danh sách, mang trạng thái của tin', async () => {
     const buyer = await newUser(app);
-    const live = await liveListingOf(app, seller);
-    await save(buyer, live.id);
-    expect((await listingApi(app, 'POST', `/listings/${live.id}/sold`, seller)).statusCode).toBe(
+    const [sold, expired] = [await liveListingOf(app, seller), await liveListingOf(app, seller)];
+    await save(buyer, sold.id);
+    tick();
+    await save(buyer, expired.id);
+    expect((await listingApi(app, 'POST', `/listings/${sold.id}/sold`, seller)).statusCode).toBe(
       200,
     );
-    expect((await savedPage(buyer)).ids).toEqual([]);
-    expect(await savedIds(buyer)).toEqual([live.id]);
+    // Đẩy đồng hồ qua hạn hiển thị rồi trả lại ngay: phiên của người mua cấp theo đồng hồ cũ.
+    const before = now;
+    now = new Date(now.getTime() + 31 * DAY_MS);
+    await app.modules.listing.expireDue();
+    now = before;
+    const res = await listingApi(app, 'GET', '/me/saved-listings', buyer);
+    const items = res.json().data.items as { id: string; state: string }[];
+    expect(items.map((item) => [item.id, item.state])).toEqual([
+      [expired.id, 'expired'],
+      [sold.id, 'sold'],
+    ]);
   });
 
   it('tin tạm ẩn vì danh mục tắt thì vắng, danh mục bật lại thì có lại', async () => {
