@@ -188,6 +188,16 @@ export interface ScreeningRepository {
   foldRunsBefore(startedBefore: Date, limit: number): Promise<{ folded: number; deleted: number }>;
   /** Lượt bắt đầu và lượt kết luận trong `[from, to)` theo ngày Việt Nam — kết quả đếm theo ngày kết luận (add-ops-daily-stats). */
   runsByDay(from: Date, to: Date): Promise<DayRuns[]>;
+  /**
+   * Lượt đã kết luận từ tháng của `from` (add-screening-stats), theo tháng × kết quả × dải: cộng lượt còn chi tiết với
+   * dòng tổng `*` của `screening_run_stats`. Tháng tính như `foldRunsBefore` — `date_trunc` của lúc bắt đầu — để hai
+   * nguồn khớp nhau ở ranh giới.
+   */
+  runsByMonth(
+    from: Date,
+  ): Promise<{ month: string; outcome: string; band: string; runs: number }[]>;
+  /** Mã luật trúng nhiều lượt nhất từ tháng của `from`, cùng hai nguồn; một lượt trúng một mã hai lần vẫn tính một. */
+  topRuleHits(from: Date, limit: number): Promise<{ code: string; runs: number }[]>;
   deleteMarksBefore(markedBefore: Date): Promise<number>;
   /** Tin trong `listingIds` đã từng bị rút về vì cụm này (cụm nằm trong `hits` của lượt `recall`), ở phiên bản nào cũng được. */
   recalledFor(phraseId: string, listingIds: string[]): Promise<Set<string>>;
@@ -540,6 +550,43 @@ export function createScreeningRepository(prisma: PrismaClient): ScreeningReposi
           ) marks
          GROUP BY day
          ORDER BY day`,
+
+    runsByMonth: (from) =>
+      prisma.$queryRaw<{ month: string; outcome: string; band: string; runs: number }[]>`
+        SELECT month, outcome, band, sum(runs)::int AS runs FROM (
+            SELECT to_char(date_trunc('month', started_at), 'YYYY-MM') AS month, outcome::text AS outcome,
+                   coalesce(band::text, '') AS band, count(*)::int AS runs
+              FROM screening_runs
+             WHERE decided_at IS NOT NULL AND started_at >= date_trunc('month', ${from}::timestamptz)
+             GROUP BY 1, 2, 3
+            UNION ALL
+            SELECT to_char(month, 'YYYY-MM'), outcome, band, sum(runs)::int
+              FROM screening_run_stats
+             WHERE rule_code = '*' AND month >= date_trunc('month', ${from}::timestamptz)::date
+             GROUP BY 1, 2, 3
+          ) parts
+         GROUP BY month, outcome, band
+         ORDER BY month`,
+
+    topRuleHits: (from, limit) =>
+      prisma.$queryRaw<{ code: string; runs: number }[]>`
+        SELECT code, sum(runs)::int AS runs FROM (
+            SELECT e->>'code' AS code, count(DISTINCT r.id)::int AS runs
+              FROM screening_runs r
+              CROSS JOIN LATERAL jsonb_array_elements(
+                CASE WHEN jsonb_typeof(r.hits) = 'array' THEN r.hits ELSE '[]'::jsonb END) e
+             WHERE r.decided_at IS NOT NULL AND r.started_at >= date_trunc('month', ${from}::timestamptz)
+               AND e ? 'code'
+             GROUP BY 1
+            UNION ALL
+            SELECT rule_code, sum(runs)::int
+              FROM screening_run_stats
+             WHERE rule_code <> '*' AND month >= date_trunc('month', ${from}::timestamptz)::date
+             GROUP BY 1
+          ) parts
+         GROUP BY code
+         ORDER BY runs DESC, code
+         LIMIT ${limit}`,
 
     foldRunsBefore: (startedBefore, limit) =>
       prisma.$transaction(async (tx) => {

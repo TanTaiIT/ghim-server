@@ -20,6 +20,8 @@ import {
   ruleChangeBodySchema,
   ruleParamsSchema,
   rulesSchema,
+  screeningStatsSchema,
+  statsQuerySchema,
   whitelistBodySchema,
   whitelistEntrySchema,
   whitelistParamsSchema,
@@ -34,6 +36,7 @@ const TAGS_RULES = ['Ops · Screening rules'];
 const TAGS_PHRASES = ['Ops · Banned phrases'];
 const TAGS_LISTS = ['Ops · Screening lists'];
 const TAGS_LOOKUP = ['Ops · Screening lookups'];
+const TAGS_STATS = ['Ops · Screening stats'];
 const bearer = [{ bearerAuth: [] }];
 const PREFIX = '/ops/screening';
 
@@ -54,6 +57,26 @@ export const screeningOpsRoutes: FastifyPluginAsyncZod<ScreeningOpsRoutesOptions
   ];
 
   // ── LUẬT ───────────────────────────────────────────────────────────────────────────────────────
+
+  // ── SỐ LIỆU ────────────────────────────────────────────
+
+  app.get(`${PREFIX}/stats`, {
+    preHandler: master,
+    schema: {
+      tags: TAGS_STATS,
+      summary:
+        'Số liệu máy theo tháng (master): số lượt, cho qua / hạn chế / giữ, dải điểm, luật trúng nhiều nhất — cộng cả số đã gộp khi hết hạn lưu',
+      security: bearer,
+      querystring: statsQuerySchema,
+      response: {
+        200: ok(screeningStatsSchema),
+        400: errorResponse,
+        401: errorResponse,
+        403: errorResponse,
+      },
+    },
+    handler: async (request) => toOk(await screening.monthlyStats(request.query.months)),
+  });
 
   app.get(`${PREFIX}/rules`, {
     preHandler: master,

@@ -580,6 +580,7 @@ flowchart TB
 | B. Tài khoản T0 2 ngày tuổi, mô tả ghi số Zalo, đăng sàn chung  | Tài khoản mới 10 · liên hệ ngoài sàn 20              | 30 — dải Vừa | Giữ cho người; người đăng được nhắc thêm số vào hồ sơ thay vì ghi vào mô tả |
 | C. iPhone 15 giá 2 triệu, mô tả lộn xộn, ghi Zalo, tài khoản T1 | Giá bất thường 25 · gõ bừa 30 · liên hệ ngoài sàn 20 | 75 — dải Cao | Giữ cho người                                                               |
 
+**Số liệu của máy** (chốt 25/10/2026): master xem theo tháng, 12 tháng gần nhất (tối đa 24) — số lượt máy đã chấm, bao nhiêu cho qua đầy đủ, cho qua hạn chế, giữ cho người, bao nhiêu ở mỗi dải điểm, và 5 luật trúng nhiều nhất. Số tính cả những tháng mà kết quả chi tiết đã gộp lại khi hết hạn lưu (phần 25). Staff không xem.
 ---
 
 ## 15. Mức hiển thị: đầy đủ và hạn chế

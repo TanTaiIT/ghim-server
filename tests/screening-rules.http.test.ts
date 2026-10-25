@@ -250,6 +250,7 @@ describe('Swagger', () => {
       '/rules',
       '/rules/{code}',
       '/rules/{code}/categories/{categoryId}',
+      '/stats',
       '/whitelist',
       '/whitelist/{id}',
     ]);
