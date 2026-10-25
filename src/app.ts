@@ -335,9 +335,11 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
       },
     },
   });
+  const region = createRegionModule({ repository: repositories.region });
   const identity = createIdentityModule({
     ...deps,
     images: media.service,
+    regions: region.service,
     ownership: {
       ownsAnyGroup: (accountId) => groupService?.ownsAnyGroup(accountId) ?? Promise.resolve(false),
     },
@@ -363,7 +365,6 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     disposableDomainsUrl: env.DISPOSABLE_DOMAINS_URL,
   });
   const category = createCategoryModule({ repository: repositories.category, clock: deps.clock });
-  const region = createRegionModule({ repository: repositories.region });
   const platform = createPlatformModule({
     repository: repositories.platform,
     identity: identity.service,

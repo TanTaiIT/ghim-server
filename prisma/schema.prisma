@@ -124,6 +124,8 @@ model Account {
   /// Công tắc hai chiều: tắt thì không ai thấy trạng thái của mình, mình cũng không thấy của ai.
   showActivity      Boolean        @default(true) @map("show_activity")
   phone             String?
+  /// Tỉnh/thành của tôi (add-home-province): chỉ chủ tài khoản thấy; app dùng cho "Gần bạn" và bộ lọc mặc định.
+  homeProvinceCode  Int?           @map("home_province_code")
   lockedReason      String?        @map("locked_reason")
   lockedAt          DateTime?      @map("locked_at") @db.Timestamptz(3)
   lockedBy          String?        @map("locked_by") @db.Uuid
@@ -144,6 +146,7 @@ model Account {
   deviceLogins          DeviceLogin[]
   savedListings         SavedListing[]
   savedSearches         SavedSearch[]
+  homeProvince          Province?                @relation(fields: [homeProvinceCode], references: [code], onDelete: SetNull)
   deviceClearances      DeviceClearance[]
   flags                 AccountFlag[]
   idVerifications       IdVerification[]
@@ -579,6 +582,7 @@ model Province {
 
   wards    Ward[]
   listings Listing[]
+  homeOf   Account[]
 
   @@map("provinces")
 }

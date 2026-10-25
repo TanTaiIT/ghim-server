@@ -148,6 +148,7 @@ export function toMe(
     nameHidden,
     showActivity: account.showActivity,
     staff,
+    homeProvinceCode: account.homeProvinceCode,
     email: account.email,
     emailVerified: account.status === 'active',
     role: account.role,

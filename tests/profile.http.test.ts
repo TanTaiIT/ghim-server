@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createFakeMailer, type FakeMailer } from '../src/lib/mailer.js';
 import { hashPassword } from '../src/modules/identity/calc/password.calc.js';
+import { prisma } from './db-helpers.js';
 import { createFakeJobs, type FakeJobs } from './fakes/jobs.fake.js';
 import { seedAccount, tokenFor } from './ops-helpers.js';
 import { buildTestApp, grantStaff, repositories, TEST_AUDIT } from './test-app.js';
@@ -243,6 +244,35 @@ describe('Hồ sơ của tôi cho biết quyền staff (add-me-staff-flag)', () 
     const res = await api('GET', `/users/${staff.id}`);
     expect(res.statusCode).toBe(200);
     expect(res.json().data).not.toHaveProperty('staff');
+  });
+});
+
+describe('Tỉnh/thành của tôi (add-home-province)', () => {
+  it('chọn tỉnh → /me có, hồ sơ công khai không có; bỏ chọn bằng null', async () => {
+    await app.modules.region.seedRegionsIfEmpty();
+    const province = await prisma.province.findFirstOrThrow({ orderBy: { code: 'asc' } });
+    const user = await account();
+    const token = await login(user.email);
+    const set = await api('PATCH', '/me', { token, payload: { homeProvinceCode: province.code } });
+    expect(set.statusCode, set.body).toBe(200);
+    expect(set.json().data.homeProvinceCode).toBe(province.code);
+    expect((await api('GET', '/me', { token })).json().data.homeProvinceCode).toBe(province.code);
+    const profile = await api('GET', `/users/${user.id}`);
+    expect(profile.json().data).not.toHaveProperty('homeProvinceCode');
+    const cleared = await api('PATCH', '/me', { token, payload: { homeProvinceCode: null } });
+    expect(cleared.json().data.homeProvinceCode).toBeNull();
+  });
+
+  it('mã tỉnh không có → 400 VALIDATION_ERROR, tỉnh cũ giữ nguyên', async () => {
+    await app.modules.region.seedRegionsIfEmpty();
+    const province = await prisma.province.findFirstOrThrow({ orderBy: { code: 'asc' } });
+    const user = await account();
+    const token = await login(user.email);
+    await api('PATCH', '/me', { token, payload: { homeProvinceCode: province.code } });
+    const res = await api('PATCH', '/me', { token, payload: { homeProvinceCode: 99_999 } });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('VALIDATION_ERROR');
+    expect((await api('GET', '/me', { token })).json().data.homeProvinceCode).toBe(province.code);
   });
 });
 

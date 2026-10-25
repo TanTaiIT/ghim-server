@@ -154,12 +154,17 @@ export function createIdentityAccountService(
       return me(await accountOf(actor));
     },
 
-    async updateMe(actor, { displayName, phone, showActivity }) {
+    async updateMe(actor, { displayName, phone, showActivity, homeProvinceCode }) {
       if (displayName !== undefined) assertDisplayNameAllowed(displayName);
+      if (homeProvinceCode != null && deps.regions) {
+        const issue = await deps.regions.validateRegion(homeProvinceCode, null);
+        if (issue) throw new BadRequestError(issue, 'VALIDATION_ERROR');
+      }
       const patch = {
         ...(displayName === undefined ? {} : { displayName: displayName.trim() }),
         ...(phone === undefined ? {} : { phone }),
         ...(showActivity === undefined ? {} : { showActivity }),
+        ...(homeProvinceCode === undefined ? {} : { homeProvinceCode }),
       };
       return me(await repository.updateAccount(actor.accountId, patch));
     },

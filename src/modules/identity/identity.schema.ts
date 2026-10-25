@@ -145,6 +145,8 @@ export const meSchema = publicProfileSchema.extend({
   showActivity: z.boolean(),
   /** Đang mang quyền staff còn hiệu lực — app hiện lối vào bàn vận hành. Quyền đang treo là `false` (add-me-staff-flag). */
   staff: z.boolean(),
+  /** Tỉnh/thành người dùng tự chọn (add-home-province) — riêng tư: hồ sơ công khai không có trường này. */
+  homeProvinceCode: z.number().int().nullable(),
 });
 
 const phoneNumberSchema = z
@@ -167,6 +169,8 @@ export const patchMeBodySchema = z.object({
   /** `null` để xoá số; bỏ qua để giữ nguyên. */
   phone: phoneNumberSchema.nullable().optional(),
   showActivity: z.boolean().optional(),
+  /** `null` để bỏ chọn tỉnh/thành; bỏ qua để giữ nguyên. */
+  homeProvinceCode: z.number().int().positive().nullable().optional(),
 });
 
 export const emailChangeBodySchema = z.object({

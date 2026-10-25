@@ -37,6 +37,8 @@ export interface IdentityServiceDeps {
   googleVerifier: GoogleTokenVerifier;
   /** `group` trả lời "đang là chủ nhóm nào không" — chủ nhóm phải chuyển chủ rồi mới xoá được tài khoản. */
   ownership?: GroupOwnership;
+  /** `region` trả lời mã tỉnh có thật không (add-home-province); CLI không có — CLI không sửa hồ sơ. */
+  regions?: RegionCheck;
   /** Báo kênh realtime cắt kết nối của phiên vừa bị thu hồi — sau khi ghi xong, trong tiến trình (kênh chỉ báo hiệu). */
   sessionsRevoked?: SessionRevocationListener;
   /** `media` cho ảnh đại diện. CLI không có — CLI không đọc hay đặt hồ sơ. */
@@ -45,6 +47,11 @@ export interface IdentityServiceDeps {
   names?: NameScreen;
   /** `trust` nối muộn (add-strikes): email bị chặn vì khoá vĩnh viễn, gậy chặn tự xoá, gậy đang khoá tài khoản. */
   strikes?: StrikeGate;
+}
+
+export interface RegionCheck {
+  /** Câu báo lỗi khi cặp tỉnh / phường không có thật; `null` = hợp lệ. */
+  validateRegion(provinceCode: number, wardCode: number | null): Promise<string | null>;
 }
 
 export interface StrikeGate {
@@ -145,6 +152,7 @@ export interface MeDto extends PublicProfileDto {
   nameHidden: boolean;
   showActivity: boolean;
   staff: boolean;
+  homeProvinceCode: number | null;
 }
 
 export interface FlagDto {
@@ -183,6 +191,7 @@ export interface PatchMeInput {
   displayName?: string | undefined;
   phone?: string | null | undefined;
   showActivity?: boolean | undefined;
+  homeProvinceCode?: number | null | undefined;
 }
 
 export interface RegisterInput {

@@ -445,7 +445,7 @@ _Các con số chỉ để minh hoạ; master đặt giá trị thật._
 
 - **Bật, tắt, không xoá.** Thôi dùng thì tắt: tin trong danh mục tạm ẩn — không chiếm hạn mức, không mất ngày — và không ai đăng mới được. Người đăng được **đổi tin sang danh mục khác**; tin qua máy lại.
 - **Mẫu thông tin**: staff phụ trách danh mục soạn, master phát hành. Tin đã đăng giữ nguyên mẫu lúc đăng. Tên một mục thông tin không bao giờ đổi sau khi phát hành; nhãn hiển thị thì đổi được.
-- **Khu vực**: 34 tỉnh, thành và 3.321 phường, xã sau sáp nhập; tìm được bằng tên cũ. Khu vực dùng để lọc và tìm đồ gần mình, không quyết định ai duyệt. Tin lên sàn chung bắt buộc có tỉnh và phường; tin trong nhóm thì tuỳ.
+- **Khu vực**: 34 tỉnh, thành và 3.321 phường, xã sau sáp nhập; tìm được bằng tên cũ. Khu vực dùng để lọc và tìm đồ gần mình, không quyết định ai duyệt. Tin lên sàn chung bắt buộc có tỉnh và phường; tin trong nhóm thì tuỳ. Người dùng chọn được tỉnh/thành của mình (không bắt buộc, chốt 25/10/2026): riêng tư, không ai khác thấy — app dùng để xếp mục "Gần bạn" và đặt sẵn bộ lọc khi tìm.
 - **Giá**: số nguyên từ 0 trở lên, đơn vị đồng. **Giá 0 nghĩa là cho tặng**; app hiện "Miễn phí".
 - **Danh mục phẳng**, không có cấp cha / con. Tên danh mục đổi được, mã danh mục không đổi (chốt 10/10/2026).
 - **Trần giá và giá tham chiếu là tuỳ chọn**: không đặt trần nghĩa là danh mục không có trần; đặt cả hai thì giá tham chiếu không vượt trần. Mức rủi ro mặc định thấp, luôn duyệt tay mặc định tắt.
