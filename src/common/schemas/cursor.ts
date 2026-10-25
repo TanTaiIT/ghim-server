@@ -15,34 +15,53 @@ export interface CursorKey {
   id: string;
 }
 
-export function encodeCursor({ at, id }: CursorKey): string {
-  return Buffer.from(JSON.stringify([at.getTime(), id])).toString('base64url');
+/**
+ * Cùng chuỗi [số, mã] như `CursorKey`, nhưng số là giá trị cột đang xếp — mili giây với danh sách theo thời gian, đồng
+ * với danh sách theo giá (add-feed-sort). Danh sách đổi được cách xếp đọc dạng này rồi hiểu số theo cách xếp đang dùng.
+ */
+export interface NumericCursorKey {
+  value: number;
+  id: string;
 }
 
 const keySchema = z.tuple([z.number().int(), z.uuid()]);
 
-/** `null` khi chuỗi không phải con trỏ do server phát ra. */
-export function decodeCursor(cursor: string): CursorKey | null {
+const encodeKey = ({ value, id }: NumericCursorKey): string =>
+  Buffer.from(JSON.stringify([value, id])).toString('base64url');
+
+function decodeKey(cursor: string): NumericCursorKey | null {
   try {
     const parsed = keySchema.safeParse(JSON.parse(Buffer.from(cursor, 'base64url').toString()));
-    return parsed.success ? { at: new Date(parsed.data[0]), id: parsed.data[1] } : null;
+    return parsed.success ? { value: parsed.data[0], id: parsed.data[1] } : null;
   } catch {
     return null;
   }
 }
 
+export const encodeCursor = ({ at, id }: CursorKey): string =>
+  encodeKey({ value: at.getTime(), id });
+
+/** `null` khi chuỗi không phải con trỏ do server phát ra. */
+export function decodeCursor(cursor: string): CursorKey | null {
+  const key = decodeKey(cursor);
+  return key && { at: new Date(key.value), id: key.id };
+}
+
+const cursorParam = <T>(decode: (cursor: string) => T | null) =>
+  z.string().transform((value, ctx) => {
+    const key = decode(value);
+    if (!key) {
+      ctx.addIssue({ code: 'custom', message: 'Con trỏ phân trang không hợp lệ' });
+      return z.NEVER;
+    }
+    return key;
+  });
+
+/** Con trỏ của danh sách đổi được cách xếp — thay `cursor` của `cursorQuerySchema` bằng `.extend`. */
+export const numericCursorSchema = cursorParam(decodeKey);
+
 export const cursorQuerySchema = z.object({
-  cursor: z
-    .string()
-    .transform((value, ctx) => {
-      const key = decodeCursor(value);
-      if (!key) {
-        ctx.addIssue({ code: 'custom', message: 'Con trỏ phân trang không hợp lệ' });
-        return z.NEVER;
-      }
-      return key;
-    })
-    .optional(),
+  cursor: cursorParam(decodeCursor).optional(),
   limit: z.coerce.number().int().positive().max(MAX_LIMIT).default(20),
 });
 
@@ -62,12 +81,11 @@ export function cursorPaginated<T extends z.ZodType>(item: T) {
 export function toCursorPage<T>(
   rows: T[],
   limit: number,
-  keyOf: (row: T) => CursorKey,
+  keyOf: (row: T) => CursorKey | NumericCursorKey,
 ): { items: T[]; nextCursor: string | null } {
   const items = rows.slice(0, limit);
   const last = items.at(-1);
-  return {
-    items,
-    nextCursor: rows.length > limit && last ? encodeCursor(keyOf(last)) : null,
-  };
+  if (rows.length <= limit || !last) return { items, nextCursor: null };
+  const key = keyOf(last);
+  return { items, nextCursor: 'at' in key ? encodeCursor(key) : encodeKey(key) };
 }

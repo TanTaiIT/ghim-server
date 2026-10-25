@@ -178,7 +178,24 @@ export function createListingReadService(shared: ListingShared): ListingReadServ
         ...keywordWhere(query.q),
       };
       const byTemplate = await templateWhere(query);
-      return page({ AND: [visibleWhere(viewer, surface), filters, ...byTemplate] }, query, toDtos);
+      const where = { AND: [visibleWhere(viewer, surface), filters, ...byTemplate] };
+      const { cursor, limit, sort } = query;
+      if (sort === 'newest') {
+        return page(
+          where,
+          { cursor: cursor && { at: new Date(cursor.value), id: cursor.id }, limit },
+          toDtos,
+        );
+      }
+      // Tin đã lên bảng luôn có giá (`MISSING_LABELS` lúc gửi); lọc null để con trỏ theo giá không gặp NULL.
+      const rows = await repository.list({
+        where: { AND: [where, { price: { not: null } }] },
+        order: sort,
+        cursor: cursor && { price: BigInt(cursor.value), id: cursor.id },
+        limit,
+      });
+      const priced = toCursorPage(rows, limit, (row) => ({ value: Number(row.price), id: row.id }));
+      return { items: await toDtos(priced.items), nextCursor: priced.nextCursor };
     },
 
     async suggestions(actor, id) {
