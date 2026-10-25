@@ -409,7 +409,11 @@ export interface IdentityRepository {
 
   createIdVerification(data: NewIdVerification): Promise<IdVerification>;
   findIdVerificationById(id: string): Promise<IdVerification | null>;
-  findPendingIdVerification(accountId: string): Promise<IdVerification | null>;
+  /**
+   * Hồ sơ nộp gần nhất. Hồ sơ đang chờ, nếu có, luôn là hồ sơ gần nhất — chưa duyệt thì không nộp tiếp được. Đồng hồ
+   * test đứng yên cho hai lần nộp cùng `createdAt`, nên `id` (uuidv7, tăng theo lúc ghi) phân xử.
+   */
+  findLatestIdVerification(accountId: string): Promise<IdVerification | null>;
   listIdVerifications(
     query: PageQuery & { status?: IdVerificationStatus },
   ): Promise<Page<IdVerification>>;
@@ -974,8 +978,11 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
     createIdVerification: ({ at, ...data }) =>
       prisma.idVerification.create({ data: { ...data, createdAt: at } }),
     findIdVerificationById: (id) => prisma.idVerification.findUnique({ where: { id } }),
-    findPendingIdVerification: (accountId) =>
-      prisma.idVerification.findFirst({ where: { accountId, status: 'pending' } }),
+    findLatestIdVerification: (accountId) =>
+      prisma.idVerification.findFirst({
+        where: { accountId },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      }),
     async listIdVerifications({ status, skip, take }) {
       const where = status === undefined ? {} : { status };
       const [items, total] = await Promise.all([

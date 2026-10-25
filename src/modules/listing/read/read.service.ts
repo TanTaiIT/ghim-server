@@ -43,6 +43,18 @@ export interface ListingReadService {
     actor: Actor,
     query: Page & { state?: ListingState | undefined },
   ): Promise<CursorPage<OwnListingDto>>;
+  /**
+   * Lưu tin (add-saved-listings): chỉ tin người đó mở được bằng đường link — không thấy thì 404 như tin không có, nên lưu
+   * không thành cách dò tin ẩn.
+   */
+  save(actor: Actor, id: string): Promise<void>;
+  unsave(actor: Actor, id: string): Promise<void>;
+  /** Tin đã lưu mà người lưu còn mở được: đang hiện, đã bán, hết hạn — bề mặt `saved` (design mục 2). */
+  saved(actor: Actor, query: Page): Promise<CursorPage<ListingDto>>;
+  /** Mọi mã đã lưu, không lọc hiển thị: để app tô nút trái tim (design mục 4). */
+  savedIds(actor: Actor): Promise<string[]>;
+  /** Bên nghe `identity.account.deleted`: tài khoản chỉ ẩn danh, không xoá dòng — khoá ngoại không tự dọn. */
+  forgetSaved(accountId: string): Promise<void>;
   /** Cổng cho `notification`: tiêu đề tin theo mã, để câu thông báo nêu đúng món đồ. */
   titles(ids: string[]): Promise<Map<string, string>>;
   /** Cổng cho `messaging`: thẻ tin của một trang hội thoại, một lượt đọc; tin đã xoá hẳn thì vắng. */
@@ -130,14 +142,22 @@ export function createListingReadService(shared: ListingShared): ListingReadServ
     return attributeFilterWhere(fields, query.attrs);
   };
 
+  /** Tin người xem mở được bằng đường link (người đăng luôn mở được tin của mình); không thì 404 như tin không có. */
+  const viewable = async (actor: Actor | null, id: string): Promise<Listing> => {
+    const listing = await repository.findById(id);
+    if (!listing || listing.deletedAt !== null) throw listingNotFound();
+    if (actor?.accountId === listing.ownerId) return listing;
+    const viewer = await viewerFor(actor, listing.groupId);
+    if (!canView(listing, viewer, 'link')) throw listingNotFound();
+    return listing;
+  };
+
   return {
     async get(actor, id) {
-      const listing = await repository.findById(id);
-      if (!listing || listing.deletedAt !== null) throw listingNotFound();
-      if (actor?.accountId === listing.ownerId) return shared.toOwnDto(listing, clock());
-      const viewer = await viewerFor(actor, listing.groupId);
-      if (!canView(listing, viewer, 'link')) throw listingNotFound();
-      return shared.toDto(listing);
+      const listing = await viewable(actor, id);
+      return actor?.accountId === listing.ownerId
+        ? shared.toOwnDto(listing, clock())
+        : shared.toDto(listing);
     },
 
     async feed(actor, query) {
@@ -200,6 +220,35 @@ export function createListingReadService(shared: ListingShared): ListingReadServ
       const viewer = { accountId: actor?.accountId ?? null, memberGroupIds };
       return page({ AND: [visibleWhere(viewer, 'profile'), { ownerId: userId }] }, query, toDtos);
     },
+
+    async save(actor, id) {
+      await viewable(actor, id);
+      await repository.saveListing(actor.accountId, id, clock());
+    },
+
+    unsave: (actor, id) => repository.unsaveListing(actor.accountId, id),
+
+    async saved(actor, query) {
+      const viewer = {
+        accountId: actor.accountId,
+        memberGroupIds: await groups.memberGroupIds(actor.accountId),
+      };
+      const rows = await repository.savedPage({
+        accountId: actor.accountId,
+        visible: visibleWhere(viewer, 'saved'),
+        cursor: query.cursor,
+        limit: query.limit,
+      });
+      const { items, nextCursor } = toCursorPage(rows, query.limit, (row) => ({
+        at: row.savedAt,
+        id: row.listing.id,
+      }));
+      return { items: await toDtos(items.map((row) => row.listing)), nextCursor };
+    },
+
+    savedIds: (actor) => repository.savedIds(actor.accountId),
+
+    forgetSaved: (accountId) => repository.forgetSaved(accountId),
 
     mine(actor, query) {
       return page(

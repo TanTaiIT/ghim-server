@@ -26,6 +26,7 @@ const contextWith = (notice: MachineNotice | null): MatrixContext => ({
   pendingCount: unused,
   listingTitles: (ids) => Promise.resolve(new Map(ids.map((id) => [id, 'Xe đạp cũ'] as const))),
   listingTargets: unused,
+  savedSearchMatches: () => Promise.resolve([]),
   masterIds: unused,
   machineNotice: () => Promise.resolve(notice),
   messagePreview: unused,

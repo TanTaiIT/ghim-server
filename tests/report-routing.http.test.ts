@@ -252,6 +252,43 @@ describe('Người xử thấy báo cáo liên quan', () => {
     expect(open?.entries.map((entry) => entry.category)).toEqual(['fraud', 'fraud', 'fraud']);
     for (const reporter of reporters) expect(detail.body).not.toContain(reporter.id);
   });
+
+  it('điều hành viên mở việc về tin trong nhóm: chỉ báo cáo thường về chính tin — không hàng cấm đã đóng, tin khác, về người', async () => {
+    const { staff, group, moderator, poster, inside } = await school();
+    const member = () => addMember(app, group.groupId);
+    await reported(app, await member(), aboutListing(inside.id), 'prohibited', 'may-cam');
+    const dismissed = await decideOps(app, staff, aboutListing(inside.id), {
+      outcome: 'keep',
+      report: { verdict: 'dismissed' },
+    });
+    expect(dismissed.statusCode, dismissed.body).toBe(200);
+    const elsewhere = await liveListingOf(app, poster);
+    await reported(
+      app,
+      await newUser(app),
+      aboutListing(elsewhere.id),
+      'misinformation',
+      'may-khac',
+    );
+    await reported(app, await newUser(app), aboutAccount(poster.id), 'harassment', 'may-nguoi');
+    await reported(app, await member(), aboutListing(inside.id), 'misinformation', 'may-thuong');
+    const task = await openTaskOf(aboutListing(inside.id));
+    type Related = { subjectKind: string; listingId: string | null; severe: boolean };
+    const reportsSeen = async (path: string, token: string) => {
+      const res = await api(app, 'GET', path, token);
+      expect(res.statusCode, res.body).toBe(200);
+      const data = (res.json() as { data: { reports: Related[]; conversations: unknown[] } }).data;
+      return { reports: data.reports.map((r) => [r.subjectKind, r.listingId, r.severe]), data };
+    };
+    const asModerator = await reportsSeen(
+      `/groups/${group.groupId}/review/tasks/${task.id}`,
+      moderator.token,
+    );
+    expect(asModerator.reports).toEqual([['listing', inside.id, false]]);
+    expect(asModerator.data.conversations).toEqual([]);
+    const asMaster = await reportsSeen(`/ops/review/tasks/${task.id}`, master.token);
+    expect(asMaster.reports).toHaveLength(4);
+  });
 });
 
 async function closeGroup(group: ActiveGroup) {

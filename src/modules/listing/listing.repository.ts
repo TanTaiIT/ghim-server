@@ -5,6 +5,7 @@ import type {
   ListingSubmissionKind,
   Prisma,
   PrismaClient,
+  SavedSearch,
 } from '@prisma/client';
 
 import { type DayCount, SHOP_TIME_ZONE } from '../../common/time/time.js';
@@ -79,6 +80,13 @@ export interface BatchInput<C = undefined> {
 
 export type ListingOrder = 'live' | 'updated';
 
+export type NewSavedSearch = Omit<SavedSearch, 'id'>;
+/** Phần của một tin mà phép khớp ngược lượt tìm đã lưu cần. */
+export type SearchableListing = Pick<
+  Listing,
+  'ownerId' | 'searchFolded' | 'categoryId' | 'provinceCode' | 'wardCode' | 'price'
+>;
+
 export interface ListingRepository {
   create(input: {
     data: Prisma.ListingUncheckedCreateInput;
@@ -107,6 +115,41 @@ export interface ListingRepository {
     cursor?: CursorKey | undefined;
     limit: number;
   }): Promise<Listing[]>;
+  /** Lưu tin (add-saved-listings): khoá chính (người, tin) — lưu lại là không đổi gì. */
+  saveListing(accountId: string, listingId: string, at: Date): Promise<void>;
+  unsaveListing(accountId: string, listingId: string): Promise<void>;
+  /**
+   * Trang tin đã lưu, lưu gần nhất trước, con trỏ (lúc lưu, mã tin). Lọc hiển thị `visible` chạy trong cùng câu SQL,
+   * nên trang luôn đủ `limit` tin hiện được nếu còn (design add-saved-listings mục 3). Trả `limit + 1` dòng.
+   */
+  savedPage(input: {
+    accountId: string;
+    visible: Prisma.ListingWhereInput;
+    cursor?: CursorKey | undefined;
+    limit: number;
+  }): Promise<{ listing: Listing; savedAt: Date }[]>;
+  savedIds(accountId: string): Promise<string[]>;
+  /** Tin đã lưu và lượt tìm đã lưu của một tài khoản — bên nghe xoá tài khoản. */
+  forgetSaved(accountId: string): Promise<void>;
+  /**
+   * Lưu một lượt tìm (add-saved-searches) dưới khoá advisory theo người: hai lượt lưu cùng lúc không vượt trần. Đã có
+   * lượt cùng `key` thì trả lượt đó, `created: false`; chạm trần thì `null`.
+   */
+  saveSearch(
+    input: NewSavedSearch,
+    max: number,
+  ): Promise<{ search: SavedSearch; created: boolean } | null>;
+  savedSearches(accountId: string): Promise<SavedSearch[]>;
+  /** `false` = người đó không có lượt tìm này. */
+  deleteSavedSearch(accountId: string, id: string): Promise<boolean>;
+  /**
+   * Lượt tìm khớp ngược một tin: từ khoá đã bỏ dấu nằm trong `search_folded` của tin và tin nằm trong mọi bộ lọc — phép
+   * `position(x IN y)` với cột ở vế trái Prisma không viết được. Không gồm lượt tìm của người đăng; luật "ai thấy một
+   * tin" do bên gọi xét.
+   */
+  savedSearchMatches(
+    listing: SearchableListing,
+  ): Promise<{ id: string; accountId: string; q: string }[]>;
   /** Tin "nhóm công khai" còn trong nhóm — đếm trong transaction đổi chế độ của `group` (cam kết 22). */
   countGroupPublic(tx: Tx, groupId: string): Promise<number>;
   /**
@@ -359,6 +402,90 @@ export function createListingRepository(prisma: PrismaClient): ListingRepository
         orderBy: orderBy(order),
         take: limit + 1,
       }),
+
+    async saveListing(accountId, listingId, at) {
+      await prisma.savedListing.createMany({
+        data: [{ accountId, listingId, savedAt: at }],
+        skipDuplicates: true,
+      });
+    },
+
+    async unsaveListing(accountId, listingId) {
+      await prisma.savedListing.deleteMany({ where: { accountId, listingId } });
+    },
+
+    async savedPage({ accountId, visible, cursor, limit }) {
+      const rows = await prisma.savedListing.findMany({
+        where: {
+          accountId,
+          listing: visible,
+          ...(cursor
+            ? {
+                OR: [
+                  { savedAt: { lt: cursor.at } },
+                  { savedAt: cursor.at, listingId: { lt: cursor.id } },
+                ],
+              }
+            : {}),
+        },
+        orderBy: [{ savedAt: 'desc' }, { listingId: 'desc' }],
+        take: limit + 1,
+        include: { listing: true },
+      });
+      return rows.map((row) => ({ listing: row.listing, savedAt: row.savedAt }));
+    },
+
+    async savedIds(accountId) {
+      const rows = await prisma.savedListing.findMany({
+        where: { accountId },
+        orderBy: { savedAt: 'desc' },
+        select: { listingId: true },
+      });
+      return rows.map((row) => row.listingId);
+    },
+
+    async forgetSaved(accountId) {
+      await prisma.$transaction([
+        prisma.savedListing.deleteMany({ where: { accountId } }),
+        prisma.savedSearch.deleteMany({ where: { accountId } }),
+      ]);
+    },
+
+    saveSearch: (input, max) =>
+      prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`saved-searches:${input.accountId}`}, 0))`;
+        const existing = await tx.savedSearch.findUnique({
+          where: { accountId_key: { accountId: input.accountId, key: input.key } },
+        });
+        if (existing) return { search: existing, created: false };
+        if ((await tx.savedSearch.count({ where: { accountId: input.accountId } })) >= max) {
+          return null;
+        }
+        return { search: await tx.savedSearch.create({ data: input }), created: true };
+      }),
+
+    savedSearches: (accountId) =>
+      prisma.savedSearch.findMany({
+        where: { accountId },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      }),
+
+    async deleteSavedSearch(accountId, id) {
+      const { count } = await prisma.savedSearch.deleteMany({ where: { id, accountId } });
+      return count > 0;
+    },
+
+    savedSearchMatches: (listing) =>
+      prisma.$queryRaw<{ id: string; accountId: string; q: string }[]>`
+        SELECT id::text AS id, account_id::text AS "accountId", q
+          FROM saved_searches
+         WHERE account_id <> ${listing.ownerId}::uuid
+           AND position(q_folded IN ${listing.searchFolded}) > 0
+           AND (category_id IS NULL OR category_id = ${listing.categoryId}::uuid)
+           AND (province_code IS NULL OR province_code = ${listing.provinceCode})
+           AND (ward_code IS NULL OR ward_code = ${listing.wardCode})
+           AND (price_min IS NULL OR price_min <= ${listing.price})
+           AND (price_max IS NULL OR price_max >= ${listing.price})`,
 
     holdKey: async (tx, id) => {
       const [row] = await tx.$queryRaw<{ version: number; state: ListingState }[]>`

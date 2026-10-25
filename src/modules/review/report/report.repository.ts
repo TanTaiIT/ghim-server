@@ -81,6 +81,11 @@ export interface ReportRepository {
     accountId: string;
     limit: number;
   }): Promise<ReportWithEntries[]>;
+  /**
+   * Bàn của nhóm: chỉ báo cáo thường về chính tin đó. Báo cáo lừa đảo, hàng cấm (kể cả đã đóng), báo cáo về người và
+   * báo cáo về tin khác của người đăng không hiện với điều hành nhóm (TK 23, fix-group-task-report-scope).
+   */
+  groupRelated(listingId: string, limit: number): Promise<ReportWithEntries[]>;
   /** Đối tượng đang có báo cáo mở chỉ gồm lượt của người điểm thấp — xếp cuối hàng. */
   lowPriorityOpen(input: { listingIds: string[]; accountIds: string[] }): Promise<{
     listingIds: Set<string>;
@@ -207,6 +212,14 @@ export function createReportRepository(prisma: PrismaClient): ReportRepository {
     related: ({ listingId, accountId, limit }) =>
       prisma.report.findMany({
         where: { OR: [...(listingId ? [{ listingId }] : []), { accountId }] },
+        include: { entries: true },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: limit,
+      }),
+
+    groupRelated: (listingId, limit) =>
+      prisma.report.findMany({
+        where: { listingId, subjectKind: 'listing', severe: false },
         include: { entries: true },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: limit,

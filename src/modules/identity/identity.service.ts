@@ -328,6 +328,8 @@ export interface IdentityService extends ActorResolver {
   clearFlag(actor: Actor, lookupCode: string, reason: string): Promise<void>;
 
   submitIdVerification(actor: Actor, input: IdVerificationInput): Promise<IdVerificationDto>;
+  /** Hồ sơ nộp gần nhất của chính mình; chưa nộp lần nào → `null` (add-id-verification-status). */
+  myIdVerification(actor: Actor): Promise<IdVerificationDto | null>;
   listIdVerifications(
     query: PaginationQuery & { status?: IdVerification['status'] | undefined },
   ): Promise<ReturnType<typeof toPage<IdVerificationDto>>>;

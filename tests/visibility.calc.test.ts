@@ -134,6 +134,32 @@ describe('Tìm kiếm và gợi ý', () => {
   });
 });
 
+describe('Danh sách "Đã lưu" (listing/saved-listings)', () => {
+  it('tin đang hiện, đã bán, hết hạn — kể cả hạn chế', () => {
+    for (const state of ['live', 'sold', 'expired'] as const) {
+      expect(canView({ ...MARKET, state }, GUEST, 'saved')).toBe(true);
+    }
+    expect(canView({ ...MARKET, restrictions: ['new_account'] }, GUEST, 'saved')).toBe(true);
+  });
+
+  it('tạm ẩn, bị gỡ, chờ duyệt, đã xoá, "chỉ thành viên" của nhóm mình không ở thì vắng', () => {
+    for (const listing of [
+      { ...MARKET, hideReasons: ['reported' as const] },
+      { ...MARKET, state: 'removed' as const },
+      { ...MARKET, state: 'pending' as const },
+      { ...MARKET, deletedAt: new Date() },
+      MEMBERS_ONLY,
+    ]) {
+      expect(canView(listing, STRANGER, 'saved')).toBe(false);
+    }
+    expect(canView(MEMBERS_ONLY, MEMBER, 'saved')).toBe(true);
+  });
+
+  it('tin của chính mình không có ngoại lệ: nháp của mình không vào "Đã lưu"', () => {
+    expect(canView({ ...MARKET, state: 'draft' }, SELF, 'saved')).toBe(false);
+  });
+});
+
 describe('Hồ sơ công khai liệt kê tin đang bán (identity/profile)', () => {
   it('cả tin đầy đủ lẫn hạn chế', () => {
     expect(canView(MARKET, GUEST, 'profile')).toBe(true);

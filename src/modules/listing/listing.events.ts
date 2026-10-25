@@ -46,7 +46,10 @@ export function registerListingListeners(
     listing.onAccountLockChanged(accountId),
   );
   on('identity.account.deleted', account, ({ accountId }) =>
-    hide({ ownerId: accountId }, { kind: 'account_deleted' }),
+    Promise.all([
+      hide({ ownerId: accountId }, { kind: 'account_deleted' }),
+      listing.forgetSaved(accountId),
+    ]),
   );
 
   // ── NHÓM ───────────────────────────────────────────────────────────────────────────────────────
