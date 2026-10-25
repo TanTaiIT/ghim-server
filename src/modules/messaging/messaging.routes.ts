@@ -168,7 +168,7 @@ export const messagingRoutes: FastifyPluginAsyncZod<MessagingRoutesOptions> = as
     schema: {
       tags: TAGS,
       summary:
-        'Gửi tin nhắn — qua bộ lọc cụm từ cấm của tin đăng; bị chặn hay bên kia đã rời thì không gửi được',
+        'Gửi tin nhắn — chữ, tối đa 4 ảnh, hay cả hai; chữ qua bộ lọc cụm từ cấm, ảnh qua luật chất lượng của ảnh tin; bị chặn hay bên kia đã rời thì không gửi được',
       security: bearer,
       params: conversationParamsSchema,
       body: messageBodySchema,
@@ -178,13 +178,7 @@ export const messagingRoutes: FastifyPluginAsyncZod<MessagingRoutesOptions> = as
       reply
         .status(201)
         .send(
-          toOk(
-            await messaging.send(
-              actorOf(request),
-              request.params.conversationId,
-              request.body.body,
-            ),
-          ),
+          toOk(await messaging.send(actorOf(request), request.params.conversationId, request.body)),
         ),
   });
 

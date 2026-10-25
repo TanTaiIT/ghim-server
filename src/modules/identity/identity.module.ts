@@ -15,6 +15,7 @@ import {
   type NameScreen,
   type ProfileImages,
   type SessionRevocationListener,
+  type RegionCheck,
   type StrikeGate,
 } from './identity.service.js';
 
@@ -35,6 +36,7 @@ export interface IdentityModuleDeps {
   names?: NameScreen;
   /** `trust` nối muộn (add-strikes); CLI không có. */
   strikes?: StrikeGate;
+  regions?: RegionCheck;
 }
 
 export function createIdentityModule(deps: IdentityModuleDeps): {

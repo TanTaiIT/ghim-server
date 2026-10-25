@@ -4,11 +4,12 @@ import { auditActor } from '../../common/audit/audit.js';
 import type { Actor } from '../../common/auth/actor.js';
 import { ForbiddenError, NotFoundError } from '../../common/errors/app-error.js';
 import { startOfDayVN } from '../../common/time/time.js';
-import { takesOffers, toMessageDto, viewerOf } from './inbox.service.js';
+import { imageUrlsOf, NO_IMAGES, takesOffers, toMessageDto, viewerOf } from './inbox.service.js';
 import { MESSAGING_EVENTS, messagingEvent } from './messaging.outbox.js';
 import type { Conversation, RetentionRow, TeamKind } from './messaging.repository.js';
 import type { ConversationDto, MessageDto, OfferDecision } from './messaging.schema.js';
 import {
+  appSideOf,
   assertCanMessage,
   conversationClosed,
   conversationNotFound,
@@ -18,6 +19,7 @@ import {
   groupNotActive,
   isTeam,
   listingNotLive,
+  messageImageRejected,
   messageNotAllowed,
   messagingBlocked,
   type MessagingServiceDeps,
@@ -48,7 +50,12 @@ export interface ConversationService {
   openSupport(actor: Actor): Promise<Opened>;
   /** Một hội thoại mỗi người + nhóm (spec messaging/group-admin-chat); ai xem được hồ sơ nhóm thì mở được. */
   openGroup(actor: Actor, groupId: string): Promise<Opened>;
-  send(actor: Actor, conversationId: string, body: string): Promise<MessageDto>;
+  /** Chữ, ảnh hay cả hai (add-message-images): ảnh đã tải với chủ là hội thoại này, do chính người gửi tải. */
+  send(
+    actor: Actor,
+    conversationId: string,
+    message: { body: string; imageIds: string[] },
+  ): Promise<MessageDto>;
   /** Staff hỗ trợ trả lời từ bàn vận hành: không qua bộ lọc cụm, không trả lời hội thoại của chính mình (cam kết 1). */
   replyAsSupport(actor: Actor, conversationId: string, body: string): Promise<MessageDto>;
   /** Người mua trả giá (spec messaging/price-offers): thay đề nghị đang chờ, tính như tin nhắn của người mua. */
@@ -66,11 +73,17 @@ export interface ConversationService {
   /** Máy này đang mở hội thoại — tin nhắn của nó không đẩy lên máy này trong `VIEWING_TTL_MS` (add-notifications). */
   setViewing(actor: Actor, conversationId: string): Promise<void>;
   clearViewing(actor: Actor, conversationId: string): Promise<void>;
+  /**
+   * Cổng `ImageOwnership` của `media` (add-message-images): ai ở trong hội thoại qua app thì tải ảnh cho nó được — mọi
+   * luật gửi khác xét lúc gửi; ảnh tải mà không gửi thì lượt dọn ảnh chưa xác nhận xoá.
+   */
+  canAttachImages(accountId: string, conversationId: string): Promise<boolean>;
+  existingConversations(ids: string[]): Promise<Set<string>>;
   /** Bên nghe `identity.account.deleted`: ẩn mọi hội thoại phía người xoá. */
   onAccountDeleted(accountId: string): Promise<number>;
   /**
    * `ops` dọn theo hạn lưu (add-data-retention): cả hai bên đã xoá phía mình (xoá tài khoản tính là đã xoá), hay quá
-   * `idleBefore` không ai hoạt động. Điều kiện kiểm lại lúc xoá; tin nhắn, dấu đang mở đi theo. Hội thoại với một đội
+   * `idleBefore` không ai hoạt động. Điều kiện kiểm lại lúc xoá; tin nhắn, dấu đang mở, ảnh đi theo. Hội thoại với một đội
    * không bao giờ "cả hai bên đã xoá" — đội không xoá — nên chỉ nhánh không ai hoạt động áp vào.
    */
   retentionDue(
@@ -91,6 +104,8 @@ const retentionWhere = ({ idleBefore }: { idleBefore: Date }): Prisma.Conversati
   ],
 });
 
+const imageOwnerOf = (row: Conversation) => ({ kind: 'conversation' as const, id: row.id });
+
 /** Người nhận một tin nhắn và tin đó có qua tay đội không — đi theo sự kiện cho thông báo và realtime. */
 interface Delivery {
   recipientIds: string[];
@@ -106,7 +121,7 @@ export function createConversationService(
   deps: MessagingServiceDeps,
   describe: (rows: Conversation[], accountId: string) => Promise<ConversationDto[]>,
 ): ConversationService {
-  const { repository, identity, listings, trust, screening, groups, config, clock } = deps;
+  const { repository, identity, listings, trust, screening, media, groups, config, clock } = deps;
 
   const dtoOf = async (row: Conversation, accountId: string): Promise<ConversationDto> => {
     const [dto] = await describe([row], accountId);
@@ -148,20 +163,34 @@ export function createConversationService(
     return { recipientIds: team.filter((id) => id !== actor.accountId), fromTeam };
   };
 
-  /** Ghi một tin chữ: khoá hội thoại, ghi, đẩy mốc hoạt động theo phía gửi, phát sự kiện cùng transaction. */
+  /**
+   * Ghi một tin chữ / ảnh: khoá hội thoại, gắn ảnh, ghi, đẩy mốc hoạt động theo phía gửi, phát sự kiện cùng transaction.
+   * Ảnh đã bị dọn hay đã thuộc tin khác thì `attach` ném và cả lượt quay lui.
+   */
   const write = async (
     actor: Actor,
     row: Conversation,
     side: Side,
-    input: { body: string; flagged: boolean; delivery: Delivery; audit?: boolean },
+    input: {
+      body: string;
+      imageIds?: string[];
+      flagged: boolean;
+      delivery: Delivery;
+      audit?: boolean;
+    },
   ) => {
     const now = clock();
+    const imageIds = input.imageIds ?? [];
     return repository.inTransaction(async (tx) => {
       if (!(await repository.lock(tx, row.id))) throw conversationNotFound();
+      if (imageIds.length > 0) {
+        await media.attach(tx, { owner: imageOwnerOf(row), imageIds, append: true });
+      }
       const written = await repository.insertMessage(tx, {
         conversationId: row.id,
         senderId: actor.accountId,
         body: input.body,
+        imageIds,
         flagged: input.flagged,
         createdAt: now,
       });
@@ -190,6 +219,12 @@ export function createConversationService(
       }
       return written;
     });
+  };
+
+  /** Hội thoại vừa xoá hẳn kéo ảnh của nó theo — dòng trước, tệp sau (spec media/image-cleanup). */
+  const withImagesPurged = async (deleted: string[]): Promise<number> => {
+    await media.purgeOwners('conversation', deleted);
+    return deleted.length;
   };
 
   const openTeam = async (
@@ -285,7 +320,7 @@ export function createConversationService(
       return openTeam(actor, 'group', groupId);
     },
 
-    async send(actor, conversationId, body) {
+    async send(actor, conversationId, { body, imageIds }) {
       assertCanMessage(actor);
       const { row, side } = await ownedBy(deps, actor, conversationId);
       const delivery = await deliveryOf(actor, row, side);
@@ -293,8 +328,27 @@ export function createConversationService(
       // cho người xử (design add-messaging mục 4, cam kết 5).
       const verdict = await screening.phraseVerdict(body);
       if (verdict.blocked) throw messageNotAllowed();
-      const message = await write(actor, row, side, { body, flagged: verdict.flagged, delivery });
-      return toMessageDto(message, viewerOf(row, actor.accountId, side));
+      const images = [...new Set(imageIds)];
+      if (images.length > 0) {
+        await media.resolve({
+          owner: imageOwnerOf(row),
+          uploaderId: actor.accountId,
+          imageIds: images,
+        });
+        const issue = await screening.messageImageIssue(images);
+        if (issue) throw messageImageRejected(issue);
+      }
+      const message = await write(actor, row, side, {
+        body,
+        imageIds: images,
+        flagged: verdict.flagged,
+        delivery,
+      });
+      return toMessageDto(
+        message,
+        viewerOf(row, actor.accountId, side),
+        await imageUrlsOf(media, [message]),
+      );
     },
 
     async replyAsSupport(actor, conversationId, body) {
@@ -311,7 +365,7 @@ export function createConversationService(
         delivery,
         audit: true,
       });
-      return toMessageDto(message, viewerOf(row, actor.accountId, 'seller'));
+      return toMessageDto(message, viewerOf(row, actor.accountId, 'seller'), NO_IMAGES);
     },
 
     async offer(actor, conversationId, amount) {
@@ -351,7 +405,7 @@ export function createConversationService(
         ]);
         return written;
       });
-      return toMessageDto(message, viewerOf(row, actor.accountId, side));
+      return toMessageDto(message, viewerOf(row, actor.accountId, side), NO_IMAGES);
     },
 
     async answerOffer(actor, conversationId, messageId, decision) {
@@ -389,7 +443,7 @@ export function createConversationService(
         ]);
         return updated;
       });
-      return toMessageDto(answered, viewerOf(row, actor.accountId, side));
+      return toMessageDto(answered, viewerOf(row, actor.accountId, side), NO_IMAGES);
     },
 
     async markRead(actor, conversationId) {
@@ -417,12 +471,20 @@ export function createConversationService(
       await repository.clearPresence(actor.sessionId, conversationId);
     },
 
+    async canAttachImages(accountId, conversationId) {
+      const row = await repository.find(conversationId);
+      return row !== null && (await appSideOf(row, accountId, groups)) !== null;
+    },
+
+    existingConversations: (ids) => repository.existingIds(ids),
+
     onAccountDeleted: (accountId) => repository.hideAllOf(accountId, clock()),
 
     retentionDue: (input, after, limit) =>
       repository.retentionDue(retentionWhere(input), after, limit),
-    purge: (ids, input) => repository.purge(ids, retentionWhere(input)),
+    purge: async (ids, input) =>
+      withImagesPurged(await repository.purge(ids, retentionWhere(input))),
     groupConversations: (groupId) => repository.groupConversations(groupId),
-    deleteConversations: (ids) => repository.deleteConversations(ids),
+    deleteConversations: async (ids) => withImagesPurged(await repository.deleteConversations(ids)),
   };
 }

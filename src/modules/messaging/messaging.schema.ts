@@ -6,8 +6,10 @@ import { paginationQuerySchema } from '../../common/schemas/pagination.js';
 import { LISTING_STATES } from '../listing/listing.schema.js';
 import { REPORT_CATEGORIES } from '../review/report/report.schema.js';
 
-/** Chỉ chữ, tối đa ngần này ký tự (design add-messaging mục 10, câu 8). */
+/** Tối đa ngần này ký tự (design add-messaging mục 10, câu 8). */
 export const MESSAGE_MAX = 2000;
+/** Ảnh một tin nhắn (add-message-images, user chốt 25/10/2026) — CHECK `messages_images_check` giữ cùng số. */
+export const MESSAGE_IMAGES_MAX = 4;
 const iso = z.iso.datetime();
 
 /** Tuple của enum `conversation_kind` (add-team-conversations). */
@@ -32,8 +34,10 @@ export const messageSchema = z.object({
   senderId: z.uuid().nullable(),
   fromMe: z.boolean(),
   kind: z.enum(MESSAGE_KINDS),
-  /** Đề nghị giá để rỗng — đọc `offer`. */
+  /** Đề nghị giá và tin chỉ có ảnh để rỗng. */
   body: z.string(),
+  /** Thứ tự gửi; đường xem có hạn như ảnh tin, chỉ người trong hội thoại (và người xử khi bị báo) nhận được. */
+  images: z.array(z.object({ id: z.uuid(), url: z.string() })),
   offer: z
     .object({
       amount: priceSchema,
@@ -87,7 +91,19 @@ export const conversationSchema = z.object({
   lastActivityAt: iso,
 });
 
+/** Chữ, ảnh, hay cả hai: ảnh là mã đã tải với `ownerKind: 'conversation'`, chủ là chính hội thoại này. */
 export const messageBodySchema = z
+  .object({
+    body: z.string().trim().max(MESSAGE_MAX).default(''),
+    imageIds: z.array(z.uuid()).max(MESSAGE_IMAGES_MAX).default([]),
+  })
+  .strict()
+  .refine((value) => value.body !== '' || value.imageIds.length > 0, {
+    message: 'Tin nhắn cần chữ hoặc ảnh',
+    path: ['body'],
+  });
+/** Staff hỗ trợ trả lời trên bàn vận hành chỉ bằng chữ. */
+export const supportReplyBodySchema = z
   .object({ body: z.string().trim().min(1).max(MESSAGE_MAX) })
   .strict();
 export const offerBodySchema = z.object({ amount: offerAmountSchema }).strict();

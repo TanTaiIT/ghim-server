@@ -78,7 +78,9 @@ export interface BatchInput<C = undefined> {
   at: Date;
 }
 
-export type ListingOrder = 'live' | 'updated';
+export type ListingOrder = 'live' | 'updated' | 'price_asc' | 'price_desc';
+/** Con trỏ theo thứ tự: mốc thời gian với `live` / `updated`, giá với `price_asc` / `price_desc`. */
+export type ListCursor = CursorKey | { price: bigint; id: string };
 
 export type NewSavedSearch = Omit<SavedSearch, 'id'>;
 /** Phần của một tin mà phép khớp ngược lượt tìm đã lưu cần. */
@@ -112,7 +114,7 @@ export interface ListingRepository {
   list(input: {
     where: Prisma.ListingWhereInput;
     order: ListingOrder;
-    cursor?: CursorKey | undefined;
+    cursor?: ListCursor | undefined;
     limit: number;
   }): Promise<Listing[]>;
   /** Lưu tin (add-saved-listings): khoá chính (người, tin) — lưu lại là không đổi gì. */
@@ -244,11 +246,21 @@ const liveWhere = (ownerId: string): Prisma.ListingWhereInput => ({
   hideReasons: { isEmpty: true },
 });
 
-const orderBy = (order: ListingOrder): Prisma.ListingOrderByWithRelationInput[] =>
-  order === 'live' ? [{ rankAt: 'desc' }, { id: 'desc' }] : [{ updatedAt: 'desc' }, { id: 'desc' }];
+const ORDER_BY: Record<ListingOrder, Prisma.ListingOrderByWithRelationInput[]> = {
+  live: [{ rankAt: 'desc' }, { id: 'desc' }],
+  updated: [{ updatedAt: 'desc' }, { id: 'desc' }],
+  price_asc: [{ price: 'asc' }, { id: 'asc' }],
+  price_desc: [{ price: 'desc' }, { id: 'desc' }],
+};
 
-/** Trang sau con trỏ (`at`, `id`) theo đúng thứ tự xếp — không lặp, không sót khi có tin mới chen lên đầu. */
-function afterCursor(order: ListingOrder, cursor: CursorKey): Prisma.ListingWhereInput {
+/** Trang sau con trỏ theo đúng thứ tự xếp — không lặp, không sót khi có tin mới chen lên đầu. */
+function afterCursor(order: ListingOrder, cursor: ListCursor): Prisma.ListingWhereInput {
+  if ('price' in cursor) {
+    const past = order === 'price_asc' ? 'gt' : 'lt';
+    return {
+      OR: [{ price: { [past]: cursor.price } }, { price: cursor.price, id: { [past]: cursor.id } }],
+    };
+  }
   const column = order === 'live' ? 'rankAt' : 'updatedAt';
   return {
     OR: [{ [column]: { lt: cursor.at } }, { [column]: cursor.at, id: { lt: cursor.id } }],
@@ -399,7 +411,7 @@ export function createListingRepository(prisma: PrismaClient): ListingRepository
     list: ({ where, order, cursor, limit }) =>
       prisma.listing.findMany({
         where: cursor ? { AND: [where, afterCursor(order, cursor)] } : where,
-        orderBy: orderBy(order),
+        orderBy: ORDER_BY[order],
         take: limit + 1,
       }),
 

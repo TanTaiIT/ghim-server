@@ -2,6 +2,7 @@ import { createListsService, type ScreeningListsService } from './ops/lists.serv
 import { createLookupService, type ScreeningLookupService } from './ops/lookup.service.js';
 import { createPhrasesService, type ScreeningPhrasesService } from './ops/phrases.service.js';
 import { createRulesService, type ScreeningRulesService } from './ops/rules.service.js';
+import { createStatsService, type ScreeningStatsService } from './ops/stats.service.js';
 import { createConclusion } from './run/conclusion.js';
 import { createFactsService, type ScreeningFactsService } from './run/facts.service.js';
 import { createImageQueue } from './run/image-queue.js';
@@ -27,6 +28,7 @@ export interface ScreeningService
     ScreeningPhrasesService,
     ScreeningListsService,
     ScreeningLookupService,
+    ScreeningStatsService,
     ScreeningFactsService {}
 
 export function createScreeningService(deps: ScreeningServiceDeps): ScreeningService {
@@ -42,6 +44,7 @@ export function createScreeningService(deps: ScreeningServiceDeps): ScreeningSer
     ...createPhrasesService(shared),
     ...createListsService(shared),
     ...createLookupService(shared),
+    ...createStatsService(shared),
     ...createFactsService(shared),
   };
 }

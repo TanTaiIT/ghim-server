@@ -32,10 +32,10 @@ gửi. Hộp thư MUST chỉ người nhận xem được.
 - **WHEN** người dùng đánh dấu đã đọc một thông báo gửi cho người khác bằng mã của nó
 - **THEN** response có HTTP 404 `NOT_FOUND`, giống hệt khi dùng một mã thông báo không tồn tại
 
-### Requirement: Mỗi thông báo thuộc đúng một trong chín nhóm
+### Requirement: Mỗi thông báo thuộc đúng một trong mười nhóm
 
-Mỗi thông báo SHALL thuộc đúng một trong chín nhóm: tin nhắn · tin đăng của bạn · nhóm của bạn · báo cáo của bạn ·
-tài khoản · mức tin cậy và gậy · thông báo của nhóm · tin mới trong nhóm · hỗ trợ.
+Mỗi thông báo SHALL thuộc đúng một trong mười nhóm: tin nhắn · tin đăng của bạn · nhóm của bạn · báo cáo của bạn ·
+tài khoản · mức tin cậy và gậy · thông báo của nhóm · tin mới trong nhóm · hỗ trợ · tìm kiếm đã lưu.
 
 #### Scenario: Chuyện về tư cách trong nhóm
 
@@ -46,6 +46,11 @@ tài khoản · mức tin cậy và gậy · thông báo của nhóm · tin mớ
 
 - **WHEN** chủ nhóm gửi một thông báo cho nhóm
 - **THEN** thông báo thành viên nhận thuộc nhóm "thông báo của nhóm"
+
+#### Scenario: Tin mới khớp lượt tìm đã lưu
+
+- **WHEN** người dùng được báo có tin mới khớp một lượt tìm mình đã lưu
+- **THEN** thông báo thuộc nhóm "tìm kiếm đã lưu"
 
 ### Requirement: Số chưa đọc và đánh dấu đã đọc
 

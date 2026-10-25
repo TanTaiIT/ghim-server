@@ -14,6 +14,7 @@ import { formatTimeVN } from '../../common/time/time.js';
 import type { GroupService } from '../group/group.service.js';
 import type { IdentityService } from '../identity/identity.service.js';
 import type { ListingService } from '../listing/listing.service.js';
+import type { MediaService } from '../media/media.service.js';
 import type { PlatformService } from '../platform/platform.service.js';
 import type { ReviewService } from '../review/review.service.js';
 import type { ScreeningService } from '../screening/screening.service.js';
@@ -34,7 +35,12 @@ export type MessagingListingPort = Pick<ListingService, 'reportTarget' | 'conver
 export interface MessagingTrustPort {
   tierOf(accountId: string): Promise<TrustTier>;
 }
-export type MessagingScreeningPort = Pick<ScreeningService, 'phraseVerdict'>;
+export type MessagingScreeningPort = Pick<ScreeningService, 'phraseVerdict' | 'messageImageIssue'>;
+/** Ảnh tin nhắn (add-message-images): chủ là hội thoại; xoá hội thoại thì xoá ảnh của nó. */
+export type MessagingMediaPort = Pick<
+  MediaService,
+  'resolve' | 'attach' | 'viewUrl' | 'purgeOwners'
+>;
 /** `review` vẫn là nơi duy nhất ghi báo cáo; `messaging` chỉ kiểm tư cách rồi chuyển lượt báo kèm mã hội thoại. */
 export type MessagingReviewPort = Pick<ReviewService, 'submitReport'>;
 /** Hội thoại với quản trị nhóm (add-team-conversations): ai đang trong đội tính lúc gọi, không chép vào hội thoại. */
@@ -51,6 +57,7 @@ export interface MessagingServiceDeps {
   listings: MessagingListingPort;
   trust: MessagingTrustPort;
   screening: MessagingScreeningPort;
+  media: MessagingMediaPort;
   review: MessagingReviewPort;
   groups: MessagingGroupPort;
   platform: MessagingPlatformPort;
@@ -80,7 +87,7 @@ export const isTeam = (row: Pick<Conversation, 'kind'>): boolean => row.kind !==
  * Phía của người gọi qua app (design add-team-conversations mục 2): cột mua / bán; hội thoại nhóm thì người đang giữ vai
  * quản trị, không treo, là phía đội. Staff không bao giờ là phía đội hỗ trợ qua app — họ đi bàn vận hành.
  */
-async function appSideOf(
+export async function appSideOf(
   row: Conversation,
   accountId: string,
   groups: MessagingGroupPort,
@@ -147,6 +154,9 @@ export const offerAbovePrice = (): BadRequestError =>
 export const offerNotPending = (): ConflictError =>
   new ConflictError('Lời đề nghị này đã được trả lời hoặc đã có giá mới', 'OFFER_NOT_PENDING');
 export const offerNotFound = (): NotFoundError => new NotFoundError('Không có lời đề nghị này');
+/** Câu sửa của ảnh đầu tiên trúng luật chất lượng — như câu báo của tin đăng (add-message-images). */
+export const messageImageRejected = (issue: { code: string; message: string }): BadRequestError =>
+  new BadRequestError(issue.message, 'MESSAGE_IMAGE_REJECTED', { rule: issue.code });
 
 export const groupBanned = (): ForbiddenError =>
   new ForbiddenError('Bạn đang bị cấm khỏi nhóm này', 'GROUP_BANNED');

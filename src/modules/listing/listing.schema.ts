@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { cursorQuerySchema } from '../../common/schemas/cursor.js';
+import { cursorQuerySchema, numericCursorSchema } from '../../common/schemas/cursor.js';
 import { priceSchema } from '../../common/schemas/money.js';
 import type { AttributeFilters, NumberRange } from './calc/attribute-filter.calc.js';
 
@@ -143,7 +143,12 @@ const attrsQuerySchema = z
   })
   .pipe(attributeFiltersSchema);
 
+/** Cách xếp của bảng tin, danh mục, tìm kiếm (add-feed-sort): mới nhất là vị trí trên bảng tin; theo giá thì hoà giá xếp theo mã. */
+export const FEED_SORTS = ['newest', 'price_asc', 'price_desc'] as const;
+
 export const feedQuerySchema = cursorQuerySchema.extend({
+  cursor: numericCursorSchema.optional(),
+  sort: z.enum(FEED_SORTS).default('newest'),
   q: keyword,
   categoryId: z.uuid().optional(),
   provinceCode: z.coerce.number().int().positive().optional(),

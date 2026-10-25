@@ -46,9 +46,13 @@ export interface MediaRepository {
   /**
    * Chạy TRONG transaction lưu của chủ (design mục 6): khoá dòng ảnh của chủ, gỡ nhãn ảnh trong danh sách, đánh dấu
    * bỏ ảnh đã xác nhận không còn trong danh sách. `false` = có ảnh đã biến mất (lượt dọn chạy trước) hay chưa tải
-   * xong — chủ quay lui.
+   * xong — chủ quay lui. `append`: chỉ khoá và gỡ nhãn ảnh trong danh sách, không bỏ ảnh nào; ảnh đã gỡ nhãn rồi cũng
+   * là `false` (đã thuộc một tin nhắn khác).
    */
-  attach(tx: Tx, input: { owner: ImageOwner; imageIds: string[]; at: Date }): Promise<boolean>;
+  attach(
+    tx: Tx,
+    input: { owner: ImageOwner; imageIds: string[]; at: Date; append?: boolean },
+  ): Promise<boolean>;
   deleteUnconfirmedBefore(cutoff: Date, limit: number): Promise<string[]>;
   deleteReleased(limit: number): Promise<string[]>;
   /** Mã nào trong danh sách còn dòng. */
@@ -98,19 +102,28 @@ export function createMediaRepository(prisma: PrismaClient): MediaRepository {
       });
     },
 
-    async attach(tx, { owner, imageIds, at }) {
-      // Khoá trước khi đọc: lượt dọn xoá cùng dòng phải chờ, và Postgres xét lại điều kiện xoá sau khi khoá nhả.
-      const rows = await tx.$queryRaw<{ id: string; uploaded_at: Date | null }[]>`
-        SELECT id::text, uploaded_at FROM images
+    async attach(tx, { owner, imageIds, at, append = false }) {
+      // Khoá trước khi đọc: lượt dọn xoá cùng dòng phải chờ, và Postgres xét lại điều kiện xoá sau khi khoá nhả. Thêm
+      // ảnh vào hội thoại chỉ khoá ảnh của lượt gửi: hai tin nhắn khác ảnh không chờ nhau.
+      const rows = await tx.$queryRaw<
+        { id: string; uploaded_at: Date | null; confirmed_at: Date | null }[]
+      >`
+        SELECT id::text, uploaded_at, confirmed_at FROM images
         WHERE owner_kind = ${owner.kind}::image_owner_kind AND owner_id = ${owner.id}::uuid
+          AND (${!append} OR id = ANY(${imageIds}::uuid[]))
         FOR UPDATE`;
-      const uploaded = new Set(rows.filter((row) => row.uploaded_at !== null).map((row) => row.id));
-      if (imageIds.some((id) => !uploaded.has(id))) return false;
+      const usable = new Set(
+        rows
+          .filter((row) => row.uploaded_at !== null && !(append && row.confirmed_at !== null))
+          .map((row) => row.id),
+      );
+      if (imageIds.some((id) => !usable.has(id))) return false;
       const ofOwner = { ownerKind: owner.kind, ownerId: owner.id };
       await tx.image.updateMany({
         where: { ...ofOwner, id: { in: imageIds }, confirmedAt: null },
         data: { confirmedAt: at },
       });
+      if (append) return true;
       // Chọn lại một ảnh đã bỏ (còn trong kho tới lượt đối chiếu) thì nó lại là ảnh đang dùng.
       await tx.image.updateMany({
         where: { ...ofOwner, id: { in: imageIds }, releasedAt: { not: null } },

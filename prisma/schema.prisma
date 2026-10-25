@@ -124,6 +124,8 @@ model Account {
   /// Công tắc hai chiều: tắt thì không ai thấy trạng thái của mình, mình cũng không thấy của ai.
   showActivity      Boolean        @default(true) @map("show_activity")
   phone             String?
+  /// Tỉnh/thành của tôi (add-home-province): chỉ chủ tài khoản thấy; app dùng cho "Gần bạn" và bộ lọc mặc định.
+  homeProvinceCode  Int?           @map("home_province_code")
   lockedReason      String?        @map("locked_reason")
   lockedAt          DateTime?      @map("locked_at") @db.Timestamptz(3)
   lockedBy          String?        @map("locked_by") @db.Uuid
@@ -144,6 +146,7 @@ model Account {
   deviceLogins          DeviceLogin[]
   savedListings         SavedListing[]
   savedSearches         SavedSearch[]
+  homeProvince          Province?                @relation(fields: [homeProvinceCode], references: [code], onDelete: SetNull)
   deviceClearances      DeviceClearance[]
   flags                 AccountFlag[]
   idVerifications       IdVerification[]
@@ -461,6 +464,19 @@ model ConfigVersion {
   @@map("config_versions")
 }
 
+/// Một chủ đề trợ giúp (add-help-content): master soạn trên bàn vận hành, ai cũng đọc, kể cả khách. Câu hỏi / đáp nằm trong
+/// `faqs` (mảng `{ q, a }`) — chủ đề luôn được đọc và sửa cả một lượt. `position` xếp chủ đề, nhỏ trước.
+model HelpTopic {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  label     String
+  position  Int
+  faqs      Json
+  updatedAt DateTime @map("updated_at") @db.Timestamptz(3)
+
+  @@index([position])
+  @@map("help_topics")
+}
+
 // ── CATEGORY: ENUM ───────────────────────────────────────────────────────────────────────────────
 
 enum CategoryStatus {
@@ -579,6 +595,7 @@ model Province {
 
   wards    Ward[]
   listings Listing[]
+  homeOf   Account[]
 
   @@map("provinces")
 }
@@ -999,10 +1016,12 @@ model GroupNotificationMute {
 
 // ── MEDIA ────────────────────────────────────────────────────────────────────────────────────────
 
-/// Loại chủ của một ảnh: ảnh đại diện của tài khoản (`profile`) hay ảnh của tin (`listing`).
+/// Loại chủ của một ảnh: ảnh đại diện của tài khoản (`profile`), ảnh của tin (`listing`), hay ảnh gửi trong một hội
+/// thoại (`conversation`, add-message-images — chủ là hội thoại vì lúc tải tin nhắn chưa có).
 enum ImageOwnerKind {
   profile
   listing
+  conversation
 
   @@map("image_owner_kind")
 }
@@ -1268,6 +1287,8 @@ model SavedListing {
 /// Lượt tìm trên sàn chung người dùng lưu để được báo tin mới khớp (add-saved-searches, TK 24). `key` = từ khoá đã bỏ
 /// dấu cùng bộ lọc, viết thành một chuỗi: lưu lại đúng lượt tìm không thêm dòng, và cột nullable không cần NULLS NOT
 /// DISTINCT. Xoá tài khoản thì `listing` xoá qua sự kiện (tài khoản chỉ ẩn danh, không xoá dòng).
+/// CHECK viết tay (migration add_saved_searches): `saved_searches_q_folded_check` — từ khoá đã bỏ dấu không rỗng;
+/// `saved_searches_price_range_check` — giá từ không lớn hơn giá đến khi có cả hai.
 model SavedSearch {
   id           String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
   accountId    String   @map("account_id") @db.Uuid
@@ -2249,9 +2270,11 @@ enum ConversationKind {
 }
 
 /// Tin nhắn chữ hoặc đề nghị giá (add-price-offers): đề nghị là một loại tin nhắn để đi chung con trỏ, hạn lưu, bản ghi
-/// cho người xử và thông báo (design add-price-offers mục 1). CHECK tay (migration add_price_offers):
-///   messages_kind_check: text → body <> '' và ba cột đề nghị NULL; offer → body = '', offer_amount > 0,
-///     offer_status NOT NULL, offer_responded_at NOT NULL đúng khi đã chấp nhận / từ chối
+/// cho người xử và thông báo (design add-price-offers mục 1). CHECK tay (migration add_price_offers, viết lại ở
+/// add_message_images):
+///   messages_kind_check: text → có chữ hoặc có ảnh, ba cột đề nghị NULL; offer → body = '', không ảnh,
+///     offer_amount > 0, offer_status NOT NULL, offer_responded_at NOT NULL đúng khi đã chấp nhận / từ chối
+///   messages_images_check: cardinality(image_ids) <= 4
 model Message {
   id               String       @id @default(dbgenerated("uuidv7()")) @db.Uuid
   conversationId   String       @map("conversation_id") @db.Uuid
@@ -2265,6 +2288,8 @@ model Message {
   offerAmount      BigInt?      @map("offer_amount")
   offerStatus      OfferStatus? @map("offer_status")
   offerRespondedAt DateTime?    @map("offer_responded_at") @db.Timestamptz(3)
+  /// Thứ tự gửi. Dòng ảnh thuộc hội thoại (`owner_kind = 'conversation'`) nên đi theo hạn lưu của hội thoại.
+  imageIds         String[]     @default([]) @map("image_ids") @db.Uuid
   createdAt        DateTime     @map("created_at") @db.Timestamptz(3)
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)

@@ -71,6 +71,7 @@ export type AccountPatch = Partial<
     | 'emailChangedAt'
     | 'passwordChangedAt'
     | 'showActivity'
+    | 'homeProvinceCode'
   >
 >;
 
@@ -596,6 +597,7 @@ export function createIdentityRepository(prisma: PrismaClient): IdentityReposito
             avatarImageId: null,
             avatarFromGoogle: false,
             phone: null,
+            homeProvinceCode: null,
           },
         });
         if (count === 0) return false;

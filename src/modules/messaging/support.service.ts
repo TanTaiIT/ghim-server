@@ -2,7 +2,7 @@ import type { Actor } from '../../common/auth/actor.js';
 import type { CursorQuery } from '../../common/schemas/cursor.js';
 import { toCursorPage } from '../../common/schemas/cursor.js';
 import { toPage, toSkipTake } from '../../common/schemas/pagination.js';
-import { toMessageDto, viewerOf } from './inbox.service.js';
+import { imageUrlsOf, toMessageDto, viewerOf } from './inbox.service.js';
 import type { Conversation } from './messaging.repository.js';
 import type { ConversationDto, MessageDto, SupportQueueQuery } from './messaging.schema.js';
 import { conversationNotFound, type MessagingServiceDeps } from './messaging.shared.js';
@@ -42,7 +42,7 @@ export function createSupportDeskService(
     options?: { asTeam?: boolean },
   ) => Promise<ConversationDto[]>,
 ): SupportDeskService {
-  const { repository, clock } = deps;
+  const { repository, media, clock } = deps;
 
   const support = async (conversationId: string): Promise<Conversation> => {
     const row = await repository.find(conversationId);
@@ -75,8 +75,9 @@ export function createSupportDeskService(
         id: message.id,
       }));
       const viewer = viewerOf(row, actor.accountId, 'seller');
+      const urls = await imageUrlsOf(media, page.items);
       return {
-        items: page.items.map((message) => toMessageDto(message, viewer)),
+        items: page.items.map((message) => toMessageDto(message, viewer, urls)),
         nextCursor: page.nextCursor,
       };
     },

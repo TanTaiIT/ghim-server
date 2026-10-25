@@ -188,11 +188,37 @@ export const lookupSchema = z.object({
   ),
 });
 
+// ── SỐ LIỆU ─────────────────────────────────────────────────────────────────────────────────────
+
+/** Mặc định 12 tháng; trần 24 — xa hơn thì bảng gộp còn đó nhưng màn điện thoại không đọc nổi. */
+export const statsQuerySchema = z.object({
+  months: z.coerce.number().int().min(1).max(24).default(12),
+});
+
+export const screeningStatsSchema = z.object({
+  months: z.array(
+    z.object({
+      /** `YYYY-MM`, cũ trước. */
+      month: z.string(),
+      runs: z.number().int(),
+      passFull: z.number().int(),
+      passLimited: z.number().int(),
+      hold: z.number().int(),
+      low: z.number().int(),
+      medium: z.number().int(),
+      high: z.number().int(),
+    }),
+  ),
+  /** Luật trúng nhiều lượt nhất trong cả khoảng, nhiều trước. */
+  topRules: z.array(z.object({ code: z.string(), label: z.string(), runs: z.number().int() })),
+});
+
 export type RulesDto = z.infer<typeof rulesSchema>;
 export type PhraseDto = z.infer<typeof phraseSchema>;
 export type WhitelistEntryDto = z.infer<typeof whitelistEntrySchema>;
 export type KeywordsDto = z.infer<typeof keywordsSchema>;
 export type LookupDto = z.infer<typeof lookupSchema>;
+export type ScreeningStatsDto = z.infer<typeof screeningStatsSchema>;
 export type RuleChangeBody = z.infer<typeof ruleChangeBodySchema>;
 export type BandsBody = z.infer<typeof bandsBodySchema>;
 export type CreatePhraseBody = z.infer<typeof createPhraseBodySchema>;

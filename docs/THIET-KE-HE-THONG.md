@@ -191,23 +191,23 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 
 Ô trống nghĩa là không. Mọi ô ✓ đều có một ngoại lệ chung: không ai, trừ master, xử việc của chính mình hay của tài khoản dùng chung thiết bị với mình — việc đó tự đi cho người kế tiếp (phần 16).
 
-| Việc                                                                          | Khách | Người dùng | Điều hành viên                    | Chủ nhóm                     | Staff (danh mục được giao)                                                    | Master                                       |
-| ----------------------------------------------------------------------------- | ----- | ---------- | --------------------------------- | ---------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------- |
-| Xem tin công khai, hồ sơ nhóm công khai                                       | ✓     | ✓          | ✓                                 | ✓                            | ✓                                                                             | ✓                                            |
-| Đăng, sửa, gia hạn tin của mình · nhắn tin · lưu tin · lưu tìm kiếm · báo cáo |       | ✓          | ✓                                 | ✓                            | ✓                                                                             | qua tài khoản cá nhân                        |
-| Xử tin trong nhóm mà máy giữ                                                  |       |            | ✓ phạm vi của mình                | ✓                            | khi nhóm hết người, hoặc danh mục đặt "tin nhóm do sàn duyệt" (phần 11)       | ✓                                            |
-| Từ chối, gỡ vì vi phạm trong nhóm                                             |       |            | không cảnh cáo, chuyển staff      | không cảnh cáo, chuyển staff | xác nhận → cảnh cáo                                                           | ✓                                            |
-| Xử tin sàn mà máy giữ · gỡ, khôi phục tin sàn · hậu kiểm                      |       |            |                                   |                              | ✓                                                                             | ✓                                            |
-| Gỡ tin khỏi nhóm, gỡ huy hiệu nhóm mình                                       |       |            | ✓                                 | ✓                            |                                                                               | ✓                                            |
-| Duyệt đơn vào nhóm, mời, gỡ, cấm thành viên                                   |       |            | ✓                                 | ✓                            |                                                                               | ✓                                            |
-| Bổ nhiệm điều hành viên, sửa cài đặt, bật hiện tên nhóm, đóng nhóm            |       |            |                                   | ✓                            |                                                                               | ✓                                            |
-| Xử báo cáo về một tin                                                         |       |            | tin nhóm, trừ lừa đảo và hàng cấm | như điều hành viên           | tin sàn; lừa đảo, hàng cấm cả trong nhóm                                      | ✓                                            |
-| Xử báo cáo về một người                                                       |       |            |                                   |                              | nếu được giao việc an toàn                                                    | ✓                                            |
-| Xét khiếu nại về cảnh cáo                                                     |       |            |                                   |                              | cảnh cáo thường, nặng do staff khác ra; vi phạm nghiêm trọng chỉ ghi nhận xét | ✓ cuối cùng; vi phạm nghiêm trọng chỉ master |
-| Soạn · phát hành mẫu thông tin danh mục                                       |       |            |                                   |                              | soạn                                                                          | phát hành                                    |
-| Lập nhóm, giao chủ nhóm, khoá nhóm                                            |       |            |                                   |                              |                                                                               | ✓                                            |
-| Cấp, thu quyền staff · danh mục · cụm từ cấm · luật máy · bảng con số         |       |            |                                   |                              |                                                                               | ✓                                            |
-| Khoá tài khoản · ân xá · quyết vi phạm nghiêm trọng                           |       |            |                                   |                              |                                                                               | ✓                                            |
+| Việc                                                                                      | Khách | Người dùng | Điều hành viên                    | Chủ nhóm                     | Staff (danh mục được giao)                                                    | Master                                       |
+| ----------------------------------------------------------------------------------------- | ----- | ---------- | --------------------------------- | ---------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------- |
+| Xem tin công khai, hồ sơ nhóm công khai · trợ giúp                                        | ✓     | ✓          | ✓                                 | ✓                            | ✓                                                                             | ✓                                            |
+| Đăng, sửa, gia hạn tin của mình · nhắn tin · lưu tin · lưu tìm kiếm · báo cáo             |       | ✓          | ✓                                 | ✓                            | ✓                                                                             | qua tài khoản cá nhân                        |
+| Xử tin trong nhóm mà máy giữ                                                              |       |            | ✓ phạm vi của mình                | ✓                            | khi nhóm hết người, hoặc danh mục đặt "tin nhóm do sàn duyệt" (phần 11)       | ✓                                            |
+| Từ chối, gỡ vì vi phạm trong nhóm                                                         |       |            | không cảnh cáo, chuyển staff      | không cảnh cáo, chuyển staff | xác nhận → cảnh cáo                                                           | ✓                                            |
+| Xử tin sàn mà máy giữ · gỡ, khôi phục tin sàn · hậu kiểm                                  |       |            |                                   |                              | ✓                                                                             | ✓                                            |
+| Gỡ tin khỏi nhóm, gỡ huy hiệu nhóm mình                                                   |       |            | ✓                                 | ✓                            |                                                                               | ✓                                            |
+| Duyệt đơn vào nhóm, mời, gỡ, cấm thành viên                                               |       |            | ✓                                 | ✓                            |                                                                               | ✓                                            |
+| Bổ nhiệm điều hành viên, sửa cài đặt, bật hiện tên nhóm, đóng nhóm                        |       |            |                                   | ✓                            |                                                                               | ✓                                            |
+| Xử báo cáo về một tin                                                                     |       |            | tin nhóm, trừ lừa đảo và hàng cấm | như điều hành viên           | tin sàn; lừa đảo, hàng cấm cả trong nhóm                                      | ✓                                            |
+| Xử báo cáo về một người                                                                   |       |            |                                   |                              | nếu được giao việc an toàn                                                    | ✓                                            |
+| Xét khiếu nại về cảnh cáo                                                                 |       |            |                                   |                              | cảnh cáo thường, nặng do staff khác ra; vi phạm nghiêm trọng chỉ ghi nhận xét | ✓ cuối cùng; vi phạm nghiêm trọng chỉ master |
+| Soạn · phát hành mẫu thông tin danh mục                                                   |       |            |                                   |                              | soạn                                                                          | phát hành                                    |
+| Lập nhóm, giao chủ nhóm, khoá nhóm                                                        |       |            |                                   |                              |                                                                               | ✓                                            |
+| Cấp, thu quyền staff · danh mục · cụm từ cấm · luật máy · bảng con số · nội dung trợ giúp |       |            |                                   |                              |                                                                               | ✓                                            |
+| Khoá tài khoản · ân xá · quyết vi phạm nghiêm trọng                                       |       |            |                                   |                              |                                                                               | ✓                                            |
 
 ---
 
@@ -445,13 +445,14 @@ _Các con số chỉ để minh hoạ; master đặt giá trị thật._
 
 - **Bật, tắt, không xoá.** Thôi dùng thì tắt: tin trong danh mục tạm ẩn — không chiếm hạn mức, không mất ngày — và không ai đăng mới được. Người đăng được **đổi tin sang danh mục khác**; tin qua máy lại.
 - **Mẫu thông tin**: staff phụ trách danh mục soạn, master phát hành. Tin đã đăng giữ nguyên mẫu lúc đăng. Tên một mục thông tin không bao giờ đổi sau khi phát hành; nhãn hiển thị thì đổi được.
-- **Khu vực**: 34 tỉnh, thành và 3.321 phường, xã sau sáp nhập; tìm được bằng tên cũ. Khu vực dùng để lọc và tìm đồ gần mình, không quyết định ai duyệt. Tin lên sàn chung bắt buộc có tỉnh và phường; tin trong nhóm thì tuỳ.
+- **Khu vực**: 34 tỉnh, thành và 3.321 phường, xã sau sáp nhập; tìm được bằng tên cũ. Khu vực dùng để lọc và tìm đồ gần mình, không quyết định ai duyệt. Tin lên sàn chung bắt buộc có tỉnh và phường; tin trong nhóm thì tuỳ. Người dùng chọn được tỉnh/thành của mình (không bắt buộc, chốt 25/10/2026): riêng tư, không ai khác thấy — app dùng để xếp mục "Gần bạn" và đặt sẵn bộ lọc khi tìm.
 - **Giá**: số nguyên từ 0 trở lên, đơn vị đồng. **Giá 0 nghĩa là cho tặng**; app hiện "Miễn phí".
 - **Danh mục phẳng**, không có cấp cha / con. Tên danh mục đổi được, mã danh mục không đổi (chốt 10/10/2026).
 - **Trần giá và giá tham chiếu là tuỳ chọn**: không đặt trần nghĩa là danh mục không có trần; đặt cả hai thì giá tham chiếu không vượt trần. Mức rủi ro mặc định thấp, luôn duyệt tay mặc định tắt.
 - **Cài đặt cho máy duyệt không công khai** (nguyên tắc 8): app chỉ đọc tên danh mục và mẫu thông tin; trần giá, giá tham chiếu, mức rủi ro, luôn duyệt tay, ai duyệt tin nhóm chỉ bàn vận hành thấy. Mỗi lần đổi cài đặt là một phiên bản cài đặt mới của danh mục, để kết quả máy ghi lại phiên bản đã dùng (cam kết 33).
 - **Mẫu thông tin**: mỗi mục có tên (không đổi và không dùng lại cho mục khác kiểu), nhãn, kiểu (chữ, số, chọn một, chọn nhiều) và cờ bắt buộc; bản sau bỏ được mục. Tin đăng theo phiên bản cũ hiện nhãn của phiên bản đó, và sửa tin thì điền theo đúng phiên bản tin đang mang (chốt 12/10/2026). Mỗi danh mục một bản nháp chung cho staff phụ trách và master; chỉ master phát hành hoặc bỏ bản nháp. Danh mục ban đầu do master nhập qua bàn vận hành, không có sẵn.
 - **Lọc theo mẫu** (chốt 24/10/2026): khi đã chọn danh mục, người mua lọc theo các mục của mẫu hiện hành — mục chọn một và chọn nhiều theo một hay nhiều giá trị, tin khớp khi có **một trong** các giá trị đã chọn; mục số theo khoảng từ – tới (một hay cả hai đầu). Mục chữ không lọc được. Tin không có mục đang lọc (đăng theo mẫu cũ, hay mục không bắt buộc bỏ trống) không hiện khi lọc mục đó. Kết quả vẫn xếp theo vị trí trên bảng tin; chưa có sắp xếp. Bộ lọc sai mẫu (mục chữ, mục không có, giá trị ngoài lựa chọn) bị từ chối và nêu rõ mục nào.
+- **Sắp xếp** (chốt 25/10/2026): bảng tin, danh mục và tìm kiếm mặc định mới nhất — theo vị trí trên bảng tin; người xem chọn được giá thấp trước hoặc giá cao trước. Tin cùng giá xếp cố định để lật trang không lặp, không sót.
 - **Khu vực**: mã đơn vị lấy theo mã chính thức; tìm bỏ dấu, không phân biệt hoa thường, không sửa lỗi chính tả. Tên cũ cấp tỉnh có sẵn; tên cũ cấp phường bổ sung dần theo dữ liệu.
 
 ---
@@ -579,6 +580,7 @@ flowchart TB
 | B. Tài khoản T0 2 ngày tuổi, mô tả ghi số Zalo, đăng sàn chung  | Tài khoản mới 10 · liên hệ ngoài sàn 20              | 30 — dải Vừa | Giữ cho người; người đăng được nhắc thêm số vào hồ sơ thay vì ghi vào mô tả |
 | C. iPhone 15 giá 2 triệu, mô tả lộn xộn, ghi Zalo, tài khoản T1 | Giá bất thường 25 · gõ bừa 30 · liên hệ ngoài sàn 20 | 75 — dải Cao | Giữ cho người                                                               |
 
+**Số liệu của máy** (chốt 25/10/2026): master xem theo tháng, 12 tháng gần nhất (tối đa 24) — số lượt máy đã chấm, bao nhiêu cho qua đầy đủ, cho qua hạn chế, giữ cho người, bao nhiêu ở mỗi dải điểm, và 5 luật trúng nhiều nhất. Số tính cả những tháng mà kết quả chi tiết đã gộp lại khi hết hạn lưu (phần 25). Staff không xem.
 ---
 
 ## 15. Mức hiển thị: đầy đủ và hạn chế
@@ -890,6 +892,7 @@ Người xử không bao giờ là người đăng tin bị báo cáo, người 
 - **Hội thoại đã mở thì tiếp tục được** dù sau đó tin đã bán, hết hạn, hay một bên rời nhóm.
 - Số **hội thoại mới mỗi ngày** theo mức tin cậy (phần 20) — để tài khoản vừa lập không nhắn hàng loạt.
 - Tin nhắn qua cùng bộ lọc cụm từ cấm như tin đăng.
+- **Ảnh trong tin nhắn** (chốt 25/10/2026): mỗi tin nhắn tối đa **4 ảnh**, kèm chữ hay không, trong mọi loại hội thoại; staff hỗ trợ trả lời chỉ bằng chữ. Ảnh qua cùng luật chất lượng của ảnh tin (phần 13) ngay lúc gửi — tin nhắn không chờ người duyệt, nên ảnh trúng luật là không gửi, kèm câu sửa như tin đăng. Không kiểm trùng, không kiểm nội dung. Chỉ người trong hội thoại thấy, và người xử khi hội thoại bị báo; ảnh theo hạn lưu của hội thoại.
 - **Chặn người**: một bên chặn thì không mở hội thoại mới, hội thoại cũ ngừng nhận tin. Không bên nào biết ai chặn.
 - **Báo cáo ngay từ hội thoại** khi bị quấy rối hay lừa đảo.
 - **Xoá hội thoại** chỉ ẩn ở phía mình. Hội thoại dính tới báo cáo, cảnh cáo hay khiếu nại đang mở thì không bị xoá hẳn, kể cả khi cả hai bên đã xoá.
@@ -900,6 +903,8 @@ Người xử không bao giờ là người đăng tin bị báo cáo, người 
 - **Hội thoại với một đội** (chốt 18/10/2026): bên kia là cả đội — ai trong đội cũng đọc và trả lời được, một người đọc là cả đội đã đọc. Người dùng chỉ thấy tên đội, **"Hỗ trợ Ghim"** hay **"Quản trị nhóm «tên nhóm»"**, không biết ai trong đội viết. Không tính vào hội thoại mới mỗi ngày, chặn người không áp vào, chỉ người dùng xoá được ở phía mình; không trả giá.
   - **Hỗ trợ**: mỗi người dùng một hội thoại. Mọi staff có quyền hỗ trợ người dùng thấy chung một hàng trên bàn vận hành, đang chờ lâu nhất trước; staff không trả lời hội thoại hỗ trợ của chính mình. Tin nhắn của staff không qua bộ lọc cụm từ cấm — staff cần nhắc đúng cụm lừa đảo để cảnh báo người dùng.
   - **Quản trị nhóm**: mỗi người dùng một hội thoại với mỗi nhóm. Chủ nhóm và mọi điều hành viên đang giữ vai cùng thấy; mất vai là mất quyền vào ngay, người nhận vai sau thấy cả tin cũ. Ai xem được hồ sơ nhóm thì nhắn được, trừ người bị cấm và quản trị của chính nhóm đó. Nhóm đóng thì hội thoại chỉ còn để đọc; người bị cấm thì không gửi tiếp được.
+
+- **Trợ giúp** (chốt 25/10/2026): các chủ đề câu hỏi thường gặp do master soạn và xếp thứ tự trên bàn vận hành; ai cũng đọc, kể cả khách. Câu trả lời chưa đủ thì người dùng mở hội thoại với Hỗ trợ Ghim ngay từ màn trợ giúp.
 
 **Thông báo**
 
@@ -930,7 +935,7 @@ Người xử không bao giờ là người đăng tin bị báo cáo, người 
   ghi đè được — đổi ảnh là tải ảnh mới.
 - **Kho riêng tư**: không ai mở ảnh bằng một đường dẫn cố định. Mọi lượt xem dùng đường xem có hạn do hệ thống cấp
   cho người được xem — ảnh tin chưa hiện chỉ người đăng và người duyệt mở được.
-- Mỗi ảnh có **đúng một chủ** suốt đời (hồ sơ, nháp, tin) và không dùng lại cho chủ khác. Tin chuyển lên sàn chung
+- Mỗi ảnh có **đúng một chủ** suốt đời (hồ sơ, nháp, tin, hội thoại) và không dùng lại cho chủ khác; ảnh gửi trong tin nhắn thuộc hội thoại và chỉ nằm trong một tin nhắn. Tin chuyển lên sàn chung
   "như một tin mới" (phần 9, 10) mang **bản sao** ảnh của tin cũ.
 - **Chỉ nhận ảnh nằm trong kho của hệ thống.** Ảnh để ở nơi người đăng kiểm soát thì họ đổi được ruột ảnh sau khi tin đã qua duyệt, và mỗi lượt xem là một lượt máy chủ của họ biết ai đang xem. Ngoại lệ duy nhất: ảnh đại diện lấy từ Google.
 - **Ảnh có chủ ngay từ lúc chọn**: nó thuộc về bản nháp, và được dọn theo nháp.
@@ -954,7 +959,7 @@ Người xử không bao giờ là người đăng tin bị báo cáo, người 
 | Dấu băm email kèm cảnh cáo                            | 2 năm cùng cảnh cáo                                            | Xoá                                                         |
 | Dấu băm email của tài khoản bị khoá vĩnh viễn         | Tới khi gỡ khoá; master xem lại mỗi 2 năm                      | Xoá khi gỡ khoá                                             |
 | Dấu thiết bị, địa chỉ mạng lúc đăng ký                | 180 ngày                                                       | Xoá; chỉ dùng chống gian lận                                |
-| Hội thoại                                             | Tới khi cả hai bên xoá, hoặc 1 năm không ai nhắn               | Xoá hẳn                                                     |
+| Hội thoại                                             | Tới khi cả hai bên xoá, hoặc 1 năm không ai nhắn               | Xoá hẳn kèm ảnh                                             |
 | Thông báo                                             | 90 ngày                                                        | Xoá                                                         |
 | Kết quả chấm điểm của máy                             | 180 ngày                                                       | Gộp thành số liệu thống kê                                  |
 | Cảnh cáo                                              | 2 năm sau khi hết hạn hoặc sau khi khoá                        | Ẩn danh hoá, kể cả nhật ký liên quan                        |
