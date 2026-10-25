@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { actorOf } from '../../../common/auth/actor.js';
 import { cursorPaginated, cursorQuerySchema } from '../../../common/schemas/cursor.js';
 import { errorResponse, ok, toOk } from '../../../common/schemas/response.js';
+import { emptySchema } from '../../identity/identity.schema.js';
 import {
   feedQuerySchema,
   groupFeedQuerySchema,
@@ -12,12 +13,14 @@ import {
   listingSchema,
   myListingsQuerySchema,
   ownListingSchema,
+  savedListingParamsSchema,
   userListingParamsSchema,
 } from '../listing.schema.js';
 import type { ListingRoutesOptions } from '../listing.routes.js';
 
 const TAGS_OWNER = ['Listings · Người đăng'];
 const TAGS_VIEWER = ['Listings · Người xem'];
+const TAGS_SAVED = ['Listings · Đã lưu'];
 const bearer = [{ bearerAuth: [] }];
 /** Không token vẫn xem được; có token thì người đăng thấy tin của mình, thành viên thấy tin "chỉ thành viên". */
 const optionalBearer = [{}, ...bearer];
@@ -42,6 +45,65 @@ export const readRoutes: FastifyPluginAsyncZod<ListingRoutesOptions> = async (ap
       },
     },
     handler: async (request) => toOk(await listing.mine(actorOf(request), request.query)),
+  });
+
+  app.get('/me/saved-listings', {
+    preHandler: user,
+    schema: {
+      tags: TAGS_SAVED,
+      summary:
+        'Tin đã lưu mà mình đang thấy được, lưu gần nhất trước — tin thôi hiện thì vắng, hiện lại thì có lại',
+      security: bearer,
+      querystring: cursorQuerySchema,
+      response: {
+        200: ok(cursorPaginated(listingSchema)),
+        400: errorResponse,
+        401: errorResponse,
+      },
+    },
+    handler: async (request) => toOk(await listing.saved(actorOf(request), request.query)),
+  });
+
+  app.get('/me/saved-listings/ids', {
+    preHandler: user,
+    schema: {
+      tags: TAGS_SAVED,
+      summary: 'Mã mọi tin đã lưu — để đánh dấu tin đã lưu trên thẻ tin',
+      security: bearer,
+      response: { 200: ok(z.array(z.uuid())), 401: errorResponse },
+    },
+    handler: async (request) => toOk(await listing.savedIds(actorOf(request))),
+  });
+
+  app.put('/me/saved-listings/:listingId', {
+    preHandler: user,
+    schema: {
+      tags: TAGS_SAVED,
+      summary:
+        'Lưu một tin mình mở được — lưu lại không đổi gì; không thấy tin thì 404 như tin không có',
+      security: bearer,
+      params: savedListingParamsSchema,
+      response: { 204: emptySchema, 400: errorResponse, 401: errorResponse, 404: errorResponse },
+    },
+    handler: async (request, reply) => {
+      await listing.save(actorOf(request), request.params.listingId);
+      return reply.status(204).send(null);
+    },
+  });
+
+  app.delete('/me/saved-listings/:listingId', {
+    preHandler: user,
+    schema: {
+      tags: TAGS_SAVED,
+      summary: 'Bỏ lưu một tin — chưa lưu thì cũng không lỗi',
+      security: bearer,
+      params: savedListingParamsSchema,
+      response: { 204: emptySchema, 400: errorResponse, 401: errorResponse },
+    },
+    handler: async (request, reply) => {
+      await listing.unsave(actorOf(request), request.params.listingId);
+      return reply.status(204).send(null);
+    },
   });
 
   app.get('/listings', {

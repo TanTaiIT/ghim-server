@@ -142,6 +142,7 @@ model Account {
   sessions              Session[]
   devicePosts           DevicePost[]
   deviceLogins          DeviceLogin[]
+  savedListings         SavedListing[]
   deviceClearances      DeviceClearance[]
   flags                 AccountFlag[]
   idVerifications       IdVerification[]
@@ -1206,6 +1207,7 @@ model Listing {
   badgeBlocks      ListingBadgeBlock[]
   reviewTasks      ReviewTask[]
   sampleCandidates ReviewSampleCandidate[]
+  savedBy          SavedListing[]
 
   /// Mỗi tin chuyển lên sàn chung một lần (ALREADY_MOVED) — kể cả hai lượt song song.
   @@unique([movedFromListingId], where: raw("moved_from_listing_id IS NOT NULL"), map: "listings_moved_from_key")
@@ -1242,6 +1244,22 @@ model ListingSubmission {
   @@unique([listingId, fromVersion])
   @@index([accountId, at])
   @@map("listing_submissions")
+}
+
+/// Tin người dùng lưu để xem lại (add-saved-listings, TK 15 "Tin đã lưu"). Lần lưu giữ khi tin thôi hiện — danh sách lọc
+/// lúc đọc, tin hiện lại thì có lại. Xoá tài khoản thì `listing` xoá qua sự kiện (tài khoản chỉ ẩn danh, không xoá dòng).
+model SavedListing {
+  accountId String   @map("account_id") @db.Uuid
+  listingId String   @map("listing_id") @db.Uuid
+  savedAt   DateTime @map("saved_at") @db.Timestamptz(3)
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@id([accountId, listingId])
+  @@index([accountId, savedAt(sort: Desc), listingId(sort: Desc)])
+  @@index([listingId])
+  @@map("saved_listings")
 }
 
 /// Huy hiệu nhóm đã gỡ khỏi tin này thì người đăng không gắn lại (TK 10, chốt 12/10/2026).

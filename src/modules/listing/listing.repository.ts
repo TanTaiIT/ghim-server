@@ -107,6 +107,21 @@ export interface ListingRepository {
     cursor?: CursorKey | undefined;
     limit: number;
   }): Promise<Listing[]>;
+  /** Lưu tin (add-saved-listings): khoá chính (người, tin) — lưu lại là không đổi gì. */
+  saveListing(accountId: string, listingId: string, at: Date): Promise<void>;
+  unsaveListing(accountId: string, listingId: string): Promise<void>;
+  /**
+   * Trang tin đã lưu, lưu gần nhất trước, con trỏ (lúc lưu, mã tin). Lọc hiển thị `visible` chạy trong cùng câu SQL,
+   * nên trang luôn đủ `limit` tin hiện được nếu còn (design add-saved-listings mục 3). Trả `limit + 1` dòng.
+   */
+  savedPage(input: {
+    accountId: string;
+    visible: Prisma.ListingWhereInput;
+    cursor?: CursorKey | undefined;
+    limit: number;
+  }): Promise<{ listing: Listing; savedAt: Date }[]>;
+  savedIds(accountId: string): Promise<string[]>;
+  forgetSaved(accountId: string): Promise<void>;
   /** Tin "nhóm công khai" còn trong nhóm — đếm trong transaction đổi chế độ của `group` (cam kết 22). */
   countGroupPublic(tx: Tx, groupId: string): Promise<number>;
   /**
@@ -359,6 +374,51 @@ export function createListingRepository(prisma: PrismaClient): ListingRepository
         orderBy: orderBy(order),
         take: limit + 1,
       }),
+
+    async saveListing(accountId, listingId, at) {
+      await prisma.savedListing.createMany({
+        data: [{ accountId, listingId, savedAt: at }],
+        skipDuplicates: true,
+      });
+    },
+
+    async unsaveListing(accountId, listingId) {
+      await prisma.savedListing.deleteMany({ where: { accountId, listingId } });
+    },
+
+    async savedPage({ accountId, visible, cursor, limit }) {
+      const rows = await prisma.savedListing.findMany({
+        where: {
+          accountId,
+          listing: visible,
+          ...(cursor
+            ? {
+                OR: [
+                  { savedAt: { lt: cursor.at } },
+                  { savedAt: cursor.at, listingId: { lt: cursor.id } },
+                ],
+              }
+            : {}),
+        },
+        orderBy: [{ savedAt: 'desc' }, { listingId: 'desc' }],
+        take: limit + 1,
+        include: { listing: true },
+      });
+      return rows.map((row) => ({ listing: row.listing, savedAt: row.savedAt }));
+    },
+
+    async savedIds(accountId) {
+      const rows = await prisma.savedListing.findMany({
+        where: { accountId },
+        orderBy: { savedAt: 'desc' },
+        select: { listingId: true },
+      });
+      return rows.map((row) => row.listingId);
+    },
+
+    async forgetSaved(accountId) {
+      await prisma.savedListing.deleteMany({ where: { accountId } });
+    },
 
     holdKey: async (tx, id) => {
       const [row] = await tx.$queryRaw<{ version: number; state: ListingState }[]>`

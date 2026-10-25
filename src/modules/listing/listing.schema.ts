@@ -78,6 +78,7 @@ export const moveListingBodySchema = z
 export const listingParamsSchema = z.object({ id: z.uuid() });
 export const groupListingParamsSchema = z.object({ groupId: z.uuid() });
 export const userListingParamsSchema = z.object({ id: z.uuid() });
+export const savedListingParamsSchema = z.object({ listingId: z.uuid() });
 export const badgeParamsSchema = z.object({ groupId: z.uuid(), listingId: z.uuid() });
 
 const keyword = z.string().trim().min(1).max(QUERY_MAX).optional();

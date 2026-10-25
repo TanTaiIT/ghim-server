@@ -583,10 +583,10 @@ flowchart TB
 
 ## 15. Mức hiển thị: đầy đủ và hạn chế
 
-| Mức         | Tin xuất hiện ở đâu                                                                                 |
-| ----------- | --------------------------------------------------------------------------------------------------- |
-| **Đầy đủ**  | Bảng tin, tìm kiếm, gợi ý, hồ sơ người bán                                                          |
-| **Hạn chế** | Chỉ tìm kiếm có từ khoá, hồ sơ người bán, đường link trực tiếp. Không lên bảng tin, không vào gợi ý |
+| Mức         | Tin xuất hiện ở đâu                                                                                             |
+| ----------- | --------------------------------------------------------------------------------------------------------------- |
+| **Đầy đủ**  | Bảng tin, tìm kiếm, gợi ý, hồ sơ người bán, tin đã lưu                                                          |
+| **Hạn chế** | Chỉ tìm kiếm có từ khoá, hồ sơ người bán, tin đã lưu, đường link trực tiếp. Không lên bảng tin, không vào gợi ý |
 
 Tin hạn chế khi còn **ít nhất một lý do**. Mỗi lý do đặt và gỡ độc lập, nên gỡ một lý do không mở nhầm tin còn lý do khác.
 
@@ -597,6 +597,8 @@ Tin hạn chế khi còn **ít nhất một lý do**. Mỗi lý do đặt và g�
 | **Cảnh cáo**      | Tin mới khi người bán đang có cảnh cáo; **mọi tin đang hiện** khi điểm vi phạm chạm 2; tin hiện lại sau tạm ẩn khi người bán đang có cảnh cáo | Điểm cảnh cáo về 0 (tin áp ở mốc 2 thì khi về dưới 2)                                                         |
 
 > **Vì sao có mức hạn chế.** Nó cho tin của người chưa quen được lên mà không cần người duyệt, nhưng chỉ người chủ động tìm mới thấy. Đội duyệt còn mỏng không phải xem từng tin, còn kẻ lập tài khoản mới hàng loạt thì không được đưa tin lên trước mắt người mua.
+
+**Tin đã lưu.** Người đã đăng nhập lưu được tin mình mở được bằng đường link; tin không mở được trả lời như tin không có, nên lưu không thành cách dò tin ẩn. Danh sách "Đã lưu" theo đúng luật của hồ sơ người bán: tin thôi hiện (đã bán, hết hạn, tạm ẩn, bị gỡ, tin "chỉ thành viên" của nhóm mình đã rời) thì vắng, hiện lại thì có lại, vì lần lưu không mất. Không ai khác biết ai lưu tin, kể cả người đăng. Xoá tài khoản thì mọi lần lưu bị bỏ (chốt 25/10/2026).
 
 ---
 
@@ -1071,7 +1073,6 @@ Master chỉnh dần theo kết quả hậu kiểm, không cần phát hành l�
 - **Gói đẩy tin, tin nổi bật.**
 - **Đánh giá người bán** — chưa có luật chống đánh giá khống.
 - **Tìm kiếm theo nội dung** — hiện tìm theo tiêu đề và mô tả.
-- **Lưu tin để xem sau** — quyền có ở phần 6 nhưng chưa mô tả; làm thành một phần riêng sau đợt tin đăng (chốt 12/10/2026).
 - **Xác thực số điện thoại** — bật sau thì thêm vào dữ kiện của mức tin cậy; ma trận không đổi.
 - **Đọc chữ trong ảnh** — giới hạn đã biết của máy duyệt hiện tại.
 - **DeviceCheck của Apple** — bản đầu iOS chỉ dùng mã theo nhà phát triển và tín hiệu phụ (phần 8); bộ đếm tài khoản trên một máy vẫn chạy, chỉ thiếu dấu "máy đã lạm dụng" bền qua lần cài lại app. Thêm khi có tài khoản Apple Developer.
