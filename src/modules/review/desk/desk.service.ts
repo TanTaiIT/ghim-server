@@ -381,7 +381,9 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
           trust.strikesOf(ownerId),
           screening.duplicateMatches(listingId),
           sharedDevicesOf(ownerId),
-          reports.related({ listingId, accountId: ownerId, limit: RELATED_REPORTS }),
+          surface.kind === 'group'
+            ? reports.groupRelated(listingId, RELATED_REPORTS)
+            : reports.related({ listingId, accountId: ownerId, limit: RELATED_REPORTS }),
         ]);
       const owners = await media.ownersOf(matches.map((match) => match.matchImageId));
       const names = await nameMap([

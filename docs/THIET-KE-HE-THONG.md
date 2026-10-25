@@ -634,7 +634,7 @@ Tin hạn chế khi còn **ít nhất một lý do**. Mỗi lý do đặt và g�
 
 Người duyệt bấm **Nhận** một việc và được giữ nó **10 phút**; người khác thấy "đang có người xử". Quá 10 phút chưa quyết thì việc tự trả về hàng chờ.
 
-**Người xử thấy:** tin, điểm và luật máy đã trúng, lịch sử cảnh cáo và tin sạch của người bán, báo cáo liên quan, tin cùng ảnh của tài khoản khác, tài khoản dùng chung thiết bị.
+**Người xử thấy:** tin, điểm và luật máy đã trúng, lịch sử cảnh cáo và tin sạch của người bán, báo cáo liên quan, tin cùng ảnh của tài khoản khác, tài khoản dùng chung thiết bị. Điều hành nhóm chỉ thấy báo cáo thường về chính tin đang xét — không thấy báo cáo lừa đảo, hàng cấm, báo cáo về người hay hội thoại kèm báo cáo (phần 23, chốt 25/10/2026).
 
 | Kết quả                    | Hệ quả                                                                                                                                                                                                              |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
