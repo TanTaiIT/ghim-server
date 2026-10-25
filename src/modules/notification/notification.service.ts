@@ -70,7 +70,7 @@ export interface NotificationServiceDeps {
     forgetPushToken(token: string): Promise<void>;
   };
   /** Tiêu đề, người đăng của tin cho câu thông báo — `notification` không đọc bảng `listings` (TK 30). */
-  listings: Pick<ListingService, 'titles' | 'noticeTargets'>;
+  listings: Pick<ListingService, 'titles' | 'noticeTargets' | 'savedSearchMatches'>;
   /** Câu máy giải thích cho người đăng (N43, N44) — `notification` không đọc bảng của `screening` (TK 30). */
   screening: { notices(listingIds: string[]): Promise<Map<string, MachineNotice>> };
   /** Nội dung tin nhắn cho câu thông báo, máy đang mở hội thoại — `notification` không đọc bảng của `messaging` (TK 30). */
@@ -174,6 +174,7 @@ export function createNotificationService(deps: NotificationServiceDeps): Notifi
     pendingCount: (groupId) => groups.countPendingRequests(groupId),
     listingTitles: (ids) => listings.titles(ids),
     listingTargets: (ids) => listings.noticeTargets(ids),
+    savedSearchMatches: (listingId) => listings.savedSearchMatches(listingId),
     masterIds: () => identity.masterIds(),
     async machineNotice(listingId) {
       return (await screening.notices([listingId])).get(listingId) ?? null;

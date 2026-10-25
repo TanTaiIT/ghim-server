@@ -40,6 +40,7 @@ const contextWith = (
     Promise.resolve(
       new Map(ids.flatMap((id) => (targets[id] ? [[id, targets[id]] as const] : []))),
     ),
+  savedSearchMatches: unused,
   masterIds: unused,
 });
 

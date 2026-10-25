@@ -65,12 +65,12 @@ Lỗi mạng thì client tự nối lại như thường.
 ```ts
 {
   id: string;            // uuid
-  category: 'your_groups' | 'group_announcements' | …;  // 9 nhóm của TK 24
+  category: 'your_groups' | 'group_announcements' | …;  // 10 nhóm của TK 24
   type: string;          // vd 'group.join_request.approved' — app chọn icon, màn mở theo type
   title: string;         // tên nhóm với chuyện của nhóm
   body: string;          // câu hiện cho người dùng, đã đủ nghĩa
   detail: string | null; // chỉ người được xem mới có (vd lý do khoá nhóm cho chủ nhóm) — không bao giờ nằm trong body
-  data: Record<string, string | null>;  // mã để mở đúng màn: groupId, offerId, invitationId, announcementId…
+  data: Record<string, string | null>;  // mã để mở đúng màn: groupId, offerId, invitationId, announcementId, savedSearchId…
   groupId: string | null;
   count: number;         // > 1 khi là dòng gộp
   readAt: string | null;
@@ -121,7 +121,7 @@ Tất cả cần `Authorization: Bearer <access token>`, dưới `/api/v1`:
 | `GET /me/notifications?page=&limit=`         | Hộp thư, mới cập nhật trước                                                   |
 | `GET /me/notifications/unread-count`         | `{ count }`                                                                   |
 | `POST /me/notifications/read`                | `{ ids: [...] }` hoặc `{ all: true }` → `{ marked }`; mã của người khác → 404 |
-| `GET /me/notification-preferences`           | 9 nhóm với `enabled`, và `mutedGroupIds`                                      |
+| `GET /me/notification-preferences`           | 10 nhóm với `enabled`, và `mutedGroupIds`                                     |
 | `PUT /me/notification-preferences/:category` | `{ enabled }` — tắt nhóm "tài khoản" → 400 `NOTIFICATION_GROUP_ALWAYS_ON`     |
 | `PUT /me/group-mutes/:groupId`               | Tắt tiếng một nhóm — không phải thành viên → 409 `NOT_GROUP_MEMBER`           |
 | `DELETE /me/group-mutes/:groupId`            | Bật lại tiếng                                                                 |

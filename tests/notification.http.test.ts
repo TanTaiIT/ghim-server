@@ -154,7 +154,7 @@ describe('bật tắt và tắt tiếng', () => {
   it('đủ chín nhóm, mặc định bật; nhóm "tài khoản" không tắt được; tên lạ 400', async () => {
     const user = await newUser(app);
     const prefs = (await api(app, 'GET', '/me/notification-preferences', user.token)).json().data;
-    expect(prefs.categories).toHaveLength(9);
+    expect(prefs.categories).toHaveLength(10);
     expect(prefs.categories.every((row: { enabled: boolean }) => row.enabled)).toBe(true);
     const account = await api(app, 'PUT', '/me/notification-preferences/account', user.token, {
       enabled: false,

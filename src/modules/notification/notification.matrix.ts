@@ -85,6 +85,10 @@ export interface MatrixContext {
   listingTitles(ids: string[]): Promise<Map<string, string>>;
   /** Người đăng và tiêu đề của tin chưa xoá — `listing` trả lời; tin đã xoá hay không có thì vắng. */
   listingTargets(ids: string[]): Promise<Map<string, { ownerId: string; title: string | null }>>;
+  /** Người có lượt tìm đã lưu khớp một tin đang hiện đầy đủ trên sàn chung — `listing` trả lời (add-saved-searches). */
+  savedSearchMatches(
+    listingId: string,
+  ): Promise<{ searchId: string; accountId: string; q: string }[]>;
   /** Mọi master đang hoạt động — `identity` trả lời; người nhận của N40–N42. */
   masterIds(): Promise<string[]>;
   /**

@@ -196,6 +196,8 @@ export const CONFIG_KEYS = {
   // Schema tin nhận tối đa 50 ảnh; tin gửi cần ít nhất 1 ảnh (CHECK).
   'listing.maxImages': int(6, LISTING, { max: 50 }),
   'listing.moveToMarketplaceDays': days(30, LISTING, { min: 0 }),
+  // Lượt tìm đã lưu mỗi tài khoản (add-saved-searches, chốt 25/10/2026) — mỗi lượt là một lần khớp ngược khi có tin mới.
+  'listing.maxSavedSearches': int(10, LISTING),
   // Nhóm
   'group.applicationExpiresDays': days(21, GROUP),
   'group.reapplyWaitDays': days(7, GROUP, { min: 0 }),
@@ -212,6 +214,8 @@ export const CONFIG_KEYS = {
   'notification.collapseAlertMinutes': minutes(30, NOTIFICATION),
   // N31: tin mới trong nhóm nhắc tối đa một lần mỗi 2 giờ mỗi nhóm (design add-listings mục 11).
   'notification.groupListingsAlertMinutes': minutes(120, NOTIFICATION),
+  // Tin mới khớp một lượt tìm đã lưu: nhắc tối đa một lần mỗi 2 giờ mỗi lượt tìm (add-saved-searches, chốt 25/10/2026).
+  'notification.savedSearchAlertMinutes': minutes(120, NOTIFICATION),
   // N40–N42 báo master: TK 16 "nhắc lại mỗi ngày" — cảnh báo của dòng gộp không bật lại sớm hơn (fix-audit-review, T9).
   'notification.reviewAlertMinutes': minutes(1440, NOTIFICATION),
   // Nhắn tin — "lần cuối hoạt động" chỉ hiện trong cửa sổ này (add-activity-status): xa hơn là dữ liệu để rình, không giúp chat.

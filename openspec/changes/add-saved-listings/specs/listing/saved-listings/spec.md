@@ -1,3 +1,8 @@
+## Purpose
+
+Cho người đã đăng nhập lưu tin để xem lại theo đúng luật "ai thấy một tin" — lưu không thành cách dò tin ẩn, và không ai
+khác biết ai lưu tin nào (TK 15).
+
 ## ADDED Requirements
 
 ### Requirement: Lưu một tin

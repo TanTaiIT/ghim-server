@@ -33,6 +33,7 @@ const contextWith = (
       new Map(ids.flatMap((id) => (known.titles?.[id] ? [[id, known.titles[id]] as const] : []))),
     ),
   listingTargets: unused,
+  savedSearchMatches: unused,
   masterIds: () => Promise.resolve(masters),
   messagePreview: unused,
   strike: unused,

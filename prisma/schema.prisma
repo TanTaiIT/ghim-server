@@ -143,6 +143,7 @@ model Account {
   devicePosts           DevicePost[]
   deviceLogins          DeviceLogin[]
   savedListings         SavedListing[]
+  savedSearches         SavedSearch[]
   deviceClearances      DeviceClearance[]
   flags                 AccountFlag[]
   idVerifications       IdVerification[]
@@ -506,6 +507,7 @@ model Category {
   draft              TemplateDraft?
   staffGrants        StaffCategoryGrant[]
   listings           Listing[]
+  savedSearches      SavedSearch[]
   screeningOverrides ScreeningRuleOverride[]
   screeningBands     ScreeningCategoryBand?
   priceStats         CategoryPriceStat?
@@ -932,6 +934,7 @@ enum NotificationCategory {
   group_announcements
   group_new_listings
   support
+  saved_searches
 
   @@map("notification_category")
 }
@@ -1260,6 +1263,30 @@ model SavedListing {
   @@index([accountId, savedAt(sort: Desc), listingId(sort: Desc)])
   @@index([listingId])
   @@map("saved_listings")
+}
+
+/// Lượt tìm trên sàn chung người dùng lưu để được báo tin mới khớp (add-saved-searches, TK 24). `key` = từ khoá đã bỏ
+/// dấu cùng bộ lọc, viết thành một chuỗi: lưu lại đúng lượt tìm không thêm dòng, và cột nullable không cần NULLS NOT
+/// DISTINCT. Xoá tài khoản thì `listing` xoá qua sự kiện (tài khoản chỉ ẩn danh, không xoá dòng).
+model SavedSearch {
+  id           String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  accountId    String   @map("account_id") @db.Uuid
+  key          String
+  q            String
+  qFolded      String   @map("q_folded")
+  categoryId   String?  @map("category_id") @db.Uuid
+  provinceCode Int?     @map("province_code")
+  wardCode     Int?     @map("ward_code")
+  priceMin     BigInt?  @map("price_min")
+  priceMax     BigInt?  @map("price_max")
+  createdAt    DateTime @map("created_at") @db.Timestamptz(3)
+
+  account  Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, key])
+  @@index([accountId, createdAt(sort: Desc)])
+  @@map("saved_searches")
 }
 
 /// Huy hiệu nhóm đã gỡ khỏi tin này thì người đăng không gắn lại (TK 10, chốt 12/10/2026).

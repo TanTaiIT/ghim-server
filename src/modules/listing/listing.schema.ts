@@ -79,6 +79,29 @@ export const listingParamsSchema = z.object({ id: z.uuid() });
 export const groupListingParamsSchema = z.object({ groupId: z.uuid() });
 export const userListingParamsSchema = z.object({ id: z.uuid() });
 export const savedListingParamsSchema = z.object({ listingId: z.uuid() });
+
+/**
+ * Một lượt tìm trên sàn chung để được báo tin mới khớp (add-saved-searches): từ khoá bắt buộc cùng bộ lọc của bảng tin,
+ * trừ `attrs` — khớp ngược theo mẫu đổi phiên bản là change sau.
+ */
+export const savedSearchBodySchema = z
+  .object({
+    q: z.string().trim().min(1).max(QUERY_MAX),
+    categoryId: z.uuid().nullable().optional(),
+    provinceCode: z.number().int().positive().nullable().optional(),
+    wardCode: z.number().int().positive().nullable().optional(),
+    priceMin: priceSchema.nullable().optional(),
+    priceMax: priceSchema.nullable().optional(),
+  })
+  .refine((body) => body.wardCode == null || body.provinceCode != null, {
+    message: 'Chọn tỉnh / thành trước khi chọn phường / xã',
+    path: ['wardCode'],
+  })
+  .refine(
+    (body) => body.priceMin == null || body.priceMax == null || body.priceMin <= body.priceMax,
+    { message: 'Giá từ không được lớn hơn giá đến', path: ['priceMax'] },
+  );
+export const savedSearchParamsSchema = z.object({ id: z.uuid() });
 export const badgeParamsSchema = z.object({ groupId: z.uuid(), listingId: z.uuid() });
 
 const keyword = z.string().trim().min(1).max(QUERY_MAX).optional();
@@ -203,8 +226,21 @@ export const ownListingSchema = listingSchema.extend({
     .nullable(),
 });
 
+export const savedSearchSchema = z.object({
+  id: z.uuid(),
+  q: z.string(),
+  categoryId: z.uuid().nullable(),
+  provinceCode: z.number().int().nullable(),
+  wardCode: z.number().int().nullable(),
+  priceMin: priceSchema.nullable(),
+  priceMax: priceSchema.nullable(),
+  createdAt: iso,
+});
+
 export type CreateListingBody = z.infer<typeof createListingBodySchema>;
 export type PatchListingBody = z.infer<typeof patchListingBodySchema>;
 export type FeedQuery = z.infer<typeof feedQuerySchema>;
 export type ListingDto = z.infer<typeof listingSchema>;
 export type OwnListingDto = z.infer<typeof ownListingSchema>;
+export type SavedSearchBody = z.infer<typeof savedSearchBodySchema>;
+export type SavedSearchDto = z.infer<typeof savedSearchSchema>;

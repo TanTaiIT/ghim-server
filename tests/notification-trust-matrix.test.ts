@@ -52,6 +52,7 @@ const contextWith = (
   announcement: unused,
   pendingCount: unused,
   listingTargets: unused,
+  savedSearchMatches: unused,
   masterIds: unused,
   machineNotice: unused,
   messagePreview: unused,

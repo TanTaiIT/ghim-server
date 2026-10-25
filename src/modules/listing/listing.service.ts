@@ -7,6 +7,10 @@ import {
 import { createListingFactsService } from './read/facts.service.js';
 import { createListingReadService, type ListingReadService } from './read/read.service.js';
 import {
+  createListingSavedSearchService,
+  type ListingSavedSearchService,
+} from './read/saved-search.service.js';
+import {
   createListingRetentionService,
   type ListingRetentionService,
 } from './system/retention.service.js';
@@ -20,6 +24,7 @@ export type { ListingServiceDeps } from './listing.shared.js';
 
 export type ListingService = ListingPostingService &
   ListingReadService &
+  ListingSavedSearchService &
   ListingSystemService &
   ListingCascadeService &
   ListingRetentionService &
@@ -34,6 +39,7 @@ export function createListingService(deps: ListingServiceDeps): ListingService {
   return {
     ...createListingPostingService(shared),
     ...createListingReadService(shared),
+    ...createListingSavedSearchService(shared),
     ...createListingSystemService(shared),
     ...createListingCascadeService(shared),
     ...createListingRetentionService(shared),

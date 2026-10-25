@@ -112,6 +112,43 @@ async function groupNewListing(payload: Payload, ctx: MatrixContext): Promise<Ma
 }
 
 /**
+ * Tin mới khớp một lượt tìm đã lưu (add-saved-searches): như N31, chỉ lần đầu tin hiện đầy đủ trên sàn chung. Gộp theo
+ * lượt tìm; người đăng không nằm trong kết quả của `listing`.
+ */
+async function savedSearchMatch(payload: Payload, ctx: MatrixContext): Promise<MatrixResult> {
+  const listingId = str(payload, 'listingId');
+  const shown =
+    str(payload, 'to') === 'live' &&
+    payload.firstLive === true &&
+    payload.full === true &&
+    payload.hidden !== true &&
+    str(payload, 'placement') === 'marketplace';
+  if (!shown || !listingId) return empty();
+  const matches = await ctx.savedSearchMatches(listingId);
+  if (matches.length === 0) return empty();
+  const title = await titleOf(ctx, listingId);
+  return {
+    ...empty(),
+    drafts: matches.map((match) => ({
+      recipients: [match.accountId],
+      category: 'saved_searches',
+      type: 'listing.saved_search.match',
+      title: `Tìm kiếm «${match.q}»`,
+      body: title ? `«${title}» khớp tìm kiếm của bạn.` : 'Có tin mới khớp tìm kiếm của bạn.',
+      data: { savedSearchId: match.searchId, listingId },
+      groupId: null,
+      alertable: true,
+      personal: false,
+      collapse: {
+        key: `saved-search:${match.searchId}`,
+        render: (count) => `${count} tin mới khớp tìm kiếm của bạn.`,
+        alertMinutes: 'notification.savedSearchAlertMinutes',
+      },
+    })),
+  };
+}
+
+/**
  * N43, N44 (change notify-listing-decisions): câu nhắc chỉ nói tin đang chờ — câu của máy (chung ba phần với dấu hiệu
  * gian lận, các điều tự sửa được, mã tra cứu) chỉ nằm trong `detail` xem trong app, như người đăng thấy trên tin.
  */
@@ -168,11 +205,12 @@ const merged = (...results: MatrixResult[]): MatrixResult => ({
  */
 export const LISTING_MATRIX: Record<string, Handler> = {
   async [LISTING_EVENTS.stateChanged](payload: Payload, ctx: MatrixContext) {
-    const [newInGroup, held] = await Promise.all([
+    const [newInGroup, held, searched] = await Promise.all([
       groupNewListing(payload, ctx),
       machineHeld(payload, ctx),
+      savedSearchMatch(payload, ctx),
     ]);
-    return merged(newInGroup, held);
+    return merged(newInGroup, held, searched);
   },
 
   // N32
