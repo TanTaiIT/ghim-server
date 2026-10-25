@@ -1,6 +1,7 @@
 # listing/saved-searches Specification
 
 ## Purpose
+
 Cho người đã đăng nhập lưu một lượt tìm trên sàn chung và được báo khi có tin mới khớp — báo theo luật của bảng tin,
 không theo luật tìm kiếm có từ khoá (TK 24, TK 15).
 
