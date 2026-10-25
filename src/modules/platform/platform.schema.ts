@@ -71,6 +71,32 @@ export const auditQuerySchema = paginationQuerySchema.extend({
   to: z.iso.datetime().optional(),
 });
 
+// ── TRỢ GIÚP ────────────────────────────────────────────────────────────────────────────────────
+
+const helpFaqSchema = z.object({
+  q: z.string().trim().min(1).max(200),
+  a: z.string().trim().min(1).max(2000),
+});
+
+/** Master gửi cả chủ đề một lượt: tên và mọi câu hỏi / đáp theo thứ tự hiện. */
+export const helpTopicBodySchema = z.object({
+  label: z.string().trim().min(1).max(80),
+  faqs: z.array(helpFaqSchema).min(1).max(30),
+});
+
+export const helpTopicSchema = z.object({
+  id: z.uuid(),
+  label: z.string(),
+  faqs: z.array(z.object({ q: z.string(), a: z.string() })),
+});
+
+/** Mã mọi chủ đề theo thứ tự mới — đúng bằng các chủ đề đang có. */
+export const helpOrderBodySchema = z.object({ ids: z.array(z.uuid()).min(1).max(100) });
+export const helpTopicParamsSchema = z.object({ id: z.uuid() });
+
+export type HelpTopicBody = z.infer<typeof helpTopicBodySchema>;
+export type HelpTopicDto = z.infer<typeof helpTopicSchema>;
+
 export const auditEntrySchema = z.object({
   id: z.uuid(),
   actorId: z.uuid(),

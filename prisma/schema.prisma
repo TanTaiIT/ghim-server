@@ -464,6 +464,19 @@ model ConfigVersion {
   @@map("config_versions")
 }
 
+/// Một chủ đề trợ giúp (add-help-content): master soạn trên bàn vận hành, ai cũng đọc, kể cả khách. Câu hỏi / đáp nằm trong
+/// `faqs` (mảng `{ q, a }`) — chủ đề luôn được đọc và sửa cả một lượt. `position` xếp chủ đề, nhỏ trước.
+model HelpTopic {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  label     String
+  position  Int
+  faqs      Json
+  updatedAt DateTime @map("updated_at") @db.Timestamptz(3)
+
+  @@index([position])
+  @@map("help_topics")
+}
+
 // ── CATEGORY: ENUM ───────────────────────────────────────────────────────────────────────────────
 
 enum CategoryStatus {

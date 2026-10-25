@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import type {
   AuditLog,
   ConfigVersion,
+  HelpTopic,
   PrismaClient,
   StaffPermission,
   StaffScope,
@@ -12,7 +13,14 @@ import type { OpsScope } from '../../common/auth/privilege-source.js';
 import { appendEvents } from '../../common/outbox/outbox.js';
 import { staffChangedEvent } from './platform.outbox.js';
 
-export type { AuditLog, ConfigVersion, StaffScope };
+export type { AuditLog, ConfigVersion, HelpTopic, StaffScope };
+
+/** Nội dung một chủ đề trợ giúp như master gửi — `faqs` đã qua schema, ghi nguyên vào cột jsonb. */
+export interface HelpTopicInput {
+  label: string;
+  faqs: { q: string; a: string }[];
+  at: Date;
+}
 
 export interface StaffGrantRow {
   status: StaffPermission['status'];
@@ -111,6 +119,16 @@ export interface PlatformRepository {
   createConfigVersion(input: ConfigChangeInput): Promise<ConfigVersion | null>;
 
   queryAudit(query: AuditQuery): Promise<Page<AuditLog>>;
+
+  // ── TRỢ GIÚP (add-help-content) ──
+  helpTopics(): Promise<HelpTopic[]>;
+  /** Chủ đề mới đứng cuối; nhật ký mang mã chủ đề vừa tạo. */
+  createHelpTopic(input: HelpTopicInput, audit: Omit<AuditEntry, 'targetId'>): Promise<HelpTopic>;
+  /** `null` = không có chủ đề này. */
+  updateHelpTopic(id: string, input: HelpTopicInput, audit: AuditEntry): Promise<HelpTopic | null>;
+  deleteHelpTopic(id: string, audit: AuditEntry): Promise<boolean>;
+  /** `false` = `ids` không đúng bằng các chủ đề đang có (thiếu, thừa, lặp) — không xếp gì. */
+  reorderHelpTopics(ids: string[], audit: AuditEntry): Promise<boolean>;
 }
 
 const withCategories = {
@@ -299,5 +317,49 @@ export function createPlatformRepository(prisma: PrismaClient): PlatformReposito
       ]);
       return { items, total };
     },
+
+    helpTopics: () => prisma.helpTopic.findMany({ orderBy: [{ position: 'asc' }, { id: 'asc' }] }),
+
+    createHelpTopic: ({ label, faqs, at }, audit) =>
+      prisma.$transaction(async (tx) => {
+        const { _max } = await tx.helpTopic.aggregate({ _max: { position: true } });
+        const row = await tx.helpTopic.create({
+          data: { label, faqs, position: (_max.position ?? -1) + 1, updatedAt: at },
+        });
+        await appendAudit(tx, { ...audit, targetId: row.id });
+        return row;
+      }),
+
+    updateHelpTopic: (id, { label, faqs, at }, audit) =>
+      prisma.$transaction(async (tx) => {
+        const { count } = await tx.helpTopic.updateMany({
+          where: { id },
+          data: { label, faqs, updatedAt: at },
+        });
+        if (count === 0) return null;
+        await appendAudit(tx, audit);
+        return tx.helpTopic.findUniqueOrThrow({ where: { id } });
+      }),
+
+    deleteHelpTopic: (id, audit) =>
+      prisma.$transaction(async (tx) => {
+        const { count } = await tx.helpTopic.deleteMany({ where: { id } });
+        if (count === 0) return false;
+        await appendAudit(tx, audit);
+        return true;
+      }),
+
+    reorderHelpTopics: (ids, audit) =>
+      prisma.$transaction(async (tx) => {
+        const current = await tx.helpTopic.findMany({ select: { id: true } });
+        const wanted = new Set(ids);
+        if (wanted.size !== ids.length || current.length !== ids.length) return false;
+        if (!current.every((row) => wanted.has(row.id))) return false;
+        await Promise.all(
+          ids.map((id, position) => tx.helpTopic.update({ where: { id }, data: { position } })),
+        );
+        await appendAudit(tx, audit);
+        return true;
+      }),
   };
 }
