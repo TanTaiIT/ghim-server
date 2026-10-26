@@ -10,7 +10,8 @@ tải, để điều người duyệt đã xem luôn đúng là điều người
 ### Requirement: Xin tải ảnh cho một chủ của mình
 
 Người dùng đã đăng nhập SHALL xin được quyền tải đúng một ảnh thẳng vào kho của hệ thống cho một chủ của chính
-mình: hồ sơ của mình, hay một tin của mình kể cả tin còn là nháp (tin nối vào từ `add-listings`). Quyền tải cấp cho
+mình: hồ sơ của mình, một tin của mình kể cả tin còn là nháp (tin nối vào từ `add-listings`), hay một hội thoại mình
+đang ở trong (`messaging/message-images`). Quyền tải cấp cho
 đúng người xin, và ảnh tải lên thuộc về chủ đã nêu ngay từ lúc tải. Một ảnh có đúng một chủ suốt đời.
 
 #### Scenario: Xin tải ảnh cho hồ sơ của mình
@@ -27,6 +28,11 @@ mình: hồ sơ của mình, hay một tin của mình kể cả tin còn là nh
 
 - **WHEN** người dùng xin tải ảnh cho hồ sơ của một tài khoản khác
 - **THEN** response có HTTP 404 `NOT_FOUND`, giống hệt khi chủ đó không tồn tại
+
+#### Scenario: Hội thoại mình không ở trong
+
+- **WHEN** người dùng xin tải ảnh cho một hội thoại giữa hai người khác
+- **THEN** response có HTTP 404 `NOT_FOUND`, giống hệt khi hội thoại không tồn tại
 
 ### Requirement: Giới hạn của một lượt tải
 

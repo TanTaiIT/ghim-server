@@ -30,7 +30,7 @@ chạy mỗi 6 giờ, nên ảnh bị xoá chậm nhất 6 giờ sau mốc 48 gi
 
 ### Requirement: Ảnh được dọn theo chủ
 
-Khi một chủ — hồ sơ, nháp, tin — bị xoá hẳn, mọi ảnh thuộc về nó SHALL bị xoá khỏi kho, kể cả ảnh còn mang nhãn
+Khi một chủ — hồ sơ, nháp, tin, hội thoại — bị xoá hẳn, mọi ảnh thuộc về nó SHALL bị xoá khỏi kho, kể cả ảnh còn mang nhãn
 "chưa xác nhận". Xoá mềm MUST NOT xoá ảnh. Khi nào chủ bị xoá hẳn do capability sở hữu chủ đó quyết định, không
 thuộc capability này.
 
@@ -43,6 +43,11 @@ thuộc capability này.
 
 - **WHEN** người dùng xoá tài khoản của mình và tài khoản đang trong thời gian chờ xoá hẳn
 - **THEN** ảnh đại diện của tài khoản vẫn còn trong kho
+
+#### Scenario: Hội thoại bị xoá thẳng khỏi DB
+
+- **WHEN** một hội thoại có ảnh đã mất khỏi DB mà ảnh của nó còn trong kho
+- **THEN** lượt đối chiếu kế tiếp xoá các ảnh đó
 
 ### Requirement: Đối chiếu kho ảnh hằng tháng
 
