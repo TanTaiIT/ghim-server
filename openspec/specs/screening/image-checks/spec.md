@@ -47,7 +47,8 @@ tính.
 
 ### Requirement: Danh sách trắng ảnh mẫu của hãng
 
-Staff và master SHALL thêm, gỡ được ảnh mẫu của hãng trong danh sách trắng. Ảnh trùng với một ảnh trong danh
+Staff và master SHALL xem, thêm, gỡ được ảnh mẫu của hãng trong danh sách trắng; danh sách SHALL kèm ảnh nguồn khi ảnh
+đó còn trong kho. Ảnh trùng với một ảnh trong danh
 sách trắng MUST NOT tính là ảnh trùng.
 
 #### Scenario: Hai người cùng dùng ảnh mẫu của hãng
@@ -66,6 +67,12 @@ sách trắng MUST NOT tính là ảnh trùng.
 
 - **WHEN** một tài khoản không mang quyền staff thêm ảnh vào danh sách trắng
 - **THEN** response có HTTP 403 `FORBIDDEN`
+
+#### Scenario: Staff xem danh sách trắng
+
+- **WHEN** staff mở danh sách trắng có một ảnh mẫu vừa thêm từ ảnh của một tin
+- **THEN** mục đó kèm đường xem mở được đúng ảnh nguồn; ảnh nguồn đã bị dọn khỏi kho thì đường xem là `null` và mục vẫn
+  chặn ảnh trùng
 
 ### Requirement: Mọi ảnh của lượt gửi đều được kiểm
 

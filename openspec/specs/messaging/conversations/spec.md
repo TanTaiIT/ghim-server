@@ -106,8 +106,8 @@ Người đăng tin MUST NOT mở hội thoại với tin của chính mình.
 
 ### Requirement: Gửi và đọc tin nhắn
 
-Mỗi bên của hội thoại SHALL gửi được tin nhắn cho bên kia và đọc được mọi tin nhắn của hội thoại theo thứ tự
-gửi.
+Mỗi bên của hội thoại SHALL gửi được tin nhắn cho bên kia — chữ, ảnh (`messaging/message-images`) hay cả hai — và đọc
+được mọi tin nhắn của hội thoại theo thứ tự gửi.
 
 #### Scenario: Gửi tin nhắn
 
@@ -116,7 +116,7 @@ gửi.
 
 #### Scenario: Tin nhắn rỗng
 
-- **WHEN** một bên gửi tin nhắn không có nội dung
+- **WHEN** một bên gửi tin nhắn không có chữ và không có ảnh
 - **THEN** response có HTTP 400 `VALIDATION_ERROR` và không tin nhắn nào được thêm
 
 ### Requirement: Hội thoại đã mở vẫn tiếp tục
