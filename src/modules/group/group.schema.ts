@@ -78,6 +78,7 @@ export const groupSettingsBodySchema = z
     allowOutsiders: z.boolean().optional(),
     showNameOnMarketplace: z.boolean().optional(),
     boardStyle: z.enum(GROUP_BOARD_STYLES).optional(),
+    manualReview: z.boolean().optional(),
   })
   .strict()
   .refine((value) => Object.keys(value).length > 0, { message: 'Cần ít nhất một cài đặt' });
@@ -140,6 +141,8 @@ export const groupProfileSchema = groupSummarySchema.extend({
   boardStyle: z.enum(GROUP_BOARD_STYLES),
   allowOutsiders: z.boolean(),
   showNameOnMarketplace: z.boolean(),
+  /** Mọi tin gửi mới và gửi lại vào nhóm chờ quản trị nhóm duyệt, kể cả khi máy cho qua (add-group-manual-review). */
+  manualReview: z.boolean(),
   code: z.string().nullable(),
   lockedReason: z.string().nullable(),
   units: z.array(unitSchema),

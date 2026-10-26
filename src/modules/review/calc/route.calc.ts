@@ -33,6 +33,8 @@ export interface RouteInput {
   unitId: string | null;
   /** Cài đặt danh mục "tin nhóm bị giữ do ai duyệt" — chỉ quyết việc hàng 0 (TK 11, 16). */
   groupReview: GroupReview;
+  /** Máy giữ chỉ vì nhóm bật duyệt tay: luôn về nhóm, bất kể cài đặt danh mục (add-group-manual-review). */
+  groupManual: boolean;
   escalated: boolean;
   /** Người đăng, người chuyển lên, người đã cho đạt, và tài khoản dùng chung máy với họ — master không bao giờ ở đây. */
   excluded: ReadonlySet<string>;
@@ -49,7 +51,7 @@ export interface Route {
 
 /**
  * Việc về tin nhóm đi theo chuỗi của nhóm khi: là mẫu hậu kiểm (hàng 5), là việc máy giữ (hàng 0) mà danh mục để
- * nhóm duyệt, hay là báo cáo loại thường (hàng 1). Báo cáo lừa đảo, hàng cấm luôn về staff — điều hành nhóm không
+ * nhóm duyệt hay chỉ vì nhóm bật duyệt tay, hay là báo cáo loại thường (hàng 1). Báo cáo lừa đảo, hàng cấm luôn về staff — điều hành nhóm không
  * thấy (TK 23); hàng 3, 4 và tin sàn luôn về staff danh mục (TK 16, spec review/queues).
  */
 function groupScoped(input: RouteInput): boolean {
@@ -57,7 +59,7 @@ function groupScoped(input: RouteInput): boolean {
   if (input.reasons.includes('report_severe')) return false;
   return (
     input.queue === 5 ||
-    (input.queue === 0 && input.groupReview === 'group') ||
+    (input.queue === 0 && (input.groupReview === 'group' || input.groupManual)) ||
     (input.queue === 1 && input.reasons.includes('report'))
   );
 }

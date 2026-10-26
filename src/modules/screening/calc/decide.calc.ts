@@ -44,9 +44,18 @@ export type Failure = Extract<ScreeningCause, 'error' | 'timeout'>;
 /**
  * Kết luận một lượt (design mục 5 bước 4): lỗi → cổng cứng đang bật → chất lượng ảnh (add-image-quality-checks: sau cổng
  * cứng để tin vừa dùng ảnh người khác vừa mờ vẫn tính dò, trước luôn duyệt tay để lý do ghi lại là thứ người đăng tự sửa
- * được) → luôn duyệt tay → đánh dấu thiết bị → ma trận dải × mức tin cậy. Máy không bao giờ từ chối (TK 13). `tier` `null` = chấm chữ lỗi, không đọc được mức — đi cùng `failure`.
+ * được) → luôn duyệt tay → đánh dấu thiết bị → ma trận dải × mức tin cậy → nhóm bật duyệt tay (add-group-manual-review:
+ * chỉ đổi lượt máy cho qua, lý do giữ của chính máy vẫn ghi đúng). Máy không bao giờ từ chối (TK 13). `tier` `null` = chấm
+ * chữ lỗi, không đọc được mức — đi cùng `failure`.
  */
-export function decide(input: {
+export function decide(
+  input: Parameters<typeof machineDecide>[0] & { groupManual: boolean },
+): Decision {
+  const decision = machineDecide(input);
+  return input.groupManual && decision.outcome !== 'hold' ? hold('group_manual') : decision;
+}
+
+function machineDecide(input: {
   failure: Failure | null;
   hits: readonly AppliedHit[];
   alwaysManual: boolean;
@@ -99,6 +108,7 @@ export function conclude(input: {
   tier: TrustTier | null;
   struck: boolean;
   placement: ListingPlacement;
+  groupManual: boolean;
   /** Ảnh của lượt theo thứ tự trong tin — câu báo nói ảnh thứ mấy. */
   imageIds: readonly string[];
 }): Verdict {

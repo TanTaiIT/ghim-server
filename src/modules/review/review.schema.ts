@@ -63,6 +63,8 @@ export const taskItemSchema = z.object({
   title: z.string().nullable(),
   queue: z.number().int(),
   reasons: z.array(z.enum(REVIEW_REASONS)),
+  /** Máy giữ chỉ vì nhóm bật duyệt tay: cho đạt không cần chọn "máy đúng" hay "máy quá tay" (add-group-manual-review). */
+  groupManual: z.boolean(),
   dueAt: iso,
   overdue: z.boolean(),
   /** Bậc đang giữ việc theo chuỗi TK 16 — master thấy việc đang ở chỗ ai. */

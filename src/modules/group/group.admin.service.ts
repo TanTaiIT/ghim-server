@@ -518,6 +518,7 @@ export function createGroupAdminService(
           ...(input.showNameOnMarketplace !== undefined
             ? { showNameOnMarketplace: input.showNameOnMarketplace }
             : {}),
+          ...(input.manualReview !== undefined ? { manualReview: input.manualReview } : {}),
         };
         const events: OutboxEventInput[] = [];
         if (plan?.kind === 'immediate') {

@@ -98,7 +98,8 @@ không có báo cáo lừa đảo / hàng cấm, báo cáo về người, báo c
 { "outcome": "keep", "appeal": { "verdict": "won" } }
 ```
 
-- `pass` — tin máy giữ lên bảng (bắt buộc `machineJudgment`: `machine_right` / `machine_overreach`); tin đang hiện giữ
+- `pass` — tin máy giữ lên bảng (bắt buộc `machineJudgment`: `machine_right` / `machine_overreach`, trừ việc có
+  `groupManual: true` — máy đã cho qua, giữ chỉ vì nhóm bật duyệt tay; gửi kèm thì bị bỏ qua); tin đang hiện giữ
   nguyên, gỡ lý do hạn chế "máy".
 - `mistake` — kèm lý do mẫu: tin chờ duyệt thành bị từ chối, tin đang hiện thành bị gỡ; người đăng thấy lý do. Không
   đổi gì trên tài khoản người đăng.
@@ -143,7 +144,7 @@ N36 (change `add-trust-notices`): tin trong nhóm bị máy giữ mà việc và
 được việc đó nhận thông báo `group.review.pending`, nhóm "nhóm của bạn", có nhắc, `data { groupId }` — mở hàng chờ của
 nhóm (`/groups/{groupId}/review/tasks`). Mỗi người một dòng gộp theo nhóm: chưa đọc thì câu cập nhật theo số tin đang
 chờ **hiện tại** trong phạm vi của người đó ("«Lớp 12A1» có 3 tin chờ duyệt."), nhắc lại tối đa mỗi 30 phút. Không báo
-việc do sàn duyệt (danh mục đặt `groupReview: platform`), không báo người đăng về tin của chính mình, không nêu lý do
+việc do sàn duyệt (danh mục đặt `groupReview: platform`, trừ tin giữ vì nhóm bật duyệt tay — việc đó luôn về nhóm), không báo người đăng về tin của chính mình, không nêu lý do
 máy giữ hay tên người đăng. Tắt tiếng nhóm thì thôi nhắc.
 
 ## Thông báo cho master

@@ -186,6 +186,7 @@ export function createConclusion(shared: ScreeningShared) {
       deviceFlagged: (ok?.deviceFlags.length ?? 0) > 0,
       tier: ok?.tier ?? null,
       placement: text.placement,
+      groupManual: ok?.groupManual ?? false,
       imageIds: run.imageIds,
     });
     const now = clock();

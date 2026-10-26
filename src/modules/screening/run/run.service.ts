@@ -122,6 +122,7 @@ export function createRunService(
       bands: bandThresholds(config),
       imageMaxDistance: config.get('screening.imageDuplicateMaxDistance'),
       imageQuality: qualityLimits(config),
+      groupManual: input.groupManual,
     };
   };
 

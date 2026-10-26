@@ -16,6 +16,7 @@ const run = (
     alwaysManual?: boolean;
     deviceFlagged?: boolean;
     struck?: boolean;
+    groupManual?: boolean;
     book?: RuleBook;
     imageIds?: string[];
   } = {},
@@ -30,6 +31,7 @@ const run = (
     struck: options.struck ?? false,
     tier: options.tier ?? 'T2',
     placement: options.placement ?? 'marketplace',
+    groupManual: options.groupManual ?? false,
     imageIds: options.imageIds ?? [],
   });
 const outcomeOf = (...args: Parameters<typeof run>) => {
@@ -93,6 +95,7 @@ describe('Thứ tự kết luận', () => {
         band: 'low',
         tier: null,
         placement: 'members_only',
+        groupManual: false,
       }),
     ).toMatchObject({ outcome: 'hold', cause: 'error' });
   });
@@ -239,11 +242,45 @@ describe('decide trực tiếp', () => {
         band: 'low',
         tier: 'T2',
         placement: 'marketplace',
+        groupManual: false,
       }),
     ).toEqual(FULL);
   });
 
   it('chỉ giữ vì điểm hay cổng cứng mới đếm vào "bị giữ nhiều"', () => {
     expect(HELD_MANY_CAUSES).toEqual(['score', 'gate']);
+  });
+});
+
+describe('Nhóm bật duyệt tay (add-group-manual-review)', () => {
+  const GROUP_HOLD = { outcome: 'hold', cause: 'group_manual', restrictMachine: false };
+
+  it('máy cho qua đầy đủ, hạn chế hay hạn chế vì máy: đều giữ cho quản trị nhóm', () => {
+    expect(outcomeOf([], { tier: 'T3', placement: 'members_only', groupManual: true })).toEqual(
+      GROUP_HOLD,
+    );
+    expect(outcomeOf([], { tier: 'T0', placement: 'group_public', groupManual: true })).toEqual(
+      GROUP_HOLD,
+    );
+    expect(outcomeOf(SCORE_45, { tier: 'T1', groupManual: true })).toEqual(GROUP_HOLD);
+  });
+
+  it('máy tự giữ thì lý do của máy ghi nguyên', () => {
+    expect(outcomeOf(SCORE_75, { groupManual: true })).toEqual(HOLD_SCORE);
+    expect(outcomeOf([], { failure: 'error', groupManual: true }).cause).toBe('error');
+    expect(outcomeOf([], { alwaysManual: true, groupManual: true }).cause).toBe('always_manual');
+  });
+
+  it('câu báo thường, không lộ luật gian lận trúng nhẹ', () => {
+    const verdict = run(['off_platform_contact'], { groupManual: true });
+    expect(verdict.explanation).toEqual({
+      kind: 'plain',
+      group: true,
+      fixable: ['off_platform_contact'],
+    });
+  });
+
+  it('không đếm vào "bị giữ nhiều"', () => {
+    expect(HELD_MANY_CAUSES).not.toContain('group_manual');
   });
 });

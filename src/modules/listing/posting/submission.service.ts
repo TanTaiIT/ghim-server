@@ -140,6 +140,7 @@ export const screeningInput = (input: {
   kind: ListingSubmissionKind;
   deviceHash: string;
   after: ListingFields;
+  groupManual?: boolean;
 }): ScreeningSubmission => ({
   listingId: input.listingId,
   accountId: input.actor.accountId,
@@ -151,6 +152,7 @@ export const screeningInput = (input: {
   categoryId: input.after.categoryId ?? '',
   placement: input.after.placement ?? 'marketplace',
   imageIds: input.after.imageIds,
+  groupManual: input.groupManual ?? false,
 });
 
 /**
@@ -274,6 +276,19 @@ export function createSubmission(shared: ListingShared) {
     after.groupId !== null &&
     !(await groups.membersAmong(after.groupId, [accountId])).has(accountId);
 
+  /**
+   * Công tắc duyệt tay của nhóm chỉ áp cho tin gửi mới và gửi lại (tin bị từ chối, bị gỡ, đang chờ); sửa tin đang hiện
+   * và gia hạn chỉ qua máy (add-group-manual-review). Đọc ngoài transaction như lượt chấm: chủ nhóm đổi công tắc giữa
+   * chừng thì lượt này theo giá trị lúc chấm.
+   */
+  const groupManualOf = async (input: SubmissionInput): Promise<boolean> => {
+    const { kind, listing, after } = input;
+    if (after.placement === 'marketplace' || !after.groupId) return false;
+    if (kind !== 'submit' && kind !== 'resubmit') return false;
+    if (kind === 'resubmit' && listing.state === 'live') return false;
+    return (await groups.findGroup(after.groupId))?.manualReview ?? false;
+  };
+
   const submit = async (input: SubmissionInput): Promise<Listing | null> => {
     const { actor, listing, after } = input;
     const deviceHash = await assertCanPost(actor, input.deviceId, input.kind);
@@ -282,7 +297,14 @@ export function createSubmission(shared: ListingShared) {
     });
     const owner = { kind: 'listing' as const, id: listing.id };
     const score = await screening.scoreText(
-      screeningInput({ listingId: listing.id, actor, kind: input.kind, deviceHash, after }),
+      screeningInput({
+        listingId: listing.id,
+        actor,
+        kind: input.kind,
+        deviceHash,
+        after,
+        groupManual: await groupManualOf(input),
+      }),
     );
     await media.resolve({ owner, uploaderId: actor.accountId, imageIds: after.imageIds });
     const now = clock();
