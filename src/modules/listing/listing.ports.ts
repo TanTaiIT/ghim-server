@@ -61,6 +61,8 @@ export interface ScreeningSubmission {
   categoryId: string;
   placement: ListingPlacement;
   imageIds: string[];
+  /** Nhóm của tin bật duyệt tay và lượt này là gửi mới hay gửi lại: máy cho qua vẫn giữ cho người (add-group-manual-review). */
+  groupManual: boolean;
 }
 
 /** Câu báo của máy cho người đăng (spec screening/explanations) — `screening` soạn, `listing` chỉ hiện. */

@@ -32,6 +32,7 @@ describe('Cổng tạm', () => {
         categoryId: 'c',
         placement: 'marketplace',
         imageIds: [],
+        groupManual: false,
       }),
     ).toBeNull();
   });

@@ -142,6 +142,7 @@ export function createReviewShared(deps: ReviewServiceDeps) {
         groupId: task.groupId,
         unitId: task.unitId,
         groupReview: (task.categoryId && groupReview.get(task.categoryId)) || 'group',
+        groupManual: task.groupManual,
         escalated: task.escalatedAt !== null,
         excluded: new Set(task.excludedIds),
         group: (task.groupId && groups.get(task.groupId)) || null,

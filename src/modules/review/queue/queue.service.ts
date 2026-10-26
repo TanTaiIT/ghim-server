@@ -157,7 +157,8 @@ const pendingOf = (strike: StrikeDetailDto, now: Date): AddStrikeReason | null =
  * do và lấy hạn sớm nhất; bỏ lý do không kéo dài hạn; hết lý do thì huỷ.
  */
 export function createQueueService(shared: ReviewShared): ReviewQueueService {
-  const { repository, listings, groups, trust, clock, deadlines, withSharedDevices } = shared;
+  const { repository, listings, groups, trust, screening, clock, deadlines, withSharedDevices } =
+    shared;
 
   /**
    * Mọi lượt ghi việc khoá dòng tin trước rồi mới tới việc — cùng thứ tự với lượt đổi tin chạy hook `after`. Lượt ghi
@@ -191,6 +192,10 @@ export function createQueueService(shared: ReviewShared): ReviewQueueService {
         ? { escalatedBy: input.escalation.by, escalationNote: input.escalation.note }
         : {}),
       ...(input.sampledDecisionId ? { sampledDecisionId: input.sampledDecisionId } : {}),
+      // Đọc lại mỗi lần máy giữ: lượt máy của bản sửa thay cờ của lượt trước (add-group-manual-review).
+      ...(input.reason === 'machine_hold'
+        ? { groupManual: (await screening.runOf(listingId))?.cause === 'group_manual' }
+        : {}),
     };
     // N36: chỉ lượt việc CHUYỂN vào hàng máy giữ — gộp thêm lý do vào việc đã ở hàng 0, chạy lại `backfill` thì im, để
     // quản trị nhóm không bị nhắc lại cho cùng một việc.

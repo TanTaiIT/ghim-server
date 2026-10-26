@@ -110,6 +110,7 @@ export function createDeskService(shared: ReviewShared): ReviewDeskService {
         : (names.get(subjectAccount(task) ?? '') ?? null),
       queue: task.queue,
       reasons: task.reasons,
+      groupManual: task.groupManual,
       dueAt: task.dueAt.toISOString(),
       overdue: task.dueAt <= now,
       level: route.level,

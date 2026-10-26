@@ -32,6 +32,7 @@ const input = (overrides: Partial<RouteInput> = {}): RouteInput => ({
   groupId: null,
   unitId: null,
   groupReview: 'group',
+  groupManual: false,
   escalated: false,
   excluded: new Set(),
   group: null,
@@ -113,6 +114,21 @@ describe('Tin trong nhóm', () => {
 
   it('danh mục đặt "tin nhóm bị giữ do sàn duyệt" → staff, kể cả tin "chỉ thành viên"', () => {
     expect(routeOf(inGroup({ groupReview: 'platform' })).level).toBe('category_staff');
+  });
+
+  it('nhóm bật duyệt tay: máy giữ chỉ vì công tắc thì về nhóm, kể cả danh mục do sàn duyệt', () => {
+    expect(routeOf(inGroup({ groupReview: 'platform', groupManual: true })).level).toBe(
+      'unit_moderators',
+    );
+    // Người đăng là điều hành duy nhất của lớp: chuỗi của nhóm đi tiếp, chủ nhóm vẫn xử (add-group-manual-review).
+    expect(
+      routeOf(
+        inGroup({
+          groupManual: true,
+          excluded: new Set(['mod-10a', 'mod-10a-2', 'mod-whole']),
+        }),
+      ),
+    ).toEqual({ level: 'group_owner', handlers: ['owner'] });
   });
 
   it('mức rủi ro không quyết ai xử: danh mục để nhóm duyệt thì điều hành nhóm xử', () => {

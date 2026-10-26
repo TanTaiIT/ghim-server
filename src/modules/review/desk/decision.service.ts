@@ -246,7 +246,9 @@ export function createDecisionService(
       screening.runOf(subject.id),
       trust.tierOf(subject.ownerId),
     ]);
-    return { machineOutcome: run?.outcome ?? null, machineHits: run?.hits ?? [], tier };
+    // Giữ chỉ vì nhóm bật duyệt tay: luật trúng nhẹ không làm máy giữ, không tính cho "máy quá tay" (add-group-manual-review).
+    const machineHits = run?.cause === 'group_manual' ? [] : (run?.hits ?? []);
+    return { machineOutcome: run?.outcome ?? null, machineHits, tier };
   };
 
   /** Đổi tin theo kết quả; `after` chạy trong transaction đó. Không đổi tin (bác) thì vẫn một transaction riêng. */
@@ -727,7 +729,8 @@ export function createDecisionService(
       if (outcome === 'pass' && escalated && !machineHeld) {
         throw outcomeNotAllowed('Việc nhóm chuyển lên chỉ bác được, hoặc gỡ vì sai sót / vi phạm');
       }
-      if (outcome === 'pass' && task.reasons.includes('machine_hold') && !body.machineJudgment) {
+      const judged = task.reasons.includes('machine_hold') && !task.groupManual;
+      if (outcome === 'pass' && judged && !body.machineJudgment) {
         throw invalid('Cho đạt tin máy giữ thì chọn "máy đúng" hay "máy quá tay"');
       }
       if (outcome === 'keep' && task.reasons.includes('machine_hold')) {
@@ -808,7 +811,7 @@ export function createDecisionService(
             reasonTemplateId: template?.id ?? null,
             reasonText: faultReason,
             note: body.note ?? null,
-            machineJudgment: outcome === 'pass' ? (body.machineJudgment ?? null) : null,
+            machineJudgment: outcome === 'pass' && judged ? (body.machineJudgment ?? null) : null,
             machineOutcome: facts.machineOutcome,
             machineHits: facts.machineHits,
             taskReasons: task.reasons,

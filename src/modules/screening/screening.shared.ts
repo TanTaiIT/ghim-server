@@ -93,6 +93,8 @@ export type TextResult =
       imageMaxDistance: number;
       /** Trống ở lượt mở trước add-image-quality-checks: lượt đó không xét chất lượng ảnh. */
       imageQuality?: QualityLimits;
+      /** Nhóm bật duyệt tay lúc chấm (add-group-manual-review); trống ở lượt mở trước change đó. */
+      groupManual?: boolean;
     }
   | {
       status: 'error';

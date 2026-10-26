@@ -15,6 +15,7 @@ const CAUSES = [
   'device',
   'error',
   'timeout',
+  'group_manual',
 ] as const;
 const BANDS = ['low', 'medium', 'high'] as const;
 const TIERS = ['T0', 'T1', 'T2', 'T3'] as const;

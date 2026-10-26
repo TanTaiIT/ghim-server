@@ -19,6 +19,8 @@ export type Explanation = {
   fixable: RuleCode[];
   /** Vị trí (từ 1) các ảnh trúng mỗi lỗi ảnh; không có ở câu lưu trước add-image-quality-checks. */
   images?: Partial<Record<QualityCode, number[]>>;
+  /** Giữ chỉ vì nhóm bật duyệt tay (add-group-manual-review). */
+  group?: true;
 };
 
 export function explain(input: {
@@ -42,6 +44,8 @@ export function explain(input: {
   if (input.outcome === 'pass_limited') {
     return fixable.length > 0 ? { kind: 'limited', ...withImages } : null;
   }
+  // Máy đã cho qua: câu thường, không lộ luật gian lận nào trúng nhẹ (add-group-manual-review).
+  if (input.cause === 'group_manual') return { kind: 'plain', group: true, ...withImages };
   const fraud =
     input.recall || input.cause === 'device' || live.some((code) => FRAUD_CODES.has(code));
   return { kind: fraud ? 'fraud' : 'plain', ...withImages };
@@ -124,7 +128,9 @@ export function renderExplanation(
     case 'plain':
       return {
         kind: 'plain',
-        message: `Tin đang chờ người duyệt, thường trong ${holdHours} giờ`,
+        message: explanation.group
+          ? `Nhóm duyệt mọi tin trước khi hiện — tin đang chờ quản trị nhóm, thường trong ${holdHours} giờ`
+          : `Tin đang chờ người duyệt, thường trong ${holdHours} giờ`,
         estimatedWait: wait,
         lookupCode: null,
         fixes,
