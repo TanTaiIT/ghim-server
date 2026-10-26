@@ -135,10 +135,14 @@ Không phải việc dở — ghi để lần sau khỏi dò lại.
 
 ## 8. App `ghim-app` còn chờ server
 
-Lộ ra khi nối app với server (18–21/10/2026): app ẩn phần đó, đọc dữ liệu mẫu, hoặc ghi "Chưa có API". Việc nào thuộc
-phần **Hoãn lại** của TK 29 thì là quyết định sản phẩm, ghi ra để biết app đang chờ gì.
+Đối chiếu 26/10/2026 toàn bộ OpenAPI của server với các hàm app gọi: mọi route đã có màn, trừ các dòng dưới đây. Hai
+route không cần màn riêng — `GET /me/strikes` (màn Cảnh cáo đọc cùng dữ liệu qua `/me/trust`) và `GET /me/group-badges`
+(chọn huy hiệu khi đăng tin dùng cờ `badgeEligible` của danh sách nhóm của tôi). App không còn dữ liệu mẫu; phần chưa
+có thì ẩn hay ghi "Chưa có API". Việc thuộc phần **Hoãn lại** của TK 29 là quyết định sản phẩm, ghi ra để biết app chờ gì.
 
-| Việc                                                                          | Hiện trạng ở server                                                                                                                                                                                                                                                      |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Đánh giá người bán, số giao dịch, thời gian phản hồi, lượt xem, tình trạng đồ | Chưa có trường nào — đánh giá người bán hoãn ở TK 29; app ẩn khi null                                                                                                                                                                                                    |
-| Bàn vận hành: doanh thu                                                       | Danh bạ tài khoản `GET /ops/accounts`, `/ops/accounts/:id` (change `add-ops-account-directory`, 24/10/2026); số theo ngày `GET /ops/stats/daily` (`add-ops-daily-stats`); còn `/ops/review/stats/*`, `/ops/jobs/runs`, khoá / mở khoá — chưa doanh thu (chờ gói đẩy tin) |
+| Việc                                                                          | Hiện trạng                                                                                                                                                                                 |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Đánh giá người bán, số giao dịch, thời gian phản hồi, lượt xem, tình trạng đồ | Server chưa có trường nào — đánh giá người bán hoãn ở TK 29; app ẩn khi null                                                                                                               |
+| Đẩy tin, ví Xu, doanh thu trên bàn vận hành                                   | Chờ `add-promotions`, `add-wallet` (mục 1). App giữ chỗ: màn "Đẩy tin & gói" ghi "Chưa có API", nút "Đẩy tin" báo "sẽ có", tab "Khuyến mãi" ẩn                                             |
+| Đăng nhập Google                                                              | Server có `POST /auth/google`; app chưa làm — cần OAuth client ID (`GOOGLE_CLIENT_IDS`) và development build (Expo Go không chạy thư viện Google gốc)                                      |
+| Thông báo đẩy trên máy                                                        | Server có `PUT` / `DELETE /me/push-token`; app gỡ 26/10/2026 vì Expo Go trên Android thiếu module của `expo-notifications` (app chết lúc mở). Làm lại khi có development build — xem mục 5 |

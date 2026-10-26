@@ -49,16 +49,16 @@ Lỗi mạng thì client tự nối lại như thường.
 
 ## Sự kiện server → app
 
-| Sự kiện                | Payload                                          | Ý nghĩa                                                                                                                                                        |
-| ---------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `notification:new`     | `{ notification: Notification, alert: boolean }` | Dòng mới trong hộp thư                                                                                                                                         |
-| `notification:updated` | `{ notification: Notification, alert: boolean }` | Dòng gộp chưa đọc vừa cập nhật (vd "3 đơn xin vào") — thay dòng cùng `id`, đưa lên đầu                                                                         |
-| `notification:unread`  | `{ count: number }`                              | Số chưa đọc mới — sau khi có thông báo, và sau mỗi lần đánh dấu đã đọc (tới **mọi máy** của tài khoản, nên đọc trên điện thoại thì máy tính bảng cũng giảm số) |
-| `me:groups-changed`    | `{ groupId: string }`                            | Tư cách hay vai của bạn ở nhóm này vừa đổi (vào, rời, bị gỡ, đổi đơn vị, làm chủ…) — tải lại "nhóm của tôi"                                                    |
-| `group:pending`        | `{ groupId: string, joinRequests: number }`      | Chỉ quản trị nhóm: số đơn xin vào đang chờ                                                                                                                     |
-| `message:new`          | `{ conversationId: string, messageId: string }`  | Tin nhắn mới trong một hội thoại của bạn (add-messaging) — tải lại hội thoại qua HTTP; chưa có dòng hộp thư (`add-notifications`)                              |
-| `message:updated`      | `{ conversationId: string, messageId: string }`  | Một tin nhắn đã có vừa đổi — người bán vừa trả lời đề nghị giá của bạn (add-price-offers); tải lại tin nhắn đó qua HTTP                                        |
-| `support:pending`      | `{ count: number }`                              | Chỉ staff đang mang quyền "hỗ trợ người dùng": số hội thoại hỗ trợ đang chờ đội trả lời vừa đổi (add-team-conversations) — tải lại hàng hỗ trợ                 |
+| Sự kiện                | Payload                                          | Ý nghĩa                                                                                                                                                                             |
+| ---------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `notification:new`     | `{ notification: Notification, alert: boolean }` | Dòng mới trong hộp thư                                                                                                                                                              |
+| `notification:updated` | `{ notification: Notification, alert: boolean }` | Dòng gộp chưa đọc vừa cập nhật (vd "3 đơn xin vào") — thay dòng cùng `id`, đưa lên đầu                                                                                              |
+| `notification:unread`  | `{ count: number }`                              | Số chưa đọc mới — sau khi có thông báo, và sau mỗi lần đánh dấu đã đọc (tới **mọi máy** của tài khoản, nên đọc trên điện thoại thì máy tính bảng cũng giảm số)                      |
+| `me:groups-changed`    | `{ groupId: string }`                            | Tư cách hay vai của bạn ở nhóm này vừa đổi (vào, rời, bị gỡ, đổi đơn vị, làm chủ…) — tải lại "nhóm của tôi"                                                                         |
+| `group:pending`        | `{ groupId: string, joinRequests: number }`      | Chỉ quản trị nhóm: số đơn xin vào đang chờ                                                                                                                                          |
+| `message:new`          | `{ conversationId: string, messageId: string }`  | Tin nhắn mới trong một hội thoại của bạn (add-messaging) — tải lại hội thoại qua HTTP; dòng hộp thư nhóm `messages` (tin của Hỗ trợ Ghim: `support`) đến riêng qua `notification:*` |
+| `message:updated`      | `{ conversationId: string, messageId: string }`  | Một tin nhắn đã có vừa đổi — người bán vừa trả lời đề nghị giá của bạn (add-price-offers); tải lại tin nhắn đó qua HTTP                                                             |
+| `support:pending`      | `{ count: number }`                              | Chỉ staff đang mang quyền "hỗ trợ người dùng": số hội thoại hỗ trợ đang chờ đội trả lời vừa đổi (add-team-conversations) — tải lại hàng hỗ trợ                                      |
 
 `Notification` giống hệt một phần tử của `GET /me/notifications`:
 
@@ -89,7 +89,7 @@ chuyện gì xảy ra, điều luật / hạn / hệ quả nằm trong `detail`:
 | `trust.appeal.decided`        | Khiếu nại có kết quả (thắng / thua)                            | có    | `{ strikeId, listingId }` |
 | `trust.strike.cancelled`      | Gậy được ân xá, hay master huỷ gậy nghiêm trọng                | có    | `{ strikeId, listingId }` |
 | `trust.strike.decided`        | Master quyết gậy nghiêm trọng: khoá vĩnh viễn, hạ thành nặng   | có    | `{ strikeId, listingId }` |
-| `trust.strike.lifted`         | Khoá vĩnh viễn được gỡ khi xem lại                             | có    | `{ strikeId, listingId }` |
+| `trust.strike.lifted`         | Khoá vĩnh viễn được gỡ — khi xem lại, hay master gỡ thẳng      | có    | `{ strikeId, listingId }` |
 | `trust.strike.expired`        | Gậy hết hạn (kèm "đã đăng tin lại được" khi hết khoá đăng tin) | không | `{ strikeId, listingId }` |
 | `trust.tier.raised`           | Lên mức tin cậy                                                | không | `{}`                      |
 | `trust.tier.lowered`          | Xuống mức tin cậy                                              | có    | `{}`                      |

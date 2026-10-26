@@ -26,12 +26,18 @@ Quá 5 phút chưa đủ kết quả ảnh thì tin chuyển sang chờ người
 
 Mỗi ảnh được đo một lần (dHash để so trùng, cùng cỡ, độ nét, độ sáng). Máy **không kiểm nội dung ảnh** (chốt
 24/10/2026). Ảnh hỏng (không mở được) luôn làm tin bị giữ. Bốn luật chất lượng — quá nhỏ, mờ, quá tối, quá sáng — giữ tin
-cho người khi master bật, chạy thử hay tắt được trên bàn vận hành, và không tính là dò cổng cứng. Ngưỡng nằm trong bảng
+cho người khi master bật, chạy thử hay tắt được trên bàn vận hành (chung, hay riêng từng danh mục), và không tính là dò
+cổng cứng. Ngưỡng nằm trong bảng
 con số (`screening.imageMinShortSide` 480, `imageMinSharpness` 20, `imageMinBrightness` 25, `imageMaxBrightness` 235).
 
 App chặn ảnh quá nhỏ **trước khi tải lên**: phiếu tải ảnh (`POST /api/v1/media/uploads`) trả `minShortSide` — cạnh
 ngắn của ảnh (sau khi xoay theo EXIF) dưới số này thì báo người dùng chọn ảnh khác, không tải. Độ nét, độ sáng chỉ server
 đo; tin trúng thì `machineNotice.fixes` nói ảnh nào cần thay.
+
+Ảnh **tin nhắn** (add-message-images) qua cùng bốn luật chất lượng và ngưỡng, nhưng đo ngay lúc gửi và chỉ theo chế độ
+chung của luật (không theo danh mục): luật đang bật thì ảnh trúng làm tin nhắn không gửi được — `400
+MESSAGE_IMAGE_REJECTED` với đúng câu sửa ở dưới ("Ảnh 2 quá nhỏ…"); ảnh hỏng luôn bị chặn; luật chạy thử như không có.
+Không so trùng ảnh tin nhắn. Chi tiết ở `docs/messaging.md`.
 
 ## Câu báo trên tin của mình: `machineNotice`
 
@@ -90,3 +96,22 @@ Hiện `message`, giữ nháp nguyên vẹn, mở lại nút Đăng từ `detail
 
 Tên hiển thị chứa cụm từ cấm mức chắc thì người khác thấy **"Người dùng Ghim"** ở mọi chỗ hiện tên. Chủ tài khoản vẫn
 thấy tên mình: `GET /api/v1/me` có `nameHidden: true` — app nhắc đổi tên (`PATCH /api/v1/me`).
+
+## Bàn vận hành — `/api/v1/ops/screening`
+
+Luật, dải, cụm từ cấm và số liệu chỉ master; danh sách trắng ảnh mọi staff; từ khoá danh mục master và staff của danh mục
+đó; tra mã staff có việc `support`. Mỗi lần đổi luật, ghi đè, dải hay cụm tạo một phiên bản luật mới, có hiệu lực ở lượt
+chấm kế tiếp, và vào nhật ký thao tác.
+
+| Route                                                            | Việc                                                                                                                                                                    |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /rules`                                                     | Phiên bản luật hiện hành: `rules[]` (`code`, `label`, `kind` `signal` / `gate` / `quality`, `weight`, `mode`), `overrides[]`, `bands[]`, `defaultBands`                 |
+| `PATCH /rules/{code}`                                            | `{ weight?, mode? }` (ít nhất một) — `mode` là `on` / `trial` / `off`; cổng cứng không tắt được (`400 VALIDATION_ERROR`)                                                |
+| `PUT /rules/{code}/categories/{categoryId}`, `DELETE` cùng đường | Ghi đè trọng số hay chế độ của một luật cho một danh mục; `DELETE` bỏ ghi đè, danh mục dùng lại giá trị chung                                                           |
+| `PUT /bands/{categoryId}`                                        | `{ mediumFrom, highFrom }` — ngưỡng dải Vừa / Cao riêng cho một danh mục (`mediumFrom < highFrom`)                                                                      |
+| `GET /phrases`, `POST /phrases`, `PATCH /phrases/{id}`           | Cụm từ cấm, mới nhất trước; thêm `{ text, level, exceptions? }` (`level` `certain` / `ambiguous`) bắt đầu ở chạy thử; sửa mức hay ngoại lệ                              |
+| `POST /phrases/{id}/activate`, `POST /phrases/{id}/deactivate`   | Bật thật — chưa đủ ngày chạy thử thì bắt buộc `{ reason }`; cụm mức chắc thì quét lại tin đang hiển thị. Tắt — tin đang chờ vì cụm vẫn chờ                              |
+| `GET /whitelist`, `POST /whitelist`, `DELETE /whitelist/{id}`    | Ảnh mẫu của hãng không tính là ảnh trùng; thêm `{ imageId }` của một ảnh trong kho; mỗi mục có `url` ảnh nguồn (`null` khi ảnh đã bị dọn — mục vẫn chặn trùng)          |
+| `GET /categories/{categoryId}/keywords`, `PUT` cùng đường        | Bộ từ khoá suy ra danh mục (dấu hiệu "sai danh mục"): đọc bộ đang dùng (đã bỏ dấu như lúc so), `PUT { keywords }` thay cả bộ                                            |
+| `GET /lookups/{code}`                                            | Lý do cụ thể của một lần giữ theo `lookupCode` cho hỗ trợ — luật, cụm, ảnh đã trúng, loại đánh dấu theo thiết bị; không có dấu thiết bị                                 |
+| `GET /stats?months=`                                             | Số liệu theo tháng (mặc định 12, tối đa 24): số lượt, cho qua đầy đủ / hạn chế / giữ, dải Thấp / Vừa / Cao, 5 luật trúng nhiều nhất — cộng cả số đã gộp khi hết hạn lưu |

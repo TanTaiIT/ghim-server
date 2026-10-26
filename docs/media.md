@@ -39,8 +39,8 @@ thiết kế ở `openspec/changes/archive/2026-10-11-add-media/design.md` và, 
    }
    ```
 
-   `minShortSide`: cạnh ngắn tối thiểu (điểm ảnh, sau khi xoay theo EXIF) mà máy duyệt áp cho ảnh của tin. Ảnh nhỏ
-   hơn thì báo người dùng chọn ảnh khác thay vì tải (xem `docs/screening.md`). Ảnh đại diện không bị kiểm chất lượng.
+   `minShortSide`: cạnh ngắn tối thiểu (điểm ảnh, sau khi xoay theo EXIF) mà máy duyệt áp cho ảnh của tin và ảnh tin
+   nhắn. Ảnh nhỏ hơn thì báo người dùng chọn ảnh khác thay vì tải (xem `docs/screening.md`). Ảnh đại diện không bị kiểm chất lượng.
 
 3. **Tải lên** theo `upload.method`:
    - `POST` (Cloudinary): gửi **biểu mẫu multipart** tới `upload.url` gồm **đúng nguyên văn** mọi cặp trong
@@ -68,7 +68,8 @@ DELETE /api/v1/me/avatar                            ← bỏ ảnh
 
 Cả ba trả `GET /me` mới. Tin đăng (`add-listings`) dùng cùng cách: xin tải với `ownerKind: "listing"` và mã nháp, rồi
 lưu nháp kèm các `imageId`. Ảnh trong tin nhắn (`add-message-images`): xin tải với `ownerKind: "conversation"` và mã
-hội thoại, rồi gửi tin nhắn kèm `imageIds` (tối đa 4) — mỗi ảnh chỉ gửi được một lần.
+hội thoại, rồi gửi tin nhắn kèm `imageIds` (tối đa 4) — mỗi ảnh chỉ gửi được một lần. Chỉ người đang ở trong hội thoại qua app xin
+tải được; ảnh qua luật chất lượng ngay lúc gửi (`docs/messaging.md`).
 
 ## Hiện ảnh
 
@@ -79,14 +80,14 @@ lưu URL lâu dài — luôn lấy URL mới từ response, để chuyển kho k
 
 ## Mã lỗi
 
-| Lúc              | HTTP · mã                  | Nghĩa                                                                                                                  |
-| ---------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Xin quyền tải    | 400 `VALIDATION_ERROR`     | Không phải JPEG / PNG / WebP, hoặc quá 5 MB (câu báo có trần)                                                          |
-| Xin quyền tải    | 404 `NOT_FOUND`            | Chủ không phải của mình (hay không tồn tại — server không phân biệt)                                                   |
-| Xin quyền tải    | 429 `UPLOAD_LIMIT`         | Quá 120 lượt xin trong một giờ                                                                                         |
-| Tải lên kho      | 4xx                        | Chữ ký sai, quyền quá hạn, không phải ảnh, URL đã dùng rồi (kho S3) — xin quyền mới                                    |
-| Lưu chủ cùng ảnh | 400 `IMAGE_NOT_IN_STORAGE` | Ảnh chưa tải xong, lệch cỡ / loại đã khai, của người khác, tải cho chủ khác, đã bị dọn, hay là đường link ngoài kho    |
-| Lưu chủ cùng ảnh | 503 `STORAGE_UNAVAILABLE`  | Kho ảnh tạm không trả lời (quá giờ, quá trần lượt gọi) — chưa có gì được lưu; giữ nguyên màn hình, thử lại sau ít phút |
+| Lúc              | HTTP · mã                  | Nghĩa                                                                                                                                         |
+| ---------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Xin quyền tải    | 400 `VALIDATION_ERROR`     | Không phải JPEG / PNG / WebP, hoặc quá 5 MB (câu báo có trần)                                                                                 |
+| Xin quyền tải    | 404 `NOT_FOUND`            | Chủ không phải của mình, mình không ở trong hội thoại (hay không tồn tại — server không phân biệt)                                            |
+| Xin quyền tải    | 429 `UPLOAD_LIMIT`         | Quá 120 lượt xin trong một giờ                                                                                                                |
+| Tải lên kho      | 4xx                        | Chữ ký sai, quyền quá hạn, không phải ảnh, URL đã dùng rồi (kho S3) — xin quyền mới                                                           |
+| Lưu chủ cùng ảnh | 400 `IMAGE_NOT_IN_STORAGE` | Ảnh chưa tải xong, lệch cỡ / loại đã khai, của người khác, tải cho chủ khác, đã bị dọn, đường link ngoài kho, hay ảnh tin nhắn đã gửi một lần |
+| Lưu chủ cùng ảnh | 503 `STORAGE_UNAVAILABLE`  | Kho ảnh tạm không trả lời (quá giờ, quá trần lượt gọi) — chưa có gì được lưu; giữ nguyên màn hình, thử lại sau ít phút                        |
 
 Mọi con số trên là giá trị khởi đầu của bảng con số (TK 28, nhóm "Ảnh"); master chỉnh được, app đừng chép cứng —
 đọc câu báo lỗi.
