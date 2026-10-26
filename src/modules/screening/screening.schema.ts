@@ -137,6 +137,8 @@ export const whitelistParamsSchema = z.object({ id: z.uuid() });
 export const whitelistEntrySchema = z.object({
   id: z.uuid(),
   sourceImageId: z.uuid(),
+  /** Đường xem ảnh nguồn; `null` khi ảnh đó đã bị dọn khỏi kho — mục vẫn chặn ảnh trùng bằng dHash đã lưu. */
+  url: z.string().nullable(),
   addedBy: z.uuid(),
   addedAt: iso,
 });

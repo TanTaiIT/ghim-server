@@ -10,6 +10,7 @@ import { prisma } from './db-helpers.js';
 import { createFakeJobs, type FakeJobs } from './fakes/jobs.fake.js';
 import { api, deliverAll, newUser, type TestUser } from './group-helpers.js';
 import { seedCategory } from './listing-helpers.js';
+import { firstByteAt } from './media-helpers.js';
 import {
   createDraft,
   getOwn,
@@ -200,6 +201,11 @@ describe('Danh sách trắng ảnh mẫu của hãng', () => {
       imageId: first.images[0]?.id,
     });
     expect(added.statusCode).toBe(201);
+    const listed = await api(app, 'GET', '/ops/screening/whitelist', staff.token);
+    const entry = (listed.json().data as { id: string; url: string | null }[]).find(
+      (row) => row.id === added.json().data.id,
+    );
+    expect(await firstByteAt(entry?.url ?? '')).toBe(0x89);
 
     const second = await submittedWith(await userAt('T2'), [brand]);
     await checkAll();

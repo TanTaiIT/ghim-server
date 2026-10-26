@@ -12,14 +12,17 @@ import type { ScreeningShared } from '../screening.shared.js';
 
 export interface ScreeningListsService {
   listWhitelist(): Promise<WhitelistEntryDto[]>;
+  /** Bộ từ khoá đang dùng của một danh mục, đã bỏ dấu như lúc so. */
+  keywordsOf(categoryId: string): Promise<KeywordsDto>;
   addWhitelist(actor: Actor, imageId: string): Promise<WhitelistEntryDto>;
   removeWhitelist(actor: Actor, id: string): Promise<void>;
   replaceKeywords(actor: Actor, categoryId: string, keywords: string[]): Promise<KeywordsDto>;
 }
 
-const toWhitelistDto = (row: ImageWhitelistEntry): WhitelistEntryDto => ({
+const toWhitelistDto = (row: ImageWhitelistEntry, url: string | null): WhitelistEntryDto => ({
   id: row.id,
   sourceImageId: row.sourceImageId,
+  url,
   addedBy: row.addedBy,
   addedAt: row.addedAt.toISOString(),
 });
@@ -33,9 +36,29 @@ const isUuid = (value: string): boolean => z.uuid().safeParse(value).success;
 export function createListsService(shared: ScreeningShared): ScreeningListsService {
   const { repository, media, inspector, categories, clock } = shared;
 
+  const requireCategory = async (categoryId: string): Promise<void> => {
+    if (!(await categories.existingIds([categoryId])).has(categoryId)) {
+      throw new NotFoundError('Không có danh mục này');
+    }
+  };
+
   return {
     async listWhitelist() {
-      return (await repository.listWhitelist()).map(toWhitelistDto);
+      const rows = await repository.listWhitelist();
+      const alive = await media.ownersOf(rows.map((row) => row.sourceImageId));
+      return Promise.all(
+        rows.map(async (row) =>
+          toWhitelistDto(
+            row,
+            alive.has(row.sourceImageId) ? await media.viewUrl(row.sourceImageId) : null,
+          ),
+        ),
+      );
+    },
+
+    async keywordsOf(categoryId) {
+      await requireCategory(categoryId);
+      return { categoryId, keywords: await repository.keywordsOf(categoryId) };
     },
 
     async addWhitelist(actor, imageId) {
@@ -62,7 +85,7 @@ export function createListsService(shared: ScreeningShared): ScreeningListsServi
           targetId: imageId,
         },
       );
-      return toWhitelistDto(row);
+      return toWhitelistDto(row, await media.viewUrl(imageId));
     },
 
     async removeWhitelist(actor, id) {
@@ -76,9 +99,7 @@ export function createListsService(shared: ScreeningShared): ScreeningListsServi
     },
 
     async replaceKeywords(actor, categoryId, keywords) {
-      if (!(await categories.existingIds([categoryId])).has(categoryId)) {
-        throw new NotFoundError('Không có danh mục này');
-      }
+      await requireCategory(categoryId);
       // Lưu dạng bỏ dấu như lúc so — "Điện thoại" và "dien thoai" là một từ khoá.
       const folded = [
         ...new Set(keywords.map((keyword) => phraseWords(keyword).join(' ')).filter(Boolean)),

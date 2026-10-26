@@ -301,6 +301,18 @@ export const screeningOpsRoutes: FastifyPluginAsyncZod<ScreeningOpsRoutesOptions
     },
   });
 
+  app.get(`${PREFIX}/categories/:categoryId/keywords`, {
+    preHandler: categoryStaff,
+    schema: {
+      tags: TAGS_LISTS,
+      summary: 'Bộ từ khoá đang dùng của một danh mục — đã bỏ dấu như lúc so',
+      security: bearer,
+      params: categoryParamsSchema,
+      response: { 200: ok(keywordsSchema), 403: errorResponse, 404: errorResponse },
+    },
+    handler: async (request) => toOk(await screening.keywordsOf(request.params.categoryId)),
+  });
+
   app.put(`${PREFIX}/categories/:categoryId/keywords`, {
     preHandler: categoryStaff,
     schema: {
