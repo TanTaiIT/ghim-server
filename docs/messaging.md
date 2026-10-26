@@ -10,7 +10,8 @@ Ba loại hội thoại (TK 24, chốt 18/10/2026):
   cùng thấy, trả lời ngay trong app.
 
 Hai loại sau là hội thoại **với một đội** (mục cuối). Hợp đồng đầy đủ: `openspec/specs/messaging/`; thiết kế ở
-`openspec/changes/archive/2026-10-17-add-messaging/design.md`, `…-add-price-offers/`, `…-add-team-conversations/`.
+`openspec/changes/archive/2026-10-17-add-messaging/design.md`, `…-add-price-offers/`, `…-add-team-conversations/`;
+ảnh trong tin nhắn ở `openspec/changes/archive/2026-10-26-add-message-images/`.
 
 ## Ai được nhắn
 
@@ -28,7 +29,7 @@ nhắn quản trị nhóm mình đang quản trị (`403 CANNOT_MESSAGE_OWN_GROU
 | `GET /me/conversations?cursor&limit`                    | Hội thoại của tôi, hoạt động gần nhất trước; gồm hội thoại với quản trị của các nhóm tôi đang quản trị; không có hội thoại đã xoá phía mình                                                               |
 | `GET /me/conversations/{id}`                            | Một hội thoại                                                                                                                                                                                             |
 | `GET /me/conversations/{id}/messages`                   | Tin nhắn, **mới trước**; `cursor` đi về quá khứ                                                                                                                                                           |
-| `POST /me/conversations/{id}/messages`                  | `{ body }` 1–2000 ký tự, chỉ chữ → `201` tin nhắn                                                                                                                                                         |
+| `POST /me/conversations/{id}/messages`                  | `{ body?, imageIds? }` — chữ tới 2000 ký tự, tối đa 4 ảnh, hay cả hai (không chữ không ảnh → `400`) → `201` tin nhắn (mục Ảnh)                                                                            |
 | `POST /me/conversations/{id}/offers`                    | `{ amount }` số nguyên đồng, từ 1 tới giá đăng → `201` tin nhắn loại `offer` đang chờ; chỉ người mua của hội thoại về tin; đề nghị đang chờ trước đó thành `superseded` (mục Trả giá)                     |
 | `POST /me/conversations/{id}/offers/{messageId}/accept` | Người bán chấp nhận đề nghị đang chờ → `200` tin nhắn; chỉ ghi nhận, tin không đổi; `…/decline` từ chối                                                                                                   |
 | `POST /me/conversations/{id}/read`                      | Đã đọc tới giờ → `204`; `unreadCount` của hội thoại về 0 (phía đội: cho cả đội)                                                                                                                           |
@@ -80,7 +81,8 @@ Tin nhắn:
   senderId: string | null; // người dùng nhận null cho tin của đội — không biết ai trong đội viết
   fromMe: boolean;
   kind: 'text' | 'offer';
-  body: string; // đề nghị giá để rỗng — đọc offer
+  body: string; // đề nghị giá và tin chỉ có ảnh để rỗng — đọc offer / images
+  images: { id: string; url: string }[]; // theo thứ tự gửi; [] khi không có ảnh
   offer: {
     amount: number;
     status: 'pending' | 'accepted' | 'declined' | 'superseded';
@@ -131,6 +133,26 @@ cụm **mức chắc đang bật** → `409 MESSAGE_NOT_ALLOWED` với câu chun
 đang bật → tới nơi như thường (người xử báo cáo thấy dấu); cụm **chạy thử** → như không có. Không gậy, không đổi mức tin
 cậy (cam kết 5). Tin staff hỗ trợ gửi từ bàn vận hành **không** qua bộ lọc: staff cần nhắc đúng cụm lừa đảo để cảnh báo.
 
+## Ảnh trong tin nhắn
+
+Chốt 25/10/2026 (TK 24, change `add-message-images`): mỗi tin nhắn **tối đa 4 ảnh**, kèm chữ hay không, ở mọi loại hội
+thoại; đề nghị giá không kèm ảnh.
+
+1. Xin quyền tải như ảnh tin (`docs/media.md`) với `ownerKind: "conversation"`, `ownerId` = mã hội thoại. Chỉ người đang
+   ở trong hội thoại qua app xin được (người dùng, bên kia của hội thoại về tin, người đang giữ vai quản trị nhóm); người
+   ngoài nhận `404` như hội thoại không tồn tại.
+2. Gửi `POST /me/conversations/{id}/messages` kèm `imageIds` theo thứ tự muốn hiện. Ảnh phải do chính mình tải cho đúng
+   hội thoại này và chưa gửi lần nào, sai → `400 IMAGE_NOT_IN_STORAGE`. Mọi luật gửi khác (chặn, bên kia đã rời, nhóm đóng)
+   áp như tin chữ.
+3. Ảnh được đo **ngay trong lượt gửi** bằng các luật chất lượng **đang bật** của máy duyệt (`docs/screening.md`) — tin
+   nhắn không chờ người duyệt, nên ảnh trúng là không gửi: `400 MESSAGE_IMAGE_REJECTED` với câu sửa của tin đăng ("Ảnh 2
+   quá nhỏ. Thay bằng ảnh chụp rõ hơn."), `details.rule` là mã luật. Ảnh không mở được luôn bị chặn; luật chạy thử như
+   không có. Không so trùng, không kiểm nội dung.
+
+Ảnh chỉ tới tay người đọc được hội thoại: hai bên, cả đội của hội thoại với một đội, và người xử khi hội thoại đi kèm một
+báo cáo. Staff hỗ trợ trả lời trên bàn vận hành **chỉ bằng chữ**. Hội thoại bị xoá hẳn (hạn lưu,
+nhóm đóng — `docs/retention.md`) thì ảnh của nó bị xoá khỏi kho cùng lượt.
+
 ## Chặn
 
 Chặn áp cả hai chiều và mọi hội thoại về tin của hai người: không bên nào mở hội thoại mới, hội thoại cũ ngừng nhận tin
@@ -155,13 +177,13 @@ null` cho tin của đội; người trong đội thấy ai viết. Không tính
 
 ### Bàn vận hành hỗ trợ — `/api/v1/ops/support`, quyền staff `support`
 
-| Route                                              | Việc                                                                                                   |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `GET /ops/support/conversations?status&page&limit` | Hàng: đang chờ đội trả lời trước, chờ lâu nhất trước; `status=pending` chỉ hội thoại đang chờ          |
-| `GET /ops/support/conversations/{id}`              | Một hội thoại hỗ trợ (`role: 'team'`, `counterpart` là người dùng)                                     |
-| `GET /ops/support/conversations/{id}/messages`     | Tin nhắn, mới trước, kèm `senderId` của staff đã viết                                                  |
-| `POST /ops/support/conversations/{id}/messages`    | `{ body }` → `201`, ký "Hỗ trợ Ghim"; không qua bộ lọc cụm; hội thoại của chính mình → `403 FORBIDDEN` |
-| `POST /ops/support/conversations/{id}/read`        | Đã đọc cho cả đội → `204` (hội thoại vẫn "đang chờ" tới khi có người trả lời)                          |
+| Route                                              | Việc                                                                                                                                                     |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /ops/support/conversations?status&page&limit` | Hàng: đang chờ đội trả lời trước, chờ lâu nhất trước; `status=pending` chỉ hội thoại đang chờ                                                            |
+| `GET /ops/support/conversations/{id}`              | Một hội thoại hỗ trợ (`role: 'team'`, `counterpart` là người dùng)                                                                                       |
+| `GET /ops/support/conversations/{id}/messages`     | Tin nhắn, mới trước, kèm `senderId` của staff đã viết và ảnh người dùng gửi                                                                              |
+| `POST /ops/support/conversations/{id}/messages`    | `{ body }` chỉ chữ (kèm `imageIds` → `400 VALIDATION_ERROR`) → `201`, ký "Hỗ trợ Ghim"; không qua bộ lọc cụm; hội thoại của chính mình → `403 FORBIDDEN` |
+| `POST /ops/support/conversations/{id}/read`        | Đã đọc cho cả đội → `204` (hội thoại vẫn "đang chờ" tới khi có người trả lời)                                                                            |
 
 Mỗi lượt trả lời vào nhật ký thao tác (`messaging.support.reply`, mã hội thoại và mã tin nhắn, không nội dung).
 Realtime `support:pending { count }` tới mọi staff đang mang quyền `support` khi số hội thoại đang chờ đổi.
@@ -171,7 +193,7 @@ Realtime `support:pending { count }` tới mọi staff đang mang quyền `suppo
 Người nhận đang nối socket (`docs/realtime.md`) nhận `message:new { conversationId, messageId }` — chỉ báo hiệu, app tải
 lại hội thoại qua HTTP. Người bán trả lời đề nghị giá thì người mua nhận `message:updated { conversationId, messageId }`:
 tải lại tin nhắn đó. Mỗi tin nhắn cũng vào hộp thư của bên nhận (nhóm "tin nhắn" — tin của Hỗ trợ Ghim thì nhóm "hỗ
-trợ" —, một dòng chưa đọc mỗi hội thoại, nhắc mỗi tin) và đẩy lên máy đã cho phép, trừ máy đang mở đúng hội thoại
+trợ" —, một dòng chưa đọc mỗi hội thoại, nhắc mỗi tin; tin chỉ có ảnh ghi "Đã gửi N ảnh") và đẩy lên máy đã cho phép, trừ máy đang mở đúng hội thoại
 (add-notifications).
 
 ## Mã lỗi
@@ -187,6 +209,9 @@ trợ" —, một dòng chưa đọc mỗi hội thoại, nhắc mỗi tin) và 
 | 403  | `OFFER_SELLER_ONLY`           | Người mua trả lời đề nghị của chính mình                                                        |
 | 403  | `FORBIDDEN`                   | Master nhắn tin; người trong đội xoá hội thoại của đội; staff trả lời hội thoại hỗ trợ của mình |
 | 400  | `OFFER_ABOVE_PRICE`           | Giá trả cao hơn giá đăng                                                                        |
+| 400  | `VALIDATION_ERROR`            | Tin nhắn không chữ không ảnh, quá 4 ảnh, quá 2000 ký tự                                         |
+| 400  | `IMAGE_NOT_IN_STORAGE`        | Ảnh chưa tải xong, không phải mình tải cho hội thoại này, hay đã gửi trong tin nhắn trước       |
+| 400  | `MESSAGE_IMAGE_REJECTED`      | Ảnh trúng luật chất lượng đang bật hay không mở được — câu nêu ảnh thứ mấy, `details.rule`      |
 | 404  | `NOT_FOUND`                   | Không có hội thoại / tin / nhóm, mình không phải một bên, hay tin mình không xem được           |
 | 409  | `GROUP_NOT_ACTIVE`            | Mở hội thoại mới với quản trị nhóm đã đóng, đang tạm khoá hay chờ chủ đầu tiên                  |
 | 409  | `LISTING_NOT_LIVE`            | Mở hội thoại mới với tin đã bán, hết hạn; trả giá hay trả lời khi tin không còn hiển thị        |

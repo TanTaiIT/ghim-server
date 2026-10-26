@@ -27,10 +27,12 @@ hạ tầng (HTTP, lỗi, response, Swagger, health, việc nền pg-boss, gửi
 đẩy lên điện thoại qua Expo) và các module:
 
 - **`identity`**: đăng ký + xác nhận email, đăng nhập / phiên / refresh, Google,
-  hồ sơ, đổi email, quên / đổi mật khẩu, khoá / mở khoá / xoá tài khoản, dấu thiết bị + mã tra cứu, xác minh giấy
-  tờ, danh sách email dùng một lần.
-- **`platform`**: master, quyền staff theo danh mục, bảng con số có phiên bản, nhật ký bàn vận hành.
-- **`category`**: danh mục, mẫu thông tin có phiên bản, trần giá, khu vực.
+  hồ sơ, tỉnh/thành riêng tư cho "Gần bạn", đổi email, quên / đổi mật khẩu, khoá / mở khoá / xoá tài khoản, dấu
+  thiết bị + mã tra cứu, xác minh giấy tờ, danh sách email dùng một lần.
+- **`platform`**: master, quyền staff theo danh mục, bảng con số có phiên bản, nhật ký bàn vận hành, nội dung trợ
+  giúp (master soạn, ai cũng đọc ở `/api/v1/help/topics`).
+- **`category`**: danh mục, mẫu thông tin có phiên bản, trần giá.
+- **`region`**: tỉnh, phường sau sáp nhập, tên cũ, tìm bỏ dấu (tách khỏi `category` 24/10/2026).
 - **`group`**: nhóm bốn chế độ, vòng đời (giao chủ, thiếu chủ, khoá, đóng), vào nhóm (tham gia, đơn, lời mời, mã,
   danh sách lớp), đơn vị con, vai, huy hiệu, thông báo của nhóm.
 - **`notification`**: hộp thư, bật tắt từng nhóm thông báo, tắt tiếng từng nhóm, gộp chuyện lặp lại, đẩy realtime
@@ -41,7 +43,8 @@ hạ tầng (HTTP, lỗi, response, Swagger, health, việc nền pg-boss, gửi
   — hướng dẫn cho app ở [`docs/media.md`](docs/media.md).
 - **`listing`** (đợt 2): nháp, gửi, vòng đời tám trạng thái, sửa (qua máy lại hay áp ngay), ngày hiển thị và gia
   hạn, tạm ẩn theo tài khoản / nhóm / danh mục, hai mức hiển thị, ai thấy tin, bảng tin / tìm kiếm / hồ sơ phân trang
-  con trỏ, huy hiệu nhóm, chuyển tin đã rời nhóm lên sàn chung, thông báo N31–N35, N37.
+  con trỏ, lọc theo mẫu thông tin của danh mục, sắp theo mới nhất / giá, lưu tin, lưu lượt tìm (báo tin mới khớp),
+  huy hiệu nhóm, chuyển tin đã rời nhóm lên sàn chung, thông báo N31–N35, N37.
 - **`trust`** (đợt 2): mức tin cậy T0–T3 tính lại từ tuổi tài khoản và tin sạch (tối đa 3 tin sạch mỗi 7 ngày, tin
   vượt được dời), hạn mức tin sống và nhịp gửi theo mức, trần riêng của người ngoài, bảng uy tín `GET /me/trust`,
   tính lại 00:30 mỗi ngày; nhận vai chủ nhóm / điều hành viên cần T1. Gậy (đợt 5): người duyệt ra gậy khi quyết vi
@@ -50,15 +53,17 @@ hạ tầng (HTTP, lỗi, response, Swagger, health, việc nền pg-boss, gửi
   mức tin cậy), cổng cứng (cụm từ cấm mức chắc, ảnh trùng theo dHash, giá vượt trần), danh mục luôn duyệt tay, đánh
   dấu theo thiết bị, dò cổng cứng → thời gian chờ 24 giờ; kiểm ảnh qua hàng việc (`sharp`), lưới an toàn mỗi 5 phút,
   thống kê giá 02:00, quét lại tin đang hiện khi bật cụm; câu báo cho người đăng và mã tra cứu cho hỗ trợ; bàn vận
-  hành luật, cụm từ, danh sách trắng ảnh mẫu, từ khoá danh mục dưới `/api/v1/ops/screening` — hướng dẫn cho app ở
+  hành luật, cụm từ, danh sách trắng ảnh mẫu, từ khoá danh mục, số liệu máy theo tháng cho master dưới
+  `/api/v1/ops/screening` — hướng dẫn cho app ở
   [`docs/screening.md`](docs/screening.md). Ảnh: so trùng và chất lượng (hỏng, quá nhỏ, mờ, quá tối, quá sáng), không
   kiểm nội dung (chốt 24/10/2026, `add-image-quality-checks`).
 - **`review`** (đợt 4): hàng việc cho người duyệt (máy giữ, báo cáo, việc về gậy, máy hạn chế, nhóm chuyển lên, hậu
   kiểm), nhận việc và quyết định trên bàn vận hành `/api/v1/ops/review` và ở app cho quản trị nhóm, lý do từ chối mẫu,
   số liệu cho master; báo cáo tin và báo cáo người — hướng dẫn ở [`docs/review.md`](docs/review.md).
 - **`messaging`** (đợt 6): hội thoại về một tin, với Hỗ trợ Ghim và với quản trị một nhóm; trả giá, chặn, xoá hội
-  thoại, trạng thái hoạt động — hướng dẫn cho app ở [`docs/messaging.md`](docs/messaging.md).
-- **`ops`** (đợt 7): hạn lưu và dọn dữ liệu theo lịch, tạm giữ bằng chứng, sổ `job_runs` — hướng dẫn ở
+  thoại, trạng thái hoạt động, tối đa 4 ảnh mỗi tin nhắn — hướng dẫn cho app ở [`docs/messaging.md`](docs/messaging.md).
+- **`ops`** (đợt 7): hạn lưu và dọn dữ liệu theo lịch, tạm giữ bằng chứng, sổ `job_runs`, bảng số theo ngày cho master
+  (`/api/v1/ops/stats/daily`), danh bạ tài khoản (`/api/v1/ops/accounts`) — hướng dẫn ở
   [`docs/retention.md`](docs/retention.md).
 
 ## Cần có

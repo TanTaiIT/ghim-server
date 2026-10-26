@@ -53,13 +53,14 @@ sai → `401 UNAUTHORIZED` không lộ gì; quá 30 ngày → `409 APPEAL_WINDOW
 
 ## Bàn vận hành — `/api/v1/ops/trust`
 
-| Route                                       | Ai     | Việc                                                                                                           |
-| ------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------- |
-| `GET /accounts/{accountId}/strikes`         | staff  | Lịch sử gậy của một người                                                                                      |
-| `POST /accounts/{accountId}/amnesty`        | master | `{ strikeIds[], reason }` — huỷ gậy thường / nặng kèm lý do; khiếu nại đang chờ đóng theo; tin đi kèm hiện lại |
-| `POST /strikes/{id}/comments`               | staff  | `{ body }` — nhận xét vào hồ sơ gậy nghiêm trọng chưa quyết; người ra gậy không ghi được                       |
-| `POST /strikes/{id}/lift`                   | master | Gỡ khoá vĩnh viễn ngoài kỳ xem lại: mở khoá, email hết bị chặn                                                 |
-| `GET /rule-articles`, `POST`, `PATCH /{id}` | master | Quy định sàn để trích (`code`, `title`, `text`, `active`, `sort`); bộ khởi đầu Q1–Q6 chèn khi bảng trống       |
+| Route                                              | Ai     | Việc                                                                                                                                                                          |
+| -------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /accounts/{accountId}/strikes`                | staff  | Lịch sử gậy của một người                                                                                                                                                     |
+| `POST /accounts/{accountId}/amnesty`               | master | `{ strikeIds[], reason }` — huỷ gậy thường / nặng kèm lý do, trả lịch sử gậy; khiếu nại đang chờ đóng theo; tin đi kèm hiện lại; gậy nghiêm trọng → `409 OUTCOME_NOT_ALLOWED` |
+| `POST /strikes/{id}/comments`                      | staff  | `{ body }` — nhận xét vào hồ sơ gậy nghiêm trọng chưa quyết; người ra gậy không ghi được                                                                                      |
+| `POST /strikes/{id}/lift`                          | master | Gỡ khoá vĩnh viễn ngoài kỳ xem lại: mở khoá, email hết bị chặn; gậy không đang khoá vĩnh viễn → `409 STRIKE_NOT_PENDING`                                                      |
+| `GET /rule-articles`                               | staff  | Quy định sàn để trích (`code`, `title`, `text`, `active`, `sort`); master thêm `?includeInactive=true` thấy cả điều đã tắt                                                    |
+| `POST /rule-articles`, `PATCH /rule-articles/{id}` | master | Thêm, sửa câu, thứ tự, tắt / bật một điều — gậy đã ra giữ bản trích cũ; bộ khởi đầu Q1–Q6 chèn khi bảng trống                                                                 |
 
 **Ra gậy** đi qua quyết định của `review` (`POST /ops/review/tasks/{id}/decision`), không có route riêng:
 
@@ -93,20 +94,21 @@ người bán — có ở mọi việc). Quyết:
 
 ## Mã lỗi riêng
 
-| HTTP | `code`                    | Khi nào                                                            |
-| ---- | ------------------------- | ------------------------------------------------------------------ |
-| 403  | `POSTING_LOCKED`          | Điểm gậy ≥ 3 — `details.until` là ngày gửi lại được                |
-| 403  | `EMAIL_BANNED`            | Đăng ký / Google bằng email của tài khoản khoá vĩnh viễn           |
-| 403  | `GROUP_ROLE_SUSPENDED`    | Thao tác vai nhóm khi đang có gậy nặng                             |
-| 409  | `LISTING_UNDER_VIOLATION` | Sửa tin bị từ chối / gỡ vì vi phạm                                 |
-| 409  | `LISTING_DELETE_BLOCKED`  | Xoá tin bị từ chối / gỡ vì vi phạm                                 |
-| 409  | `ACCOUNT_DELETE_BLOCKED`  | Tự xoá tài khoản khi đang có gậy nặng (cũng dùng cho đang bị khoá) |
-| 409  | `LOCKED_BY_STRIKE`        | Mở khoá thường tài khoản đang khoá vì gậy nghiêm trọng             |
-| 409  | `APPEAL_WINDOW_CLOSED`    | Khiếu nại quá hạn (14 ngày; 30 ngày với gậy nghiêm trọng)          |
-| 409  | `APPEAL_ALREADY_USED`     | Mỗi gậy khiếu nại một lần                                          |
-| 409  | `APPEAL_VIA_SUPPORT`      | Khiếu nại gậy nghiêm trọng trong app — đi kênh hỗ trợ              |
-| 409  | `STRIKE_NOT_ACTIVE`       | Khiếu nại / ân xá gậy đã hết hiệu lực                              |
-| 409  | `STRIKE_NOT_PENDING`      | Quyết / nhận xét gậy nghiêm trọng đã quyết                         |
+| HTTP | `code`                    | Khi nào                                                                           |
+| ---- | ------------------------- | --------------------------------------------------------------------------------- |
+| 403  | `POSTING_LOCKED`          | Điểm gậy ≥ 3 — `details.until` là ngày gửi lại được                               |
+| 403  | `EMAIL_BANNED`            | Đăng ký / Google bằng email của tài khoản khoá vĩnh viễn                          |
+| 403  | `GROUP_ROLE_SUSPENDED`    | Thao tác vai nhóm khi đang có gậy nặng                                            |
+| 409  | `LISTING_UNDER_VIOLATION` | Sửa tin bị từ chối / gỡ vì vi phạm                                                |
+| 409  | `LISTING_DELETE_BLOCKED`  | Xoá tin bị từ chối / gỡ vì vi phạm                                                |
+| 409  | `ACCOUNT_DELETE_BLOCKED`  | Tự xoá tài khoản khi đang có gậy nặng (cũng dùng cho đang bị khoá)                |
+| 409  | `LOCKED_BY_STRIKE`        | Mở khoá thường tài khoản đang khoá vì gậy nghiêm trọng                            |
+| 409  | `APPEAL_WINDOW_CLOSED`    | Khiếu nại quá hạn (14 ngày; 30 ngày với gậy nghiêm trọng)                         |
+| 409  | `APPEAL_ALREADY_USED`     | Mỗi gậy khiếu nại một lần                                                         |
+| 409  | `APPEAL_VIA_SUPPORT`      | Khiếu nại gậy nghiêm trọng trong app — đi kênh hỗ trợ                             |
+| 409  | `STRIKE_NOT_ACTIVE`       | Khiếu nại / ân xá gậy đã hết hiệu lực                                             |
+| 409  | `STRIKE_NOT_PENDING`      | Quyết / nhận xét gậy nghiêm trọng đã quyết; gỡ khoá gậy không đang khoá vĩnh viễn |
+| 409  | `APPEAL_DECIDED`          | Quyết khiếu nại đã có kết quả                                                     |
 
 ## Người dùng được báo gì
 
