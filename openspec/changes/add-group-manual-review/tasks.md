@@ -19,13 +19,14 @@ Duyệt 26/10/2026 (người dùng chọn "Chủ nhóm", "Theo luồng duyệt n
 
 ## 3. `ghim-app`
 
-- [ ] 3.1 `npm run api:sync`; công tắc "Duyệt tay mọi tin" trong cài đặt nhóm (chủ nhóm); dòng nhắc trên trang nhóm và màn
+- [x] 3.1 `npm run api:sync`; công tắc "Duyệt tay mọi tin" trong cài đặt nhóm (chủ nhóm); dòng nhắc trên trang nhóm và màn
       đăng tin khi nhóm bật; bàn duyệt ẩn "máy đúng / quá tay" với việc `groupManual`, ghi "Nhóm duyệt tay"
-- [ ] 3.2 Thử trên máy ảo: chủ nhóm bật công tắc, thành viên đăng tin → chờ duyệt, chủ nhóm cho đạt → tin hiện
+- [x] 3.2 Thử trên máy ảo: chủ nhóm bật công tắc, thành viên thấy dòng nhắc, tin T3 gửi vào nhóm → chờ duyệt, chủ nhóm
+      cho đạt không bị hỏi nhận định về máy → tin hiện
 
 ## 4. Kiểm tra tích hợp
 
-- [ ] 4.1 `pnpm run check`, `pnpm run build`, `pnpm db:drift` (ghim-server); `npm run check` (ghim-app)
+- [x] 4.1 `pnpm run check`, `pnpm run build`, `pnpm db:drift` (ghim-server); `npm run check` (ghim-app)
 
 ## Workflow follow-up
 
