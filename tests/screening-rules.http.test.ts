@@ -216,6 +216,13 @@ describe('Từ khoá danh mục', () => {
     );
     expect(own.statusCode).toBe(200);
     expect(own.json().data.keywords).toEqual(['DEN BAN']);
+    const read = await api(
+      app,
+      'GET',
+      `/ops/screening/categories/${staffCategory}/keywords`,
+      staff.token,
+    );
+    expect(read.json().data).toEqual({ categoryId: staffCategory, keywords: ['DEN BAN'] });
     const other = await ops(
       'PUT',
       `/categories/${await seedCategory()}/keywords`,
@@ -223,6 +230,13 @@ describe('Từ khoá danh mục', () => {
       staff,
     );
     expect(other.statusCode).toBe(403);
+    const missing = await api(
+      app,
+      'GET',
+      '/ops/screening/categories/00000000-0000-4000-8000-000000000000/keywords',
+      master.token,
+    );
+    expect(missing.statusCode).toBe(404);
     const user = await newUser(app);
     expect(
       (await ops('PUT', `/categories/${staffCategory}/keywords`, { keywords: ['x y'] }, user))

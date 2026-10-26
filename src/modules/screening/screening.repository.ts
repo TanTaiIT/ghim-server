@@ -279,6 +279,8 @@ export interface ScreeningRepository {
   savePriceStat(categoryId: string, range: PriceRange, at: Date): Promise<void>;
   /** Từ khoá đã `fold` của mọi danh mục — suy ra danh mục từ tiêu đề. */
   keywords(): Promise<Map<string, string[]>>;
+  /** Từ khoá của một danh mục, theo thứ tự chữ — bàn vận hành sửa trên bộ đang có. */
+  keywordsOf(categoryId: string): Promise<string[]>;
   replaceKeywords(categoryId: string, keywordsFolded: string[], audit: AuditEntry): Promise<void>;
 
   /** Sự kiện ngoài lượt nào — lưới an toàn hạ tin thiếu kết quả ảnh. */
@@ -820,6 +822,15 @@ export function createScreeningRepository(prisma: PrismaClient): ScreeningReposi
         ]);
       }
       return byCategory;
+    },
+
+    async keywordsOf(categoryId) {
+      const rows = await prisma.categoryKeyword.findMany({
+        where: { categoryId },
+        orderBy: { keywordFolded: 'asc' },
+        select: { keywordFolded: true },
+      });
+      return rows.map((row) => row.keywordFolded);
     },
 
     replaceKeywords: (categoryId, keywordsFolded, audit) =>

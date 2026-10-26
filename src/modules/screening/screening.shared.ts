@@ -30,7 +30,8 @@ export type ScreeningIdentityPort = Pick<
   IdentityService,
   'accountSummaries' | 'deviceFlagsFor' | 'openFlagsOf'
 >;
-export type ScreeningMediaPort = Pick<MediaService, 'readImage'>;
+/** `viewUrl`, `ownersOf`: danh sách trắng cho xem ảnh nguồn khi ảnh đó còn trong kho (add-screening-ops-reads). */
+export type ScreeningMediaPort = Pick<MediaService, 'readImage' | 'viewUrl' | 'ownersOf'>;
 export interface ScreeningTrustPort {
   tierOf(accountId: string): Promise<TrustTier>;
   /** Điểm gậy đang hiệu lực — hàng "có gậy" của ma trận (add-strikes). */
