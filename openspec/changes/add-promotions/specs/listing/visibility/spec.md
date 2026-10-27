@@ -4,8 +4,9 @@
 
 Mỗi tin đã lên bảng SHALL có một vị trí xếp hạng riêng, đặt lúc tin lên bảng lần đầu; tin trùng tin cũ của chính người
 đăng SHALL kế thừa vị trí của tin cũ. Bảng tin sàn chung, danh mục, bảng tin nhóm và các trang kế tiếp SHALL xếp theo vị
-trí này, mới trước. Sửa, gia hạn, chuyển trạng thái MUST NOT đổi vị trí; gói `rank_to_top` (`promotion/purchase`) là
-đường duy nhất đặt lại vị trí, bằng lúc mua, và MUST NOT đổi mốc lên bảng lần đầu của tin.
+trí này, mới trước, khi người xem không chọn cách xếp khác. Sửa, gia hạn, chuyển trạng thái MUST NOT đổi vị trí; chỉ "đẩy
+lên đầu" — của người quản trị (`listing/boosting`) hay gói `rank_to_top` (`promotion/purchase`) — đặt lại vị trí về lúc
+đẩy, và MUST NOT đổi mốc lên bảng lần đầu.
 
 #### Scenario: Hai tin lên bảng kế nhau
 
@@ -22,41 +23,38 @@ trí này, mới trước. Sửa, gia hạn, chuyển trạng thái MUST NOT đ�
 - **WHEN** người đăng đăng lại một tin trùng tin cũ của mình và máy cho qua
 - **THEN** tin mới đứng ở vị trí của tin cũ, không đứng trên các tin lên bảng sau tin cũ
 
-#### Scenario: Đẩy lên đầu
+#### Scenario: Tin được đẩy lên đầu
+
+- **WHEN** tin A lên bảng trước tin B, rồi người quản trị đẩy A lên đầu
+- **THEN** bảng tin xếp A trên B, và trang kế tiếp mở bằng con trỏ cũ không lặp A
+
+#### Scenario: Gia hạn không đẩy tin
+
+- **WHEN** người đăng gia hạn sớm tin A đang đứng dưới tin B
+- **THEN** A vẫn đứng dưới B
+
+#### Scenario: Người đăng mua gói đẩy lên đầu
 
 - **WHEN** người đăng mua gói `rank_to_top` cho tin A đang hiển thị đầy đủ
 - **THEN** A đứng trên mọi tin lên bảng trước lúc mua, mốc lên bảng lần đầu của A không đổi
 
-### Requirement: Hạn nổi bật chưa dùng
+### Requirement: Hạn nổi bật của một tin
 
-Response của một tin SHALL có hạn nổi bật (`featuredUntil`): trống khi tin không có gói nổi bật, là lúc hết hạn khi gói
-`featured` đang chạy.
+Response của một tin SHALL có hạn nổi bật (`featuredUntil`): thời điểm tin hết nổi bật khi tin đang nổi bật — do người
+quản trị đặt (`listing/boosting`) hay gói `featured` đang chạy — và null khi tin chưa từng nổi bật, đã bị bỏ nổi bật hay
+hạn đã qua.
 
-#### Scenario: Chưa có gói nổi bật
+#### Scenario: Tin đang nổi bật
 
-- **WHEN** ai đó mở một tin chưa từng mua gói nổi bật
+- **WHEN** ai đó mở một tin được đặt nổi bật 7 ngày từ hôm qua
+- **THEN** response có `featuredUntil` = 6 ngày nữa
+
+#### Scenario: Hạn đã qua
+
+- **WHEN** ai đó mở một tin có hạn nổi bật đã qua
 - **THEN** response có `featuredUntil` là null
 
-#### Scenario: Đang nổi bật
+#### Scenario: Gói nổi bật đang chạy
 
 - **WHEN** ai đó mở một tin đang có gói nổi bật tới ngày D
 - **THEN** response có `featuredUntil` là ngày D
-
-## ADDED Requirements
-
-### Requirement: Tin nổi bật
-
-Tin còn hạn nổi bật và đang hiển thị đầy đủ SHALL vào dải "Tin nổi bật" ở đầu bảng tin sàn chung, danh mục và bảng tin
-nhóm (theo phạm vi của tin), tối đa N tin mỗi dải (giá trị khởi đầu), xoay vòng để tin gần hết hạn lên trước. Tin tạm ẩn
-hay hiển thị hạn chế MUST NOT vào dải dù còn hạn; hết hạn thì tin rời dải trong vòng một giờ và vẫn ở nguyên vị trí xếp
-hạng.
-
-#### Scenario: Còn hạn nhưng bị tạm ẩn
-
-- **WHEN** tin có hạn nổi bật còn 3 ngày bị tạm ẩn vì nhóm bị khoá
-- **THEN** tin không có trong dải nổi bật tới khi nhóm mở khoá
-
-#### Scenario: Hết hạn
-
-- **WHEN** hạn nổi bật của tin vừa qua
-- **THEN** chậm nhất một giờ sau tin rời dải, và vị trí của tin trên bảng tin không đổi

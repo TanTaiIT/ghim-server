@@ -57,11 +57,11 @@ hiện thiếu kết quả ảnh sang hạn chế thì hệ thống SHALL sinh m
 
 ### Requirement: Việc vào hàng của ai
 
-Việc hàng 0 và hàng 5 về tin sàn SHALL vào hàng của staff được giao danh mục của tin, không theo khu vực; về
-tin trong nhóm thì vào hàng của điều hành nhóm phụ trách phạm vi của tin, trừ việc hàng 0 về tin nhóm thuộc
-danh mục đặt "tin nhóm bị giữ do sàn duyệt" (kể cả nhóm riêng tư) vào hàng staff được giao danh mục. Việc
-hàng 3 và hàng 4 SHALL vào hàng staff được giao danh mục của tin. Danh mục chưa có staff thì việc vào hàng
-master. Master SHALL thấy và xử được mọi việc.
+Việc hàng 0 và hàng 5 về tin sàn SHALL vào hàng staff được giao danh mục của tin, không theo khu vực; về tin trong nhóm
+thì vào hàng của điều hành nhóm phụ trách phạm vi của tin, trừ việc hàng 0 về tin nhóm thuộc danh mục đặt "tin nhóm bị
+giữ do sàn duyệt" (kể cả nhóm riêng tư; trừ việc nhóm duyệt tay) vào hàng staff được giao danh mục. Việc hàng 3, 4 SHALL
+vào hàng staff được giao danh mục của tin. Danh mục chưa có staff thì việc vào hàng master. Master SHALL thấy và xử được
+mọi việc.
 
 #### Scenario: Tin sàn bị giữ
 
@@ -121,6 +121,17 @@ master. Master SHALL thấy và xử được mọi việc.
 
 - **WHEN** máy cho một tin sàn Điện thoại của T1 qua ở mức hạn chế
 - **THEN** việc hàng 3 hiện trong hàng của staff được giao Điện thoại
+
+### Requirement: Việc giữ vì nhóm duyệt tay về nhóm
+
+Việc hàng 0 mà máy giữ chỉ vì nhóm bật "duyệt tay mọi tin" (`group/manual-review`) SHALL vào chuỗi của nhóm như mọi việc
+của nhóm, kể cả khi danh mục đặt "tin nhóm bị giữ do sàn duyệt".
+
+#### Scenario: Nhóm duyệt tay ở danh mục do sàn duyệt
+
+- **WHEN** danh mục Thú cưng đặt "tin nhóm bị giữ do sàn duyệt", nhóm bật "duyệt tay mọi tin", và một tin Thú cưng
+  máy cho qua được gửi vào nhóm
+- **THEN** việc hàng 0 hiện trong hàng của quản trị nhóm và không hiện trong hàng của staff được giao Thú cưng
 
 ### Requirement: Quyền master với việc chỉ dùng ở bàn vận hành
 

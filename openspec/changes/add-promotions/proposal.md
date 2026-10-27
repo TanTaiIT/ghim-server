@@ -14,8 +14,8 @@ câu hỏi mở ở `docs/KE-HOACH-GOI-DAY-TIN.md` mục 4, 7.
 - Người đăng mua gói cho tin của mình: chỉ tin đang hiển thị đầy đủ, không tạm ẩn, không trong thời gian chờ, khi không
   đang tạm khoá đăng tin; trừ Xu và áp hiệu ứng trong một lượt — thiếu Xu thì không áp, tin đổi giữa chừng thì không
   trừ.
-- `rank_to_top` đặt lại vị trí xếp hạng; `featured` đặt hạn nổi bật; dải "Tin nổi bật" ở đầu bảng tin, danh mục, bảng
-  tin nhóm; tin nổi bật hết hạn tự rời dải. Tin tạm ẩn hay hạn chế không vào dải dù còn hạn.
+- `rank_to_top` đặt lại vị trí xếp hạng; `featured` đặt hạn nổi bật — cùng đường ghi, cùng dải "Tin nổi bật" với đẩy tin
+  của người quản trị đã có (`add-admin-boost`, `listing/boosting`).
 - Hoàn Xu phần chưa hưởng khi khiếu nại thắng / ân xá; không hoàn khi tin bị gỡ vì vi phạm.
 - Thông báo cho người đăng: đã áp gói, nổi bật sắp hết.
 
@@ -31,7 +31,8 @@ câu hỏi mở ở `docs/KE-HOACH-GOI-DAY-TIN.md` mục 4, 7.
 
 ### Modified Capabilities
 
-- `listing/visibility`: "Vị trí trên bảng tin" — gói `rank_to_top` đổi vị trí; thêm "Tin nổi bật".
+- `listing/visibility`: "Vị trí trên bảng tin", "Hạn nổi bật của một tin" — thêm gói trả Xu bên cạnh đẩy tin của người
+  quản trị (viết lại 27/10/2026 trên spec sau `add-admin-boost`; dải nổi bật đã có, không thêm requirement).
 - `notification/listing-notices`: thêm thông báo về gói.
 
 ## Impact
@@ -39,9 +40,10 @@ câu hỏi mở ở `docs/KE-HOACH-GOI-DAY-TIN.md` mục 4, 7.
 - Module `promotion` (mới): `promotion_products`, `promotion_purchases`; route app `GET /promotions/products`,
   `POST /listings/:id/promotions`; route bàn vận hành `/ops/promotions/products`. Gọi `wallet.apply(tx)` và cổng
   `listing.applyPromotion(tx)` trong cùng transaction.
-- `listing`: `rank_at`, `featured_until` được ghi lần đầu; việc theo lịch dọn hạn nổi bật đã qua; dải nổi bật ở ba bảng
-  tin; `first_live_at` tách khỏi vị trí (N31, hạn lưu vẫn đọc `first_live_at`).
-- Con số mới nhóm "Đẩy tin": `promotion.featuredStripSize`, `promotion.bumpCooldownHours`, `promotion.minTier`,
+- `listing`: cổng `applyPromotion(tx)` đi chung đường ghi của `listing/boost` (`rank_at`, `featured_until`,
+  `last_bumped_at` và dải nổi bật đã có từ `add-admin-boost`; hạn đã qua đọc như null nên không cần việc theo lịch).
+- Con số nhóm "Đẩy tin": dùng lại `promotion.featuredStripSize`, `promotion.bumpCooldownHours`,
+  `promotion.featuredMaxDays` (đã có từ `add-admin-boost`); thêm `promotion.minTier`,
   `promotion.maxBumpsPerDay`, `promotion.refundOnAppealWin`.
 - Phụ thuộc: `prepare-promotions`, `add-wallet` archive trước.
 - **Câu hỏi mở**: kế hoạch mục 7 (giá, mức tối thiểu, hoàn, nhóm, dải nổi bật ở đâu).
