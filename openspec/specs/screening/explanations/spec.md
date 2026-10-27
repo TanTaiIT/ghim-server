@@ -10,9 +10,10 @@ vì sao và tới bao giờ mà không học được cách lách (TK 4 nguyên 
 
 ### Requirement: Tin bị giữ luôn báo đang chờ người duyệt
 
-Mọi tin bị máy giữ mà không trúng dấu hiệu gian lận nào SHALL cho người đăng thấy câu "Tin đang chờ người
-duyệt, thường trong 24 giờ" (hạn 24 giờ là giá trị khởi đầu), dù tin bị giữ vì lý do gì khác. Tin có trúng dấu
-hiệu gian lận thì thấy câu chung ba phần thay cho câu này.
+Mọi tin bị máy giữ mà không trúng dấu hiệu gian lận nào SHALL cho người đăng thấy câu "Tin đang chờ người duyệt, thường
+trong 24 giờ" (hạn 24 giờ là giá trị khởi đầu), dù tin bị giữ vì lý do gì khác. Tin có trúng dấu hiệu gian lận thì thấy
+câu chung ba phần thay cho câu này. Tin giữ chỉ vì nhóm bật "duyệt tay mọi tin" (`group/manual-review`) SHALL thấy câu
+"Nhóm duyệt mọi tin trước khi hiện — tin đang chờ quản trị nhóm, thường trong 24 giờ" MUST NOT thấy câu chung ba phần.
 
 #### Scenario: Tin bị giữ vì dải Cao
 
@@ -34,6 +35,11 @@ hiệu gian lận thì thấy câu chung ba phần thay cho câu này.
 
 - **WHEN** tin bị giữ chỉ vì luật "ảnh quá tối" trúng ảnh thứ nhất
 - **THEN** người đăng thấy câu "Tin đang chờ người duyệt, thường trong 24 giờ" cùng câu giải thích ảnh thứ nhất quá tối
+
+#### Scenario: Tin bị giữ vì nhóm duyệt tay
+
+- **WHEN** tin gửi vào nhóm bật "duyệt tay mọi tin" bị giữ chỉ vì công tắc đó
+- **THEN** người đăng thấy câu "Nhóm duyệt mọi tin trước khi hiện — tin đang chờ quản trị nhóm, thường trong 24 giờ"
 
 ### Requirement: Lỗi tự sửa được thì giải thích cách sửa
 
