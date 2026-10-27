@@ -7,6 +7,8 @@ import { errorResponse, ok, toOk } from '../../../common/schemas/response.js';
 import { emptySchema } from '../../identity/identity.schema.js';
 import {
   feedQuerySchema,
+  featuredQuerySchema,
+  featuredStripSchema,
   groupFeedQuerySchema,
   groupListingParamsSchema,
   listingParamsSchema,
@@ -177,6 +179,19 @@ export const readRoutes: FastifyPluginAsyncZod<ListingRoutesOptions> = async (ap
     handler: async (request) => toOk(await listing.feed(request.actor, request.query)),
   });
 
+  app.get('/listings/featured', {
+    preHandler: anyone,
+    schema: {
+      tags: TAGS_VIEWER,
+      security: optionalBearer,
+      summary: 'Dải "Tin nổi bật" của bảng tin sàn chung, hay của một danh mục — hạn gần hết trước',
+      querystring: featuredQuerySchema,
+      response: { 200: ok(featuredStripSchema), 400: errorResponse },
+    },
+    handler: async (request) =>
+      toOk({ items: await listing.featured(request.actor, request.query) }),
+  });
+
   app.get('/listings/:id', {
     preHandler: anyone,
     schema: {
@@ -214,6 +229,19 @@ export const readRoutes: FastifyPluginAsyncZod<ListingRoutesOptions> = async (ap
     },
     handler: async (request) =>
       toOk(await listing.groupFeed(request.actor, request.params.groupId, request.query)),
+  });
+
+  app.get('/groups/:groupId/listings/featured', {
+    preHandler: anyone,
+    schema: {
+      tags: TAGS_VIEWER,
+      security: optionalBearer,
+      summary: 'Dải "Tin nổi bật" của bảng tin nhóm — "chỉ thành viên" chỉ hiện cho thành viên',
+      params: groupListingParamsSchema,
+      response: { 200: ok(featuredStripSchema), ...readErrors },
+    },
+    handler: async (request) =>
+      toOk({ items: await listing.groupFeatured(request.actor, request.params.groupId) }),
   });
 
   app.get('/users/:id/listings', {

@@ -31,6 +31,13 @@ export interface ListingReadService {
   get(actor: Actor | null, id: string): Promise<ListingDto | OwnListingDto>;
   /** Không từ khoá = bảng tin / danh mục (mức đầy đủ); có từ khoá = tìm kiếm (gồm tin hạn chế) — TK 15. */
   feed(actor: Actor | null, query: FeedQuery): Promise<CursorPage<ListingDto>>;
+  /**
+   * Dải "Tin nổi bật" (add-admin-boost): tin bảng tin sàn chung — hay một danh mục — có hạn nổi bật chưa qua, hạn gần hết
+   * trước, trần `promotion.featuredStripSize`. Cùng luật "ai thấy" với bảng tin nên tin hạn chế, tạm ẩn tự rời dải.
+   */
+  featured(actor: Actor | null, query: { categoryId?: string | undefined }): Promise<ListingDto[]>;
+  /** Dải nổi bật của bảng tin nhóm — theo phạm vi người xem như `groupFeed`. */
+  groupFeatured(actor: Actor | null, groupId: string): Promise<ListingDto[]>;
   suggestions(actor: Actor | null, id: string): Promise<ListingDto[]>;
   groupFeed(
     actor: Actor | null,
@@ -142,6 +149,17 @@ export function createListingReadService(shared: ListingShared): ListingReadServ
     return attributeFilterWhere(fields, query.attrs);
   };
 
+  const featuredStrip = async (
+    visible: Prisma.ListingWhereInput,
+    filters: Prisma.ListingWhereInput,
+  ): Promise<ListingDto[]> => {
+    const rows = await repository.featured({
+      where: { AND: [visible, filters, { featuredUntil: { gt: clock() } }] },
+      limit: shared.config.get('promotion.featuredStripSize'),
+    });
+    return toDtos(rows);
+  };
+
   /** Tin người xem mở được bằng đường link (người đăng luôn mở được tin của mình); không thì 404 như tin không có. */
   const viewable = async (actor: Actor | null, id: string): Promise<Listing> => {
     const listing = await repository.findById(id);
@@ -196,6 +214,21 @@ export function createListingReadService(shared: ListingShared): ListingReadServ
       });
       const priced = toCursorPage(rows, limit, (row) => ({ value: Number(row.price), id: row.id }));
       return { items: await toDtos(priced.items), nextCursor: priced.nextCursor };
+    },
+
+    featured(actor, query) {
+      const viewer = { accountId: actor?.accountId ?? null, memberGroupIds: new Set<string>() };
+      const surface: ListSurface = query.categoryId ? 'category' : 'feed';
+      return featuredStrip(
+        visibleWhere(viewer, surface),
+        query.categoryId ? { categoryId: query.categoryId } : {},
+      );
+    },
+
+    async groupFeatured(actor, groupId) {
+      if (!(await groups.findGroup(groupId))) throw new NotFoundError('Không có nhóm này');
+      const viewer = await viewerFor(actor, groupId);
+      return featuredStrip(visibleWhere(viewer, 'group_feed', groupId), {});
     },
 
     async suggestions(actor, id) {

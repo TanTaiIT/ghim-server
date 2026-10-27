@@ -287,10 +287,17 @@ tài khoản đã xoá; `accounts.show_activity` là công tắc hai chiều; ch
 `screening.messageImageIssue`; hội thoại xoá hẳn thì `media.purgeOwners('conversation', …)`.
 
 `listing` vị trí trên bảng tin (change `prepare-promotions`): `listings.rank_at` là cột xếp hạng của bốn index bảng tin và
-con trỏ trang, đặt cùng `first_live_at` trong `nextClock` (tin trùng của mình kế thừa qua `rankAsListingId`) — chỉ gói
-`rank_to_top` (`add-promotions`, hoãn) mới tách hai cột; CHECK `listings_rank_check` giữ chúng đi cùng nhau tới đó.
-`featured_until` giữ chỗ, luôn null, DTO trả `featuredUntil`. Phí đăng tin là `listing/calc/fee.calc.ts` (`postingFee`,
-trả 0 Xu — TK 29), `trust` đưa vào `quota.fee` của bảng uy tín qua cổng dữ kiện.
+con trỏ trang, đặt cùng `first_live_at` trong `nextClock` (tin trùng của mình kế thừa qua `rankAsListingId`) — chỉ "đẩy lên
+đầu" mới tách hai cột; CHECK `listings_rank_check` chỉ đòi hai cột cùng null. Phí đăng tin là `listing/calc/fee.calc.ts`
+(`postingFee`, trả 0 Xu — TK 29), `trust` đưa vào `quota.fee` của bảng uy tín qua cổng dữ kiện.
+
+`listing` đẩy tin của người quản trị (change `add-admin-boost`, miễn phí): `listing/boost/` (`boost.service.ts`,
+`boost.routes.ts`) + `calc/boost.calc.ts` (`boostRole`, `boostBlock`, `bumpRetryAt`, `activeFeaturedUntil`). Chỉ `listing`
+ghi `rank_at`, `featured_until`, `last_bumped_at` — qua `repository.boost`: khoá dòng, một câu `$executeRaw` không tăng
+`version`, không đổi `updated_at`, nhật ký cùng transaction; gói trả Xu sau này gọi cổng của `listing`. Hạn nổi bật đã qua
+đọc như null (DTO, dải), không việc nền dọn. Dải "Tin nổi bật" đi qua `visibleWhere` của đúng bảng tin. **Luật phạm vi
+nhóm viết hai chỗ**: `boostRole` và `groupRoleOver` của `review` (`listing` dựng trước `review`, gọi ngược sẽ vòng) — đổi
+một chỗ thì đổi cả hai; quyền staff đọc qua `privileges` (`PrivilegeSource`) mỗi lượt.
 
 `trust` phần gậy (change `add-strikes`, hướng dẫn ở `docs/strikes.md`): `strike/` ra gậy trong transaction quyết định của
 `review` (`issueStrike(tx)`), khiếu nại, kênh hỗ trợ, ân xá, quyết gậy nghiêm trọng / xem lại; `calc/strike.calc.ts` thuần (hiệu
@@ -331,7 +338,9 @@ này đã archive 10–11/10/2026 · đợt 2
 `add-media` (đã archive 11/10/2026) → `add-listings` → `add-trust-tiers` (cả hai đã archive 12/10/2026) · đợt 3 `add-screening` (đã archive 13/10/2026) → `add-image-moderation` (tách ra 12/10/2026, bỏ 24/10/2026: không kiểm nội dung ảnh) · đợt 4 `add-review-queues` (đã archive 15/10/2026) → **sửa lỗi rà soát 15/10/2026 trước mọi tính năng** (`docs/RA-SOAT-15-10-2026.md`; đợt 1 bảo mật = `fix-audit-security`) →
 `add-reports` (đã archive 16/10/2026) · đợt 5 `add-strikes` (đã archive 17/10/2026) · đợt 6 `add-messaging` → `add-notifications` (cả hai đã archive 17/10/2026) → `add-price-offers` → `add-team-conversations` → `add-activity-status` (làm 18/10/2026 theo yêu cầu của app `ghim-app`, cả ba đã archive 22/10/2026) → `add-join-request-status` (cũng từ lượt nối `ghim-app`, đã archive 18/10/2026) → `add-trust-notices` (thông báo gậy, khiếu nại, mức tin cậy, thời gian chờ + N36 — rơi giữa `add-strikes`, `add-notifications`, `add-review-queues`; đã archive 24/10/2026) → `add-me-staff-flag` (`/me` có cờ `staff` thay `twoFactorEnabled` cho lối vào bàn vận hành của `ghim-app`) → `add-image-quality-checks` (kiểm chất lượng ảnh thay kiểm nội dung) — cả ba gộp vào `main` qua PR #14, archive 24/10/2026 → `add-listing-filters` (lọc tin theo mẫu thông tin của danh mục qua `attrs` của `GET /listings`, TK 11 — việc app chờ ở `docs/VIEC-DANG-DO.md` mục 8; gộp `main` qua PR #15, archive 24/10/2026) → `add-login-device-marks` (dấu máy ghi lúc đăng nhập — `device_logins` — cho luật xung đột lợi ích và người hỏi mua; việc dở `VIEC-DANG-DO.md` mục 1; gộp `main` qua PR #16, archive 24/10/2026) → `add-ops-daily-stats` (`GET /ops/stats/daily` cho master: tài khoản mới, lượt máy, tin lên bảng, quyết định người theo ngày Việt Nam — từ ô "Chưa có API" của app; gộp `main` qua PR #18, archive 24/10/2026) → `add-ops-account-directory` (danh bạ tài khoản cho master / staff hỗ trợ: `GET /ops/accounts`, `/ops/accounts/:id`; từ tab Người dùng của app; gộp `main` qua PR #19, archive 24/10/2026) → `add-saved-listings` (lưu tin để xem lại, TK 15 — mục hoãn của TK 29, người dùng chốt làm 25/10/2026; thay dữ liệu mẫu ở mục "Đã lưu" của app) → `add-id-verification-status` (người nộp đọc hồ sơ xác minh gần nhất của mình, TK 7) → `fix-group-task-report-scope` (bàn duyệt của nhóm chỉ thấy báo cáo thường về chính tin, TK 23) → `add-saved-searches` (lưu lượt tìm, báo tin mới khớp — nhóm thông báo thứ mười, TK 24; người dùng chốt luật 25/10/2026) — cả bốn gộp vào `main` qua PR #21, archive 25/10/2026 → `add-feed-sort` (sắp xếp bảng tin, tìm kiếm theo mới nhất / giá, TK 11) → `add-home-province` (tỉnh/thành riêng tư của người dùng cho "Gần bạn", TK 11) → `add-screening-stats` (số liệu máy duyệt theo tháng cho master, TK 14, 25) → `add-help-content` (nội dung trợ giúp master soạn, ai cũng đọc, TK 24) → `add-message-images` (tối đa 4 ảnh một tin nhắn, qua luật chất lượng của ảnh tin, TK 24, 25) → `add-screening-ops-reads` (đọc từ khoá danh mục, ảnh của danh sách trắng — cho năm màn máy duyệt của app) — năm change trước gộp `main` qua PR #22, change cuối qua PR #23, cả sáu archive 26/10/2026 qua PR #24 → `add-group-manual-review` (công tắc "duyệt tay mọi tin" của nhóm: máy cho qua vẫn giữ cho quản trị nhóm, chỉ tin gửi mới và gửi lại — TK 9, 13, 16; người dùng chốt 26/10/2026) · đợt 7
 `add-data-retention` (đã archive 17/10/2026) · giữ chỗ gói đẩy tin `prepare-promotions` (đã archive 17/10/2026;
-kế hoạch `docs/KE-HOACH-GOI-DAY-TIN.md`) → `add-wallet` → `add-promotions` (hai proposal còn mở trong
+kế hoạch `docs/KE-HOACH-GOI-DAY-TIN.md`) → `add-admin-boost` (người quản trị đẩy tin, đặt nổi bật miễn phí — chốt
+27/10/2026, đi trước gói trả Xu; `add-promotions` phải viết lại delta `listing/visibility` trên bản sau change này) →
+`add-wallet` → `add-promotions` (hai proposal còn mở trong
 `openspec/changes/`, nằm chờ chủ dự án chốt) → `add-topup` (chưa viết — viết khi quyết thu tiền).
 
 - `add-platform-roles` và `add-categories` cần nhau (quyền staff gắn theo danh mục; danh mục cần staff soạn

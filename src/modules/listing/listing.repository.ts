@@ -78,6 +78,10 @@ export interface BatchInput<C = undefined> {
   at: Date;
 }
 
+/** Một lượt đẩy tin (add-admin-boost): đẩy lên đầu đặt `rank_at` + `last_bumped_at`; đặt / bỏ nổi bật đặt `featured_until`. */
+export type BoostWrite =
+  { kind: 'rank_to_top'; at: Date } | { kind: 'featured'; until: Date | null };
+
 export type ListingOrder = 'live' | 'updated' | 'price_asc' | 'price_desc';
 /** Con trỏ theo thứ tự: mốc thời gian với `live` / `updated`, giá với `price_asc` / `price_desc`. */
 export type ListCursor = CursorKey | { price: bigint; id: string };
@@ -117,6 +121,17 @@ export interface ListingRepository {
     cursor?: ListCursor | undefined;
     limit: number;
   }): Promise<Listing[]>;
+  /** Dải tin nổi bật: hạn gần hết trước, một trang không con trỏ (add-admin-boost). */
+  featured(input: { where: Prisma.ListingWhereInput; limit: number }): Promise<Listing[]>;
+  /**
+   * Đẩy tin (add-admin-boost): khoá dòng, `decide` đọc dòng đã khoá rồi trả cột mới kèm dòng nhật ký — hay ném; `null` =
+   * không đổi gì. Một câu `UPDATE` không tăng `version` (lượt sửa của người đăng không vấp `LISTING_CHANGED`), không đổi
+   * `updated_at` (thứ tự "Tin của tôi" giữ nguyên). Tin không có hay đã xoá → `null`.
+   */
+  boost(input: {
+    id: string;
+    decide: (locked: Listing) => { write: BoostWrite; audit: AuditEntry } | null;
+  }): Promise<Listing | null>;
   /** Lưu tin (add-saved-listings): khoá chính (người, tin) — lưu lại là không đổi gì. */
   saveListing(accountId: string, listingId: string, at: Date): Promise<void>;
   unsaveListing(accountId: string, listingId: string): Promise<void>;
@@ -413,6 +428,28 @@ export function createListingRepository(prisma: PrismaClient): ListingRepository
         where: cursor ? { AND: [where, afterCursor(order, cursor)] } : where,
         orderBy: ORDER_BY[order],
         take: limit + 1,
+      }),
+
+    featured: ({ where, limit }) =>
+      prisma.listing.findMany({
+        where,
+        orderBy: [{ featuredUntil: 'asc' }, { id: 'asc' }],
+        take: limit,
+      }),
+
+    boost: ({ id, decide }) =>
+      prisma.$transaction(async (tx) => {
+        const locked = await lockListing(tx, id);
+        if (!locked || locked.deletedAt !== null) return null;
+        const decision = decide(locked);
+        if (!decision) return locked;
+        const { write } = decision;
+        // `$executeRaw` thay `update`: `@updatedAt` của Prisma tự đặt `updated_at` ở mọi lượt `update`.
+        await (write.kind === 'rank_to_top'
+          ? tx.$executeRaw`UPDATE listings SET rank_at = ${write.at}, last_bumped_at = ${write.at} WHERE id = ${id}::uuid`
+          : tx.$executeRaw`UPDATE listings SET featured_until = ${write.until} WHERE id = ${id}::uuid`);
+        await appendAudit(tx, decision.audit);
+        return tx.listing.findUnique({ where: { id } });
       }),
 
     async saveListing(accountId, listingId, at) {

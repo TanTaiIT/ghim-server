@@ -1,3 +1,4 @@
+import type { PrivilegeSource } from '../../common/auth/privilege-source.js';
 import type { DayCount } from '../../common/time/time.js';
 import type {
   ListingFault,
@@ -110,7 +111,10 @@ export type ListingGroupPort = Pick<
   | 'findGroup'
   | 'isBanned'
   | 'memberUnit'
+  | 'reviewersOf'
 >;
+/** Quyền staff đọc lại mỗi lượt đẩy tin (add-admin-boost), như bàn vận hành — không tin token. */
+export type ListingPrivilegePort = Pick<PrivilegeSource, 'staffGrant'>;
 export type ListingCategoryPort = Pick<
   CategoryService,
   'statusOf' | 'lockStatus' | 'validateAttributes' | 'currentTemplate'

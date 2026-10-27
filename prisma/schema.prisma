@@ -1190,10 +1190,12 @@ model Listing {
   /// Vị trí trên bảng tin: không đổi khi sửa hay gia hạn.
   firstLiveAt        DateTime?            @map("first_live_at") @db.Timestamptz(3)
   /// Vị trí xếp hạng trên bảng tin (TK 30 `rankAt`, change prepare-promotions): = `first_live_at` lúc lên bảng lần đầu, tin
-  /// trùng của chính mình kế thừa tin cũ; chỉ gói đẩy tin (TK 29, hoãn) mới đổi. Bốn index bảng tin xếp theo cột này.
+  /// trùng của chính mình kế thừa tin cũ; chỉ "đẩy lên đầu" (add-admin-boost) mới đổi. Bốn index bảng tin xếp theo cột này.
   rankAt             DateTime?            @map("rank_at") @db.Timestamptz(3)
-  /// Hạn tin nổi bật (TK 30 `featuredUntil`) — giữ chỗ, luôn null tới khi có gói đẩy tin.
+  /// Hạn tin nổi bật (TK 30 `featuredUntil`) — người quản trị đặt (add-admin-boost); đã qua thì đọc như null.
   featuredUntil      DateTime?            @map("featured_until") @db.Timestamptz(3)
+  /// Lần "đẩy lên đầu" gần nhất (add-admin-boost) — nguồn của thời gian chờ `promotion.bumpCooldownHours`.
+  lastBumpedAt       DateTime?            @map("last_bumped_at") @db.Timestamptz(3)
   /// Đồng hồ ngày hiển thị: `expires_at` khi đang chạy, `clock_remaining_ms` khi đang dừng.
   expiresAt          DateTime?            @map("expires_at") @db.Timestamptz(3)
   clockRemainingMs   BigInt?              @map("clock_remaining_ms")

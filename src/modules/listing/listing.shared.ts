@@ -9,12 +9,14 @@ import {
   ForbiddenError,
   NotFoundError,
 } from '../../common/errors/app-error.js';
+import { activeFeaturedUntil } from './calc/boost.calc.js';
 import { type ClockSettings, DAY_MS, remainingMs } from './calc/display-period.calc.js';
 import { isDetached } from './calc/hide.calc.js';
 import type {
   ListingCategoryPort,
   ListingGroupPort,
   ListingMediaPort,
+  ListingPrivilegePort,
   ListingRegionPort,
   ListingScreeningPort,
   ListingTrustPort,
@@ -48,6 +50,7 @@ export interface ListingServiceDeps {
   trust: ListingTrustPort;
   screening: ListingScreeningPort;
   openWork: OpenWork;
+  privileges: ListingPrivilegePort;
   config: RuntimeConfig;
   clock: () => Date;
 }
@@ -148,7 +151,7 @@ async function one<T>(rows: Promise<T[]>): Promise<T> {
 }
 
 export function createListingShared(deps: ListingServiceDeps) {
-  const { repository, groups, media, config } = deps;
+  const { repository, groups, media, config, clock } = deps;
 
   /** Người xem như luật "ai thấy một tin" cần: nhóm người đó đang là thành viên (chỉ nhóm của tin là đủ). */
   const viewerFor = async (actor: Actor | null, groupId: string | null): Promise<Viewer> => {
@@ -176,6 +179,7 @@ export function createListingShared(deps: ListingServiceDeps) {
     Promise.all(listing.imageIds.map(async (id) => ({ id, url: await media.viewUrl(id) })));
 
   const toDtos = async (rows: Listing[]): Promise<ListingDto[]> => {
+    const now = clock();
     const labels = await groups.badgeLabels(
       rows.flatMap((row) => (row.badgeGroupId ? [row.badgeGroupId] : [])),
     );
@@ -206,7 +210,7 @@ export function createListingShared(deps: ListingServiceDeps) {
               ? { groupId: row.badgeGroupId, name: label.name }
               : null,
           firstLiveAt: row.firstLiveAt?.toISOString() ?? null,
-          featuredUntil: row.featuredUntil?.toISOString() ?? null,
+          featuredUntil: activeFeaturedUntil(row.featuredUntil, now)?.toISOString() ?? null,
           expiresAt: row.expiresAt?.toISOString() ?? null,
           createdAt: row.createdAt.toISOString(),
           updatedAt: row.updatedAt.toISOString(),

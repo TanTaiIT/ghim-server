@@ -409,6 +409,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
         reviewService?.blocksPlacement(listingId) ?? notBuilt('review'),
       reportHidden: (listingId) => reviewService?.reportHidden(listingId) ?? notBuilt('review'),
     },
+    privileges: deps.privilegeSource,
     config: deps.config,
     clock: deps.clock,
   });
