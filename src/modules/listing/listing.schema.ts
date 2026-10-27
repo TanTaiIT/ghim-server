@@ -194,7 +194,7 @@ export const listingSchema = z.object({
   /** Huy hiệu nhóm — ẩn khi nhóm đang tạm khoá, mở khoá thì hiện lại (spec group/badges). */
   badge: listingBadgeSchema.nullable(),
   firstLiveAt: iso.nullable(),
-  /** Hạn tin nổi bật — giữ chỗ cho gói đẩy tin (TK 29, 30), luôn null tới khi có gói. */
+  /** Hạn tin nổi bật (add-admin-boost) — null khi chưa từng nổi bật, đã bỏ hay hạn đã qua. */
   featuredUntil: iso.nullable(),
   expiresAt: iso.nullable(),
   createdAt: iso,
@@ -242,6 +242,30 @@ export const savedSearchSchema = z.object({
   createdAt: iso,
 });
 
+// ── ĐẨY TIN (add-admin-boost) ─────────────────────────────────────────────────────────────────────
+
+/** Số ngày nổi bật chỉ kiểm nguyên ở đây: trần là con số `promotion.featuredMaxDays`, service kiểm (400). */
+export const boostBodySchema = z.discriminatedUnion('effect', [
+  z.object({ effect: z.literal('rank_to_top') }).strict(),
+  z.object({ effect: z.literal('featured'), days: z.number().int() }).strict(),
+]);
+
+export const boostStateSchema = z.object({
+  role: z.enum(['master', 'staff', 'group_owner', 'group_moderator']),
+  /** Vì sao không đẩy lên đầu / đặt nổi bật được; `null` = đẩy được. Bỏ nổi bật không vướng câu này. */
+  blocked: z.string().nullable(),
+  /** Mốc đẩy lên đầu lại được; `null` = đẩy được ngay. */
+  bumpRetryAt: iso.nullable(),
+  featuredUntil: iso.nullable(),
+  featuredMaxDays: z.number().int(),
+});
+
+export const featuredQuerySchema = z.object({ categoryId: z.uuid().optional() });
+
+export const featuredStripSchema = z.object({ items: z.array(listingSchema) });
+
+export type BoostBody = z.infer<typeof boostBodySchema>;
+export type BoostStateDto = z.infer<typeof boostStateSchema>;
 export type CreateListingBody = z.infer<typeof createListingBodySchema>;
 export type PatchListingBody = z.infer<typeof patchListingBodySchema>;
 export type FeedQuery = z.infer<typeof feedQuerySchema>;

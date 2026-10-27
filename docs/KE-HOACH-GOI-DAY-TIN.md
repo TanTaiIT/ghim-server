@@ -137,11 +137,28 @@ từng mục ghi cuối dòng.
 6. OpenSpec: proposal `add-wallet` và `add-promotions` kèm spec delta và câu hỏi mở nằm chờ trong `openspec/changes/`
    (như các change đợt 1–7 từng nằm chờ). **Xong** — `add-topup` viết khi quyết thu tiền.
 
+## 5b. Đẩy tin của người quản trị — change `add-admin-boost` (27/10/2026, đi trước gói trả Xu)
+
+Chủ dự án muốn có đẩy tin ngay nhưng **do người quản trị làm, miễn phí** (master mọi tin, staff tin sàn chung của danh mục
+được giao, chủ nhóm / điều hành viên tin của nhóm). Change này dựng sẵn phần gói trả Xu sẽ dùng lại:
+
+- Hai hiệu ứng `rank_to_top` và `featured` (mục 1) chạy thật; `extend_expiry` vẫn không làm (đã có gia hạn miễn phí).
+- `listings.last_bumped_at` **đã có** — thời gian chờ `promotion.bumpCooldownHours` (24 giờ) giữa hai lần đẩy lên đầu, bất kể
+  ai đẩy. `featured_until` bắt đầu có giá trị; hạn đã qua đọc như null, không việc nền dọn.
+- Dải "Tin nổi bật" (`GET /listings/featured`, `GET /groups/{groupId}/listings/featured`) và ba con số nhóm "Đẩy tin"
+  (`promotion.bumpCooldownHours`, `promotion.featuredMaxDays`, `promotion.featuredStripSize`) đã có, đúng tên mục 4.5.
+- Chỉ `listing` ghi ba cột đó (`listing/boost/`); `add-promotions` gọi cổng của `listing`, không ghi thẳng.
+
+Hệ quả cho bước 1: proposal `add-promotions` viết trước change này, nên delta `listing/visibility` của nó (requirement "Hạn
+nổi bật chưa dùng", dải nổi bật) **phải viết lại** trên spec sau `add-admin-boost` trước khi apply; "chưa có ai đặt
+`featured_until`" không còn đúng.
+
 ## 6. Lộ trình bật
 
 | Bước | Khi nào                          | Gồm                                                                                                                                                                                                                |
 | ---- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 0 ✔  | 17/10/2026                       | mục 5 — `prepare-promotions` đã archive                                                                                                                                                                            |
+| 0b   | 27/10/2026                       | mục 5b — `add-admin-boost`: người quản trị đẩy tin, đặt nổi bật miễn phí; dải "Tin nổi bật"                                                                                                                        |
 | 1    | có người dùng thật, muốn thử gói | `add-wallet` (sổ cái, master cấp Xu, ví trong app), `add-promotions` (catalog, mua gói, hiệu ứng, dải nổi bật, N49–N51) — **không nạp tiền**: Xu do master tặng (`promo_grant`), đủ để đo người dùng có dùng không |
 | 2    | quyết thu tiền                   | `add-topup` (VietQR theo bài học hệ cũ, đối soát, hoàn), điều khoản sử dụng (Xu một chiều), kế toán / hoá đơn                                                                                                      |
 | 3    | (tuỳ)                            | phí đăng tin bằng Xu (`fee > 0`, hoàn khi bị từ chối, N tin miễn phí mỗi tháng) — cùng hạ tầng, chỉ đổi luật phí                                                                                                   |

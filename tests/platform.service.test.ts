@@ -513,6 +513,16 @@ describe('createVersionedRuntimeConfig', () => {
     expect(config.get('quota.submitsPerHourT0')).toBe(3);
     await vi.waitFor(() => expect(config.get('quota.submitsPerHourT0')).toBe(4));
   });
+
+  it('khoá thêm sau khi bảng đã phát hành (add-admin-boost): phiên bản hiện hành thiếu khoá thì đọc giá trị khởi đầu', async () => {
+    const { 'promotion.bumpCooldownHours': _cooldown, ...older } = RUNTIME_CONFIG_DEFAULTS;
+    await repository.seedConfigVersion(older, MASTER.accountId, NOW);
+    const config = createVersionedRuntimeConfig(repository);
+    await config.load();
+    expect(config.version()).toBe(1);
+    expect(config.get('promotion.bumpCooldownHours')).toBe(24);
+    expect(config.get('promotion.featuredStripSize')).toBe(6);
+  });
 });
 
 describe('tra nhật ký', () => {

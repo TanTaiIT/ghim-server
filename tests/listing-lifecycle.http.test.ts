@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { noStaffPrivilegeSource } from '../src/common/auth/privilege-source.js';
 import { createStaticRuntimeConfig } from '../src/common/config/runtime-config.js';
 import { createInterimTrust, interimScreening } from './fakes/listing-ports.fake.js';
 import { createListingService } from '../src/modules/listing/listing.service.js';
@@ -471,6 +472,7 @@ describe('Nơi đăng khi sửa', () => {
         blocksPlacement: () => Promise.resolve(true),
         reportHidden: () => Promise.resolve(false),
       },
+      privileges: noStaffPrivilegeSource,
       config: createStaticRuntimeConfig({}),
       clock: () => now,
     });
@@ -565,6 +567,12 @@ const LISTING_ROUTES = [
   'GET /me/saved-searches',
   'POST /me/saved-searches',
   'DELETE /me/saved-searches/{id}',
+  // Đẩy tin của người quản trị và dải nổi bật (add-admin-boost).
+  'GET /listings/{id}/boost',
+  'POST /listings/{id}/boost',
+  'DELETE /listings/{id}/featured',
+  'GET /listings/featured',
+  'GET /groups/{groupId}/listings/featured',
 ];
 /** Lượt gửi (qua máy) — nhận `x-device-id` và có thể chạm hạn mức (429). */
 const SUBMITTING = new Set([
@@ -597,11 +605,12 @@ describe('Swagger', () => {
 
   // Route đọc không khai Bearer thì client sinh từ tài liệu gọi ẩn danh cả khi đã đăng nhập: chủ tin mở nháp của
   // mình nhận 404, thành viên không thấy tin "chỉ thành viên".
-  it('đủ 22 route tin đăng, không thừa; route đọc: không phiên hoặc Bearer; còn lại đòi bearerAuth', async () => {
+  it('đủ 27 route tin đăng, không thừa; route đọc: không phiên hoặc Bearer; còn lại đòi bearerAuth', async () => {
     const ops = await listingOperations();
     expect(ops.map((op) => op.key).toSorted()).toEqual(LISTING_ROUTES.toSorted());
     for (const op of ops) {
-      const reader = op.key.startsWith('GET ') && !op.key.startsWith('GET /me/');
+      const reader =
+        op.key.startsWith('GET ') && !op.key.startsWith('GET /me/') && !op.key.endsWith('/boost');
       expect(op.security, op.key).toEqual(reader ? [{}, { bearerAuth: [] }] : [{ bearerAuth: [] }]);
     }
   });

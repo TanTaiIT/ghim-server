@@ -75,6 +75,7 @@ const NOTIFICATION = 'Thông báo';
 const MESSAGING = 'Nhắn tin';
 const MEDIA = 'Ảnh';
 const RETENTION = 'Hạn lưu';
+const PROMOTION = 'Đẩy tin';
 
 export const CONFIG_KEYS = {
   // Tài khoản
@@ -198,6 +199,11 @@ export const CONFIG_KEYS = {
   'listing.moveToMarketplaceDays': days(30, LISTING, { min: 0 }),
   // Lượt tìm đã lưu mỗi tài khoản (add-saved-searches, chốt 25/10/2026) — mỗi lượt là một lần khớp ngược khi có tin mới.
   'listing.maxSavedSearches': int(10, LISTING),
+  // Đẩy tin của người quản trị (add-admin-boost) — gói trả Xu (add-promotions) dùng lại đúng các khoá này. 0 = không chờ.
+  'promotion.bumpCooldownHours': hours(24, PROMOTION, { min: 0 }),
+  'promotion.featuredMaxDays': days(30, PROMOTION, { max: 365 }),
+  // Dải là một trang, không con trỏ: trần bằng trần trang của server.
+  'promotion.featuredStripSize': int(6, PROMOTION, { max: 50 }),
   // Nhóm
   'group.applicationExpiresDays': days(21, GROUP),
   'group.reapplyWaitDays': days(7, GROUP, { min: 0 }),

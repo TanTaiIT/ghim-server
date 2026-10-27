@@ -1,3 +1,4 @@
+import { createListingBoostService, type ListingBoostService } from './boost/boost.service.js';
 import type { ListingFactsService } from './listing.ports.js';
 import { createListingShared, type ListingServiceDeps } from './listing.shared.js';
 import {
@@ -28,7 +29,8 @@ export type ListingService = ListingPostingService &
   ListingSystemService &
   ListingCascadeService &
   ListingRetentionService &
-  ListingFactsService;
+  ListingFactsService &
+  ListingBoostService;
 
 /**
  * Ghép bốn mặt của `listing` (người đăng, người xem, hệ thống, phản ứng với module khác) trên một phần dùng chung — như `group`, để mỗi file
@@ -44,5 +46,6 @@ export function createListingService(deps: ListingServiceDeps): ListingService {
     ...createListingCascadeService(shared),
     ...createListingRetentionService(shared),
     ...createListingFactsService(shared),
+    ...createListingBoostService(shared),
   };
 }

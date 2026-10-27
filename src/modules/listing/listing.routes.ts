@@ -1,5 +1,6 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 
+import { boostRoutes } from './boost/boost.routes.js';
 import type { ListingService } from './listing.service.js';
 import { postingRoutes } from './posting/posting.routes.js';
 import { readRoutes } from './read/read.routes.js';
@@ -20,4 +21,5 @@ export const listingRoutes: FastifyPluginAsyncZod<ListingRoutesOptions> = async 
   await app.register(postingRoutes, { listing });
   await app.register(readRoutes, { listing });
   await app.register(systemRoutes, { listing });
+  await app.register(boostRoutes, { listing });
 };
