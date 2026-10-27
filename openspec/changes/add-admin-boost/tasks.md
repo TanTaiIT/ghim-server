@@ -45,23 +45,24 @@ tin", người quản trị "Được" đẩy tin của mình, thông báo "Chư
       vẫn hoãn) + xuất lại PDF
 - [x] 4.2 `docs/KE-HOACH-GOI-DAY-TIN.md`: thêm mục đẩy tin của người quản trị đi trước gói trả Xu, `last_bumped_at` đã có,
       `add-promotions` phải viết lại delta `listing/visibility`
-- [ ] 4.3 CLAUDE.md: mục `listing` (đẩy tin, luật phạm vi viết hai chỗ với `review`), thứ tự change thêm `add-admin-boost`
+- [x] 4.3 CLAUDE.md: mục `listing` (đẩy tin, luật phạm vi viết hai chỗ với `review`), thứ tự change thêm `add-admin-boost`
       trước `add-wallet`; `docs/VIEC-DANG-DO.md` mục 8 bỏ dòng "Đẩy tin" phần người quản trị
 
 ## 5. `ghim-app`
 
-- [ ] 5.1 `npm run api:sync`; hàm trong `client.ts` (dải nổi bật) và `ops.ts` hay module api mới (hỏi / đẩy / bỏ nổi bật),
+- [x] 5.1 `npm run api:sync`; hàm trong `client.ts` (dải nổi bật) và `ops.ts` hay module api mới (hỏi / đẩy / bỏ nổi bật),
       hook trong `src/queries/**`, query key trong `keys.ts`; test api theo mẫu `*.test.ts` đang có
-- [ ] 5.2 Nút "Đẩy tin" ở tin cho người có quyền (master, staff, quản trị nhóm — hỏi `GET …/boost`): đẩy lên đầu (hiện mốc
+- [x] 5.2 Nút "Đẩy tin" ở tin cho người có quyền (master, staff, quản trị nhóm — hỏi `GET …/boost`): đẩy lên đầu (hiện mốc
       đẩy lại khi đang chờ), nổi bật N ngày, bỏ nổi bật; lỗi qua toast
-- [ ] 5.3 Dải "Tin nổi bật" ở trang chủ, trang danh mục, trang nhóm (ẩn khi rỗng); bỏ nút "Đẩy tin" báo "sẽ có" ở màn
+- [x] 5.3 Dải "Tin nổi bật" ở trang chủ, trang danh mục, trang nhóm (ẩn khi rỗng); bỏ nút "Đẩy tin" báo "sẽ có" ở màn
       người đăng nếu nó gây hiểu nhầm với đẩy tin của người quản trị
-- [ ] 5.4 Thử trên web: staff đẩy tin danh mục mình → lên đầu, đẩy lại báo mốc; chủ nhóm đặt nổi bật → dải của nhóm có
-      tin; người dùng thường không thấy nút
+- [x] 5.4 Thử trên ba máy ảo Android (thay cho web — người dùng chốt thử trên máy ảo): chủ nhóm đặt nổi bật 3 ngày →
+      dải của nhóm có tin, đẩy lên đầu → tin đứng đầu bảng tin nhóm, đẩy lại ngay → bảng chọn và toast nói mốc; master đặt
+      nổi bật tin sàn → dải trang chủ có tin; thành viên thường không thấy nút. Vai staff phủ bằng test HTTP
 
 ## 6. Kiểm tra tích hợp
 
-- [ ] 6.1 `pnpm run check`, `pnpm run build`, `pnpm db:drift`, `pnpm run spec:validate` (ghim-server); `npm run check`
+- [x] 6.1 `pnpm run check`, `pnpm run build`, `pnpm db:drift`, `pnpm run spec:validate` (ghim-server); `npm run check`
       (ghim-app)
 
 ## Workflow follow-up
