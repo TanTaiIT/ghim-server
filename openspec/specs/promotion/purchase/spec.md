@@ -1,6 +1,7 @@
 # promotion/purchase Specification
 
 ## Purpose
+
 Mua gói cho một tin: trừ Xu và áp hiệu ứng trong một lượt, chỉ cho tin đang thật sự hiện với người mua, có thời gian chờ
 và hoàn Xu theo luật rõ ràng (kế hoạch gói đẩy tin mục 4.3).
 

@@ -1,6 +1,7 @@
 # promotion/catalog Specification
 
 ## Purpose
+
 Bảng gói đẩy tin áp toàn sàn, master soạn, người đăng đọc trước khi mua (kế hoạch gói đẩy tin mục 4.1, 4.2).
 
 ## Requirements
