@@ -502,9 +502,8 @@ describe('Dải tin nổi bật và hạn nổi bật', () => {
     ).toBe(404);
   });
 
-  it('hơn 6 tin nổi bật: dải có đúng 6 tin hạn gần nhất, hạn gần hết trước', async () => {
+  it('hơn 6 tin nổi bật: mỗi lần tải đúng 6 tin khác nhau lấy ngẫu nhiên, qua nhiều lần tải cả 8 tin đều xuất hiện', async () => {
     const category = await seedCategory();
-    // Phần tử thứ i nổi bật i + 1 ngày: thứ tự dải đúng bằng thứ tự mảng.
     const ids = await Promise.all(
       Array.from({ length: 8 }, async (_, index) => {
         const listing = await marketListing(category);
@@ -512,7 +511,20 @@ describe('Dải tin nổi bật và hạn nổi bật', () => {
         return listing.id;
       }),
     );
-    expect(await stripIds(`/listings/featured?categoryId=${category}`)).toEqual(ids.slice(0, 6));
+    const seen = new Set<string>();
+    // 8 tin lấy 6: xác suất một tin vắng mặt suốt 30 lần là (1/4)^30 — không bao giờ gặp trong test.
+    const loads = await Promise.all(
+      Array.from({ length: 30 }, () => stripIds(`/listings/featured?categoryId=${category}`)),
+    );
+    for (const strip of loads) {
+      expect(strip).toHaveLength(6);
+      expect(new Set(strip).size).toBe(6);
+      for (const id of strip) {
+        expect(ids).toContain(id);
+        seen.add(id);
+      }
+    }
+    expect(seen.size).toBe(8);
   });
 
   it('tin nổi bật bị hạn chế thì rời dải, gỡ hạn chế khi hạn còn thì vào lại', async () => {

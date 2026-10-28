@@ -166,6 +166,7 @@ const toProfile = (
     allowOutsiders: ctx.group.allowOutsiders,
     showNameOnMarketplace: ctx.group.showNameOnMarketplace,
     manualReview: ctx.group.manualReview,
+    allowPromotions: ctx.group.allowPromotions,
     code: manager ? ctx.group.code : null,
     lockedReason: manager ? ctx.group.lockedReason : null,
     units: units.map((unit) => ({ id: unit.id, name: unit.name })),

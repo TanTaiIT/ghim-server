@@ -745,6 +745,8 @@ model Group {
   showNameOnMarketplace Boolean         @default(false) @map("show_name_on_marketplace")
   /// Mọi tin gửi mới và gửi lại vào nhóm chờ người duyệt kể cả khi máy cho qua (add-group-manual-review).
   manualReview          Boolean         @default(false) @map("manual_review")
+  /// Thành viên dùng được gói đẩy tin trả Xu trong nhóm (add-promotions); tắt không đụng lượt đã mua.
+  allowPromotions       Boolean         @default(true) @map("allow_promotions")
   boardStyle            GroupBoardStyle @default(list) @map("board_style")
   code                  String?         @unique
   ownerlessSince        DateTime?       @map("ownerless_since") @db.Timestamptz(3)
@@ -2441,4 +2443,88 @@ enum WalletTransactionType {
   refund
 
   @@map("wallet_transaction_type")
+}
+
+// ── GÓI ĐẨY TIN (add-promotions) ──────────────────────────────────────────────────────────────────
+
+enum PromotionEffect {
+  rank_to_top
+  featured
+
+  @@map("promotion_effect")
+}
+
+enum PromotionScope {
+  marketplace
+  group
+  both
+
+  @@map("promotion_scope")
+}
+
+/// Hết hạn đọc so với bây giờ (`expires_at <= now`), không có trạng thái riêng.
+enum PromotionPurchaseStatus {
+  applied
+  refunded
+
+  @@map("promotion_purchase_status")
+}
+
+/// Catalog gói master soạn (spec promotion/catalog); bộ khởi đầu chèn lúc khởi động khi bảng trống. Không xoá — chỉ tắt.
+/// CHECK tay (migration add_promotions): promotion_products_duration_check (effect = 'featured') = (duration_days IS NOT
+/// NULL); promotion_products_price_check: price >= 1 AND cooldown_hours >= 0 AND sort >= 0.
+model PromotionProduct {
+  id            String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  /// Master đặt, không đổi: lượt mua chụp lại mã này.
+  code          String          @unique
+  name          String
+  description   String?
+  effect        PromotionEffect
+  /// Chỉ `featured`: 1 tới `promotion.featuredMaxDays`.
+  durationDays  Int?            @map("duration_days")
+  /// Giữa hai lần mua cùng gói cho cùng một tin.
+  cooldownHours Int             @map("cooldown_hours")
+  /// Xu.
+  price         Int
+  minTier       TrustTier       @map("min_tier")
+  scope         PromotionScope
+  active        Boolean         @default(true)
+  sort          Int             @default(0)
+  /// Trống = bộ khởi đầu chèn lúc khởi động.
+  createdBy     String?         @map("created_by") @db.Uuid
+  createdAt     DateTime        @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime        @map("updated_at") @db.Timestamptz(3)
+
+  @@map("promotion_products")
+}
+
+/// Một lượt mua, chụp lại gói lúc mua (master sửa gói sau không đổi lượt đã mua). CHECK tay
+/// promotion_purchases_expiry_check: (effect = 'featured') = (expires_at IS NOT NULL). Trigger
+/// promotion_purchases_immutable: chỉ reminded_at, refunded_at, refund_transaction_id, status đổi được; DELETE chỉ khi
+/// transaction đặt `ghim.purge = 'on'` (lượt dọn tài khoản đã xoá). Không FK tới tin: lượt mua là bản ghi của người.
+model PromotionPurchase {
+  id                  String                  @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  listingId           String                  @map("listing_id") @db.Uuid
+  accountId           String                  @map("account_id") @db.Uuid
+  /// Tin của nhóm lúc mua — nhóm tắt gói sau không đụng lượt đã mua.
+  groupId             String?                 @map("group_id") @db.Uuid
+  productId           String                  @map("product_id") @db.Uuid
+  productCode         String                  @map("product_code")
+  effect              PromotionEffect
+  durationDays        Int?                    @map("duration_days")
+  price               Int
+  walletTransactionId String                  @map("wallet_transaction_id") @db.Uuid
+  appliedAt           DateTime                @map("applied_at") @db.Timestamptz(3)
+  expiresAt           DateTime?               @map("expires_at") @db.Timestamptz(3)
+  remindedAt          DateTime?               @map("reminded_at") @db.Timestamptz(3)
+  refundedAt          DateTime?               @map("refunded_at") @db.Timestamptz(3)
+  refundTransactionId String?                 @map("refund_transaction_id") @db.Uuid
+  status              PromotionPurchaseStatus @default(applied)
+  /// `purchase:<accountId>:<khoá app>` — gửi lại trả cùng lượt.
+  idempotencyKey      String                  @unique @map("idempotency_key")
+
+  @@index([listingId, appliedAt(sort: Desc)])
+  @@index([accountId, appliedAt(sort: Desc)])
+  @@index([expiresAt], where: raw("status = 'applied' AND effect = 'featured' AND reminded_at IS NULL"), map: "promotion_purchases_remind_idx")
+  @@map("promotion_purchases")
 }

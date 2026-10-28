@@ -206,9 +206,9 @@ tests/*.db.test.ts            ← ghi thẳng bằng Prisma để kiểm ràng b
   là `new URL('../data/…', import.meta.url)` — typecheck không bắt sai đường dẫn này, chỉ khởi động server mới bắt.
 - **Không có `<module>.types.ts`**: DTO chính là response schema Zod trong `<module>.schema.ts`.
 - Tên module kebab-case, **số ít**. Đang có: `health`, `identity`, `platform`, `category`, `region`, `group`,
-  `notification`, `media`, `listing`, `trust`, `screening`, `review`, `messaging`, `wallet`, `ops`.
+  `notification`, `media`, `listing`, `trust`, `screening`, `review`, `messaging`, `wallet`, `promotion`, `ops`.
 - `buildApp(overrides)` nhận `repositories: { identity, platform, category, region, group, media, listing, trust, strike,
-screening, review, report, messaging, wallet, ops }`,
+screening, review, report, messaging, wallet, promotion, ops }`,
   `storage`, `trust` (cổng mức tin cậy và hạn mức mà `listing`, `group` hỏi — bỏ trống là module `trust` thật),
   `screening` (cổng máy duyệt `listing` gọi trong lượt gửi — bỏ trống là module `screening` thật) và hạ tầng dùng chung
   (jobs, mailer, googleVerifier, push, privilegeSource, config, clock) — bỏ trống là bản thật. `RuntimeConfig.version()` cho
@@ -309,6 +309,16 @@ gọi qua `WalletLedgerPort`, không ghi thẳng. Chỉ master cấp / trừ (`/
 `wallet.wallet.adjust`); người dùng chỉ có `/me/wallet*`. N59 ở `notification.wallet-matrix.ts` (nhóm `wallet`, bỏ qua
 `product_purchase`).
 
+`promotion` (change `add-promotions`, TK 19, 28): gói đẩy tin trả Xu — `promotion_products` (catalog master soạn, bộ
+khởi đầu `STARTER_PRODUCTS` chèn ở `startup` khi bảng trống, không xoá chỉ tắt), `promotion_purchases` (bản chụp gói lúc
+mua, trigger bất biến: chỉ `reminded_at`, `refunded_at`, `refund_transaction_id`, `status` đổi được). **Một lượt mua =
+một transaction** (`promotion.service.purchase`): advisory lock theo người → kiểm lại khoá chống lặp, thời gian chờ, trần
+ngày (`calc/purchase.calc.ts`) → `listing.applyPromotion(tx)` (ghi theo `version`, dùng chung `applyBoostIn` với đẩy tin
+người quản trị) → `wallet.apply(tx)` (thiếu Xu quay lui cả lượt) → dòng lượt mua + sự kiện. Hoàn Xu ở `promotion.events.ts`
+nghe `listing.state.changed` mũi tên `appealWin` (khiếu nại thắng và ân xá đều đi đường này), khoá `refund:<purchaseId>`.
+Dải nổi bật `listing.repository.featured` lấy ngẫu nhiên khi nhiều hơn trần (áp cả tin người quản trị đặt). Job
+`promotion.remind-expiring` mỗi giờ (N61). Chủ nhóm tắt gói: `groups.allow_promotions`.
+
 `trust` phần gậy (change `add-strikes`, hướng dẫn ở `docs/strikes.md`): `strike/` ra gậy trong transaction quyết định của
 `review` (`issueStrike(tx)`), khiếu nại, kênh hỗ trợ, ân xá, quyết gậy nghiêm trọng / xem lại; `calc/strike.calc.ts` thuần (hiệu
 lực, điểm, mốc hết tạm khoá). Mọi thay đổi phát `trust.strike.standing` — `listing` (lý do `strike`, `strike_wave`), `identity`
@@ -352,8 +362,7 @@ kế hoạch `docs/KE-HOACH-GOI-DAY-TIN.md`) → `add-admin-boost` (người qu�
 27/10/2026, đi trước gói trả Xu; gộp `main` qua PR #28, archive 27/10/2026; delta `listing/visibility` của
 `add-promotions` đã viết lại trên spec sau change này) →
 `add-wallet` (ví Xu, sổ cái, master cấp — làm 28/10/2026 sau khi chủ dự án chốt câu hỏi mở: Xu do master cấp miễn phí,
-không có `add-topup`, không thanh toán online; gộp `main` qua PR #33, archive 28/10/2026) → `add-promotions` (proposal trong `openspec/changes/`, design và tasks
-viết sau khi archive `add-wallet`).
+không có `add-topup`, không thanh toán online; gộp `main` qua PR #33, archive 28/10/2026) → `add-promotions` (gói đẩy tin trả Xu — làm 28/10/2026 ngay sau `add-wallet`; dải nổi bật đổi sang lấy ngẫu nhiên).
 
 - `add-platform-roles` và `add-categories` cần nhau (quyền staff gắn theo danh mục; danh mục cần staff soạn
   mẫu) nên làm chung một lượt và archive trước `add-groups`; `add-groups` chỉ thêm requirement vào

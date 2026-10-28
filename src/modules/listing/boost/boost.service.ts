@@ -21,9 +21,14 @@ import {
   bumpRetryAt,
 } from '../calc/boost.calc.js';
 import { DAY_MS } from '../calc/display-period.calc.js';
-import type { BoostWrite } from '../listing.repository.js';
+import type { BoostWrite, Tx } from '../listing.repository.js';
 import type { BoostBody, BoostStateDto } from '../listing.schema.js';
-import { type ListingShared, listingNotFound, validationError } from '../listing.shared.js';
+import {
+  type ListingShared,
+  listingNotFound,
+  validationError,
+  versionConflict,
+} from '../listing.shared.js';
 
 export interface ListingBoostService {
   /** Hỏi trước: vai, đẩy được không, mốc đẩy lại, hạn nổi bật — để app chỉ hiện nút khi có quyền. */
@@ -32,7 +37,25 @@ export interface ListingBoostService {
   boost(actor: Actor, id: string, body: BoostBody): Promise<BoostStateDto>;
   /** Bỏ nổi bật ở mọi trạng thái; tin không đang nổi bật thì thành công mà không đổi gì. */
   unfeature(actor: Actor, id: string): Promise<BoostStateDto>;
+  /**
+   * Cổng cho gói đẩy tin (add-promotions), trong transaction của lượt mua: tin phải đúng `version` app gửi (lệch → 409
+   * `CONFLICT`, không trừ Xu), đang hiển thị đầy đủ (không → 409 `LISTING_NOT_PROMOTABLE` với câu của `boostBlock`),
+   * rồi cùng câu `UPDATE` của đẩy tin người quản trị. Không nhật ký — sổ cái và lượt mua là bản ghi.
+   */
+  applyPromotion(tx: Tx, input: PromotionWrite): Promise<void>;
 }
+
+export interface PromotionWrite {
+  listingId: string;
+  version: number;
+  effect: 'rank_to_top' | 'featured';
+  /** Hạn nổi bật mới (`featured`); `rank_to_top` bỏ trống. */
+  until?: Date;
+  at: Date;
+}
+
+const listingNotPromotable = (message: string): ConflictError =>
+  new ConflictError(message, 'LISTING_NOT_PROMOTABLE');
 
 const boostNotAllowed = (message: string): ConflictError =>
   new ConflictError(message, 'BOOST_NOT_ALLOWED');
@@ -160,6 +183,21 @@ export function createListingBoostService(shared: ListingShared): ListingBoostSe
       });
       if (!updated) throw listingNotFound();
       return stateOf(updated, role, now);
+    },
+
+    async applyPromotion(tx, input) {
+      const applied = await repository.applyBoostIn(tx, input.listingId, (locked) => {
+        if (locked.version !== input.version) throw versionConflict();
+        const blocked = boostBlock(locked);
+        if (blocked) throw listingNotPromotable(blocked);
+        return {
+          write:
+            input.effect === 'rank_to_top'
+              ? { kind: 'rank_to_top', at: input.at }
+              : { kind: 'featured', until: input.until ?? null },
+        };
+      });
+      if (!applied) throw listingNotFound();
     },
   };
 }

@@ -23,6 +23,8 @@ export interface TrustQuotaService {
    * nơi đăng — ném là cả lượt quay lui, kể cả dòng `listing_submissions`, nên lượt bị từ chối không bị đếm (spec).
    */
   assertCanSubmit(tx: Tx, input: SubmissionQuotaInput): Promise<void>;
+  /** Cổng cho `promotion`: mốc hết tạm khoá đăng tin vì điểm gậy; `null` = không khoá (TK 21, add-promotions). */
+  postingLockedUntil(accountId: string): Promise<Date | null>;
 }
 
 /** Từ ngưỡng điểm gậy: không gửi tin mới, không gia hạn, không chuyển lên sàn; sửa tin đang có vẫn qua (TK 21). */
@@ -43,6 +45,11 @@ export function createTrustQuotaService(
   const { listings, strikes, config, clock } = deps;
 
   return {
+    async postingLockedUntil(accountId) {
+      const standing = standingOf(await strikes.listOf(accountId), clock(), strikeRules(config));
+      return standing.postingLockedUntil ?? null;
+    },
+
     async assertCanSubmit(tx, input) {
       // Hai lượt gửi song song của một người xếp hàng ở đây rồi mới đếm: không có chuyện cùng thấy 9 rồi cùng thành 11.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`trust-submit:${input.accountId}`}, 0))`;
