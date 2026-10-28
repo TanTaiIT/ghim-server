@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { paginationQuerySchema } from '../../common/schemas/pagination.js';
 
-/** Tuple của enum `notification_category` — mười nhóm của TK 24. */
+/** Tuple của enum `notification_category` — mười một nhóm của TK 24 (`wallet` từ add-wallet). */
 export const NOTIFICATION_CATEGORIES = [
   'messages',
   'your_listings',
@@ -14,6 +14,7 @@ export const NOTIFICATION_CATEGORIES = [
   'group_new_listings',
   'support',
   'saved_searches',
+  'wallet',
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 

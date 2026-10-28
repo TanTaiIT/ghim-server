@@ -10,6 +10,7 @@ import type { MediaService } from '../media/media.service.js';
 import type { MessagingService } from '../messaging/messaging.service.js';
 import type { NotificationService } from '../notification/notification.service.js';
 import type { ReviewService } from '../review/review.service.js';
+import type { WalletService } from '../wallet/wallet.service.js';
 import type { ScreeningService } from '../screening/screening.service.js';
 import type { TrustService } from '../trust/trust.service.js';
 import { before, DAY_MS, violationPurgeAt, YEAR_MS } from './calc/retention.calc.js';
@@ -64,6 +65,8 @@ export interface RetentionDeps {
     'retentionDue' | 'purge' | 'groupConversations' | 'deleteConversations'
   >;
   notification: Pick<NotificationService, 'purgeBefore'>;
+  /** Ví theo hạn lưu của tài khoản (add-wallet): dọn cùng lượt dọn tài khoản đã xoá, sau kiểm tạm giữ. */
+  wallet: Pick<WalletService, 'purgeAccount'>;
   screening: Pick<ScreeningService, 'foldRuns'>;
   trust: Pick<
     TrustService,
@@ -229,6 +232,7 @@ export function createRetentionService(deps: RetentionDeps, hold: EvidenceHold):
         // Hồ sơ, ảnh đại diện là bản lưu cho báo cáo về người đó: chờ báo cáo đóng + 30 ngày.
         if (held.has(accountId)) return;
         await media.purgeOwners('profile', [accountId]);
+        await deps.wallet.purgeAccount(accountId);
         await identity.purgeDeletedAccount(accountId);
         purged += 1;
       });
