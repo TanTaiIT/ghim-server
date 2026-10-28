@@ -104,11 +104,12 @@ cổng `listing.applyPromotion(tx, { listingId, version, effect, until })` **tro
 ### 4.4 Hiện ra sao
 
 - Bảng tin, danh mục, nhóm: xếp theo `rank_at`; dải "Tin nổi bật" riêng ở đầu (tối đa `promotion.featuredStripSize`, đề xuất
-  6; tin nổi bật hết `featured_until` tự rơi khỏi dải — việc theo lịch mỗi giờ dọn cột và báo người đăng). Tin nổi bật vẫn
+  6; nhiều tin hơn trần thì mỗi lần tải lấy ngẫu nhiên — chốt 28/10/2026; tin nổi bật hết `featured_until` tự rơi khỏi
+  dải). Tin nổi bật vẫn
   chịu mọi luật "ai thấy một tin" (TK 19): hạn chế hay tạm ẩn thì không vào dải.
 - DTO tin thêm `featuredUntil` (null = không), `promotion` cho chủ tin (gói đang chạy, hết lúc nào, còn chờ bao lâu).
-- Thông báo (ma trận `promotion`): N49 "đã đẩy / đã nổi bật tới …", N50 "tin nổi bật hết hạn", N51 "ví biến động" (nhóm
-  "ví Xu" — hệ cũ đã có nhóm này, TK 24 hiện có chín nhóm, cần thêm nhóm thứ mười khi bật).
+- Thông báo: N59 "ví biến động" (ma trận `wallet`, nhóm "ví Xu" — nhóm thứ mười một của TK 24), N60 "đã đẩy / đã nổi
+  bật tới …", N61 "tin nổi bật sắp hết hạn" (ma trận `promotion`). N49–N58 đã thuộc `add-trust-notices`.
 
 ### 4.5 Con số (bảng con số có phiên bản, nhóm "Đẩy tin")
 
@@ -164,7 +165,7 @@ nổi bật chưa dùng", dải nổi bật) **phải viết lại** trên spec 
 | ----- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 0 ✔   | 17/10/2026                       | mục 5 — `prepare-promotions` đã archive                                                                                                                                                                                             |
 | 0b    | 27/10/2026                       | mục 5b — `add-admin-boost`: người quản trị đẩy tin, đặt nổi bật miễn phí; dải "Tin nổi bật"                                                                                                                                         |
-| 1     | có người dùng thật, muốn thử gói | `add-wallet` (sổ cái, master cấp Xu, ví trong app), `add-promotions` (catalog, mua gói, hiệu ứng, dải nổi bật, N49–N51) — **không nạp tiền**: ví mở bằng 0, người dùng xin Xu qua Hỗ trợ Ghim, master cấp miễn phí (`admin_adjust`) |
+| 1     | có người dùng thật, muốn thử gói | `add-wallet` (sổ cái, master cấp Xu, ví trong app), `add-promotions` (catalog, mua gói, hiệu ứng, dải nổi bật, N59–N61) — **không nạp tiền**: ví mở bằng 0, người dùng xin Xu qua Hỗ trợ Ghim, master cấp miễn phí (`admin_adjust`) |
 | ~~2~~ | bỏ 28/10/2026                    | ~~`add-topup` (VietQR, đối soát, hoàn), điều khoản Xu một chiều, kế toán / hoá đơn~~ — chủ dự án chốt không có thanh toán online                                                                                                    |
 | 3     | (tuỳ)                            | phí đăng tin bằng Xu (`fee > 0`, hoàn khi bị từ chối, N tin miễn phí mỗi tháng) — cùng hạ tầng, chỉ đổi luật phí                                                                                                                    |
 
@@ -180,8 +181,9 @@ nổi bật chưa dùng", dải nổi bật) **phải viết lại** trên spec 
    vi phạm hay sai sót của người đăng — không hoàn.
 5. **Đẩy tin trong nhóm**: cho phép, chủ nhóm tắt được trong cài đặt nhóm (mặc định bật); gói chỉ xếp lại bảng tin nhóm đó.
 6. **Tự động đẩy theo lịch**: bỏ.
-7. **Dải nổi bật**: đã làm ở `add-admin-boost` — sàn chung, từng danh mục, từng nhóm, mỗi chỗ tối đa 6. Trần mỗi người
-   mỗi ngày giữ 3 lượt.
+7. **Dải nổi bật**: đã làm ở `add-admin-boost` — sàn chung, từng danh mục, từng nhóm, mỗi chỗ tối đa 6. Nhiều tin hơn 6
+   thì **mỗi lần tải lấy ngẫu nhiên 6**, thay cho "hạn gần hết trước" — không thì tin mua sau phải chờ tin khác hết hạn
+   mới được hiện mà vẫn bị trừ Xu. Trần mỗi người mỗi ngày giữ 3 lượt.
 8. **Pháp lý**: hết phần tiền (Xu một chiều, hoá đơn, giữ sổ cái như chứng từ). Điều khoản chỉ cần ghi Xu không quy đổi ra
    tiền.
 
@@ -194,7 +196,10 @@ nổi bật chưa dùng", dải nổi bật) **phải viết lại** trên spec 
 - Gói đẩy là động cơ cho kẻ lập nhiều tài khoản mua chéo: mức tối thiểu T1 + thời gian chờ + trần mỗi ngày chặn phần lớn;
   phần còn lại là việc của máy duyệt như mọi tin.
 
-## Phụ lục A — bản nháp phần TK "Gói đẩy tin và ví Xu" (chờ chủ TK duyệt)
+## Phụ lục A — bản nháp phần TK "Gói đẩy tin và ví Xu" (chủ TK duyệt 28/10/2026)
+
+> Đã vào `THIET-KE-HE-THONG.md`: phần 6 (ai cấp Xu), 19 (gói đẩy tin, ví Xu, dải nổi bật), 24 (nhóm thông báo "ví Xu"),
+> 28 (con số), 29 (bỏ khỏi "hoãn lại", thêm vào thứ tự xây), 30 (hai phần mới của kiến trúc). Từ nay sửa ở TK, không ở đây.
 
 > Viết theo giọng của `THIET-KE-HE-THONG.md` (vì sao, luật, con số, ví dụ). Con số theo mục 7, chốt 28/10/2026.
 
@@ -207,7 +212,8 @@ bằng 0; mọi biến động là một dòng sổ cái không sửa không xo�
 Xu nhắn Hỗ trợ Ghim; chỉ master cấp, kèm lý do, vào nhật ký.
 
 **Hai hiệu ứng.** _Đẩy lên đầu_: tin đứng như vừa lên bảng, rồi trôi dần như thường. _Nổi bật_: tin vào dải "Tin nổi bật"
-(tối đa 6 tin, xoay vòng) ở đầu bảng tin sàn chung, danh mục và bảng tin nhóm, trong N ngày. Gói do master soạn: giá Xu,
+(tối đa 6 tin; nhiều hơn thì mỗi lần tải lấy ngẫu nhiên 6) ở đầu bảng tin sàn chung, danh mục và bảng tin nhóm, trong N
+ngày. Gói do master soạn: giá Xu,
 thời hạn, thời gian chờ, mức tin cậy tối thiểu, phạm vi. Bộ khởi đầu: "Đẩy lên đầu" 1 Xu, "Nổi bật 3 ngày" 2 Xu, "Nổi bật
 7 ngày" 4 Xu.
 

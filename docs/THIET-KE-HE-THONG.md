@@ -115,6 +115,7 @@
 | Khiếu nại                 | Người nhận cảnh cáo xin xét lại, một lần.                                                                                                                                                                                             |
 | Sai sót · Vi phạm         | Hai mức khi người duyệt từ chối hay gỡ. **Sai sót**: sửa lại là được, không bị gì. **Vi phạm**: phạm quy định sàn, kèm cảnh cáo.                                                                                                      |
 | Tạm ẩn                    | Tin bị giấu vì một lý do bên ngoài (nhóm bị khoá, danh mục tắt…). Hết lý do thì hiện lại nguyên như cũ. **Không phải án phạt.**                                                                                                       |
+| Xu · gói đẩy tin          | **Xu**: đơn vị nội bộ trong ví của mỗi người, không mua bằng tiền — master cấp khi người dùng xin. **Gói đẩy tin**: dùng Xu để tin của mình lên đầu bảng tin hay vào dải "Tin nổi bật" một thời gian (phần 19).                       |
 | Dấu thiết bị              | Mã nhận ra chiếc điện thoại đang dùng app, để biết một máy có bao nhiêu tài khoản đăng tin. Chỉ dùng chống gian lận.                                                                                                                  |
 | Tạm giữ bằng chứng        | Dữ liệu dính tới một báo cáo, cảnh cáo hay khiếu nại đang mở không bị xoá hẳn, kể cả khi người dùng tự xoá.                                                                                                                           |
 
@@ -199,6 +200,7 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 | Từ chối, gỡ vì vi phạm trong nhóm                                                         |       |            | không cảnh cáo, chuyển staff      | không cảnh cáo, chuyển staff | xác nhận → cảnh cáo                                                           | ✓                                            |
 | Xử tin sàn mà máy giữ · gỡ, khôi phục tin sàn · hậu kiểm                                  |       |            |                                   |                              | ✓                                                                             | ✓                                            |
 | Gỡ tin khỏi nhóm, gỡ huy hiệu nhóm mình                                                   |       |            | ✓                                 | ✓                            |                                                                               | ✓                                            |
+| Dùng Xu mua gói đẩy tin cho tin của mình (từ mức T1, phần 19)                             |       | ✓          | ✓                                 | ✓                            | ✓                                                                             | qua tài khoản cá nhân                        |
 | Đẩy tin lên đầu, đặt nổi bật — miễn phí, kể cả tin của mình                               |       |            | ✓ tin thuộc phạm vi của mình      | ✓ tin của nhóm               | tin sàn chung của danh mục                                                    | ✓ mọi tin                                    |
 | Duyệt đơn vào nhóm, mời, gỡ, cấm thành viên                                               |       |            | ✓                                 | ✓                            |                                                                               | ✓                                            |
 | Bổ nhiệm điều hành viên, sửa cài đặt, bật hiện tên nhóm, đóng nhóm                        |       |            |                                   | ✓                            |                                                                               | ✓                                            |
@@ -207,6 +209,7 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 | Xét khiếu nại về cảnh cáo                                                                 |       |            |                                   |                              | cảnh cáo thường, nặng do staff khác ra; vi phạm nghiêm trọng chỉ ghi nhận xét | ✓ cuối cùng; vi phạm nghiêm trọng chỉ master |
 | Soạn · phát hành mẫu thông tin danh mục                                                   |       |            |                                   |                              | soạn                                                                          | phát hành                                    |
 | Lập nhóm, giao chủ nhóm, khoá nhóm                                                        |       |            |                                   |                              |                                                                               | ✓                                            |
+| Cấp, trừ Xu · soạn gói đẩy tin (phần 19)                                                  |       |            |                                   |                              |                                                                               | ✓                                            |
 | Cấp, thu quyền staff · danh mục · cụm từ cấm · luật máy · bảng con số · nội dung trợ giúp |       |            |                                   |                              |                                                                               | ✓                                            |
 | Khoá tài khoản · ân xá · quyết vi phạm nghiêm trọng                                       |       |            |                                   |                              |                                                                               | ✓                                            |
 
@@ -727,7 +730,7 @@ Ngoài các mũi tên này, không có cách nào khác để đổi trạng th�
 **Ngày hiển thị**
 
 - Mỗi tin hiện **30 ngày**, tính từ lúc **lên bảng lần đầu**. Chỉ gia hạn mới đặt lại.
-- **Sửa tin không làm mới** ngày hết hạn và không đổi vị trí trên bảng tin — chỉ "đẩy lên đầu" của người quản trị đổi vị trí (dưới đây). Tin đang chờ máy hay người sau khi sửa mà hết ngày hiển thị thì vẫn được xét; cho qua thì tin lên bảng rồi chuyển hết hạn ở lượt chạy kế tiếp, người đăng gia hạn như thường (chốt 12/10/2026).
+- **Sửa tin không làm mới** ngày hết hạn và không đổi vị trí trên bảng tin — chỉ "đẩy lên đầu" đổi vị trí, của người quản trị hay gói Xu của người đăng (dưới đây). Tin đang chờ máy hay người sau khi sửa mà hết ngày hiển thị thì vẫn được xét; cho qua thì tin lên bảng rồi chuyển hết hạn ở lượt chạy kế tiếp, người đăng gia hạn như thường (chốt 12/10/2026).
 - Ngày hiển thị **dừng** khi tin bị gỡ (khôi phục thì chạy tiếp từ chỗ dừng) và khi tin tạm ẩn vì lý do không do người đăng.
 - **Khiếu nại thắng**: tin bị gỡ hiện lại với số ngày còn lại; tin chưa từng lên bảng thì được đủ 30 ngày. Vi phạm nghiêm trọng bị huỷ thì được trả lại số ngày đã trôi trong lúc bị khoá.
 - **Gia hạn**: trong 7 ngày cuối hoặc sau khi hết hạn; hệ thống nhắc trước 7 ngày; tin qua máy lại; **không** đẩy tin lên đầu bảng.
@@ -738,9 +741,19 @@ Ngoài các mũi tên này, không có cách nào khác để đổi trạng th�
 **Đẩy tin của người quản trị** (chốt 27/10/2026) — miễn phí, trong phạm vi quản lý (phần 6), người quản trị chọn mỗi lần:
 
 - **Đẩy lên đầu**: tin đứng như vừa lên bảng ở mọi bảng tin chứa nó rồi trôi dần theo tin mới. Một tin chỉ đẩy lên đầu lại sau **24 giờ**, bất kể ai đẩy.
-- **Nổi bật N ngày** (1–30): tin vào dải **"Tin nổi bật"** ở đầu bảng tin sàn chung, đầu danh mục, đầu bảng tin nhóm — tối đa 6 tin, hạn gần hết đứng trước; tin vẫn ở chỗ của nó trong bảng tin. Đặt lại thì tính từ lúc đặt; bỏ nổi bật được ở mọi lúc.
+- **Nổi bật N ngày** (1–30): tin vào dải **"Tin nổi bật"** ở đầu bảng tin sàn chung, đầu danh mục, đầu bảng tin nhóm — tối đa 6 tin; nhiều hơn 6 thì mỗi lần tải lấy ngẫu nhiên 6, để tin nào cũng được hiện chứ không phải chờ tin khác hết hạn (chốt 28/10/2026); tin vẫn ở chỗ của nó trong bảng tin. Đặt lại thì tính từ lúc đặt; bỏ nổi bật được ở mọi lúc.
 - Chỉ tin **đang hiển thị đầy đủ** đẩy được: tin chờ duyệt, tạm ẩn, hạn chế, đã bán, hết hạn thì không, và được nói vì sao. Đẩy tin không đổi trạng thái, ngày hết hạn, lý do tạm ẩn hay hạn chế của tin; tin nổi bật bị hạn chế hay tạm ẩn thì rời dải, hiện lại đầy đủ mà còn hạn thì vào lại.
-- Người quản trị không bị trần số lượt; mỗi lượt vào nhật ký vận hành kèm vai. Người đăng **chưa** được báo khi tin được đẩy. Gói đẩy tin người đăng tự trả Xu vẫn hoãn (phần 29).
+- Người quản trị không bị trần số lượt; mỗi lượt vào nhật ký vận hành kèm vai. Người đăng **chưa** được báo khi tin được đẩy.
+
+**Gói đẩy tin và ví Xu** (chốt 28/10/2026) — đường **có giới hạn** để người đăng tự cho tin mình được thấy lâu hơn, thay cho mẹo xoá đăng lại (phần 14):
+
+- **Ví Xu**: Xu là đơn vị nội bộ — **không mua bằng tiền**, không đổi ra tiền, không hết hạn. Mỗi tài khoản một ví, mở bằng **0**. Ai cần Xu nhắn Hỗ trợ Ghim; **chỉ master** cấp, miễn phí, kèm lý do, vào nhật ký vận hành. Mọi biến động là một dòng sổ cái không sửa không xoá (sai thì ghi dòng ngược dấu), người dùng tự đọc được.
+- **Gói** do master soạn: hiệu ứng (đẩy lên đầu hay nổi bật N ngày — đúng hai hiệu ứng của người quản trị ở trên, cùng dải nổi bật), giá Xu, thời hạn, thời gian chờ, mức tin cậy tối thiểu, phạm vi (sàn chung, nhóm). Bộ khởi đầu: **"Đẩy lên đầu" 1 Xu · "Nổi bật 3 ngày" 2 Xu · "Nổi bật 7 ngày" 4 Xu**. Không bán thêm ngày hiển thị (gia hạn đã miễn phí), không tự động đẩy theo lịch.
+- **Luật mua**: chỉ tin của mình đang **hiển thị đầy đủ**, không tạm ẩn; người mua từ **mức T1**, không đang bị khoá đăng tin; mỗi tin một lần mỗi 24 giờ cho cùng gói, mỗi người tối đa **3 lượt mỗi ngày**. Thiếu Xu, chưa đủ mức, còn thời gian chờ thì bị từ chối và được nói vì sao, không trừ Xu. Mua gói không mở tin, không gỡ lý do hạn chế, không đổi ngày hết hạn.
+- **Trong nhóm**: gói cho tin của nhóm chỉ xếp lại bảng tin và dải nổi bật của nhóm đó. Chủ nhóm tắt được gói trong nhóm mình (mặc định bật); gói đã mua chạy tới hết hạn.
+- **Hoàn Xu**: tin bị gỡ vì vi phạm — không hoàn; khiếu nại thắng hay ân xá làm tin hiện lại — hoàn **đủ** giá gói đang chạy lúc bị gỡ.
+
+> **Ví dụ — anh Tuấn ở T2 có tin "Xe đạp cũ" đã hiện 10 ngày.** Anh nhắn Hỗ trợ Ghim xin Xu, master cấp 5 Xu. Anh dùng gói "Đẩy lên đầu" 1 Xu: tin đứng đầu bảng tin như vừa đăng, ngày hết hạn vẫn là ngày 30. Đẩy lại sau 2 giờ: bị từ chối, "được đẩy lại lúc …". Ngày 11 anh dùng gói "Nổi bật 7 ngày" 4 Xu. Ngày 12 tin bị gỡ vì vi phạm: chưa hoàn. Anh khiếu nại thắng ngày 15: tin hiện lại, ví được hoàn đủ 4 Xu.
 
 **Tạm ẩn — không phải bị phạt**
 
@@ -920,7 +933,7 @@ Người xử không bao giờ là người đăng tin bị báo cáo, người 
 **Thông báo**
 
 - Mỗi thông báo vào **hộp thư trong app**, và nếu người dùng cho phép thì hiện thêm trên màn hình điện thoại.
-- Mười nhóm, người dùng bật tắt từng nhóm: tin nhắn · tin đăng của bạn · nhóm của bạn · báo cáo của bạn · tài khoản (luôn bật) · mức tin cậy và cảnh cáo · thông báo của nhóm · tin mới trong nhóm · hỗ trợ · tìm kiếm đã lưu (nhóm thứ mười, chốt 25/10/2026).
+- Mười một nhóm, người dùng bật tắt từng nhóm: tin nhắn · tin đăng của bạn · nhóm của bạn · báo cáo của bạn · tài khoản (luôn bật) · mức tin cậy và cảnh cáo · thông báo của nhóm · tin mới trong nhóm · hỗ trợ · tìm kiếm đã lưu (nhóm thứ mười, chốt 25/10/2026) · ví Xu (nhóm thứ mười một, chốt 28/10/2026).
 - Đang mở đúng hội thoại thì không hiện thông báo tin nhắn đó lên màn hình.
 - **Nhắc** = hiện lên màn hình: banner trong app qua kênh realtime khi app đang mở, và đẩy lên điện thoại khi có. Tắt một nhóm thông báo chỉ thôi nhắc; thông báo vẫn vào hộp thư (chốt 11/10/2026).
 - Người dùng **tắt tiếng từng nhóm** được: thông báo của nhóm đó vẫn vào hộp thư nhưng không nhắc — trừ chuyện về chính tư cách của mình trong nhóm (được duyệt, bị gỡ, bị cấm, lời mời, lời giao chủ, vai), để tắt tiếng một nhóm ồn không làm lỡ việc của mình (chốt 11/10/2026).
@@ -931,6 +944,7 @@ Người xử không bao giờ là người đăng tin bị báo cáo, người 
 - **Người đăng được báo kết quả duyệt tin của mình**, có nhắc: máy giữ tin chờ người duyệt hay rút tin đang hiện về chờ duyệt — câu cùng mức với câu giải thích của máy (dấu hiệu gian lận chỉ nói chung, kèm thời gian chờ ước tính), một lần mỗi lượt giữ; người duyệt cho đạt tin chờ duyệt, từ chối, gỡ, khôi phục. Câu nhắc chỉ nói kết quả — lý do mẫu và cách sửa chỉ nằm trong nội dung xem trong app. Quyết định trong nhóm ký "Quản trị nhóm «tên nhóm»", của staff, master ký "Ghim"; không nêu tên người duyệt. Không báo: máy cho qua ngay, hậu kiểm đạt một tin đang hiện, việc người đăng tự làm (chốt 16/10/2026).
 - **Nhóm "mức tin cậy và cảnh cáo"** — người dùng được báo, có nhắc: nhận cảnh cáo (loại cảnh cáo, điều được trích, tin liên quan, ngày hết hạn, hạn khiếu nại; ký "Ghim", không nêu ai ghi cảnh cáo); khiếu nại có kết quả (cảnh cáo thường quá hạn xét tự thắng thì báo như thắng; cảnh cáo nặng chuyển master thì chờ master quyết mới báo); cảnh cáo được xoá hay đổi ngoài khiếu nại (ân xá, master quyết vi phạm nghiêm trọng, gỡ khoá vĩnh viễn); mức tin cậy xuống; vào thời gian chờ đăng tin — đúng câu "tạm thời chưa gửi được tin mới, gửi lại từ…" của lượt gửi bị chặn, không nêu dấu hiệu nào. Báo không nhắc: cảnh cáo hết hạn (kèm "đã đăng tin lại được" khi hết khoá đăng tin), mức tin cậy lên. Đăng ký lại mang theo cảnh cáo: một thông báo nêu số cảnh cáo và ngày hết hạn, không nêu tài khoản trước. Không báo: tự gửi khiếu nại, máy bị đánh dấu, master xem lại khoá vĩnh viễn và giữ nguyên. Câu nhắc chỉ nói chuyện gì xảy ra; điều luật, hạn và hệ quả chỉ nằm trong app (chốt 22/10/2026).
 - **Tìm kiếm đã lưu** (chốt 25/10/2026): người dùng lưu được tối đa 10 lượt tìm trên sàn chung — từ khoá cùng danh mục, khu vực, khoảng giá đang chọn. Tin **lần đầu hiện ở mức đầy đủ trên sàn chung** mà khớp thì người lưu được báo, có nhắc, gộp theo lượt tìm ("3 tin mới khớp tìm kiếm của bạn"), nhắc tối đa mỗi 2 giờ. Không báo tin hạn chế (theo luật của bảng tin, phần 15 — tin hạn chế chỉ dành cho người tự gõ tìm), tin trong nhóm, tin của chính mình, tin hiện lại sau khi sửa hay tạm ẩn. Tin của người mình đã chặn vẫn được báo, như trên bảng tin.
+- **Gói đẩy tin và ví Xu** (chốt 28/10/2026): người đăng được báo, có nhắc, khi gói vừa áp (gói và lúc hết hạn) và một ngày trước khi hết nổi bật — không nêu số Xu, ví có dòng riêng. Nhóm "ví Xu" báo khi ví biến động do người khác làm (master cấp hay trừ, hoàn Xu), nêu số Xu và số dư mới; tự mua gói thì không báo.
 - **Tin trong nhóm bị máy giữ chờ duyệt**: báo, có nhắc, người đang xử được việc theo hàng chờ — gộp theo nhóm với số tin đang chờ trong phạm vi người nhận; không báo việc do sàn duyệt hay tin của chính mình; không nêu lý do giữ hay tên người đăng (chốt 22/10/2026).
 
 ---
@@ -1079,7 +1093,7 @@ Master chỉnh dần theo kết quả hậu kiểm, không cần phát hành l�
 | Ảnh                       | Mỗi ảnh tối đa 5 MB · quyền tải dùng được 15 phút · 120 lượt xin tải mỗi giờ mỗi tài khoản · ảnh chưa xác nhận xoá sau 48 giờ · đường xem ảnh có hạn 60 phút                                                                                                                                                                                                                                                                                                                                                                                             |
 | Thông báo                 | Nhắc lại thông báo gộp tối đa mỗi 30 phút · tin mới trong nhóm nhắc tối đa mỗi 2 giờ mỗi nhóm · tin mới khớp tìm kiếm đã lưu nhắc tối đa mỗi 2 giờ mỗi lượt tìm                                                                                                                                                                                                                                                                                                                                                                                          |
 | Nhắn tin                  | Lần cuối hoạt động hiện trong 7 ngày (chốt 18/10/2026)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Đẩy tin                   | Đẩy lên đầu lại sau 24 giờ · nổi bật tối đa 30 ngày · dải nổi bật 6 tin (chốt 27/10/2026)                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Đẩy tin                   | Đẩy lên đầu lại sau 24 giờ · nổi bật tối đa 30 ngày · dải nổi bật 6 tin (chốt 27/10/2026) · nhiều hơn thì lấy ngẫu nhiên mỗi lần tải · gói Xu từ mức T1 · 3 lượt mua gói mỗi người mỗi ngày · ví mới 0 Xu (chốt 28/10/2026)                                                                                                                                                                                                                                                                                                                              |
 
 ---
 
@@ -1087,8 +1101,7 @@ Master chỉnh dần theo kết quả hậu kiểm, không cần phát hành l�
 
 **Hoãn lại** — chưa làm ở bản đầu, nhưng **giữ chỗ trong dữ liệu ngay từ đầu** để ngày bật không phải chuyển đổi gì:
 
-- **Ví Xu và phí đăng tin** — phí hiện bằng 0, app hiện "Miễn phí".
-- **Gói đẩy tin, tin nổi bật người đăng tự trả Xu.** Đẩy tin miễn phí của người quản trị đã làm (phần 19, chốt 27/10/2026); gói trả Xu dùng lại vị trí xếp hạng, hạn nổi bật và các con số "Đẩy tin".
+- **Phí đăng tin** — phí hiện bằng 0, app hiện "Miễn phí". Ví Xu và gói đẩy tin không còn hoãn (phần 19, chốt 28/10/2026); không có thanh toán online — Xu chỉ do master cấp.
 - **Đánh giá người bán** — chưa có luật chống đánh giá khống.
 - **Tìm kiếm theo nội dung** — hiện tìm theo tiêu đề và mô tả.
 - **Xác thực số điện thoại** — bật sau thì thêm vào dữ kiện của mức tin cậy; ma trận không đổi.
@@ -1112,6 +1125,7 @@ Master chỉnh dần theo kết quả hậu kiểm, không cần phát hành l�
 5. Cảnh cáo.
 6. Nhắn tin · báo tin nhắn mới. Đẩy thông báo lên điện thoại làm khi app sẵn sàng (chốt 11/10/2026).
 7. Lưu trữ và dọn dữ liệu.
+8. Ví Xu · gói đẩy tin (chốt 28/10/2026) — sau đẩy tin của người quản trị, dùng lại vị trí xếp hạng, hạn nổi bật và dải nổi bật của nó.
 
 Mỗi đợt xong khi mọi cam kết ở phần 27 thuộc đợt đó có cách kiểm chứng, và người kiểm thử đã thử cả các trường hợp **thiếu, sai, hết chỗ, quá hạn** — không chỉ đường đi suôn sẻ.
 
@@ -1121,10 +1135,10 @@ Mỗi đợt xong khi mọi cam kết ở phần 27 thuộc đợt đó có các
 
 **Kiến trúc**
 
-- Một tiến trình, nhiều phần có ranh giới cứng: Định danh · Nền tảng & nhân sự · Nhóm · Danh mục · Tin đăng · Ảnh · Duyệt máy · Duyệt người · Uy tín & an toàn · Nhắn tin · Thông báo · Vận hành.
-- Mỗi phần sở hữu dữ liệu của mình; phần khác chỉ đọc qua giao diện hoặc nhận sự kiện. **Một loại quyết định, một chủ**: chỉ Duyệt máy ra kết quả máy; chỉ Duyệt người ghi quyết định của người; chỉ Uy tín & an toàn ghi cảnh cáo; chỉ Tin đăng đổi trạng thái tin.
+- Một tiến trình, nhiều phần có ranh giới cứng: Định danh · Nền tảng & nhân sự · Nhóm · Danh mục · Tin đăng · Ảnh · Duyệt máy · Duyệt người · Uy tín & an toàn · Nhắn tin · Thông báo · Vận hành · Ví · Gói đẩy tin.
+- Mỗi phần sở hữu dữ liệu của mình; phần khác chỉ đọc qua giao diện hoặc nhận sự kiện. **Một loại quyết định, một chủ**: chỉ Duyệt máy ra kết quả máy; chỉ Duyệt người ghi quyết định của người; chỉ Uy tín & an toàn ghi cảnh cáo; chỉ Tin đăng đổi trạng thái tin, vị trí xếp hạng và hạn nổi bật; chỉ Ví ghi sổ cái Xu — Gói đẩy tin trừ Xu và nhờ Tin đăng áp hiệu ứng trong cùng một giao dịch.
 - Tác động chéo đi qua sự kiện ghi vào **outbox trong cùng giao dịch** với thay đổi gốc; bên nghe phải chịu được nhận trùng.
-- Gọi đồng bộ chỉ bốn chỗ, đều là đọc, chấm nhanh hoặc xác nhận trong cùng giao dịch: Tin đăng hỏi Uy tín về hạn chế, hạn mức · Tin đăng gọi Duyệt máy chấm chữ lúc gửi · mọi phần hỏi Định danh "người này là ai" · chủ ảnh (Định danh, Tin đăng) gọi Ảnh xác nhận ảnh trong cùng giao dịch lưu, để lưu hỏng thì ảnh vẫn chưa xác nhận (chốt 11/10/2026).
+- Gọi đồng bộ chỉ năm chỗ, đều là đọc, chấm nhanh hoặc xác nhận trong cùng giao dịch: Tin đăng hỏi Uy tín về hạn chế, hạn mức · Tin đăng gọi Duyệt máy chấm chữ lúc gửi · mọi phần hỏi Định danh "người này là ai" · chủ ảnh (Định danh, Tin đăng) gọi Ảnh xác nhận ảnh trong cùng giao dịch lưu, để lưu hỏng thì ảnh vẫn chưa xác nhận (chốt 11/10/2026) · Gói đẩy tin trừ Xu (Ví) và áp hiệu ứng (Tin đăng) trong cùng giao dịch mua, để thiếu Xu thì không áp và tin đổi giữa chừng thì không trừ (chốt 28/10/2026).
 
 **Luật dữ liệu**
 

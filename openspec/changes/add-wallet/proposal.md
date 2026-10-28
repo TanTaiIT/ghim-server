@@ -18,7 +18,8 @@ giấy phép trung gian thanh toán; Xu chỉ là lượt dùng gói do master p
   mua) và khoá chống lặp.
 - Người dùng xem số dư và lịch sử của mình; ví trong app chỉ cách xin thêm Xu (nhắn Hỗ trợ Ghim).
 - **Chỉ master** cấp hay trừ Xu, kèm lý do bắt buộc, vào nhật ký. Staff đọc tin xin Xu ở Hỗ trợ Ghim thì chuyển cho master.
-- Thông báo nhóm "ví Xu" (nhóm thứ mười — TK 24 cần cập nhật) khi ví biến động do người khác làm.
+- Thông báo nhóm "ví Xu" (nhóm thứ mười một — "tìm kiếm đã lưu" đã là nhóm thứ mười từ 25/10/2026; TK 24 đã ghi) khi ví
+  biến động do người khác làm.
 - Xu không quy đổi ra tiền, không có hạn sử dụng.
 
 **Cố ý không làm**: nạp tiền (VietQR, mua trong app) — bỏ khỏi lộ trình 28/10/2026; phí đăng tin bằng Xu; gói đẩy tin

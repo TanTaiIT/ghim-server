@@ -58,3 +58,41 @@ hạn đã qua.
 
 - **WHEN** ai đó mở một tin đang có gói nổi bật tới ngày D
 - **THEN** response có `featuredUntil` là ngày D
+
+### Requirement: Dải tin nổi bật
+
+Dải "Tin nổi bật" SHALL có cho bảng tin sàn chung (mọi danh mục hoặc một danh mục) và cho bảng tin từng nhóm: gồm các tin
+có hạn nổi bật chưa qua mà người xem thấy được trên đúng bảng tin đó, tối đa `promotion.featuredStripSize` tin (giá trị
+khởi đầu 6). Có nhiều tin nổi bật hơn trần thì mỗi lần tải SHALL lấy ngẫu nhiên đủ trần trong số đó, để tin nào cũng được
+hiện một phần thời gian thay vì tin mua sau phải chờ tin khác hết hạn (chốt 28/10/2026). Tin trong dải MUST vẫn ở chỗ của
+nó trong bảng tin.
+
+#### Scenario: Tin sàn chung nổi bật
+
+- **WHEN** staff đặt nổi bật một tin sàn chung thuộc "Xe cộ"
+- **THEN** tin có trong dải của bảng tin sàn chung và dải của danh mục "Xe cộ", không có trong dải của danh mục khác
+
+#### Scenario: Tin nhóm nổi bật
+
+- **WHEN** chủ nhóm đặt nổi bật một tin "chỉ thành viên" của nhóm
+- **THEN** thành viên thấy tin trong dải của nhóm; khách và người ngoài nhóm không thấy; dải sàn chung không có tin
+
+#### Scenario: Hơn 6 tin nổi bật
+
+- **WHEN** bảng tin sàn chung có 8 tin đang nổi bật
+- **THEN** mỗi lần tải dải có đúng 6 tin khác nhau lấy ngẫu nhiên trong 8 tin đó, và qua nhiều lần tải cả 8 tin đều xuất hiện
+
+#### Scenario: Tin nổi bật bị hạn chế rồi trở lại
+
+- **WHEN** một tin đang nổi bật bị đặt lý do hạn chế "gậy", rồi lý do được gỡ khi hạn nổi bật còn
+- **THEN** tin rời dải trong lúc hạn chế và có lại trong dải sau khi gỡ
+
+#### Scenario: Hết hạn nổi bật
+
+- **WHEN** hạn nổi bật của một tin vừa qua
+- **THEN** tin không còn trong dải mà không cần thao tác nào, và vẫn ở chỗ cũ trong bảng tin
+
+#### Scenario: Không có tin nổi bật
+
+- **WHEN** khách mở dải của một nhóm không có tin nào nổi bật
+- **THEN** server trả danh sách rỗng
