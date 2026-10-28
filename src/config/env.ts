@@ -75,8 +75,9 @@ const envSchema = z
      */
     STORAGE_URL: z.string().url(),
     /**
-     * Client id Google (iOS, Android…) phân tách bằng dấu phẩy — ID token phải phát cho một trong
-     * số này. Trống = đăng nhập Google tắt; production bắt buộc có.
+     * Client id Google phân tách bằng dấu phẩy — ID token phải phát cho một trong số này: client "Web"
+     * (token lấy trên Android mang client Web ở `aud`, client Android không bao giờ có ở đó) và client
+     * iOS. Trống = đăng nhập Google tắt; production bắt buộc có.
      */
     GOOGLE_CLIENT_IDS: z
       .string()
