@@ -5,6 +5,10 @@
 > điều: hệ cũ đã làm gì, hệ mới hôm nay đứng ở đâu, và làm gì **ngay bây giờ** — lúc đổi dữ liệu còn rẻ vì chưa có
 > người dùng thật — để ngày bật chỉ là một change bình thường, không phải chuyển đổi dữ liệu hay phát hành lại app.
 > Mọi con số ở đây là **đề xuất**, chưa phải quyết định; TK chưa có phần cho tính năng này — câu hỏi cần chốt ở mục 7.
+>
+> **Chốt 28/10/2026 (mục 7):** không có thanh toán online — Xu không mua bằng tiền; ví mở bằng 0, ai cần Xu nhắn Hỗ trợ
+> Ghim và chỉ master cấp, miễn phí. Bước 2 (`add-topup`) bỏ khỏi lộ trình. Chỗ nào bên dưới còn nói nạp tiền, VietQR, doanh
+> thu hay chứng từ là phương án trước ngày chốt, giữ lại để biết vì sao bỏ.
 
 ## 1. Tính năng là gì, và ba luật không được phá
 
@@ -91,11 +95,11 @@ cổng `listing.applyPromotion(tx, { listingId, version, effect, until })` **tro
 - `rank_to_top` trong nhóm: chỉ xếp lại trong bảng tin **của nhóm đó**; tin sàn chung chỉ trên sàn chung.
 - Sửa tin sau khi mua: qua máy lại như thường; máy giữ thì tin biến khỏi bảng và **đồng hồ gói vẫn chạy** (người đăng tự
   gây ra, như luật ngày hiển thị). Tin bị gỡ vì vi phạm: không hoàn. Tin bị từ chối lúc máy giữ sau khi sửa: không hoàn
-  (đã hưởng dịch vụ trước đó). Khiếu nại thắng / ân xá: hoàn phần ngày chưa hưởng (mục 7.4).
+  (đã hưởng dịch vụ trước đó). Khiếu nại thắng / ân xá: hoàn đủ giá gói (mục 7.4).
 - Mỗi lượt mua một dòng sổ cái `product_purchase` kèm `refs { listingId, purchaseId, productCode }`; hoàn là `refund` ngược
   dấu trỏ về cùng `purchaseId`.
 - Master soạn gói qua bàn vận hành — mọi thay đổi vào nhật ký; master cấp / trừ Xu tay (`admin_adjust`, bắt buộc lý do +
-  `idempotencyKey`, nhật ký) — đây là đường "nạp" duy nhất của giai đoạn 1.
+  `idempotencyKey`, nhật ký) — đây là đường có Xu duy nhất (chốt 28/10/2026: không nạp tiền).
 
 ### 4.4 Hiện ra sao
 
@@ -108,16 +112,17 @@ cổng `listing.applyPromotion(tx, { listingId, version, effect, until })` **tro
 
 ### 4.5 Con số (bảng con số có phiên bản, nhóm "Đẩy tin")
 
-`promotion.featuredStripSize` 6 · `promotion.bumpCooldownHours` 24 · `promotion.minTier` 1 · `promotion.maxBumpsPerDay` 3 ·
-`promotion.refundOnAppealWin` true. Giá và thời hạn từng gói nằm trong catalog, không trong bảng con số.
+`promotion.featuredStripSize` 6 · `promotion.bumpCooldownHours` 24 · `promotion.minTier` 1 · `promotion.maxBumpsPerDay` 3.
+Hoàn khi khiếu nại thắng là luật, không có con số bật tắt. Giá và thời hạn từng gói nằm trong catalog, không trong bảng con
+số — bộ khởi đầu (chốt 28/10/2026): "Đẩy lên đầu" 1 Xu, "Nổi bật 3 ngày" 2 Xu, "Nổi bật 7 ngày" 4 Xu.
 
 ### 4.6 Hạn lưu, nhật ký, vận hành
 
-- Sổ cái Xu và lượt mua là **chứng từ**: giữ theo luật kế toán (Việt Nam: tối thiểu 10 năm cho chứng từ) — không theo hạn
-  lưu tài khoản 90 ngày; khi xoá hẳn hồ sơ, `account_id` trong sổ cái giữ nguyên (tài khoản ẩn danh vẫn còn dòng). Cần
-  luật sư xác nhận cùng rà soát pháp lý đang mở (TK 29 mục 2).
-- Catalog, cấp Xu tay, hoàn Xu: `appendAudit` cùng transaction. Bàn vận hành: doanh thu Xu theo ngày / gói / danh mục,
-  số dư tổng (phải = tổng sổ cái — việc đối chiếu hằng đêm, lệch thì báo master).
+- Không nạp tiền (chốt 28/10/2026) nên sổ cái Xu và lượt mua **không phải chứng từ kế toán**: theo hạn lưu của tài khoản.
+  Lượt cấp Xu của master còn trong nhật ký bất biến theo hạn của nhật ký. (Phương án trước ngày chốt: giữ 10 năm như
+  chứng từ vì có tiền.)
+- Catalog, cấp Xu tay, hoàn Xu: `appendAudit` cùng transaction. Bàn vận hành: Xu đã cấp / đã dùng theo ngày / gói / danh
+  mục, số dư tổng (phải = tổng sổ cái — việc đối chiếu hằng đêm, lệch thì báo master).
 
 ## 5. Bước 0 — change `prepare-promotions` (đã archive 17/10/2026, không đổi hành vi người dùng thấy)
 
@@ -155,70 +160,75 @@ nổi bật chưa dùng", dải nổi bật) **phải viết lại** trên spec 
 
 ## 6. Lộ trình bật
 
-| Bước | Khi nào                          | Gồm                                                                                                                                                                                                                |
-| ---- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 0 ✔  | 17/10/2026                       | mục 5 — `prepare-promotions` đã archive                                                                                                                                                                            |
-| 0b   | 27/10/2026                       | mục 5b — `add-admin-boost`: người quản trị đẩy tin, đặt nổi bật miễn phí; dải "Tin nổi bật"                                                                                                                        |
-| 1    | có người dùng thật, muốn thử gói | `add-wallet` (sổ cái, master cấp Xu, ví trong app), `add-promotions` (catalog, mua gói, hiệu ứng, dải nổi bật, N49–N51) — **không nạp tiền**: Xu do master tặng (`promo_grant`), đủ để đo người dùng có dùng không |
-| 2    | quyết thu tiền                   | `add-topup` (VietQR theo bài học hệ cũ, đối soát, hoàn), điều khoản sử dụng (Xu một chiều), kế toán / hoá đơn                                                                                                      |
-| 3    | (tuỳ)                            | phí đăng tin bằng Xu (`fee > 0`, hoàn khi bị từ chối, N tin miễn phí mỗi tháng) — cùng hạ tầng, chỉ đổi luật phí                                                                                                   |
+| Bước  | Khi nào                          | Gồm                                                                                                                                                                                                                                 |
+| ----- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0 ✔   | 17/10/2026                       | mục 5 — `prepare-promotions` đã archive                                                                                                                                                                                             |
+| 0b    | 27/10/2026                       | mục 5b — `add-admin-boost`: người quản trị đẩy tin, đặt nổi bật miễn phí; dải "Tin nổi bật"                                                                                                                                         |
+| 1     | có người dùng thật, muốn thử gói | `add-wallet` (sổ cái, master cấp Xu, ví trong app), `add-promotions` (catalog, mua gói, hiệu ứng, dải nổi bật, N49–N51) — **không nạp tiền**: ví mở bằng 0, người dùng xin Xu qua Hỗ trợ Ghim, master cấp miễn phí (`admin_adjust`) |
+| ~~2~~ | bỏ 28/10/2026                    | ~~`add-topup` (VietQR, đối soát, hoàn), điều khoản Xu một chiều, kế toán / hoá đơn~~ — chủ dự án chốt không có thanh toán online                                                                                                    |
+| 3     | (tuỳ)                            | phí đăng tin bằng Xu (`fee > 0`, hoàn khi bị từ chối, N tin miễn phí mỗi tháng) — cùng hạ tầng, chỉ đổi luật phí                                                                                                                    |
 
-## 7. Câu hỏi cần chủ dự án chốt trước bước 1
+## 7. Câu hỏi cần chủ dự án chốt trước bước 1 — đã chốt 28/10/2026
 
-1. **Giá và thời hạn khởi đầu** của từng gói (hệ cũ để master gõ; cần bộ khởi đầu để khởi động bảng).
-2. **Mức tối thiểu** được mua gói: T1 (đề xuất) hay T0 cũng mua được nhưng tin vẫn hạn chế.
-3. **Giữ `extend_expiry` không**: TK 19 đã cho gia hạn miễn phí và tin hết hạn gia hạn được; bán "thêm ngày" chỉ có nghĩa
-   nếu gia hạn sau này tính phí. Đề xuất: bỏ ở bước 1.
-4. **Hoàn Xu khi nào**: khiếu nại thắng / ân xá có hoàn phần chưa hưởng không (đề xuất có); tin bị gỡ vì sai sót (sửa được)
-   trong lúc gói chạy — không hoàn (đề xuất).
-5. **Đẩy tin trong nhóm**: cho phép không, chủ nhóm có được tắt cho nhóm mình không (đề xuất: cho phép, chủ nhóm tắt được
-   trong cài đặt nhóm; Xu vẫn về sàn, nhóm không chia).
-6. **"Tự động đẩy theo lịch" cho người bán chuyên** (hệ cũ có): bỏ ở bước 1 — là một gói thuê bao, cần luật riêng.
-7. **Dải nổi bật hiện ở đâu**: đầu bảng tin sàn chung, đầu từng danh mục, đầu bảng tin nhóm (đề xuất cả ba, mỗi chỗ tối đa
-   6, xoay vòng theo `featured_until` gần hết trước để ai cũng được lên đầu một lúc).
-8. **Pháp lý**: Xu một chiều và điều khoản; thời hạn giữ sổ cái; hoá đơn khi nạp — gộp vào rà soát pháp lý đang mở.
+0. **Có tiền không**: không có thanh toán online. Ví mở bằng 0 (không tặng khai trương); ai cần Xu nhắn Hỗ trợ Ghim,
+   **chỉ master** cấp, miễn phí. Xu chỉ là lượt dùng gói — không doanh thu, không hoá đơn.
+1. **Giá và thời hạn khởi đầu**: "Đẩy lên đầu" 1 Xu, "Nổi bật 3 ngày" 2 Xu, "Nổi bật 7 ngày" 4 Xu — số nhỏ để master nhẩm
+   (cấp 4 Xu = 4 lần đẩy hay một tuần nổi bật); chèn ở bước khởi động khi bảng gói trống, master sửa được.
+2. **Mức tối thiểu**: T1 — T0 đang hiển thị hạn chế nên đẩy cũng không ai thấy.
+3. **`extend_expiry`**: bỏ — gia hạn đang miễn phí (TK 19).
+4. **Hoàn Xu**: khiếu nại thắng / ân xá hoàn **đủ** giá gói (giá vài Xu, phần chưa hưởng ra số lẻ không đáng); tin bị gỡ vì
+   vi phạm hay sai sót của người đăng — không hoàn.
+5. **Đẩy tin trong nhóm**: cho phép, chủ nhóm tắt được trong cài đặt nhóm (mặc định bật); gói chỉ xếp lại bảng tin nhóm đó.
+6. **Tự động đẩy theo lịch**: bỏ.
+7. **Dải nổi bật**: đã làm ở `add-admin-boost` — sàn chung, từng danh mục, từng nhóm, mỗi chỗ tối đa 6. Trần mỗi người
+   mỗi ngày giữ 3 lượt.
+8. **Pháp lý**: hết phần tiền (Xu một chiều, hoá đơn, giữ sổ cái như chứng từ). Điều khoản chỉ cần ghi Xu không quy đổi ra
+   tiền.
 
 ## 8. Rủi ro đã thấy
 
 - Đổi index bảng tin sang `rank_at` trên bảng có dữ liệu thật là đổi index lớn nhất của hệ — làm ở bước 0 khi bảng còn
   trống là lý do chính của bản kế hoạch này.
-- Xu là tiền: mọi đường ghi phải qua một hàm có `idempotencyKey`; app gọi lại sau mất mạng không được trừ hai lần; test
-  song song hai lượt mua cùng tin, cùng ví.
+- Xu không mua bằng tiền nhưng vẫn có giá trị (master phát có hạn): mọi đường ghi phải qua một hàm có `idempotencyKey`;
+  app gọi lại sau mất mạng không được trừ hai lần; test song song hai lượt mua cùng tin, cùng ví.
 - Gói đẩy là động cơ cho kẻ lập nhiều tài khoản mua chéo: mức tối thiểu T1 + thời gian chờ + trần mỗi ngày chặn phần lớn;
   phần còn lại là việc của máy duyệt như mọi tin.
 
 ## Phụ lục A — bản nháp phần TK "Gói đẩy tin và ví Xu" (chờ chủ TK duyệt)
 
-> Viết theo giọng của `THIET-KE-HE-THONG.md` (vì sao, luật, con số, ví dụ). Mọi con số là đề xuất, chốt theo mục 7.
+> Viết theo giọng của `THIET-KE-HE-THONG.md` (vì sao, luật, con số, ví dụ). Con số theo mục 7, chốt 28/10/2026.
 
 **Vì sao có.** Tin lên bảng rồi trôi dần theo tin mới (phần 19); người bán muốn tin mình được thấy lâu hơn thì chỉ có cách
-xoá đăng lại — đã bị chặn (phần 14). Gói đẩy tin là đường **có trả phí, có giới hạn** để làm việc đó, thay cho mọi mẹo.
+xoá đăng lại — đã bị chặn (phần 14). Gói đẩy tin là đường **có giới hạn** để làm việc đó, thay cho mọi mẹo: người đăng dùng
+Xu, và Xu do master phát.
 
-**Ví Xu.** Xu là đơn vị nội bộ, nạp một chiều (nạp vào được, không đổi ngược ra tiền), không có hạn sử dụng. Mỗi tài khoản
-một ví; mọi biến động là một dòng sổ cái không sửa không xoá (sai thì ghi dòng ngược dấu), người dùng tự đọc được. Giai
-đoạn đầu chưa nạp tiền: Xu do master cấp (tặng khai trương, hỗ trợ). Khi thu tiền: nạp qua chuyển khoản VietQR, cộng theo
-số tiền thật nhận được.
+**Ví Xu.** Xu là đơn vị nội bộ, không mua bằng tiền, không đổi ra tiền, không có hạn sử dụng. Mỗi tài khoản một ví, mở
+bằng 0; mọi biến động là một dòng sổ cái không sửa không xoá (sai thì ghi dòng ngược dấu), người dùng tự đọc được. Ai cần
+Xu nhắn Hỗ trợ Ghim; chỉ master cấp, kèm lý do, vào nhật ký.
 
 **Hai hiệu ứng.** _Đẩy lên đầu_: tin đứng như vừa lên bảng, rồi trôi dần như thường. _Nổi bật_: tin vào dải "Tin nổi bật"
 (tối đa 6 tin, xoay vòng) ở đầu bảng tin sàn chung, danh mục và bảng tin nhóm, trong N ngày. Gói do master soạn: giá Xu,
-thời hạn, thời gian chờ, mức tin cậy tối thiểu, phạm vi.
+thời hạn, thời gian chờ, mức tin cậy tối thiểu, phạm vi. Bộ khởi đầu: "Đẩy lên đầu" 1 Xu, "Nổi bật 3 ngày" 2 Xu, "Nổi bật
+7 ngày" 4 Xu.
 
 **Luật mua.** Chỉ tin đang hiển thị **đầy đủ**, không tạm ẩn; người mua không đang tạm khoá đăng tin; từ mức T1 trở lên;
 mỗi tin một lần mỗi 24 giờ cho cùng gói, mỗi người tối đa 3 lượt mỗi ngày. Mua gói không mở tin, không gỡ lý do hạn chế,
-không đổi ngày hết hạn. Tin bị gỡ vì vi phạm: không hoàn; khiếu nại thắng hay ân xá: hoàn phần ngày chưa hưởng.
+không đổi ngày hết hạn. Gói cho tin của nhóm chỉ xếp lại bảng tin nhóm đó; chủ nhóm tắt được gói trong nhóm mình. Tin bị
+gỡ vì vi phạm: không hoàn; khiếu nại thắng hay ân xá: hoàn đủ giá gói.
 
 **Ba luật không đổi.** Không việc nền nào tự mở tin (phần 26); sửa, gia hạn, đăng lại không đổi vị trí (phần 14, 19) — đẩy
 tin là đường duy nhất; từ chối mua phải nói lý do (phần 4).
 
-| Con số                                 | Giá trị khởi đầu    |
-| -------------------------------------- | ------------------- |
-| Dải nổi bật, tối đa                    | 6 tin               |
-| Thời gian chờ giữa hai lần đẩy một tin | 24 giờ              |
-| Mức tối thiểu được mua gói             | T1                  |
-| Số lượt mua mỗi người mỗi ngày         | 3                   |
-| Hoàn Xu khi khiếu nại thắng            | có, phần chưa hưởng |
+| Con số                                 | Giá trị khởi đầu |
+| -------------------------------------- | ---------------- |
+| Ví mới                                 | 0 Xu             |
+| Dải nổi bật, tối đa                    | 6 tin            |
+| Thời gian chờ giữa hai lần đẩy một tin | 24 giờ           |
+| Mức tối thiểu được mua gói             | T1               |
+| Số lượt mua mỗi người mỗi ngày         | 3                |
+| Hoàn Xu khi khiếu nại thắng            | có, đủ giá gói   |
 
-> **Ví dụ — anh Tuấn ở T2 có tin "Xe đạp cũ" đã hiện 10 ngày.** Anh mua gói "Đẩy lên đầu" 20 Xu: tin đứng đầu bảng tin
-> như vừa đăng, ngày hết hạn vẫn là ngày 30. Mua lại sau 2 giờ: bị từ chối, "được mua lại lúc …". Ngày 12 tin bị gỡ vì vi
-> phạm: không hoàn. Anh khiếu nại thắng ngày 15: tin hiện lại, gói "Nổi bật 7 ngày" mua ngày 11 được hoàn phần 3 ngày chưa
-> hưởng.
+> **Ví dụ — anh Tuấn ở T2 có tin "Xe đạp cũ" đã hiện 10 ngày.** Anh nhắn Hỗ trợ Ghim xin Xu, master cấp 5 Xu. Anh dùng
+> gói "Đẩy lên đầu" 1 Xu: tin đứng đầu bảng tin như vừa đăng, ngày hết hạn vẫn là ngày 30. Đẩy lại sau 2 giờ: bị từ chối,
+> "được đẩy lại lúc …". Ngày 11 anh dùng gói "Nổi bật 7 ngày" 4 Xu. Ngày 12 tin bị gỡ vì vi phạm: không hoàn. Anh khiếu nại
+> thắng ngày 15: tin hiện lại, ví được hoàn đủ 4 Xu.

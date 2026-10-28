@@ -21,6 +21,22 @@ chung, nhóm, cả hai) và thứ tự hiện. Mọi thao tác SHALL vào nhật
 - **WHEN** master tắt một gói có lượt mua còn hiệu lực
 - **THEN** lượt mua đó chạy tới hết hạn như thường, gói không còn trong danh sách người đăng thấy
 
+### Requirement: Bộ gói khởi đầu
+
+Bảng gói trống SHALL được chèn bộ khởi đầu ở bước khởi động, đang bật, phạm vi cả sàn chung lẫn nhóm, mức tối thiểu T1:
+"Đẩy lên đầu" (`rank_to_top`) 1 Xu, "Nổi bật 3 ngày" (`featured`) 2 Xu, "Nổi bật 7 ngày" (`featured`) 4 Xu. Bảng đã có
+gói MUST NOT bị chèn lại — master đã sửa thì giữ bản của master.
+
+#### Scenario: Lần khởi động đầu
+
+- **WHEN** server khởi động với bảng gói trống
+- **THEN** bảng có ba gói khởi đầu với đúng giá và thời hạn trên
+
+#### Scenario: Master đã đổi giá
+
+- **WHEN** master đổi giá "Đẩy lên đầu" thành 2 Xu rồi server khởi động lại
+- **THEN** gói vẫn giá 2 Xu, không có gói nào được chèn thêm
+
 ### Requirement: Người đăng thấy gói mua được
 
 Người đăng SHALL thấy các gói đang bật hợp với phạm vi của tin, kèm giá và điều kiện; gói mình chưa đủ mức SHALL hiện kèm
