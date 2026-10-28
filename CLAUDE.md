@@ -362,7 +362,7 @@ kế hoạch `docs/KE-HOACH-GOI-DAY-TIN.md`) → `add-admin-boost` (người qu�
 27/10/2026, đi trước gói trả Xu; gộp `main` qua PR #28, archive 27/10/2026; delta `listing/visibility` của
 `add-promotions` đã viết lại trên spec sau change này) →
 `add-wallet` (ví Xu, sổ cái, master cấp — làm 28/10/2026 sau khi chủ dự án chốt câu hỏi mở: Xu do master cấp miễn phí,
-không có `add-topup`, không thanh toán online; gộp `main` qua PR #33, archive 28/10/2026) → `add-promotions` (gói đẩy tin trả Xu — làm 28/10/2026 ngay sau `add-wallet`; dải nổi bật đổi sang lấy ngẫu nhiên; gộp `main` qua PR #35, archive 28/10/2026).
+không có `add-topup`, không thanh toán online; gộp `main` qua PR #33, archive 28/10/2026) → `add-promotions` (gói đẩy tin trả Xu — làm 28/10/2026 ngay sau `add-wallet`; dải nổi bật đổi sang lấy ngẫu nhiên; gộp `main` qua PR #35, archive 28/10/2026) → `remove-new-account-restriction` (bỏ lý do hạn chế "tài khoản mới" — chốt 28/10/2026 sau khi thử trên Render: máy cho qua là tin lên, T0 dải Thấp hiện đầy đủ; migration gỡ lý do trên tin đang có).
 
 - `add-platform-roles` và `add-categories` cần nhau (quyền staff gắn theo danh mục; danh mục cần staff soạn
   mẫu) nên làm chung một lượt và archive trước `add-groups`; `add-groups` chỉ thêm requirement vào
@@ -458,7 +458,7 @@ Mỗi luật dưới đây là một cam kết ở TK phần 27; số trong ngo�
     `outbox.purge-published` (04:30 hằng ngày, `src/modules/ops/ops.jobs.ts` — chuyển từ `common/outbox` ở
     add-data-retention, tên giữ vì pg-boss lưu lịch theo tên) xoá; sự kiện chưa phát thì không. Hợp đồng bên nghe không đổi.
 13. **Trạng thái tin, cờ tạm ẩn, lý do hạn chế là ba thứ riêng** (15, 18, 19). Lý do hạn chế là một
-    tập (`machine`, `new_account`, `strike`), mỗi lý do đặt/gỡ độc lập. Đường chuyển trạng thái tin
+    tập (`machine`, `strike`, `strike_wave`; `new_account` bỏ 28/10/2026 — mức tin cậy không là lý do), mỗi lý do đặt/gỡ độc lập. Đường chuyển trạng thái tin
     là **bảng thuần** trong `listing/calc/listing.calc.ts`, có unit test cho mọi mũi tên của sơ đồ TK
     phần 18 — và cho mọi mũi tên KHÔNG có.
 14. **Máy không phạt** (13, nguyên tắc 7). `screening` chỉ trả `pass_full` / `pass_limited` / `hold`.

@@ -57,7 +57,6 @@ const config: RuntimeConfig = {
 /** Mức tin cậy theo từng người đăng (mặc định T1), không chặn lượt gửi nào. */
 const trust: ListingTrustPort = {
   tierOf: (accountId) => Promise.resolve(tiers.get(accountId) ?? 'T1'),
-  tierIn: (_tx, accountId) => Promise.resolve(tiers.get(accountId) ?? 'T1'),
   assertCanSubmit: () => Promise.resolve(),
   strikePointsIn: () => Promise.resolve(0),
   strikePointsOf: () => Promise.resolve(0),
@@ -202,17 +201,14 @@ describe('Đạt cho tin máy giữ', () => {
     expect(await getOwn(app, poster, held.id)).toMatchObject({ state: 'live', restrictions: [] });
   });
 
-  it('tin sàn của T0: đang hiển thị, hạn chế với lý do "tài khoản mới"', async () => {
+  it('tin sàn của T0: đang hiển thị đầy đủ — mức tin cậy không là lý do hạn chế', async () => {
     const category = await seedCategory();
     const staff = await staffOf([category]);
     const poster = await newUser(app);
     tiers.set(poster.id, 'T0');
     const held = await heldBy(poster, { categoryId: category });
     await claimAndDecide(staff, held.id, { outcome: 'pass', machineJudgment: 'machine_right' });
-    expect(await getOwn(app, poster, held.id)).toMatchObject({
-      state: 'live',
-      restrictions: ['new_account'],
-    });
+    expect(await getOwn(app, poster, held.id)).toMatchObject({ state: 'live', restrictions: [] });
   });
 
   it('T1 dải Vừa bị giữ vì ảnh trùng: đầy đủ, không lý do "máy", không việc hàng 3', async () => {

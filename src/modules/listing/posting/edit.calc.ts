@@ -26,8 +26,6 @@ export type EditOutcome =
       machine: boolean;
       placement: EditPlacementChange | null;
       badge: 'attach' | 'detach' | null;
-      /** Thu hẹp về "chỉ thành viên" gỡ lý do "tài khoản mới" (chốt 12/10/2026). */
-      dropNewAccount: boolean;
     }
   | { ok: false; code: 'LISTING_DETACHED' | 'PLACEMENT_LOCKED' };
 
@@ -114,6 +112,5 @@ export function classifyEdit(
     machine: contentChanged || badge === 'attach' || (placement !== null && !narrowsIntoOwnGroup),
     placement,
     badge,
-    dropNewAccount: after.placement === 'members_only' && before.placement !== 'members_only',
   };
 }

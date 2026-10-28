@@ -25,11 +25,9 @@ import type { PostingFee } from './calc/fee.calc.js';
 export type TrustTier = 'T0' | 'T1' | 'T2' | 'T3';
 type Tx = Prisma.TransactionClient;
 
-/** Chỗ cắm mức tin cậy (design mục 7): hai lời gọi đồng bộ của luật 12. */
+/** Chỗ cắm mức tin cậy: hạn mức lúc gửi (luật 12) và điểm gậy lúc lên bảng; `tierOf` còn là chỗ `app.ts` nối mức cho các module khác. */
 export interface ListingTrustPort {
   tierOf(accountId: string): Promise<TrustTier>;
-  /** Mức đọc trong transaction đổi tin, sau khoá chung của `trust` — lượt lên mức chen giữa không bị bỏ sót (L7). */
-  tierIn(tx: Tx, accountId: string): Promise<TrustTier>;
   /** Điểm gậy đọc trong transaction lên bảng — lý do hạn chế "gậy" (add-strikes). */
   strikePointsIn(tx: Tx, accountId: string): Promise<number>;
   strikePointsOf(accountId: string): Promise<number>;

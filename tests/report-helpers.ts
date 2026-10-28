@@ -104,7 +104,6 @@ export function tieredTrust(tiers: Map<string, TrustTier>): ListingTrustPort {
   const tierOf = (accountId: string) => Promise.resolve(tiers.get(accountId) ?? 'T1');
   return {
     tierOf,
-    tierIn: (_tx, accountId) => tierOf(accountId),
     assertCanSubmit: () => Promise.resolve(),
     strikePointsIn: () => Promise.resolve(0),
     strikePointsOf: () => Promise.resolve(0),

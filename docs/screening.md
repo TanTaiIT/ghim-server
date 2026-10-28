@@ -17,7 +17,6 @@ tin (`GET /api/v1/listings/{id}`) hay nghe thông báo để biết kết quả:
 | --------- | -------------- | --------------------------------------------------- |
 | `live`    | `[]`           | Hiện đầy đủ                                         |
 | `live`    | có `machine`   | Hiện hạn chế vì máy chưa chắc — người duyệt xem sau |
-| `live`    | `new_account`  | Hiện hạn chế vì tài khoản mới (T0), không do máy    |
 | `pending` | —              | Máy giữ cho người duyệt                             |
 
 Quá 5 phút chưa đủ kết quả ảnh thì tin chuyển sang chờ người duyệt — app không cần làm gì.

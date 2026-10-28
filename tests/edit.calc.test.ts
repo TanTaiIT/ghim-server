@@ -63,13 +63,12 @@ describe('Mở rộng nơi đăng và gắn huy hiệu thì qua máy lại', () 
 });
 
 describe('Sửa làm tin ít người thấy hơn thì không qua máy', () => {
-  it('thu hẹp từ sàn chung về "chỉ thành viên" của nhóm mình — gỡ cả lý do "tài khoản mới"', () => {
+  it('thu hẹp từ sàn chung về "chỉ thành viên" của nhóm mình — không qua máy', () => {
     expect(classifyEdit(MARKET, MEMBERS_ONLY, FREE)).toEqual({
       ok: true,
       machine: false,
       placement: 'narrow',
       badge: null,
-      dropNewAccount: true,
     });
   });
 

@@ -133,12 +133,11 @@ describe('Hạn mức còn lại', () => {
 });
 
 describe('Tin đang hiển thị hạn chế và lý do', () => {
-  it('T0 có tin sàn chung hạn chế vì tài khoản mới: được liệt kê; lên T1 thì hết lý do, rời danh sách', async () => {
+  it('T0 có tin sàn chung máy cho qua đầy đủ: không nằm trong danh sách hạn chế, trước lẫn sau khi lên T1', async () => {
     const user = await newUser(app);
     const live = await liveListingOf(app, user);
-    expect((await board(user)).restricted).toEqual([
-      { id: live.id, title: live.title, restrictions: ['new_account'] },
-    ]);
+    expect(live.restrictions).toEqual([]);
+    expect((await board(user)).restricted).toEqual([]);
     await seedClean(user.id, [8]);
     now = day(9);
     await app.modules.trust.recompute(user.id);

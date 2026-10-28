@@ -111,14 +111,6 @@ export function registerListingListeners(
     z.object({ categoryId: z.string(), enabled: z.boolean() }),
     ({ categoryId }) => listing.onCategoryStatusChanged(categoryId),
   );
-  // Bên phát ở `add-trust-tiers`. Tụt về T0 không đặt lại lý do lên tin đang hiện (design mục 7).
-  on(
-    'trust.tier.changed',
-    account.extend({ from: z.string(), to: z.string() }),
-    async ({ accountId, from, to }) => {
-      if (from === 'T0' && to !== 'T0') await listing.onTierRaised(accountId);
-    },
-  );
 
   // ── MÁY DUYỆT ──────────────────────────────────────────────────────────────────────────────────
   // Bên phát ở `add-screening`; kết quả cũ (tin đã sửa) trượt êm qua ghi có điều kiện `version`.

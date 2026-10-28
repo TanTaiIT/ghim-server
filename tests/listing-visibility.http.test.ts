@@ -121,15 +121,15 @@ describe('Hai mức hiển thị', () => {
 });
 
 describe('Lý do hạn chế đặt và gỡ độc lập', () => {
-  it('mang cả "máy" lẫn "tài khoản mới", người đăng lên T1: còn "máy", vẫn hạn chế', async () => {
+  it('T0 mang lý do "máy": chỉ "máy" — mức tin cậy không thêm lý do (remove-new-account-restriction)', async () => {
     const owner = await newUser(t0);
-    const both = await machinePass(t0, owner, await submitted(t0, owner), true);
-    expect(both.restrictions).toEqual(['machine', 'new_account']);
+    const limited = await machinePass(t0, owner, await submitted(t0, owner), true);
+    expect(limited.restrictions).toEqual(['machine']);
     await prisma.outboxEvent.create({
       data: { type: 'trust.tier.changed', payload: { accountId: owner.id, from: 'T0', to: 'T1' } },
     });
     await deliverAll(app);
-    expect((await getOwn(app, owner, both.id)).restrictions).toEqual(['machine']);
+    expect((await getOwn(app, owner, limited.id)).restrictions).toEqual(['machine']);
   });
 
   it('lý do "máy" không tự gỡ theo thời gian: 10 ngày sau vẫn hạn chế', async () => {
@@ -151,8 +151,8 @@ describe('Lý do hạn chế đặt và gỡ độc lập', () => {
   });
 });
 
-describe('Lý do "tài khoản mới"', () => {
-  it('T0 đăng sàn chung hay "nhóm công khai": mang lý do; "chỉ thành viên": không, hiển thị đầy đủ', async () => {
+describe('Mức tin cậy không là lý do hạn chế (remove-new-account-restriction)', () => {
+  it('T0 đăng sàn chung, "nhóm công khai" hay "chỉ thành viên": đều hiển thị đầy đủ, không lý do', async () => {
     const group = await createActiveGroup(t0);
     await groupSettings(t0, group.owner, group.groupId, { allowOutsiders: true });
     const member = await addMember(t0, group.groupId);
@@ -167,12 +167,12 @@ describe('Lý do "tài khoản mới"', () => {
       member,
       await submitted(t0, member, { placement: 'members_only', groupId: group.groupId }),
     );
-    expect(market.restrictions).toEqual(['new_account']);
-    expect(groupPublic.restrictions).toEqual(['new_account']);
+    expect(market.restrictions).toEqual([]);
+    expect(groupPublic.restrictions).toEqual([]);
     expect(membersOnly.restrictions).toEqual([]);
   });
 
-  it('T0 thu hẹp tin sàn chung về "chỉ thành viên" nhóm mình: gỡ lý do, đầy đủ trong nhóm', async () => {
+  it('T0 thu hẹp tin sàn chung về "chỉ thành viên" nhóm mình: vẫn đầy đủ, hiện trong nhóm', async () => {
     const group = await createActiveGroup(t0);
     const member = await addMember(t0, group.groupId);
     const market = await machinePass(t0, member, await submitted(t0, member));

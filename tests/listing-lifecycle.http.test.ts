@@ -322,13 +322,12 @@ describe('Tạm ẩn và mức hiển thị không đổi trạng thái', () => 
     expect(await row(live.id)).toMatchObject({ state: 'live', hideReasons: [] });
   });
 
-  it('gỡ lý do hạn chế cuối cùng: vẫn đang hiển thị, mức hiển thị sang đầy đủ', async () => {
+  it('tài khoản T0 lên bảng: hiển thị đầy đủ, không lý do hạn chế (remove-new-account-restriction)', async () => {
     const owner = await newUser(app);
     const t0 = await buildTestApp({ clock: () => now });
     try {
       const live = await liveListingOf(t0, owner);
-      expect(live.restrictions).toEqual(['new_account']);
-      await app.modules.listing.onTierRaised(owner.id);
+      expect(live.restrictions).toEqual([]);
       expect(await row(live.id)).toMatchObject({ state: 'live', restrictions: [] });
     } finally {
       await t0.close();

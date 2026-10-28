@@ -52,7 +52,6 @@ export interface ListingCascadeService {
   onUnitChanged(groupId: string, accountId: string): Promise<number>;
   onBadgeRightsChanged(groupId: string, accountId: string | null): Promise<number>;
   /** Gỡ "tài khoản mới" khi mức hiện tại đã khác T0 — lượt lên mức tới trễ sau một lượt tụt không gỡ nhầm. */
-  onTierRaised(accountId: string): Promise<number>;
   /**
    * Điểm gậy của người bán vừa đổi (add-strikes, spec listing/visibility): từ 2 điểm mọi tin đang hiện mang `strike_wave`,
    * dưới 2 gỡ; về 0 gỡ cả `strike`. Đọc điểm hiện tại sau khi khoá lô — chạy lại vô hại.
@@ -309,13 +308,7 @@ export function createListingCascadeService(shared: ListingShared): ListingCasca
           rows.flatMap((row) =>
             // Thành viên: hạ về "chỉ thành viên", không qua máy, không đổi phiên bản — không phải sửa của người đăng.
             members.has(row.ownerId)
-              ? [
-                  {
-                    ...row,
-                    placement: 'members_only' as const,
-                    restrictions: withRestriction(row.restrictions, 'new_account', false),
-                  },
-                ]
+              ? [{ ...row, placement: 'members_only' as const }]
               : (hidden(row, outsider, now) ?? []),
           ),
         events: (changed) => {
@@ -391,19 +384,6 @@ export function createListingCascadeService(shared: ListingShared): ListingCasca
               next.every((item) => row.restrictions.includes(item));
             return same ? [] : [{ ...row, restrictions: next }];
           }),
-      });
-    },
-
-    onTierRaised(accountId) {
-      return repository.applyBatch<string>({
-        where: { ownerId: accountId, deletedAt: null, restrictions: { has: 'new_account' } },
-        at: clock(),
-        prepare: () => trust.tierOf(accountId),
-        compute: (rows, tier) =>
-          (tier === 'T0' ? [] : rows).map((row) => ({
-            ...row,
-            restrictions: withRestriction(row.restrictions, 'new_account', false),
-          })),
       });
     },
   };

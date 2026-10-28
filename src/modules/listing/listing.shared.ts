@@ -115,12 +115,7 @@ export const clockSettings = (config: RuntimeConfig): ClockSettings => ({
   renewExtendDays: config.get('listing.renewExtendDays'),
 });
 
-const RESTRICTION_ORDER: readonly ListingRestriction[] = [
-  'machine',
-  'new_account',
-  'strike',
-  'strike_wave',
-];
+const RESTRICTION_ORDER: readonly ListingRestriction[] = ['machine', 'strike', 'strike_wave'];
 
 /** Đặt hay gỡ một lý do hạn chế, giữ thứ tự cố định để chạy lại ra cùng một mảng. */
 export function withRestriction(

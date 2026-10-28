@@ -146,12 +146,12 @@ describe('Thứ tự kết luận', () => {
 });
 
 describe('Ma trận T0', () => {
-  it('sàn chung điểm 0: hạn chế, không mang lý do "máy"', () => {
-    expect(outcomeOf([], { tier: 'T0' })).toEqual(LIMITED);
+  it('sàn chung điểm 0: hiện đầy đủ — mức không còn là lý do hạn chế (remove-new-account-restriction)', () => {
+    expect(outcomeOf([], { tier: 'T0' })).toEqual(FULL);
   });
 
-  it('nhóm công khai điểm 20: hạn chế', () => {
-    expect(outcomeOf(SCORE_20, { tier: 'T0', placement: 'group_public' })).toEqual(LIMITED);
+  it('nhóm công khai điểm 20: hiện đầy đủ', () => {
+    expect(outcomeOf(SCORE_20, { tier: 'T0', placement: 'group_public' })).toEqual(FULL);
   });
 
   it('"chỉ thành viên" điểm 0: hiện đầy đủ', () => {

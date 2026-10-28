@@ -1109,6 +1109,7 @@ enum ListingHideReason {
 /// Lý do hiển thị hạn chế (TK 15): mỗi lý do đặt và gỡ độc lập; mảng rỗng = đầy đủ.
 enum ListingRestriction {
   machine
+  /// Đã bỏ 28/10/2026 (remove-new-account-restriction): giữ giá trị vì Postgres không xoá được; code không ghi nữa.
   new_account
   /// Lên bảng khi người bán đang có gậy — gỡ khi điểm gậy về 0 (add-strikes).
   strike

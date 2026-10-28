@@ -91,7 +91,7 @@ cổng `listing.applyPromotion(tx, { listingId, version, effect, until })` **tro
 
 - Chỉ tin `live`, **hiển thị đầy đủ** (không lý do hạn chế), không tạm ẩn, của chính mình, chưa trong thời gian chờ của
   gói đó; người mua không đang **tạm khoá đăng tin** (3 điểm gậy). Mức tối thiểu theo `product.min_tier` (đề xuất T1 —
-  T0 đang hạn chế "tài khoản mới" nên không lên bảng tin, mua cũng vô nghĩa).
+  để Xu không rơi vào tài khoản vừa lập; từ 28/10/2026 tin T0 vẫn lên bảng tin, nên hạ về T0 chỉ là đổi con số).
 - `rank_to_top` trong nhóm: chỉ xếp lại trong bảng tin **của nhóm đó**; tin sàn chung chỉ trên sàn chung.
 - Sửa tin sau khi mua: qua máy lại như thường; máy giữ thì tin biến khỏi bảng và **đồng hồ gói vẫn chạy** (người đăng tự
   gây ra, như luật ngày hiển thị). Tin bị gỡ vì vi phạm: không hoàn. Tin bị từ chối lúc máy giữ sau khi sửa: không hoàn
