@@ -207,31 +207,6 @@ describe('Tài khoản lượt hằng ngày tính lại', () => {
   });
 });
 
-describe('Đọc mức trong transaction của bên gọi (fix-audit-trust-media-low, L7)', () => {
-  it('lượt tính mức đang giữ khoá: bên đọc chờ lượt đó commit rồi thấy mức mới', async () => {
-    const { id } = await seedAccount();
-    await trust.writeTier(write(id, { tier: 'T0', countedClean: 0 }));
-    const { promise: held, resolve: holding } = Promise.withResolvers<void>();
-    const { promise: gate, resolve: release } = Promise.withResolvers<void>();
-    const writer = trust.withAccountLock(id, async (tx) => {
-      holding();
-      await gate;
-      await trust.writeTier(
-        write(id, { expectHash: 'dau-1', fromTier: 'T0', tier: 'T1', factsHash: 'dau-2' }),
-        tx,
-      );
-    });
-    await held;
-
-    const reader = prisma.$transaction((tx) => trust.holdTier(tx, id));
-    // Đủ lâu để lượt đọc tới khoá trước khi lượt ghi commit; không có khoá thì lượt đọc đã ra T0.
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    release();
-    await writer;
-    expect((await reader)?.tier).toBe('T1');
-  });
-});
-
 describe('Cổng dữ kiện của listing cho trust (task 3.1)', () => {
   it('tin sống: đang kiểm, chờ duyệt, đang hiển thị không tạm ẩn — không gồm nháp, tạm ẩn, đã xong, đã xoá', async () => {
     const owner = await seedAccount();

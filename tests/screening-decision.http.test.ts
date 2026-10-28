@@ -229,10 +229,10 @@ describe('Đang kiểm quá 5 phút', () => {
 });
 
 describe('Ma trận dải × mức tin cậy qua lượt gửi thật', () => {
-  it('T0 sàn chung điểm 0: hiện hạn chế vì "tài khoản mới", không mang lý do "máy"', async () => {
+  it('T0 sàn chung điểm 0: hiện đầy đủ, không lý do hạn chế (remove-new-account-restriction)', async () => {
     const { listing, run } = await screened(app, await userAt('T0'));
-    expect(run).toMatchObject({ outcome: 'pass_limited', score: 0 });
-    expect(listing.restrictions).toEqual(['new_account']);
+    expect(run).toMatchObject({ outcome: 'pass_full', score: 0 });
+    expect(listing.restrictions).toEqual([]);
   });
 
   it('T0 "chỉ thành viên" điểm 0: hiện đầy đủ', async () => {

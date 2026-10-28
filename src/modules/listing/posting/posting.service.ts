@@ -221,7 +221,7 @@ export function createListingPostingService(shared: ListingShared): ListingPosti
     listing: Listing,
     after: ListingFields,
     version: number,
-    outcome: { placement: string | null; dropNewAccount: boolean },
+    outcome: { placement: string | null },
   ) => {
     const now = clock();
     // Thu hẹp vào nhóm: đơn vị của người đăng lấy lúc giữ khoá nhóm, như lượt gửi (fix-audit-review, T8).
@@ -247,9 +247,6 @@ export function createListingPostingService(shared: ListingShared): ListingPosti
           unitId,
           version: locked.version + 1,
           hideReasons,
-          restrictions: outcome.dropNewAccount
-            ? locked.restrictions.filter((reason) => reason !== 'new_account')
-            : locked.restrictions,
           ...nextClock(locked, { state: locked.state, hideReasons }, now, clockSettings(config)),
         };
       },
@@ -312,8 +309,7 @@ export function createListingPostingService(shared: ListingShared): ListingPosti
       renewal: null,
       recheckPlacement: outcome.placement !== null,
       hideReasons: (locked) => reasonsAfterRewrite(locked, rewrite),
-      restrictions: (locked) =>
-        outcome.dropNewAccount ? locked.filter((reason) => reason !== 'new_account') : [...locked],
+      restrictions: (locked) => [...locked],
     });
     return updated ?? explainMiss(listing.id, body.version);
   };

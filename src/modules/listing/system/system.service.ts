@@ -18,12 +18,11 @@ import type { Tx } from '../listing.repository.js';
 import {
   clockSettings,
   invalidTransition,
-  isPublicPlacement,
   type ListingShared,
   listingNotFound,
   withRestriction,
 } from '../listing.shared.js';
-import { type ListingLock, type TrustTier } from '../listing.ports.js';
+import { type ListingLock } from '../listing.ports.js';
 
 export interface MachineResult {
   listingId: string;
@@ -84,10 +83,12 @@ export interface ListingSystemService {
   lockForReview(tx: Tx, listingId: string): Promise<ListingLock | null>;
 }
 
-/** Lên bảng (máy cho qua, người duyệt đạt / khôi phục, khiếu nại thắng): tính lý do "tài khoản mới" (mục 7). */
+/**
+ * Lên bảng (máy cho qua, người duyệt đạt / khôi phục, khiếu nại thắng). Mức tin cậy của người đăng không còn là lý do
+ * hạn chế — tin của T0 máy cho qua đầy đủ hiện đầy đủ (remove-new-account-restriction, chốt 28/10/2026).
+ */
 function restrictionsGoingLive(
   locked: Listing,
-  tier: TrustTier,
   machine: boolean | null,
   strikePoints: number,
 ): ListingRestriction[] {
@@ -95,27 +96,18 @@ function restrictionsGoingLive(
     machine === null
       ? locked.restrictions
       : withRestriction(locked.restrictions, 'machine', machine);
-  const newAccount = withRestriction(
-    base,
-    'new_account',
-    tier === 'T0' && isPublicPlacement(locked.placement),
-  );
   // Lên bảng khi người bán đang có gậy: hạn chế "gậy" tới khi điểm về 0 (spec listing/visibility, add-strikes).
-  return withRestriction(newAccount, 'strike', strikePoints > 0 || base.includes('strike'));
+  return withRestriction(base, 'strike', strikePoints > 0 || base.includes('strike'));
 }
 
 /**
- * Cột ghi thêm của một mũi tên. Mũi tên lên bảng (`live`) cần mức tin cậy của người đăng cho lý do "tài khoản mới" —
- * đọc trong transaction sau khoá chung của `trust` (rà soát L7); mũi tên khác không đọc mức, không chờ khoá đó.
+ * Cột ghi thêm của một mũi tên. Mũi tên lên bảng (`live`) cần điểm gậy của người đăng cho lý do "cảnh cáo" — đọc trong
+ * transaction sau khoá chung của `trust` (rà soát L7); mũi tên khác không đọc, không chờ khoá đó.
  */
 type Columns =
   | ((locked: Listing) => Prisma.ListingUncheckedUpdateInput)
   | {
-      live: (
-        locked: Listing,
-        tier: TrustTier,
-        strikePoints: number,
-      ) => Prisma.ListingUncheckedUpdateInput;
+      live: (locked: Listing, strikePoints: number) => Prisma.ListingUncheckedUpdateInput;
     };
 
 export function createListingSystemService(shared: ListingShared): ListingSystemService {
@@ -123,9 +115,9 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
   const settings = () => clockSettings(config);
 
   /**
-   * Một mũi tên có điều kiện `version` từ bảng của `listing.calc.ts`; lên bảng thì tính lý do "tài khoản mới" theo mức
-   * tin cậy đọc TRONG transaction, sau khoá chung của `trust` (mục 7; rà soát L7): đọc trước transaction thì lượt lên mức
-   * chen giữa — bên nghe đổi mức chạy khi tin còn đang kiểm — để lý do bám mãi. `null` = phiên bản đã đổi, hay trạng thái
+   * Một mũi tên có điều kiện `version` từ bảng của `listing.calc.ts`; lên bảng thì tính lý do "cảnh cáo" theo điểm gậy
+   * đọc TRONG transaction, sau khoá chung của `trust` (rà soát L7): đọc trước transaction thì lượt đổi điểm chen giữa —
+   * bên nghe chạy khi tin còn đang kiểm — để lý do bám mãi. `null` = phiên bản đã đổi, hay trạng thái
    * ngoài `states` — máy truyền đúng trạng thái nguồn để kết quả cũ trượt êm; người duyệt để mặc định nên sai trạng thái
    * là 409 `INVALID_TRANSITION`.
    */
@@ -142,18 +134,16 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
     rankAt: Date | null = null,
   ) => {
     const now = clock();
-    let tier: TrustTier = 'T0';
     let strikePoints = 0;
     return repository.change({
       id: input.listingId,
       states: input.states ?? LISTING_STATES,
       version: input.version,
-      // Chỉ mũi tên lên bảng mới cần mức: mũi tên khác (gỡ, từ chối, giữ) không chờ lượt tính mức đang giữ khoá.
+      // Chỉ mũi tên lên bảng mới cần điểm gậy: mũi tên khác (gỡ, từ chối, giữ) không chờ khoá của `trust`.
       ...(typeof columns === 'function'
         ? {}
         : {
             before: async (tx: Tx, locked: Listing) => {
-              tier = await trust.tierIn(tx, locked.ownerId);
               strikePoints = await trust.strikePointsIn(tx, locked.ownerId);
             },
           }),
@@ -170,9 +160,7 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
             settings(),
             rankAt,
           ),
-          ...(typeof columns === 'function'
-            ? columns(locked)
-            : columns.live(locked, tier, strikePoints)),
+          ...(typeof columns === 'function' ? columns(locked) : columns.live(locked, strikePoints)),
         };
       },
       after: input.after,
@@ -198,8 +186,8 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
       const passed = await decide(
         { ...input, arrow: 'pass' },
         {
-          live: (locked, tier, points) => ({
-            restrictions: restrictionsGoingLive(locked, tier, result.restrictMachine, points),
+          live: (locked, points) => ({
+            restrictions: restrictionsGoingLive(locked, result.restrictMachine, points),
           }),
         },
         ranked?.rankAt ?? null,
@@ -236,10 +224,10 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
         fault
           ? () => fault
           : {
-              live: (locked, tier, points) => ({
+              live: (locked, points) => ({
                 fault: null,
                 faultReason: null,
-                restrictions: restrictionsGoingLive(locked, tier, machine, points),
+                restrictions: restrictionsGoingLive(locked, machine, points),
               }),
             },
       );
@@ -266,10 +254,10 @@ export function createListingSystemService(shared: ListingShared): ListingSystem
       const restored = await decide(
         { listingId, version: row.version, arrow: 'appealWin', side: 'appeal' },
         {
-          live: (locked, tier, points) => ({
+          live: (locked, points) => ({
             fault: null,
             faultReason: null,
-            restrictions: restrictionsGoingLive(locked, tier, null, points),
+            restrictions: restrictionsGoingLive(locked, null, points),
           }),
         },
       );

@@ -324,7 +324,7 @@ async function waitForMachine(poster: Poster, id: string): Promise<OwnListing> {
 const ids = (body: unknown): string[] =>
   ((body as { data?: { items?: { id: string }[] } }).data?.items ?? []).map((item) => item.id);
 
-async function checkRestrictedVisibility(listing: OwnListing): Promise<void> {
+async function checkFullVisibility(listing: OwnListing): Promise<void> {
   const guest = await api('GET', `/listings/${listing.id}`);
   check(guest.status === 200, 'khách mở link trực tiếp', `HTTP ${guest.status}`);
   const search = await api(
@@ -335,7 +335,7 @@ async function checkRestrictedVisibility(listing: OwnListing): Promise<void> {
   const profile = await api('GET', `/users/${listing.ownerId}/listings`);
   check(ids(profile.body).includes(listing.id), 'hồ sơ người bán có tin');
   const feed = await api('GET', '/listings?limit=50');
-  check(!ids(feed.body).includes(listing.id), 'bảng tin chung không có tin hạn chế');
+  check(ids(feed.body).includes(listing.id), 'bảng tin chung có tin của tài khoản T0');
 }
 
 interface Hit {
@@ -496,8 +496,12 @@ try {
   const posterA = await newPoster('A');
   const first = await postListing(posterA, jpeg, context);
   check(first.state === 'live', 'tin của A lên bảng', first.state);
-  check(first.restrictions.includes('new_account'), 'tin của A mang hạn chế "tài khoản mới" (T0)');
-  await checkRestrictedVisibility(first);
+  check(
+    first.restrictions.length === 0,
+    'tin của A hiển thị đầy đủ dù T0 (remove-new-account-restriction)',
+    first.restrictions.join(','),
+  );
+  await checkFullVisibility(first);
   const edited = await checkOwnerEdits(posterA, first);
 
   const posterB = await newPoster('B');

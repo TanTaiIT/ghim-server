@@ -123,10 +123,10 @@ describe('Tài khoản mới ở mức T0', () => {
 });
 
 describe('Lên mức theo tuổi tài khoản và tin sạch', () => {
-  it('tin đầu tiên (hiển thị hạn chế) đủ 7 ngày trong ngày 8: lượt hằng ngày kế tiếp đưa lên T1, tin hết "tài khoản mới"', async () => {
+  it('tin đầu tiên (hiển thị đầy đủ) đủ 7 ngày trong ngày 8: lượt hằng ngày kế tiếp đưa lên T1', async () => {
     const minh = await newUser(app);
     const live = await liveListingOf(app, minh);
-    expect(live.restrictions).toEqual(['new_account']);
+    expect(live.restrictions).toEqual([]);
     expect((await dailyOn(8)).newClean).toBe(0);
     expect(await trust().tierOf(minh.id)).toBe('T0');
     await dailyOn(9);

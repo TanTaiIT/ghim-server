@@ -305,7 +305,6 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
   const lateTrust = (): TrustService => trustService ?? notBuilt('trust');
   const trust: ListingTrustPort = overrides.trust ?? {
     tierOf: (accountId) => lateTrust().tierOf(accountId),
-    tierIn: (tx, accountId) => lateTrust().tierIn(tx, accountId),
     assertCanSubmit: (tx, input) => lateTrust().assertCanSubmit(tx, input),
     strikePointsIn: (tx, accountId) => lateTrust().strikePointsIn(tx, accountId),
     strikePointsOf: (accountId) => lateTrust().strikePointsOf(accountId),

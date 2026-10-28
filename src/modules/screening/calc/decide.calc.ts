@@ -77,9 +77,9 @@ function machineDecide(input: {
   if (input.struck) return input.band === 'medium' ? hold('score') : pass('pass_limited');
   switch (input.tier) {
     case 'T0':
-      if (input.band === 'medium') return hold('score');
-      // Nơi công khai: hạn chế vì "tài khoản mới" do `listing` đặt, không mang lý do "máy" (spec risk-scoring).
-      return pass(input.placement === 'members_only' ? 'pass_full' : 'pass_limited');
+      // Dải Thấp hiện đầy đủ ở mọi nơi đăng — mức tin cậy không còn là lý do hạn chế (remove-new-account-restriction);
+      // dải Vừa vẫn giữ cho người, chặt hơn T1.
+      return input.band === 'medium' ? hold('score') : pass('pass_full');
     case 'T1':
       return input.band === 'medium' ? pass('pass_limited', true) : pass('pass_full');
     default:

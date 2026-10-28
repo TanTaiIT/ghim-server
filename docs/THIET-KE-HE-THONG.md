@@ -58,7 +58,7 @@
 | 5   | **Staff là một quyền** master gắn lên tài khoản cá nhân của một người, không phải tài khoản riêng.                                                                                                                                      |
 | 6   | **Không ai, trừ master, xử việc của chính mình** — tính cả tài khoản dùng chung thiết bị với mình.                                                                                                                                      |
 | 7   | **Chỉ xác thực bằng email.** Không gửi SMS, số điện thoại không bắt buộc.                                                                                                                                                               |
-| 8   | **Tài khoản mới chỉ được hiển thị hạn chế** ở nơi công khai, tới khi đủ 7 ngày tuổi và có một tin sạch.                                                                                                                                 |
+| 8   | ~~Tài khoản mới chỉ được hiển thị hạn chế~~ — bỏ 28/10/2026: máy cho qua là tin lên; T0 chỉ còn hạn mức thấp hơn và hậu kiểm dày hơn.                                                                                                   |
 | 9   | **Một máy tối đa 3 tài khoản đăng tin** trong 90 ngày. Từ tài khoản thứ 4, tin luôn chờ người duyệt — giữ lại chứ không chặn.                                                                                                           |
 | 10  | **Chỉ master lập nhóm.**                                                                                                                                                                                                                |
 | 11  | **Huy hiệu nhóm** chỉ cho thành viên đã được nhóm xét vào.                                                                                                                                                                              |
@@ -269,7 +269,7 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 | Danh sách email dùng một lần tự cập nhật        | hằng tuần                                      |
 | Email của tài khoản đã xoá đăng ký lại được sau | 90 ngày                                        |
 
-> **Chỉ xác thực bằng email: được gì, mất gì.** Được: đăng ký nhanh, không tốn tiền SMS. Mất: một người có nhiều email là có nhiều tài khoản. Hệ thống bù bằng bốn lớp: tài khoản mới chỉ hiển thị hạn chế (phần 15) · dấu thiết bị (phần 8) · cảnh cáo đi theo email (ở trên) · chặn email dùng một lần. Không lớp nào là tường tuyệt đối; cộng lại thì lập tài khoản mới không còn đáng công.
+> **Chỉ xác thực bằng email: được gì, mất gì.** Được: đăng ký nhanh, không tốn tiền SMS. Mất: một người có nhiều email là có nhiều tài khoản. Hệ thống bù bằng ba lớp: dấu thiết bị (phần 8) · cảnh cáo đi theo email (ở trên) · chặn email dùng một lần — cùng hạn mức thấp của T0 và hậu kiểm lấy mẫu dày hơn cho tài khoản mới (phần 17). Lớp thứ tư "tài khoản mới chỉ hiển thị hạn chế" bỏ 28/10/2026: nó làm người đăng tử tế chờ 7–10 ngày mới thấy tin trên bảng tin, và sàn mới mở thì bảng tin trống. Không lớp nào là tường tuyệt đối; cộng lại thì lập tài khoản mới không còn đáng công.
 
 ---
 
@@ -599,13 +599,12 @@ flowchart TB
 
 Tin hạn chế khi còn **ít nhất một lý do**. Mỗi lý do đặt và gỡ độc lập, nên gỡ một lý do không mở nhầm tin còn lý do khác.
 
-| Lý do hạn chế     | Đặt khi                                                                                                                                       | Gỡ khi                                                                                                        |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| **Máy**           | T1 đăng tin ở dải Vừa; lưới an toàn khi tin đang hiện thiếu kết quả ảnh                                                                       | Người hậu kiểm cho đạt, hoặc lượt qua máy sau khi sửa cho hiện đầy đủ (chốt 12/10/2026); không tự gỡ theo giờ |
-| **Tài khoản mới** | T0 đăng ra nơi công khai (sàn chung, nhóm công khai)                                                                                          | Lên T1, hoặc tin thu hẹp về "chỉ thành viên" (chốt 12/10/2026)                                                |
-| **Cảnh cáo**      | Tin mới khi người bán đang có cảnh cáo; **mọi tin đang hiện** khi điểm vi phạm chạm 2; tin hiện lại sau tạm ẩn khi người bán đang có cảnh cáo | Điểm cảnh cáo về 0 (tin áp ở mốc 2 thì khi về dưới 2)                                                         |
+| Lý do hạn chế | Đặt khi                                                                                                                                       | Gỡ khi                                                                                                        |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| **Máy**       | T1 đăng tin ở dải Vừa; lưới an toàn khi tin đang hiện thiếu kết quả ảnh                                                                       | Người hậu kiểm cho đạt, hoặc lượt qua máy sau khi sửa cho hiện đầy đủ (chốt 12/10/2026); không tự gỡ theo giờ |
+| **Cảnh cáo**  | Tin mới khi người bán đang có cảnh cáo; **mọi tin đang hiện** khi điểm vi phạm chạm 2; tin hiện lại sau tạm ẩn khi người bán đang có cảnh cáo | Điểm cảnh cáo về 0 (tin áp ở mốc 2 thì khi về dưới 2)                                                         |
 
-> **Vì sao có mức hạn chế.** Nó cho tin của người chưa quen được lên mà không cần người duyệt, nhưng chỉ người chủ động tìm mới thấy. Đội duyệt còn mỏng không phải xem từng tin, còn kẻ lập tài khoản mới hàng loạt thì không được đưa tin lên trước mắt người mua.
+> **Vì sao có mức hạn chế.** Nó cho tin máy chưa chắc, hay tin của người đang có cảnh cáo, được lên mà không cần người duyệt, nhưng chỉ người chủ động tìm mới thấy. Đội duyệt còn mỏng không phải xem từng tin. Mức tin cậy **không** là lý do hạn chế (bỏ 28/10/2026): máy cho qua thì tin của tài khoản mới lên bảng tin như mọi tin khác.
 
 **Tin đã lưu.** Người đã đăng nhập lưu được tin mình mở được bằng đường link; tin không mở được trả lời như tin không có, nên lưu không thành cách dò tin ẩn. Danh sách "Đã lưu" giữ mọi tin mình còn mở được: tin đang hiển thị, kể cả hạn chế, và tin đã bán hay hết hạn — kèm nhãn "Đã bán", "Hết hạn". Tin tạm ẩn, bị gỡ, đã xoá, hay tin "chỉ thành viên" của nhóm mình đã rời thì vắng; mở được lại thì có lại, vì lần lưu không mất. Không ai khác biết ai lưu tin, kể cả người đăng. Xoá tài khoản thì mọi lần lưu bị bỏ (chốt 25/10/2026).
 
@@ -1051,7 +1050,7 @@ Mỗi dòng kiểm chứng được — người kiểm thử dùng làm danh s�
 12. Mỗi email chỉ thuộc **một tài khoản**, so sau khi chuẩn hoá. Hệ thống không gửi SMS.
 13. Đăng ký lại bằng cùng email thì kế thừa cảnh cáo còn hiệu lực. Tài khoản có cảnh cáo nặng, nghiêm trọng, đang bị khoá, hoặc đang là chủ nhóm không tự xoá được; có báo cáo mở vẫn xoá được và báo cáo vẫn được xử.
 14. Từ tài khoản thứ 4 đăng tin trên cùng một máy trong 90 ngày, không có tin nào tự lên bảng — nhưng không ai bị chặn đăng, và luôn được biết vì sao.
-15. Tài khoản T0 không có tin nào hiển thị đầy đủ ở nơi công khai.
+15. Tin của tài khoản T0 máy cho qua đầy đủ hiển thị đầy đủ như tin của mức khác; T0 chỉ chịu hạn mức thấp hơn và hậu kiểm lấy mẫu dày hơn (đổi 28/10/2026, trước là "không có tin nào hiển thị đầy đủ ở nơi công khai").
 16. Tin chứa cụm từ cấm mức chắc không tự lên bảng; khi có cụm mới, tin đang hiện chứa nó bị rút về chờ duyệt.
 17. Đổi nội dung người mua đọc hay lọc theo, mở rộng nơi đăng, hay gắn huy hiệu đều qua máy lại. Sửa không làm mới ngày hiển thị.
 18. Mỗi lượt qua máy, kể cả gửi lại, đếm vào nhịp gửi. Tin sống và nhịp gửi đếm chung mọi nơi.
@@ -1144,7 +1143,7 @@ Mỗi đợt xong khi mọi cam kết ở phần 27 thuộc đợt đó có các
 
 - **Ghi có điều kiện**: mọi quyết định của người ghi theo trạng thái lúc mở việc; tin đã đổi thì trả mã 409 và người xử tải lại.
 - **Ràng buộc duy nhất**: một việc mở mỗi tin.
-- **Trạng thái tin, cờ tạm ẩn, lý do hạn chế** là ba trường riêng; lý do hạn chế là một danh sách (máy · tài khoản mới · cảnh cáo).
+- **Trạng thái tin, cờ tạm ẩn, lý do hạn chế** là ba trường riêng; lý do hạn chế là một danh sách (máy · cảnh cáo · làn sóng cảnh cáo; "tài khoản mới" bỏ 28/10/2026).
 - **Bảng con số có phiên bản**; mức tin cậy và kết quả máy đều ghi phiên bản đã dùng. Mức tin cậy là hàm thuần của dữ kiện, lưu kèm dấu băm dữ kiện.
 - **Mã lỗi ổn định** trong một tập đóng; mỗi request có **mã truy vết** xuyên mọi dòng log.
 - **Trường giữ chỗ** có ngay từ đầu: vị trí xếp hạng (`rankAt`), hạn nổi bật (`featuredUntil`), số điện thoại, phí bằng 0.

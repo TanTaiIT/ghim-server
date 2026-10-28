@@ -116,8 +116,7 @@ Không phải việc dở — ghi để lần sau khỏi dò lại.
   `<thư mục tạm>/ghim-dev-mail.log`, S3 giả :9100 (không còn dùng khi kho là Cloudinary). Nạp qua `NODE_OPTIONS` trong
   `.env.development`; F5 dùng `VueJS/.vscode/launch.json`.
 - Chạy khói luồng đăng tin: bật server (`pnpm dev`) rồi `pnpm smoke:posting` (`src/cli/smoke-posting.ts`). Hai tài khoản mới
-  qua đúng API của app: A đăng một ảnh ngẫu nhiên → lên bảng, hạn chế "tài khoản mới", đúng các chỗ hiển thị của tin hạn
-  chế; A bật "giao tận nơi" (không qua máy), sửa giá (qua máy lại); B đăng đúng ảnh đó → máy giữ vì ảnh trùng, khách
+  qua đúng API của app: A đăng một ảnh ngẫu nhiên → lên bảng, hiển thị đầy đủ dù T0 (từ 28/10/2026), có trên bảng tin chung; A bật "giao tận nơi" (không qua máy), sửa giá (qua máy lại); B đăng đúng ảnh đó → máy giữ vì ảnh trùng, khách
   nhận 404, hàng chờ có việc, B nhận thông báo "tin đang chờ người duyệt" (N43); A sửa giá lần nữa vẫn qua (người đăng trước thắng — change `duplicate-image-first-wins`); B đánh dấu đã bán tin
   của A → 403, A đánh dấu đã bán, B rút tin về nháp. Tự kiểm 22 điều
   (đọc DB chỉ để đối chiếu), thoát 1 khi lệch. Mã email đọc từ mailpit, không có thì từ tệp thư của stub. Mỗi lượt để lại 2 tài khoản

@@ -29,6 +29,7 @@ export const LISTING_HIDE_REASONS = [
   'detached_by_group',
   'reported',
 ] as const;
+/** `new_account` đã bỏ 28/10/2026 (remove-new-account-restriction) — giữ trong enum để khớp Prisma; code không ghi nữa. */
 export const LISTING_RESTRICTIONS = ['machine', 'new_account', 'strike', 'strike_wave'] as const;
 
 export const TITLE_MAX = 120;

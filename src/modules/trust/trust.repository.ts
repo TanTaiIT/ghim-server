@@ -36,11 +36,6 @@ export interface TrustRepository {
    */
   withAccountLock<T>(accountId: string, work: (tx: Tx) => Promise<T>): Promise<T>;
   findTier(accountId: string, tx?: Tx): Promise<TrustTierResult | null>;
-  /**
-   * Khoá CHUNG cùng khoá mà `withAccountLock` giữ RIÊNG, rồi đọc mức bằng `tx` của bên gọi: lượt tính mức đang chạy xong
-   * trước, lượt tính mức sau chờ `tx` này commit — bên gọi không ghi theo một mức đã cũ (rà soát L7).
-   */
-  holdTier(tx: Tx, accountId: string): Promise<TrustTierResult | null>;
   /** Tin sạch đang được tính: có mốc, không bị void. */
   validClean(accountId: string, tx?: Tx): Promise<CleanFact[]>;
   /**
@@ -113,10 +108,6 @@ export function createTrustRepository(prisma: PrismaClient): TrustRepository {
       }),
     findTier: (accountId, tx) =>
       (tx ?? prisma).trustTierResult.findUnique({ where: { accountId } }),
-    async holdTier(tx, accountId) {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock_shared(hashtextextended(${`trust-tier:${accountId}`}, 0))`;
-      return tx.trustTierResult.findUnique({ where: { accountId } });
-    },
     async validClean(accountId, tx) {
       const rows = await (tx ?? prisma).trustCleanListing.findMany({
         where: { accountId, cleanAt: { not: null }, voidedAt: null },
