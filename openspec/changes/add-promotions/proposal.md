@@ -19,6 +19,8 @@ phí (`add-wallet`), nên gói là cách phân phát lượt đẩy tin có gi�
 - `rank_to_top` đặt lại vị trí xếp hạng; `featured` đặt hạn nổi bật — cùng đường ghi, cùng dải "Tin nổi bật" với đẩy tin
   của người quản trị đã có (`add-admin-boost`, `listing/boosting`). Gói trong nhóm chỉ xếp lại bảng tin của nhóm đó.
 - Chủ nhóm tắt được gói trong nhóm mình (cài đặt nhóm, mặc định bật).
+- Dải "Tin nổi bật" có nhiều tin hơn trần (6) thì mỗi lần tải lấy ngẫu nhiên 6, thay cho "hạn gần hết trước" của
+  `add-admin-boost` — không thì tin mua sau phải chờ tin khác hết hạn mới được hiện, mà vẫn bị trừ Xu (chốt 28/10/2026).
 - Hoàn **đủ** giá gói khi khiếu nại thắng / ân xá làm tin hiện lại (giá chỉ 1–4 Xu, tính phần chưa hưởng ra số lẻ không
   đáng); không hoàn khi tin bị gỡ vì vi phạm.
 - Thông báo cho người đăng: đã áp gói, nổi bật sắp hết.
@@ -35,7 +37,7 @@ phí (`add-wallet`), nên gói là cách phân phát lượt đẩy tin có gi�
 ### Modified Capabilities
 
 - `listing/visibility`: "Vị trí trên bảng tin", "Hạn nổi bật của một tin" — thêm gói trả Xu bên cạnh đẩy tin của người
-  quản trị (viết lại 27/10/2026 trên spec sau `add-admin-boost`; dải nổi bật đã có, không thêm requirement).
+  quản trị (viết lại 27/10/2026 trên spec sau `add-admin-boost`); "Dải tin nổi bật" — lấy ngẫu nhiên khi nhiều hơn trần.
 - `notification/listing-notices`: thêm thông báo về gói.
 
 ## Impact

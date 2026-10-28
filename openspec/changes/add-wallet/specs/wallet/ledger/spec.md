@@ -56,6 +56,16 @@ từ chối. Ngoài master, không ai — kể cả staff — được cấp hay
 - **WHEN** một staff gọi cấp Xu cho một tài khoản
 - **THEN** response có HTTP 403 `FORBIDDEN` và ví không đổi
 
+#### Scenario: Master xem ví trước khi cấp
+
+- **WHEN** master mở ví của một tài khoản đang có 3 Xu
+- **THEN** master thấy số dư 3 Xu và các dòng sổ cái gần nhất của ví đó; người dùng khác vẫn không xem được
+
+#### Scenario: Bấm cấp hai lần
+
+- **WHEN** master gửi lại lượt cấp 5 Xu với cùng khoá chống lặp vì mạng chậm
+- **THEN** ví chỉ tăng 5 Xu một lần và response trả cùng dòng sổ cái
+
 ### Requirement: Xu không quy đổi ra tiền, không hạn sử dụng
 
 Xu MUST NOT mua được bằng tiền, MUST NOT đổi ra tiền và MUST NOT hết hạn.
