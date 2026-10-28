@@ -103,6 +103,12 @@ import { createNotificationModule } from './modules/notification/notification.mo
 import { createNotificationRepository } from './modules/notification/notification.repository.js';
 import type { NotificationService } from './modules/notification/notification.service.js';
 import { createOpsModule } from './modules/ops/ops.module.js';
+import { createWalletModule } from './modules/wallet/wallet.module.js';
+import {
+  createWalletRepository,
+  type WalletRepository,
+} from './modules/wallet/wallet.repository.js';
+import type { WalletService } from './modules/wallet/wallet.service.js';
 import { createOpsRepository, type OpsRepository } from './modules/ops/ops.repository.js';
 import type { OpsService } from './modules/ops/ops.service.js';
 import { createPlatformModule } from './modules/platform/platform.module.js';
@@ -139,6 +145,7 @@ export interface AppServices {
   screening: ScreeningService;
   review: ReviewService;
   messaging: MessagingService;
+  wallet: WalletService;
   ops: OpsService;
 }
 
@@ -156,6 +163,7 @@ export interface Repositories {
   review: ReviewRepository;
   report: ReportRepository;
   messaging: MessagingRepository;
+  wallet: WalletRepository;
   /** Sổ kết quả việc nền (`job_runs`) — `createJobs` ghi qua nó, nên dựng trước `jobs`. */
   ops: OpsRepository;
 }
@@ -254,6 +262,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     review: overrides.repositories?.review ?? createReviewRepository(prisma),
     report: overrides.repositories?.report ?? createReportRepository(prisma),
     messaging: overrides.repositories?.messaging ?? createMessagingRepository(prisma),
+    wallet: overrides.repositories?.wallet ?? createWalletRepository(prisma),
     ops: overrides.repositories?.ops ?? createOpsRepository(prisma),
   };
   const { config, versioned } = await resolveConfig(overrides.config, repositories.platform);
@@ -522,10 +531,17 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     config: deps.config,
     clock: deps.clock,
   });
+  // Ví Xu (add-wallet): chỉ hỏi `identity` tài khoản là ai; `ops` dọn ví theo hạn lưu tài khoản, gói đẩy tin gọi cổng ghi.
+  const wallet = createWalletModule({
+    repository: repositories.wallet,
+    identity: identity.service,
+    clock: deps.clock,
+  });
   // `ops` sau cùng (TK 29 đợt 7): gọi cổng hạn lưu của mọi module, không ai gọi ngược lại; nhận việc dọn outbox.
   const ops = createOpsModule({
     repository: repositories.ops,
     prisma,
+    wallet: wallet.service,
     listings: listing.service,
     media: media.service,
     groups: group.service,
@@ -552,6 +568,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     review.module,
     messaging.module,
     notification.module,
+    wallet.module,
     ops.module,
   ];
   const outbox = createOutboxDispatcher(prisma);
@@ -652,6 +669,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     screening: screeningModule.service,
     review: review.service,
     messaging: messaging.service,
+    wallet: wallet.service,
     ops: ops.service,
   });
   app.decorate('moduleList', moduleList);

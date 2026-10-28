@@ -172,6 +172,7 @@ model Account {
   messages              Message[]
   blocks                AccountBlock[]           @relation("block_blocker")
   blockedBy             AccountBlock[]           @relation("block_blocked")
+  wallet                Wallet?
 
   @@index([emailHash])
   @@index([status, createdAt])
@@ -954,6 +955,8 @@ enum NotificationCategory {
   group_new_listings
   support
   saved_searches
+  /// Nhóm thứ mười một (add-wallet): master cấp / trừ Xu, hoàn Xu — không báo lượt tự mua gói.
+  wallet
 
   @@map("notification_category")
 }
@@ -2394,4 +2397,48 @@ model JobRun {
   @@index([name, startedAt(sort: Desc)])
   @@index([startedAt])
   @@map("job_runs")
+}
+
+// ── VÍ XU (add-wallet) ────────────────────────────────────────────────────────────────────────────
+
+/// Ví lười: tài khoản chưa có dòng = 0 Xu, không backfill (design add-wallet mục 2). Số dư là cache của sổ cái,
+/// cùng transaction với dòng sổ cái qua `wallet.repository.apply` — đường ghi duy nhất. CHECK tay (migration add_wallet):
+/// wallets_balance_check: balance >= 0.
+model Wallet {
+  accountId String   @id @map("account_id") @db.Uuid
+  balance   Int      @default(0)
+  updatedAt DateTime @map("updated_at") @db.Timestamptz(3)
+  account   Account  @relation(fields: [accountId], references: [id])
+
+  @@map("wallets")
+}
+
+/// Sổ cái Xu, không sửa không xoá: sai thì ghi dòng ngược dấu. CHECK tay: wallet_transactions_amount_check (amount <> 0),
+/// wallet_transactions_balance_check (balance_after >= 0). Trigger wallet_transactions_immutable chặn UPDATE; DELETE chỉ
+/// khi transaction đặt `ghim.purge = 'on'` (lượt dọn tài khoản đã xoá của `ops`).
+model WalletTransaction {
+  id             String                @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  accountId      String                @map("account_id") @db.Uuid
+  amount         Int
+  type           WalletTransactionType
+  balanceAfter   Int                   @map("balance_after")
+  /// Việc gây ra dòng: { listingId?, purchaseId?, productCode? } — gói đẩy tin (add-promotions) điền.
+  refs           Json                  @default("{}")
+  /// Lý do của master — người dùng đọc được trên app.
+  note           String?
+  actorId        String?               @map("actor_id") @db.Uuid
+  /// Khoá chống lặp có tiền tố theo nguồn: adjust:<masterId>:<khoá app>, purchase:<accountId>:<khoá app>, refund:<purchaseId>.
+  idempotencyKey String                @unique @map("idempotency_key")
+  createdAt      DateTime              @map("created_at") @db.Timestamptz(3)
+
+  @@index([accountId, createdAt(sort: Desc), id(sort: Desc)])
+  @@map("wallet_transactions")
+}
+
+enum WalletTransactionType {
+  admin_adjust
+  product_purchase
+  refund
+
+  @@map("wallet_transaction_type")
 }
