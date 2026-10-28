@@ -341,8 +341,8 @@ này đã archive 10–11/10/2026 · đợt 2
 kế hoạch `docs/KE-HOACH-GOI-DAY-TIN.md`) → `add-admin-boost` (người quản trị đẩy tin, đặt nổi bật miễn phí — chốt
 27/10/2026, đi trước gói trả Xu; gộp `main` qua PR #28, archive 27/10/2026; delta `listing/visibility` của
 `add-promotions` đã viết lại trên spec sau change này) →
-`add-wallet` → `add-promotions` (hai proposal còn mở trong
-`openspec/changes/`, nằm chờ chủ dự án chốt) → `add-topup` (chưa viết — viết khi quyết thu tiền).
+`add-wallet` → `add-promotions` (hai proposal trong `openspec/changes/`; câu hỏi mở chốt 28/10/2026 — Xu do master cấp
+miễn phí, không có `add-topup`: chủ dự án bỏ thanh toán online).
 
 - `add-platform-roles` và `add-categories` cần nhau (quyền staff gắn theo danh mục; danh mục cần staff soạn
   mẫu) nên làm chung một lượt và archive trước `add-groups`; `add-groups` chỉ thêm requirement vào
