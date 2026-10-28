@@ -10,6 +10,7 @@ import type { MediaService } from '../media/media.service.js';
 import type { MessagingService } from '../messaging/messaging.service.js';
 import type { NotificationService } from '../notification/notification.service.js';
 import type { ReviewService } from '../review/review.service.js';
+import type { PromotionService } from '../promotion/promotion.service.js';
 import type { WalletService } from '../wallet/wallet.service.js';
 import type { ScreeningService } from '../screening/screening.service.js';
 import type { TrustService } from '../trust/trust.service.js';
@@ -67,6 +68,8 @@ export interface RetentionDeps {
   notification: Pick<NotificationService, 'purgeBefore'>;
   /** Ví theo hạn lưu của tài khoản (add-wallet): dọn cùng lượt dọn tài khoản đã xoá, sau kiểm tạm giữ. */
   wallet: Pick<WalletService, 'purgeAccount'>;
+  /** Lượt mua gói đi cùng tài khoản như sổ cái (add-promotions). */
+  promotion: Pick<PromotionService, 'purgeAccount'>;
   screening: Pick<ScreeningService, 'foldRuns'>;
   trust: Pick<
     TrustService,
@@ -233,6 +236,7 @@ export function createRetentionService(deps: RetentionDeps, hold: EvidenceHold):
         if (held.has(accountId)) return;
         await media.purgeOwners('profile', [accountId]);
         await deps.wallet.purgeAccount(accountId);
+        await deps.promotion.purgeAccount(accountId);
         await identity.purgeDeletedAccount(accountId);
         purged += 1;
       });

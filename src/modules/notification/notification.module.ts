@@ -6,6 +6,7 @@ import { registerNotificationJobs } from './notification.jobs.js';
 import { MESSAGING_NOTICE_EVENTS } from './notification.messaging-matrix.js';
 import { REVIEW_NOTICE_EVENTS } from './notification.review-matrix.js';
 import { TRUST_NOTICE_EVENTS } from './notification.trust-matrix.js';
+import { PROMOTION_NOTICE_EVENTS } from './notification.promotion-matrix.js';
 import { WALLET_NOTICE_EVENTS } from './notification.wallet-matrix.js';
 import { notificationRoutes } from './notification.routes.js';
 import {
@@ -27,7 +28,7 @@ export function createNotificationModule(deps: NotificationServiceDeps): {
         await app.register(notificationRoutes, { notification: service });
       },
       // Nghe mọi sự kiện `group.*`, các sự kiện `listing.*`, `media.*`, `review.*`, `trust.*`, `screening.*`,
-      // `wallet.*` có dòng ma trận; ma trận quyết loại nào thành thông báo.
+      // `wallet.*`, `promotion.*` có dòng ma trận; ma trận quyết loại nào thành thông báo.
       listeners: (dispatcher) => {
         for (const type of [
           ...Object.values(GROUP_EVENTS),
@@ -37,6 +38,7 @@ export function createNotificationModule(deps: NotificationServiceDeps): {
           ...MESSAGING_NOTICE_EVENTS,
           ...TRUST_NOTICE_EVENTS,
           ...WALLET_NOTICE_EVENTS,
+          ...PROMOTION_NOTICE_EVENTS,
         ]) {
           dispatcher.register(type, (payload, event) => service.handleEvent(payload, event));
         }

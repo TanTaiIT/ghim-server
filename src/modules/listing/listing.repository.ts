@@ -132,6 +132,16 @@ export interface ListingRepository {
     id: string;
     decide: (locked: Listing) => { write: BoostWrite; audit: AuditEntry } | null;
   }): Promise<Listing | null>;
+  /**
+   * Phần trong transaction của `boost`, cho gói đẩy tin (add-promotions) gọi trong transaction của lượt mua: khoá dòng,
+   * `decide` trên dòng đã khoá (ném là quay lui cả lượt mua), cùng câu `UPDATE`; `audit` tuỳ chọn — người đăng tự mua
+   * thì sổ cái và lượt mua đã là bản ghi.
+   */
+  applyBoostIn(
+    tx: Tx,
+    id: string,
+    decide: (locked: Listing) => { write: BoostWrite; audit?: AuditEntry } | null,
+  ): Promise<Listing | null>;
   /** Lưu tin (add-saved-listings): khoá chính (người, tin) — lưu lại là không đổi gì. */
   saveListing(accountId: string, listingId: string, at: Date): Promise<void>;
   unsaveListing(accountId: string, listingId: string): Promise<void>;
@@ -300,6 +310,37 @@ const jsonOf = (row: BatchRow) => ({
   purge_reminded_for: row.purgeRemindedFor?.toISOString() ?? null,
 });
 
+/** Bể chọn ngẫu nhiên của dải nổi bật. */
+const FEATURED_POOL = 100;
+
+/** Fisher–Yates; `Math.random` đủ cho thứ tự dải, không phải mã bí mật. */
+function shuffle<T>(items: T[]): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j] as T, out[i] as T];
+  }
+  return out;
+}
+
+async function applyBoostIn(
+  tx: Tx,
+  id: string,
+  decide: (locked: Listing) => { write: BoostWrite; audit?: AuditEntry } | null,
+): Promise<Listing | null> {
+  const locked = await lockListing(tx, id);
+  if (!locked || locked.deletedAt !== null) return null;
+  const decision = decide(locked);
+  if (!decision) return locked;
+  const { write } = decision;
+  // `$executeRaw` thay `update`: `@updatedAt` của Prisma tự đặt `updated_at` ở mọi lượt `update`.
+  await (write.kind === 'rank_to_top'
+    ? tx.$executeRaw`UPDATE listings SET rank_at = ${write.at}, last_bumped_at = ${write.at} WHERE id = ${id}::uuid`
+    : tx.$executeRaw`UPDATE listings SET featured_until = ${write.until} WHERE id = ${id}::uuid`);
+  if (decision.audit) await appendAudit(tx, decision.audit);
+  return tx.listing.findUnique({ where: { id } });
+}
+
 async function lockListing(tx: Tx, id: string): Promise<Listing | null> {
   await tx.$executeRaw`SELECT 1 FROM listings WHERE id = ${id}::uuid FOR UPDATE`;
   return tx.listing.findUnique({ where: { id } });
@@ -430,27 +471,25 @@ export function createListingRepository(prisma: PrismaClient): ListingRepository
         take: limit + 1,
       }),
 
-    featured: ({ where, limit }) =>
-      prisma.listing.findMany({
+    async featured({ where, limit }) {
+      // Nhiều tin hơn trần thì lấy ngẫu nhiên mỗi lần tải (add-promotions, chốt 28/10/2026): tin mua sau không phải chờ
+      // tin khác hết hạn. Bể tối đa FEATURED_POOL tin gần hết hạn nhất — quá bể là chuyện của vài trăm tin nổi bật cùng lúc.
+      const pool = await prisma.listing.findMany({
         where,
+        select: { id: true },
         orderBy: [{ featuredUntil: 'asc' }, { id: 'asc' }],
-        take: limit,
-      }),
+        take: FEATURED_POOL,
+      });
+      const picked = shuffle(pool.map((row) => row.id)).slice(0, limit);
+      if (picked.length === 0) return [];
+      const rows = await prisma.listing.findMany({ where: { id: { in: picked } } });
+      const order = new Map(picked.map((id, index) => [id, index]));
+      return rows.toSorted((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+    },
 
-    boost: ({ id, decide }) =>
-      prisma.$transaction(async (tx) => {
-        const locked = await lockListing(tx, id);
-        if (!locked || locked.deletedAt !== null) return null;
-        const decision = decide(locked);
-        if (!decision) return locked;
-        const { write } = decision;
-        // `$executeRaw` thay `update`: `@updatedAt` của Prisma tự đặt `updated_at` ở mọi lượt `update`.
-        await (write.kind === 'rank_to_top'
-          ? tx.$executeRaw`UPDATE listings SET rank_at = ${write.at}, last_bumped_at = ${write.at} WHERE id = ${id}::uuid`
-          : tx.$executeRaw`UPDATE listings SET featured_until = ${write.until} WHERE id = ${id}::uuid`);
-        await appendAudit(tx, decision.audit);
-        return tx.listing.findUnique({ where: { id } });
-      }),
+    boost: ({ id, decide }) => prisma.$transaction((tx) => applyBoostIn(tx, id, decide)),
+
+    applyBoostIn,
 
     async saveListing(accountId, listingId, at) {
       await prisma.savedListing.createMany({

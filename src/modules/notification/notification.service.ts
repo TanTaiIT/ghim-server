@@ -31,6 +31,7 @@ import { LISTING_MATRIX } from './notification.listing-matrix.js';
 import { MEDIA_MATRIX } from './notification.media-matrix.js';
 import { REVIEW_MATRIX } from './notification.review-matrix.js';
 import { TRUST_MATRIX } from './notification.trust-matrix.js';
+import { PROMOTION_MATRIX } from './notification.promotion-matrix.js';
 import { WALLET_MATRIX } from './notification.wallet-matrix.js';
 import type { NotificationRepository, NotificationRow } from './notification.repository.js';
 import {
@@ -354,7 +355,8 @@ export function createNotificationService(deps: NotificationServiceDeps): Notifi
         REVIEW_MATRIX[event.type] ??
         MESSAGING_MATRIX[event.type] ??
         TRUST_MATRIX[event.type] ??
-        WALLET_MATRIX[event.type];
+        WALLET_MATRIX[event.type] ??
+        PROMOTION_MATRIX[event.type];
       if (!handler) return;
       const result = await handler(payload, context);
       await sequentially(result.drafts, ({ recipients, ...draft }) =>

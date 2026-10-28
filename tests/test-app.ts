@@ -17,6 +17,7 @@ import { createMediaRepository } from '../src/modules/media/media.repository.js'
 import { createMessagingRepository } from '../src/modules/messaging/messaging.repository.js';
 import { createPlatformRepository } from '../src/modules/platform/platform.repository.js';
 import { createReportRepository } from '../src/modules/review/report/report.repository.js';
+import { createPromotionRepository } from '../src/modules/promotion/promotion.repository.js';
 import { createWalletRepository } from '../src/modules/wallet/wallet.repository.js';
 import { noopPush } from '../src/common/push/expo-push.js';
 import { createFakeJobs } from './fakes/jobs.fake.js';
@@ -39,6 +40,7 @@ export const repositories = {
   report: createReportRepository(prisma),
   messaging: createMessagingRepository(prisma),
   wallet: createWalletRepository(prisma),
+  promotion: createPromotionRepository(prisma),
 };
 
 /** Một dòng nhật ký hợp lệ cho chỗ repository đòi `audit` mà test không kiểm; `actorId` là UUID vì cột là uuid. */

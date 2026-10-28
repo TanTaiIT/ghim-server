@@ -103,6 +103,12 @@ import { createNotificationModule } from './modules/notification/notification.mo
 import { createNotificationRepository } from './modules/notification/notification.repository.js';
 import type { NotificationService } from './modules/notification/notification.service.js';
 import { createOpsModule } from './modules/ops/ops.module.js';
+import { createPromotionModule } from './modules/promotion/promotion.module.js';
+import {
+  createPromotionRepository,
+  type PromotionRepository,
+} from './modules/promotion/promotion.repository.js';
+import type { PromotionService } from './modules/promotion/promotion.service.js';
 import { createWalletModule } from './modules/wallet/wallet.module.js';
 import {
   createWalletRepository,
@@ -146,6 +152,7 @@ export interface AppServices {
   review: ReviewService;
   messaging: MessagingService;
   wallet: WalletService;
+  promotion: PromotionService;
   ops: OpsService;
 }
 
@@ -164,6 +171,7 @@ export interface Repositories {
   report: ReportRepository;
   messaging: MessagingRepository;
   wallet: WalletRepository;
+  promotion: PromotionRepository;
   /** Sổ kết quả việc nền (`job_runs`) — `createJobs` ghi qua nó, nên dựng trước `jobs`. */
   ops: OpsRepository;
 }
@@ -263,6 +271,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     report: overrides.repositories?.report ?? createReportRepository(prisma),
     messaging: overrides.repositories?.messaging ?? createMessagingRepository(prisma),
     wallet: overrides.repositories?.wallet ?? createWalletRepository(prisma),
+    promotion: overrides.repositories?.promotion ?? createPromotionRepository(prisma),
     ops: overrides.repositories?.ops ?? createOpsRepository(prisma),
   };
   const { config, versioned } = await resolveConfig(overrides.config, repositories.platform);
@@ -537,6 +546,16 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     identity: identity.service,
     clock: deps.clock,
   });
+  // Gói đẩy tin trả Xu (add-promotions): áp hiệu ứng qua cổng của `listing`, trừ Xu qua sổ cái của `wallet`, cùng transaction.
+  const promotion = createPromotionModule({
+    repository: repositories.promotion,
+    listings: listing.service,
+    wallet: repositories.wallet,
+    trust: trustModule.service,
+    groups: group.service,
+    config: deps.config,
+    clock: deps.clock,
+  });
   // `ops` sau cùng (TK 29 đợt 7): gọi cổng hạn lưu của mọi module, không ai gọi ngược lại; nhận việc dọn outbox.
   const ops = createOpsModule({
     repository: repositories.ops,
@@ -551,6 +570,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     screening: screeningModule.service,
     trust: trustModule.service,
     review: review.service,
+    promotion: promotion.service,
     jobs: deps.jobs,
     config: deps.config,
     clock: deps.clock,
@@ -569,6 +589,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     messaging.module,
     notification.module,
     wallet.module,
+    promotion.module,
     ops.module,
   ];
   const outbox = createOutboxDispatcher(prisma);
@@ -670,6 +691,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     review: review.service,
     messaging: messaging.service,
     wallet: wallet.service,
+    promotion: promotion.service,
     ops: ops.service,
   });
   app.decorate('moduleList', moduleList);

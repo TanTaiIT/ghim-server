@@ -161,13 +161,13 @@ nổi bật chưa dùng", dải nổi bật) **phải viết lại** trên spec 
 
 ## 6. Lộ trình bật
 
-| Bước  | Khi nào                          | Gồm                                                                                                                                                                                                                                 |
-| ----- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0 ✔   | 17/10/2026                       | mục 5 — `prepare-promotions` đã archive                                                                                                                                                                                             |
-| 0b    | 27/10/2026                       | mục 5b — `add-admin-boost`: người quản trị đẩy tin, đặt nổi bật miễn phí; dải "Tin nổi bật"                                                                                                                                         |
-| 1     | có người dùng thật, muốn thử gói | `add-wallet` (sổ cái, master cấp Xu, ví trong app), `add-promotions` (catalog, mua gói, hiệu ứng, dải nổi bật, N59–N61) — **không nạp tiền**: ví mở bằng 0, người dùng xin Xu qua Hỗ trợ Ghim, master cấp miễn phí (`admin_adjust`) |
-| ~~2~~ | bỏ 28/10/2026                    | ~~`add-topup` (VietQR, đối soát, hoàn), điều khoản Xu một chiều, kế toán / hoá đơn~~ — chủ dự án chốt không có thanh toán online                                                                                                    |
-| 3     | (tuỳ)                            | phí đăng tin bằng Xu (`fee > 0`, hoàn khi bị từ chối, N tin miễn phí mỗi tháng) — cùng hạ tầng, chỉ đổi luật phí                                                                                                                    |
+| Bước  | Khi nào       | Gồm                                                                                                                                                                    |
+| ----- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0 ✔   | 17/10/2026    | mục 5 — `prepare-promotions` đã archive                                                                                                                                |
+| 0b    | 27/10/2026    | mục 5b — `add-admin-boost`: người quản trị đẩy tin, đặt nổi bật miễn phí; dải "Tin nổi bật"                                                                            |
+| 1 ✔   | 28/10/2026    | `add-wallet` (sổ cái, master cấp Xu, ví trong app) và `add-promotions` (catalog, mua gói, hoàn Xu, dải nổi bật ngẫu nhiên, N59–N61) — không nạp tiền: Xu do master cấp |
+| ~~2~~ | bỏ 28/10/2026 | ~~`add-topup` (VietQR, đối soát, hoàn), điều khoản Xu một chiều, kế toán / hoá đơn~~ — chủ dự án chốt không có thanh toán online                                       |
+| 3     | (tuỳ)         | phí đăng tin bằng Xu (`fee > 0`, hoàn khi bị từ chối, N tin miễn phí mỗi tháng) — cùng hạ tầng, chỉ đổi luật phí                                                       |
 
 ## 7. Câu hỏi cần chủ dự án chốt trước bước 1 — đã chốt 28/10/2026
 

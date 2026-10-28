@@ -519,6 +519,9 @@ export function createGroupAdminService(
             ? { showNameOnMarketplace: input.showNameOnMarketplace }
             : {}),
           ...(input.manualReview !== undefined ? { manualReview: input.manualReview } : {}),
+          ...(input.allowPromotions !== undefined
+            ? { allowPromotions: input.allowPromotions }
+            : {}),
         };
         const events: OutboxEventInput[] = [];
         if (plan?.kind === 'immediate') {
