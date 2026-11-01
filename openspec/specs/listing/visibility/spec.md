@@ -30,18 +30,30 @@ tìm kiếm có từ khoá, hồ sơ người bán và đường link trực ti�
 
 ### Requirement: Hạn chế khi còn ít nhất một lý do
 
-Tin SHALL hiển thị hạn chế khi còn ít nhất một lý do hạn chế, và đầy đủ khi không còn lý do nào. Mỗi lý do —
-"máy", "tài khoản mới" — đặt và gỡ độc lập; gỡ một lý do MUST NOT mở tin còn lý do khác.
+Tin SHALL hiển thị hạn chế khi còn ít nhất một lý do hạn chế, và đầy đủ khi không còn lý do nào. Mỗi lý do — "máy",
+"cảnh cáo" — đặt và gỡ độc lập; gỡ một lý do MUST NOT mở tin còn lý do khác. Mức tin cậy của người đăng MUST NOT là một
+lý do hạn chế: tin của người ở mức T0 mà máy cho qua đầy đủ SHALL hiển thị đầy đủ (chốt 28/10/2026, thay TK nguyên tắc 8
+và cam kết 15).
 
 #### Scenario: Gỡ một trong hai lý do
 
-- **WHEN** một tin mang cả lý do "máy" lẫn "tài khoản mới" và người đăng lên T1
-- **THEN** lý do "tài khoản mới" được gỡ còn tin vẫn hiển thị hạn chế vì lý do "máy"
+- **WHEN** một tin mang cả lý do "máy" lẫn "cảnh cáo" và điểm cảnh cáo của người đăng về 0
+- **THEN** lý do "cảnh cáo" được gỡ còn tin vẫn hiển thị hạn chế vì lý do "máy"
 
 #### Scenario: Gỡ lý do cuối cùng
 
 - **WHEN** một tin chỉ còn lý do "máy" và người hậu kiểm cho tin đạt
 - **THEN** tin hiển thị đầy đủ
+
+#### Scenario: Tài khoản T0 đăng sàn chung
+
+- **WHEN** máy cho qua đầy đủ một tin sàn chung của người đăng ở mức T0
+- **THEN** tin hiển thị đầy đủ, không mang lý do hạn chế nào
+
+#### Scenario: Tin đang mang lý do cũ lúc deploy
+
+- **WHEN** một tin đang mang lý do "tài khoản mới" từ trước change này và không còn lý do nào khác
+- **THEN** sau deploy tin hiển thị đầy đủ mà không cần người đăng lên T1
 
 ### Requirement: Lý do "máy"
 
@@ -58,38 +70,6 @@ NOT tự gỡ theo thời gian.
 
 - **WHEN** người đăng ở mức T1 sửa một tin mang lý do "máy" và lượt qua máy sau khi sửa cho hiện đầy đủ
 - **THEN** lý do "máy" được gỡ và tin hiển thị đầy đủ
-
-### Requirement: Lý do "tài khoản mới"
-
-Tin của người đăng đang ở mức T0 lên bảng ở nơi công khai — sàn chung hay nhóm công khai — SHALL mang lý do "tài
-khoản mới", dù máy cho qua ở mức nào. Khi người đăng lên T1, lý do này SHALL được gỡ khỏi mọi tin của người đó (TK 27 cam
-kết 15); tin thu hẹp về "chỉ thành viên" cũng SHALL được gỡ lý do này (chốt 12/10/2026).
-
-#### Scenario: Tài khoản T0 đăng sàn chung
-
-- **WHEN** máy cho qua đầy đủ một tin sàn chung của người đăng ở mức T0
-- **THEN** tin hiển thị hạn chế với lý do "tài khoản mới"
-
-#### Scenario: Tài khoản T0 đăng "nhóm công khai"
-
-- **WHEN** máy cho qua một tin "nhóm công khai" của người đăng ở mức T0
-- **THEN** tin mang lý do "tài khoản mới"
-
-#### Scenario: Tài khoản T0 đăng "chỉ thành viên"
-
-- **WHEN** máy cho qua đầy đủ một tin "chỉ thành viên" của người đăng ở mức T0
-- **THEN** tin không mang lý do "tài khoản mới" và hiển thị đầy đủ
-
-#### Scenario: Thu hẹp về "chỉ thành viên"
-
-- **WHEN** người đăng ở mức T0 thu hẹp một tin sàn chung mang lý do "tài khoản mới" về "chỉ thành viên" của một
-  nhóm mình là thành viên
-- **THEN** lý do "tài khoản mới" được gỡ và tin hiển thị đầy đủ trong nhóm
-
-#### Scenario: Lên T1
-
-- **WHEN** người đăng có ba tin sàn chung chỉ mang lý do "tài khoản mới" lên T1
-- **THEN** lý do được gỡ khỏi cả ba tin và cả ba hiển thị đầy đủ
 
 ### Requirement: Ai thấy một tin
 
@@ -177,16 +157,6 @@ nằm trong phạm vi của người xem. Tin đã bán và tin hết hạn MUST
 
 - **WHEN** người đăng đánh dấu đã bán một tin sàn chung đầy đủ
 - **THEN** tin không còn trên bảng tin sàn chung
-
-### Requirement: Lên T1 đúng lúc tin đang lên bảng
-
-Lượt đưa tin lên bảng SHALL tính lý do "tài khoản mới" theo mức tin cậy của người đăng đúng lúc ghi. Người đăng lên T1
-chen giữa lượt đó MUST NOT để lại lý do "tài khoản mới" trên tin.
-
-#### Scenario: Lên T1 trong lúc máy đang cho qua tin
-
-- **WHEN** lượt tính mức đang đưa người đăng từ T0 lên T1 thì máy cho qua một tin sàn chung của người đó
-- **THEN** lượt cho qua đọc được mức T1 sau khi lượt tính mức xong, và tin không mang lý do "tài khoản mới"
 
 ### Requirement: Lý do hạn chế "gậy" cho tin lên bảng khi người bán có gậy
 

@@ -37,3 +37,11 @@ cảnh cáo theo email, chặn email dùng một lần, hạn mức T0 và hậu
 
 **Migration**: migration dữ liệu xoá `new_account` khỏi `restrictions` của mọi tin; giá trị enum giữ trong DB, code không
 ghi nữa. Tín hiệu máy duyệt `new_account` (`screening/risk-scoring`) không đổi.
+
+### Requirement: Lên T1 đúng lúc tin đang lên bảng
+
+**Reason**: Requirement chỉ tồn tại để lý do "tài khoản mới" không bám lại khi lượt lên mức chen giữa lượt đưa tin lên
+bảng (rà soát L7). Lý do đã bỏ nên lượt lên bảng không còn đọc mức tin cậy; `trust.tierIn` và khoá chung theo mức đã gỡ
+cùng change này.
+
+**Migration**: không cần — lượt lên bảng chỉ còn đọc điểm gậy trong transaction (requirement "Lý do hạn chế gậy").
