@@ -34,4 +34,5 @@
 ## 4. Kiểm tra
 
 - [x] 4.1 `pnpm run check`, `pnpm run build`, `pnpm db:drift`, `pnpm run spec:validate`
-- [ ] 4.2 Deploy Render: migration gỡ lý do trên tin đang có; máy ảo trỏ Render thấy tin của Người thử 10 trên home
+- [x] 4.2 Deploy Render: migration gỡ lý do trên tin đang có; máy ảo trỏ Render thấy tin của Người thử 10 trên home
+      (01/11/2026: `GET /listings` công khai trả 4 tin, gồm 3 tin của Người thử 10 đăng lúc còn T0)

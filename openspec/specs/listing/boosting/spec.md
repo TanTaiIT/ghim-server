@@ -87,7 +87,7 @@ không có hay đã xoá MUST nhận 404 `NOT_FOUND`. Người quản trị đư
 
 #### Scenario: Tin hiển thị hạn chế
 
-- **WHEN** staff đẩy lên đầu một tin trong danh mục mình đang hiển thị hạn chế vì "tài khoản mới"
+- **WHEN** staff đẩy lên đầu một tin trong danh mục mình đang hiển thị hạn chế vì lý do "máy"
 - **THEN** server trả 409 `BOOST_NOT_ALLOWED` với câu nói tin đang hiển thị hạn chế, lý do hạn chế giữ nguyên
 
 #### Scenario: Tin tạm ẩn
@@ -104,6 +104,11 @@ không có hay đã xoá MUST nhận 404 `NOT_FOUND`. Người quản trị đư
 
 - **WHEN** master đẩy lên đầu một tin còn 5 ngày hiển thị
 - **THEN** tin vẫn còn 5 ngày hiển thị, trạng thái vẫn là đang hiển thị
+
+#### Scenario: Tin của người đăng T0
+
+- **WHEN** master đặt nổi bật một tin sàn chung của người đăng ở mức T0 mà máy đã cho qua đầy đủ
+- **THEN** tin được đặt nổi bật như tin của mức khác
 
 ### Requirement: Đẩy lên đầu
 

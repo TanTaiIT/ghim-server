@@ -9,10 +9,10 @@
 
 ### Requirement: Đạt cho tin máy giữ
 
-Kết quả "đạt" cho một việc máy giữ SHALL đưa tin lên bảng; tin hiển thị đầy đủ, trừ khi người đăng hay nơi
-đăng còn một lý do hạn chế độc lập với lần giữ này, như "tài khoản mới". Quyết định SHALL ghi kèm nhận định
-"máy đúng" hay "máy quá tay", trừ việc máy giữ chỉ vì nhóm bật "duyệt tay mọi tin" (`group/manual-review`): máy
-đã cho qua nên quyết định MUST NOT đòi và MUST NOT ghi nhận định hay luật máy đã trúng.
+Kết quả "đạt" cho một việc máy giữ SHALL đưa tin lên bảng; tin hiển thị đầy đủ, trừ khi người đăng còn một lý do hạn
+chế độc lập với lần giữ này, như "cảnh cáo". Mức tin cậy của người đăng MUST NOT giữ tin ở mức hạn chế. Quyết định SHALL
+ghi kèm nhận định "máy đúng" hay "máy quá tay", trừ việc máy giữ chỉ vì nhóm bật "duyệt tay mọi tin"
+(`group/manual-review`): máy đã cho qua nên quyết định MUST NOT đòi và MUST NOT ghi nhận định hay luật máy đã trúng.
 
 #### Scenario: Tin của T2 bị giữ vì giá vượt trần
 
@@ -22,7 +22,12 @@ Kết quả "đạt" cho một việc máy giữ SHALL đưa tin lên bảng; ti
 #### Scenario: Tin sàn của tài khoản T0
 
 - **WHEN** staff cho đạt việc hàng 0 về tin sàn của tài khoản T0
-- **THEN** tin chuyển sang đang hiển thị ở mức hạn chế với lý do "tài khoản mới"
+- **THEN** tin chuyển sang đang hiển thị ở mức đầy đủ
+
+#### Scenario: Tin của người đang có cảnh cáo
+
+- **WHEN** staff cho đạt việc hàng 0 về tin sàn của người đăng đang có 1 điểm cảnh cáo
+- **THEN** tin chuyển sang đang hiển thị ở mức hạn chế với lý do "cảnh cáo"
 
 #### Scenario: Tin dải Vừa bị giữ vì cổng cứng
 

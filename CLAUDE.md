@@ -362,7 +362,7 @@ kế hoạch `docs/KE-HOACH-GOI-DAY-TIN.md`) → `add-admin-boost` (người qu�
 27/10/2026, đi trước gói trả Xu; gộp `main` qua PR #28, archive 27/10/2026; delta `listing/visibility` của
 `add-promotions` đã viết lại trên spec sau change này) →
 `add-wallet` (ví Xu, sổ cái, master cấp — làm 28/10/2026 sau khi chủ dự án chốt câu hỏi mở: Xu do master cấp miễn phí,
-không có `add-topup`, không thanh toán online; gộp `main` qua PR #33, archive 28/10/2026) → `add-promotions` (gói đẩy tin trả Xu — làm 28/10/2026 ngay sau `add-wallet`; dải nổi bật đổi sang lấy ngẫu nhiên; gộp `main` qua PR #35, archive 28/10/2026) → `remove-new-account-restriction` (bỏ lý do hạn chế "tài khoản mới" — chốt 28/10/2026 sau khi thử trên Render: máy cho qua là tin lên, T0 dải Thấp hiện đầy đủ; migration gỡ lý do trên tin đang có).
+không có `add-topup`, không thanh toán online; gộp `main` qua PR #33, archive 28/10/2026) → `add-promotions` (gói đẩy tin trả Xu — làm 28/10/2026 ngay sau `add-wallet`; dải nổi bật đổi sang lấy ngẫu nhiên; gộp `main` qua PR #35, archive 28/10/2026) → `remove-new-account-restriction` (bỏ lý do hạn chế "tài khoản mới" — chốt 28/10/2026 sau khi thử trên Render: máy cho qua là tin lên, T0 dải Thấp hiện đầy đủ; migration gỡ lý do trên tin đang có; gộp `main` qua PR #37, archive 01/11/2026).
 
 - `add-platform-roles` và `add-categories` cần nhau (quyền staff gắn theo danh mục; danh mục cần staff soạn
   mẫu) nên làm chung một lượt và archive trước `add-groups`; `add-groups` chỉ thêm requirement vào
