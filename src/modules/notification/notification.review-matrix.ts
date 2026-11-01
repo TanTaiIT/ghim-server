@@ -57,7 +57,9 @@ const isDecidedOutcome = (value: string | null): value is ListingDecidedOutcome 
 function decidedDetail(payload: Payload, outcome: ListingDecidedOutcome): string | null {
   const reason = str(payload, 'reason');
   const hint = str(payload, 'fault') === 'mistake' ? FIX_HINT[outcome] : undefined;
-  const parts = [reason ? `Lý do: ${reason}.` : null, hint ?? null].filter(Boolean);
+  // Lý do mẫu master soạn thường đã có dấu câu cuối ("…rồi đăng lại.") — bỏ đi trước khi đặt dấu chấm của câu.
+  const sentence = reason?.trim().replace(/[.!?…]+$/u, '');
+  const parts = [sentence ? `Lý do: ${sentence}.` : null, hint ?? null].filter(Boolean);
   return parts.length > 0 ? parts.join(' ') : null;
 }
 

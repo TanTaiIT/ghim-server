@@ -179,6 +179,16 @@ describe('N45 — người duyệt quyết về tin (notify-listing-decisions)',
       body: 'Tin «Xe đạp cũ» đã bị gỡ.',
       detail: 'Lý do: Giá ghi sai. Sửa tin rồi gửi lại để tin hiện lại.',
     });
+    const [withPeriod] = (
+      await decided({
+        outcome: 'removed',
+        fault: 'mistake',
+        reason: 'Ảnh không phải ảnh thật của món đồ — chụp lại rồi đăng lại.',
+      })
+    ).drafts;
+    expect(withPeriod?.detail).toBe(
+      'Lý do: Ảnh không phải ảnh thật của món đồ — chụp lại rồi đăng lại. Sửa tin rồi gửi lại để tin hiện lại.',
+    );
     const [restored] = (await decided({ outcome: 'restored' })).drafts;
     expect(restored).toMatchObject({ body: 'Tin «Xe đạp cũ» đã hiển thị lại.', detail: null });
   });
