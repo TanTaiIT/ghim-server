@@ -49,6 +49,7 @@ export function registerListingListeners(
     Promise.all([
       hide({ ownerId: accountId }, { kind: 'account_deleted' }),
       listing.forgetSaved(accountId),
+      listing.forgetActivity(accountId),
     ]),
   );
 

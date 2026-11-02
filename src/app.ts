@@ -62,6 +62,10 @@ import {
   type ListingTrustPort,
 } from './modules/listing/listing.ports.js';
 import {
+  type ActivityRepository,
+  createActivityRepository,
+} from './modules/listing/activity/activity.repository.js';
+import {
   createListingRepository,
   type ListingRepository,
 } from './modules/listing/listing.repository.js';
@@ -164,6 +168,7 @@ export interface Repositories {
   group: GroupRepository;
   media: MediaRepository;
   listing: ListingRepository;
+  activity: ActivityRepository;
   trust: TrustRepository;
   strike: StrikeRepository;
   screening: ScreeningRepository;
@@ -264,6 +269,7 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     group: overrides.repositories?.group ?? createGroupRepository(prisma),
     media: overrides.repositories?.media ?? createMediaRepository(prisma),
     listing: overrides.repositories?.listing ?? createListingRepository(prisma),
+    activity: overrides.repositories?.activity ?? createActivityRepository(prisma),
     trust: overrides.repositories?.trust ?? createTrustRepository(prisma),
     strike: overrides.repositories?.strike ?? createStrikeRepository(prisma),
     screening: overrides.repositories?.screening ?? createScreeningRepository(prisma),
@@ -419,6 +425,11 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     regions: region.service,
     media: media.service,
     identity: identity.service,
+    activity: repositories.activity,
+    buyerInterest: {
+      askedListingIds: (accountId) => lateMessaging().askedListingIds(accountId),
+      inquiryCounts: (listingIds, since) => lateMessaging().inquiryCounts(listingIds, since),
+    },
     trust,
     screening,
     openWork: {

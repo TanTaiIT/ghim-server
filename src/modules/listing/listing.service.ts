@@ -12,6 +12,10 @@ import {
   type ListingSavedSearchService,
 } from './read/saved-search.service.js';
 import {
+  createListingSuggestionService,
+  type ListingSuggestionService,
+} from './read/suggestion.service.js';
+import {
   createListingRetentionService,
   type ListingRetentionService,
 } from './system/retention.service.js';
@@ -26,6 +30,7 @@ export type { ListingServiceDeps } from './listing.shared.js';
 export type ListingService = ListingPostingService &
   ListingReadService &
   ListingSavedSearchService &
+  ListingSuggestionService &
   ListingSystemService &
   ListingCascadeService &
   ListingRetentionService &
@@ -38,10 +43,24 @@ export type ListingService = ListingPostingService &
  */
 export function createListingService(deps: ListingServiceDeps): ListingService {
   const shared = createListingShared(deps);
+  const read = createListingReadService(shared);
+  const suggestion = createListingSuggestionService(shared);
   return {
     ...createListingPostingService(shared),
-    ...createListingReadService(shared),
+    ...read,
+    // Lịch sử thao tác ghi ở đường đọc, sau khi đã có kết quả (design add-home-suggestions mục 3).
+    async get(actor, id) {
+      const dto = await read.get(actor, id);
+      await suggestion.recordView(actor, dto);
+      return dto;
+    },
+    async feed(actor, query) {
+      const page = await read.feed(actor, query);
+      await suggestion.recordSearch(actor, query);
+      return page;
+    },
     ...createListingSavedSearchService(shared),
+    ...suggestion,
     ...createListingSystemService(shared),
     ...createListingCascadeService(shared),
     ...createListingRetentionService(shared),

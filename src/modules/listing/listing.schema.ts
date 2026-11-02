@@ -265,11 +265,34 @@ export const featuredQuerySchema = z.object({ categoryId: z.uuid().optional() })
 
 export const featuredStripSchema = z.object({ items: z.array(listingSchema) });
 
+/**
+ * Con trỏ của mục gợi ý là vị trí trong danh sách đã xếp (design add-home-suggestions mục 5) — danh sách tính lại mỗi
+ * trang nên không có mốc (`at`, `id`) để neo. App vẫn coi như chuỗi kín.
+ */
+export const homeSuggestionsQuerySchema = z.object({
+  /** Tỉnh của bộ lọc trang chủ, cho phần "được quan tâm nhiều gần bạn"; trống = toàn quốc. */
+  provinceCode: z.coerce.number().int().positive().optional(),
+  cursor: z
+    .string()
+    .regex(/^\d{1,4}$/, 'Con trỏ phân trang không hợp lệ')
+    .transform(Number)
+    .optional(),
+});
+
+export const homeSuggestionsSchema = z.object({
+  items: z.array(listingSchema),
+  nextCursor: z.string().nullable(),
+  /** `false` = "được quan tâm nhiều gần bạn" (khách, chưa có tín hiệu, đã tắt "Gợi ý theo hoạt động"). */
+  personalized: z.boolean(),
+});
+
 export type BoostBody = z.infer<typeof boostBodySchema>;
 export type BoostStateDto = z.infer<typeof boostStateSchema>;
 export type CreateListingBody = z.infer<typeof createListingBodySchema>;
 export type PatchListingBody = z.infer<typeof patchListingBodySchema>;
 export type FeedQuery = z.infer<typeof feedQuerySchema>;
+export type HomeSuggestionsQuery = z.infer<typeof homeSuggestionsQuerySchema>;
+export type HomeSuggestionsDto = z.infer<typeof homeSuggestionsSchema>;
 export type ListingDto = z.infer<typeof listingSchema>;
 export type OwnListingDto = z.infer<typeof ownListingSchema>;
 export type SavedSearchBody = z.infer<typeof savedSearchBodySchema>;

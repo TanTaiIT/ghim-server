@@ -35,6 +35,10 @@ export interface InboxService {
   ): Promise<{ items: MessageDto[]; nextCursor: string | null }>;
   /** Cổng `BuyerInterest` của `trust`: có người mua đã nhắn, không dùng chung máy với người bán (TK 20). */
   hasInquiry(listingId: string): Promise<boolean>;
+  /** Cổng gợi ý của `listing` (add-home-suggestions): tin người này đã hỏi mua, mới trước — gợi ý không lặp lại chúng. */
+  askedListingIds(accountId: string): Promise<string[]>;
+  /** Cổng gợi ý của `listing`: số người đã hỏi mua mỗi tin từ `since` — "được quan tâm nhiều". */
+  inquiryCounts(listingIds: string[], since: Date): Promise<Map<string, number>>;
   /** Cổng cho `review`: bản ghi hội thoại đi kèm lượt báo — không phụ thuộc hai bên đã xoá phía mình. */
   transcripts(conversationIds: string[]): Promise<Map<string, ConversationTranscriptDto>>;
   /** Cổng cho `notification`: phiên đang mở hội thoại này — máy đó không nhận push tin nhắn của nó. */
@@ -68,6 +72,8 @@ export interface MessagePreview {
 
 /** Bản ghi cho người xử cắt ở ngần này tin nhắn gần nhất (design, Risks). */
 const TRANSCRIPT_MESSAGES = 500;
+/** Tin đã hỏi mua mà gợi ý bỏ qua: đủ phủ một người hỏi nhiều trong 90 ngày lịch sử, có trần cho câu truy vấn. */
+const ASKED_LIMIT = 500;
 
 const OFFER_STATUS_LABEL: Record<OfferStatus, string> = {
   pending: 'đang chờ',
@@ -329,6 +335,9 @@ export function createInboxService(deps: MessagingServiceDeps): {
           nextCursor: page.nextCursor,
         };
       },
+
+      askedListingIds: (accountId) => repository.askedListingIds(accountId, ASKED_LIMIT),
+      inquiryCounts: (listingIds, since) => repository.inquiryCounts(listingIds, since),
 
       async hasInquiry(listingId) {
         const found = await repository.inquiries(listingId);

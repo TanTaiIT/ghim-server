@@ -465,6 +465,8 @@ describe('Nơi đăng khi sửa', () => {
       regions: app.modules.region,
       media: app.modules.media,
       identity: app.modules.identity,
+      activity: repositories.activity,
+      buyerInterest: app.modules.messaging,
       trust: createInterimTrust('T1'),
       screening: interimScreening,
       openWork: {
@@ -572,6 +574,9 @@ const LISTING_ROUTES = [
   'DELETE /listings/{id}/featured',
   'GET /listings/featured',
   'GET /groups/{groupId}/listings/featured',
+  // Gợi ý trang chủ và lịch sử thao tác (add-home-suggestions).
+  'GET /listings/suggestions',
+  'DELETE /me/activity-history',
 ];
 /** Lượt gửi (qua máy) — nhận `x-device-id` và có thể chạm hạn mức (429). */
 const SUBMITTING = new Set([
@@ -604,7 +609,7 @@ describe('Swagger', () => {
 
   // Route đọc không khai Bearer thì client sinh từ tài liệu gọi ẩn danh cả khi đã đăng nhập: chủ tin mở nháp của
   // mình nhận 404, thành viên không thấy tin "chỉ thành viên".
-  it('đủ 27 route tin đăng, không thừa; route đọc: không phiên hoặc Bearer; còn lại đòi bearerAuth', async () => {
+  it('đủ 29 route tin đăng, không thừa; route đọc: không phiên hoặc Bearer; còn lại đòi bearerAuth', async () => {
     const ops = await listingOperations();
     expect(ops.map((op) => op.key).toSorted()).toEqual(LISTING_ROUTES.toSorted());
     for (const op of ops) {

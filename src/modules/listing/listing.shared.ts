@@ -12,7 +12,9 @@ import {
 import { activeFeaturedUntil } from './calc/boost.calc.js';
 import { type ClockSettings, DAY_MS, remainingMs } from './calc/display-period.calc.js';
 import { isDetached } from './calc/hide.calc.js';
+import type { ActivityRepository } from './activity/activity.repository.js';
 import type {
+  ListingBuyerInterestPort,
   ListingCategoryPort,
   ListingGroupPort,
   ListingMediaPort,
@@ -46,7 +48,12 @@ export interface ListingServiceDeps {
     accountState(accountId: string): Promise<{ status: string } | null>;
     /** Trong transaction của lượt gửi: `FOR SHARE` dòng tài khoản, trả trạng thái (fix-audit-listing, T15). */
     lockAccountStatus(tx: Tx, accountId: string): Promise<string | null>;
+    suggestionPrefs(
+      accountId: string,
+    ): Promise<{ personalized: boolean; homeProvinceCode: number | null }>;
   };
+  activity: ActivityRepository;
+  buyerInterest: ListingBuyerInterestPort;
   trust: ListingTrustPort;
   screening: ListingScreeningPort;
   openWork: OpenWork;

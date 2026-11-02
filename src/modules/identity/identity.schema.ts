@@ -147,6 +147,8 @@ export const meSchema = publicProfileSchema.extend({
   staff: z.boolean(),
   /** Tỉnh/thành người dùng tự chọn (add-home-province) — riêng tư: hồ sơ công khai không có trường này. */
   homeProvinceCode: z.number().int().nullable(),
+  /** "Gợi ý theo hoạt động" (add-home-suggestions) — riêng tư như tỉnh nhà; tắt thì thôi ghi lịch sử xem / tìm. */
+  personalizedSuggestions: z.boolean(),
 });
 
 const phoneNumberSchema = z
@@ -171,6 +173,7 @@ export const patchMeBodySchema = z.object({
   showActivity: z.boolean().optional(),
   /** `null` để bỏ chọn tỉnh/thành; bỏ qua để giữ nguyên. */
   homeProvinceCode: z.number().int().positive().nullable().optional(),
+  personalizedSuggestions: z.boolean().optional(),
 });
 
 export const emailChangeBodySchema = z.object({

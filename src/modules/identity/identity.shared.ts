@@ -149,6 +149,7 @@ export function toMe(
     showActivity: account.showActivity,
     staff,
     homeProvinceCode: account.homeProvinceCode,
+    personalizedSuggestions: account.personalizedSuggestions,
     email: account.email,
     emailVerified: account.status === 'active',
     role: account.role,

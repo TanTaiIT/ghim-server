@@ -299,6 +299,14 @@ ghi `rank_at`, `featured_until`, `last_bumped_at` — qua `repository.boost`: kh
 nhóm viết hai chỗ**: `boostRole` và `groupRoleOver` của `review` (`listing` dựng trước `review`, gọi ngược sẽ vòng) — đổi
 một chỗ thì đổi cả hai; quyền staff đọc qua `privileges` (`PrivilegeSource`) mỗi lượt.
 
+`listing` gợi ý trang chủ (change `add-home-suggestions`): `listing/activity/activity.repository.ts` (`listing_views`,
+`search_history`; trần 200 / 100 cắt ngay lúc ghi; đếm lượt lưu cho "được quan tâm nhiều") + `calc/suggestion.calc.ts`
+(hồ sơ quan tâm, điểm — hàm thuần) + `read/suggestion.service.ts`. Lịch sử ghi ở đường đọc: `listing.service.ts` gói
+`get` / `feed`, lỗi ghi chỉ log. Ngoài `listing` đi qua cổng nối muộn: `messaging` trả tin đã hỏi và đếm lượt hỏi mua
+(`messaging/buyer-interest.repository.ts`, tách khỏi `messaging.repository.ts` cùng `inquiries` của `trust`),
+`identity.suggestionPrefs` trả công tắc `personalized_suggestions` và tỉnh nhà. Không route nào đọc lịch sử của người
+khác; xoá tài khoản xoá ngay (`forgetActivity`), bước `activity` của `ops` dọn theo `retention.activityDays`.
+
 `wallet` (change `add-wallet`, TK 19, 24, 30): ví Xu của mỗi tài khoản — `wallets` (số dư, ví lười: không dòng = 0),
 `wallet_transactions` (sổ cái, trigger không sửa không xoá; xoá chỉ khi transaction đặt `ghim.purge = 'on'`, lượt dọn
 tài khoản đã xoá của `ops`). **Đường ghi duy nhất** `wallet.repository.apply(tx, entry)` trong transaction của bên gọi:
@@ -362,7 +370,9 @@ kế hoạch `docs/KE-HOACH-GOI-DAY-TIN.md`) → `add-admin-boost` (người qu�
 27/10/2026, đi trước gói trả Xu; gộp `main` qua PR #28, archive 27/10/2026; delta `listing/visibility` của
 `add-promotions` đã viết lại trên spec sau change này) →
 `add-wallet` (ví Xu, sổ cái, master cấp — làm 28/10/2026 sau khi chủ dự án chốt câu hỏi mở: Xu do master cấp miễn phí,
-không có `add-topup`, không thanh toán online; gộp `main` qua PR #33, archive 28/10/2026) → `add-promotions` (gói đẩy tin trả Xu — làm 28/10/2026 ngay sau `add-wallet`; dải nổi bật đổi sang lấy ngẫu nhiên; gộp `main` qua PR #35, archive 28/10/2026) → `remove-new-account-restriction` (bỏ lý do hạn chế "tài khoản mới" — chốt 28/10/2026 sau khi thử trên Render: máy cho qua là tin lên, T0 dải Thấp hiện đầy đủ; migration gỡ lý do trên tin đang có; gộp `main` qua PR #37, archive 01/11/2026).
+không có `add-topup`, không thanh toán online; gộp `main` qua PR #33, archive 28/10/2026) → `add-promotions` (gói đẩy tin trả Xu — làm 28/10/2026 ngay sau `add-wallet`; dải nổi bật đổi sang lấy ngẫu nhiên; gộp `main` qua PR #35, archive 28/10/2026) → `remove-new-account-restriction` (bỏ lý do hạn chế "tài khoản mới" — chốt 28/10/2026 sau khi thử trên Render: máy cho qua là tin lên, T0 dải Thấp hiện đầy đủ; migration gỡ lý do trên tin đang có; gộp `main` qua PR #37, archive 01/11/2026) → `add-home-suggestions` (mục "Gợi ý cho
+bạn" theo tin đã xem, lưu, hỏi, tìm của từng người; khách hay chưa có lịch sử thì tin được quan tâm nhiều gần bạn; dải
+nổi bật giữ nguyên — chủ dự án chốt 02/11/2026).
 
 - `add-platform-roles` và `add-categories` cần nhau (quyền staff gắn theo danh mục; danh mục cần staff soạn
   mẫu) nên làm chung một lượt và archive trước `add-groups`; `add-groups` chỉ thêm requirement vào
@@ -374,7 +384,8 @@ không có `add-topup`, không thanh toán online; gộp `main` qua PR #33, arch
   bộ phát outbox vẫn ở `common/outbox` vì mọi module cần nó từ đợt 1.
 
 `ops` (change `add-data-retention`, hướng dẫn ở `docs/retention.md`): dựng **sau cùng** trong `buildApp`, chỉ gọi cổng
-hạn lưu của module sở hữu dữ liệu, không ghi bảng của ai (`listing.retentionDue / purge / softDeleteWhere / remindPurge`,
+hạn lưu của module sở hữu dữ liệu, không ghi bảng của ai (`listing.retentionDue / purge / softDeleteWhere / remindPurge /
+purgeActivity`,
 `media.purgeOwners`, `group.purgeDue / purgeClosed`, `identity.purgeDue / purgeDeletedAccount / purgeDeviceData /
 pseudonymOf`, `messaging.retentionDue / purge`, `notification.purgeBefore`, `screening.foldRuns`, `trust.strikesOfListings /
 anonymizeDue / anonymizeStrike / dropLiftedEmailHashes`, `review.reportHolds / pseudonymizeDecisions`, `pseudonymizeAudit` ở

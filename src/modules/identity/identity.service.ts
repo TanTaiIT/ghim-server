@@ -153,6 +153,7 @@ export interface MeDto extends PublicProfileDto {
   showActivity: boolean;
   staff: boolean;
   homeProvinceCode: number | null;
+  personalizedSuggestions: boolean;
 }
 
 export interface FlagDto {
@@ -192,6 +193,7 @@ export interface PatchMeInput {
   phone?: string | null | undefined;
   showActivity?: boolean | undefined;
   homeProvinceCode?: number | null | undefined;
+  personalizedSuggestions?: boolean | undefined;
 }
 
 export interface RegisterInput {
@@ -383,6 +385,13 @@ export interface IdentityService extends ActorResolver {
   activityOf(
     ids: string[],
   ): Promise<Map<string, { showActivity: boolean; lastSeenAt: Date | null }>>;
+  /**
+   * Cổng cho `listing` (add-home-suggestions): công tắc "Gợi ý theo hoạt động" và tỉnh nhà. Tài khoản không có hay đã
+   * xoá → tắt, như khách.
+   */
+  suggestionPrefs(
+    accountId: string,
+  ): Promise<{ personalized: boolean; homeProvinceCode: number | null }>;
   /** Tài khoản chưa xoá mang email này (so sau chuẩn hoá) — lời mời vào nhóm theo email. */
   accountIdByEmail(email: string): Promise<string | null>;
   /** Dấu băm HMAC của email đã chuẩn hoá, cùng khoá với `accounts.email_hash` — danh sách lớp của nhóm. */
