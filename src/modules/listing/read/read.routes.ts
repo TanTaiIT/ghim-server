@@ -11,6 +11,8 @@ import {
   featuredStripSchema,
   groupFeedQuerySchema,
   groupListingParamsSchema,
+  homeSuggestionsQuerySchema,
+  homeSuggestionsSchema,
   listingParamsSchema,
   listingSchema,
   myListingsQuerySchema,
@@ -190,6 +192,34 @@ export const readRoutes: FastifyPluginAsyncZod<ListingRoutesOptions> = async (ap
     },
     handler: async (request) =>
       toOk({ items: await listing.featured(request.actor, request.query) }),
+  });
+
+  app.get('/listings/suggestions', {
+    preHandler: anyone,
+    schema: {
+      tags: TAGS_VIEWER,
+      security: optionalBearer,
+      summary:
+        '"Gợi ý cho bạn" trang chủ — theo tin đã xem, lưu, hỏi, tìm; khách hay chưa có lịch sử thì tin được quan tâm nhiều gần bạn',
+      querystring: homeSuggestionsQuerySchema,
+      response: { 200: ok(homeSuggestionsSchema), 400: errorResponse },
+    },
+    handler: async (request) => toOk(await listing.homeSuggestions(request.actor, request.query)),
+  });
+
+  app.delete('/me/activity-history', {
+    preHandler: user,
+    schema: {
+      tags: TAGS_SAVED,
+      summary:
+        'Xoá lịch sử xem và tìm kiếm của mình — tin đã lưu, tìm kiếm đã lưu, hội thoại giữ nguyên',
+      security: bearer,
+      response: { 204: emptySchema, 401: errorResponse },
+    },
+    handler: async (request, reply) => {
+      await listing.clearActivity(actorOf(request));
+      return reply.status(204).send(null);
+    },
   });
 
   app.get('/listings/:id', {

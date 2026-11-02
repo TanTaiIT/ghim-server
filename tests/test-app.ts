@@ -8,6 +8,7 @@ import { createCategoryRepository } from '../src/modules/category/category.repos
 import { createRegionRepository } from '../src/modules/region/region.repository.js';
 import { createGroupRepository } from '../src/modules/group/group.repository.js';
 import { createIdentityRepository } from '../src/modules/identity/identity.repository.js';
+import { createActivityRepository } from '../src/modules/listing/activity/activity.repository.js';
 import { createListingRepository } from '../src/modules/listing/listing.repository.js';
 import { createStrikeRepository } from '../src/modules/trust/strike/strike.repository.js';
 import { createTrustRepository } from '../src/modules/trust/trust.repository.js';
@@ -33,6 +34,7 @@ export const repositories = {
   group: createGroupRepository(prisma),
   media: createMediaRepository(prisma),
   listing: createListingRepository(prisma),
+  activity: createActivityRepository(prisma),
   trust: createTrustRepository(prisma),
   strike: createStrikeRepository(prisma),
   screening: createScreeningRepository(prisma),

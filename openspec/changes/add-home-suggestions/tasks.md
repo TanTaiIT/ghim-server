@@ -2,23 +2,23 @@
 
 ## 1. Dữ liệu
 
-- [ ] 1.1 Migration: `listing_views`, `search_history`, `accounts.personalized_suggestions`; schema Prisma; `db:drift`
-- [ ] 1.2 Con số `retention.activityDays` (90), `suggestion.popularDays` (14)
+- [x] 1.1 Migration: `listing_views`, `search_history`, `accounts.personalized_suggestions`; schema Prisma; `db:drift`
+- [x] 1.2 Con số `retention.activityDays` (90), `listing.suggestionPopularDays` (14)
 
 ## 2. Lịch sử thao tác (`listing/activity-history`)
 
-- [ ] 2.1 `listing/activity/activity.repository.ts`: ghi xem (upsert + trần 200), ghi tìm (trùng 10 phút + trần 100),
+- [x] 2.1 `listing/activity/activity.repository.ts`: ghi xem (upsert + trần 200), ghi tìm (trùng 10 phút + trần 100),
       đọc cho hồ sơ quan tâm, xoá của một người, dọn theo hạn
-- [ ] 2.2 Ghi ở `read.service` `detail()` và `feed()` theo điều kiện của spec; lỗi ghi chỉ log
-- [ ] 2.3 `identity`: cột công tắc trên `GET/PATCH /me`; cổng cho `listing` đọc công tắc + tỉnh nhà
-- [ ] 2.4 `DELETE /me/activity-history`; xoá tài khoản xoá luôn lịch sử; bước dọn trong `retention.service.ts`
+- [x] 2.2 Ghi sau `get()` và `feed()` (gói ở `listing.service.ts`) theo điều kiện của spec; lỗi ghi chỉ log
+- [x] 2.3 `identity`: cột công tắc trên `GET/PATCH /me`; cổng `suggestionPrefs` cho `listing` đọc công tắc + tỉnh nhà
+- [x] 2.4 `DELETE /me/activity-history`; xoá tài khoản xoá luôn lịch sử; bước dọn `activity` trong `retention.service.ts`
 
 ## 3. Gợi ý (`listing/suggestions`)
 
-- [ ] 3.1 `listing/read/suggestion.calc.ts`: hồ sơ quan tâm + điểm (hàm thuần, unit test theo bảng trọng số)
-- [ ] 3.2 `suggestion.service.ts`: ứng viên (feed visibility, loại tin của mình / đã lưu / đã hỏi), xếp, trang 20,
-      bù bằng "được quan tâm nhiều gần bạn"; cổng `messaging` trả mã tin đã hỏi
-- [ ] 3.3 Route `GET /listings/suggestions` + schema; test HTTP theo các scenario
+- [x] 3.1 `listing/calc/suggestion.calc.ts`: hồ sơ quan tâm + điểm (hàm thuần, unit test theo bảng trọng số)
+- [x] 3.2 `suggestion.service.ts`: ứng viên (feed visibility, loại tin của mình / đã lưu / đã hỏi), xếp, trang 20,
+      bù bằng "được quan tâm nhiều gần bạn"; cổng `messaging` trả mã tin đã hỏi và đếm lượt hỏi
+- [x] 3.3 Route `GET /listings/suggestions` + schema; test HTTP theo các scenario
 
 ## 4. Tài liệu
 

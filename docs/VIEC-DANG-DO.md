@@ -62,7 +62,8 @@ Nguồn: `docs/THIET-KE-HE-THONG.md` phần 29.
    khoá `retention.*` chỉnh được không cần deploy (`docs/retention.md`). Dữ liệu cá nhân **chưa có hạn lưu** vì TK 25 không
    có dòng (design add-data-retention câu 8): báo cáo kể cả danh tính người báo, điểm tin cậy báo cáo, chặn người, thành
    viên nhóm đang hoạt động, tài khoản bỏ không lâu năm — chốt cùng luật sư rồi thêm bước vào `retention.service.ts`.
-   TK 28 nên thêm các dòng `retention.*` (chủ TK sửa).
+   TK 28 nên thêm các dòng `retention.*` (chủ TK sửa). Xét thêm lịch sử xem tin và lịch sử tìm kiếm của mục gợi ý
+   (`listing_views`, `search_history` — add-home-suggestions): 90 ngày, mặc định bật, tắt và xoá được trong Cài đặt.
 3. ~~Dịch vụ kiểm ảnh nhạy cảm~~ — chốt 24/10/2026: không kiểm nội dung ảnh (TK 29 còn mở số 3).
 
 Phần **Hoãn lại** của TK 29 (ví Xu, đẩy tin, đánh giá người bán, lưu tin, xác thực số điện thoại, đọc chữ trong ảnh,

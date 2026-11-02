@@ -33,6 +33,7 @@ export const RETENTION_STEPS = [
   'devices',
   'conversations',
   'notifications',
+  'activity',
   'screeningRuns',
   'strikes',
   'jobRuns',
@@ -54,7 +55,10 @@ export interface RetentionRunOptions {
 
 export interface RetentionDeps {
   repository: OpsRepository;
-  listings: Pick<ListingService, 'retentionDue' | 'purge' | 'softDeleteWhere' | 'remindPurge'>;
+  listings: Pick<
+    ListingService,
+    'retentionDue' | 'purge' | 'softDeleteWhere' | 'remindPurge' | 'purgeActivity'
+  >;
   media: Pick<MediaService, 'purgeOwners'>;
   groups: Pick<GroupService, 'purgeDue' | 'purgeClosed'>;
   identity: Pick<
@@ -270,6 +274,11 @@ export function createRetentionService(deps: RetentionDeps, hold: EvidenceHold):
     done: true,
   });
 
+  const activityStep = (): Step => async () => ({
+    count: await listings.purgeActivity(days(clock(), 'retention.activityDays')),
+    done: true,
+  });
+
   const screeningStep = (): Step => async () => {
     const result = await screening.foldRuns(days(clock(), 'retention.screeningRunDays'));
     return { count: result.deleted + result.marks, done: true };
@@ -330,6 +339,7 @@ export function createRetentionService(deps: RetentionDeps, hold: EvidenceHold):
       devices: devicesStep(),
       conversations: conversationsStep(pageSize),
       notifications: notificationsStep(),
+      activity: activityStep(),
       screeningRuns: screeningStep(),
       strikes: strikesStep(pageSize),
       jobRuns: jobRunsStep(),

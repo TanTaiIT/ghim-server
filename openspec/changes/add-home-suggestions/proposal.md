@@ -44,7 +44,7 @@ công tắc mặc định bật · gợi ý loại tin đã lưu và tin đã h�
 - Server: hai bảng mới (`listing_views`, `search_history`), cột `accounts.personalized_suggestions`; ghi lịch sử ở
   `GET /listings/:id` và `GET /listings`; route mới `GET /listings/suggestions`, `DELETE /me/activity-history`;
   `PATCH /me` nhận công tắc; bước dọn mới ở `retention.service.ts`; con số `retention.activityDays`,
-  `suggestion.popularDays`.
+  `listing.suggestionPopularDays`.
 - App: trang chủ theo bố cục mới (banner trượt ngang, dải nổi bật thẻ ảnh lớn, "Gợi ý cho bạn" lưới 2 cột), Cài đặt có
   công tắc và nút xoá lịch sử.
 - TK: phần 25 thêm dòng hạn lưu; phần 15 (bảng tin) nêu mục gợi ý; TK 29 không đổi.

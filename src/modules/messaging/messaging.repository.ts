@@ -10,6 +10,10 @@ import {
 import { appendAudit, type AuditEntry } from '../../common/audit/audit.js';
 import { appendEvents, type OutboxEventInput } from '../../common/outbox/outbox.js';
 import type { CursorKey } from '../../common/schemas/cursor.js';
+import {
+  type BuyerInterestQueries,
+  createBuyerInterestQueries,
+} from './buyer-interest.repository.js';
 
 export type Tx = Prisma.TransactionClient;
 export type { AccountBlock, Conversation, Message };
@@ -19,7 +23,7 @@ export type Transcript = Conversation & { messages: Message[] };
 export type TeamKind = 'support' | 'group';
 export type RetentionRow = Pick<Conversation, 'id' | 'kind' | 'listingId' | 'buyerId' | 'sellerId'>;
 
-export interface MessagingRepository {
+export interface MessagingRepository extends BuyerInterestQueries {
   inTransaction<T>(write: (tx: Tx) => Promise<T>): Promise<T>;
   /** Khoá advisory theo người mở: hai lượt mở cùng lúc của một người xếp hàng rồi mới đếm hạn mức ngày. */
   lockOpener(tx: Tx, accountId: string): Promise<void>;
@@ -97,8 +101,6 @@ export interface MessagingRepository {
   unhide(id: string, side: Side): Promise<void>;
   /** Xoá tài khoản: ẩn mọi hội thoại phía người đó — chạy lại vô hại. */
   hideAllOf(accountId: string, at: Date): Promise<number>;
-  /** Người bán và những người mua đã nhắn ít nhất một tin trong hội thoại về tin này — dữ kiện tin sạch (TK 20). */
-  inquiries(listingId: string): Promise<{ sellerId: string; buyerIds: string[] } | null>;
   /** Bản ghi cho người xử: `messageLimit` tin nhắn gần nhất, trả theo thứ tự gửi. */
   transcripts(ids: string[], messageLimit: number): Promise<Transcript[]>;
   /** Có dòng chặn theo một trong hai chiều. */
@@ -163,6 +165,7 @@ export function createMessagingRepository(prisma: PrismaClient): MessagingReposi
   };
 
   return {
+    ...createBuyerInterestQueries(prisma),
     inTransaction: (write) => prisma.$transaction((tx) => write(tx)),
 
     async lockOpener(tx, accountId) {
@@ -388,16 +391,6 @@ export function createMessagingRepository(prisma: PrismaClient): MessagingReposi
         }),
       ]);
       return asBuyer.count + asSeller.count;
-    },
-
-    async inquiries(listingId) {
-      const rows = await prisma.conversation.findMany({
-        where: { listingId, buyerMessages: { gt: 0 } },
-        select: { sellerId: true, buyerId: true },
-      });
-      // Chỉ hội thoại về tin có `listing_id`, nên người bán luôn có (CHECK conversations_kind_check).
-      const sellerId = rows.find((row) => row.sellerId !== null)?.sellerId;
-      return sellerId ? { sellerId, buyerIds: rows.map((row) => row.buyerId) } : null;
     },
 
     async transcripts(ids, messageLimit) {

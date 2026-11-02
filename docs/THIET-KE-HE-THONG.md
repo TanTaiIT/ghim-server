@@ -608,6 +608,12 @@ Tin hạn chế khi còn **ít nhất một lý do**. Mỗi lý do đặt và g�
 
 **Tin đã lưu.** Người đã đăng nhập lưu được tin mình mở được bằng đường link; tin không mở được trả lời như tin không có, nên lưu không thành cách dò tin ẩn. Danh sách "Đã lưu" giữ mọi tin mình còn mở được: tin đang hiển thị, kể cả hạn chế, và tin đã bán hay hết hạn — kèm nhãn "Đã bán", "Hết hạn". Tin tạm ẩn, bị gỡ, đã xoá, hay tin "chỉ thành viên" của nhóm mình đã rời thì vắng; mở được lại thì có lại, vì lần lưu không mất. Không ai khác biết ai lưu tin, kể cả người đăng. Xoá tài khoản thì mọi lần lưu bị bỏ (chốt 25/10/2026).
 
+**Gợi ý cho bạn.** Trang chủ có mục gợi ý riêng cho từng người: tin hiện đầy đủ trên sàn chung, xếp theo mức khớp với
+những gì người đó đã hỏi mua, lưu, tìm và xem (danh mục, từ khoá, khoảng giá, tỉnh) — không có tin của chính mình, tin
+đã lưu, tin đã hỏi. Khách, người chưa có lịch sử, hay người tắt "Gợi ý theo hoạt động" trong Cài đặt thấy tin được quan
+tâm nhiều (lượt lưu, lượt hỏi mua 14 ngày qua) trong tỉnh đang chọn. Lịch sử xem và tìm chỉ dùng cho chính người đó,
+không ai khác đọc được, kể cả bàn vận hành; giữ 90 ngày (phần 25), xoá được bất cứ lúc nào. Dải "Tin nổi bật" không đổi.
+
 ---
 
 ## 16. Người duyệt: hàng chờ và hạn xử
@@ -968,26 +974,27 @@ Người xử không bao giờ là người đăng tin bị báo cáo, người 
 
 **Tạm giữ bằng chứng.** Khi có báo cáo, cảnh cáo hay khiếu nại đang mở liên quan tới một tin hay một người, mọi dữ liệu dính tới nó — tin, ảnh, hội thoại về tin đó — **không bị xoá hẳn**, kể cả khi các bên tự xoá, cho tới khi việc đóng thêm 30 ngày. Mọi hạn lưu dưới đây nhường cho luật này.
 
-| Dữ liệu                                               | Giữ                                                            | Rồi sao                                                     |
-| ----------------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------- |
-| Bản nháp                                              | 7 ngày từ lần sửa cuối                                         | Xoá hẳn kèm ảnh                                             |
-| Ảnh chưa xác nhận                                     | 48 giờ                                                         | Xoá                                                         |
-| Tin bị từ chối hay gỡ vì sai sót; tin bị gỡ khỏi nhóm | 90 ngày từ lần sửa cuối                                        | Xoá hẳn kèm ảnh                                             |
-| Tin bị từ chối hay gỡ vì vi phạm                      | Tới khi cảnh cáo hết hạn + 30 ngày; vi phạm nghiêm trọng 2 năm | Xoá nội dung, giữ quyết định                                |
-| Tin người đăng tự xoá                                 | 30 ngày; có báo cáo mở thì tới khi báo cáo đóng                | Xoá hẳn                                                     |
-| Tin đã bán                                            | 180 ngày                                                       | Xoá hẳn kèm ảnh                                             |
-| Tin hết hạn                                           | 1 năm, nhắc trước 7 ngày                                       | Xoá hẳn kèm ảnh                                             |
-| Tin của nhóm đã đóng                                  | 90 ngày                                                        | Xoá hẳn kèm ảnh, danh sách thành viên                       |
-| Tài khoản đăng ký dở dang                             | 7 ngày                                                         | Xoá hẳn                                                     |
-| Tài khoản đã xoá                                      | Ẩn ngay, giữ 90 ngày                                           | Xoá tin, ảnh, hồ sơ                                         |
-| Dấu băm email kèm cảnh cáo                            | 2 năm cùng cảnh cáo                                            | Xoá                                                         |
-| Dấu băm email của tài khoản bị khoá vĩnh viễn         | Tới khi gỡ khoá; master xem lại mỗi 2 năm                      | Xoá khi gỡ khoá                                             |
-| Dấu thiết bị, địa chỉ mạng lúc đăng ký                | 180 ngày                                                       | Xoá; chỉ dùng chống gian lận                                |
-| Hội thoại                                             | Tới khi cả hai bên xoá, hoặc 1 năm không ai nhắn               | Xoá hẳn kèm ảnh                                             |
-| Thông báo                                             | 90 ngày                                                        | Xoá                                                         |
-| Kết quả chấm điểm của máy                             | 180 ngày                                                       | Gộp thành số liệu thống kê                                  |
-| Cảnh cáo                                              | 2 năm sau khi hết hạn hoặc sau khi khoá                        | Ẩn danh hoá, kể cả nhật ký liên quan                        |
-| Quyết định, nhật ký kiểm toán                         | Mãi mãi                                                        | Không chứa nội dung tin; chỉ còn mã giả sau khi ẩn danh hoá |
+| Dữ liệu                                               | Giữ                                                            | Rồi sao                                                          |
+| ----------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Bản nháp                                              | 7 ngày từ lần sửa cuối                                         | Xoá hẳn kèm ảnh                                                  |
+| Ảnh chưa xác nhận                                     | 48 giờ                                                         | Xoá                                                              |
+| Tin bị từ chối hay gỡ vì sai sót; tin bị gỡ khỏi nhóm | 90 ngày từ lần sửa cuối                                        | Xoá hẳn kèm ảnh                                                  |
+| Tin bị từ chối hay gỡ vì vi phạm                      | Tới khi cảnh cáo hết hạn + 30 ngày; vi phạm nghiêm trọng 2 năm | Xoá nội dung, giữ quyết định                                     |
+| Tin người đăng tự xoá                                 | 30 ngày; có báo cáo mở thì tới khi báo cáo đóng                | Xoá hẳn                                                          |
+| Tin đã bán                                            | 180 ngày                                                       | Xoá hẳn kèm ảnh                                                  |
+| Tin hết hạn                                           | 1 năm, nhắc trước 7 ngày                                       | Xoá hẳn kèm ảnh                                                  |
+| Tin của nhóm đã đóng                                  | 90 ngày                                                        | Xoá hẳn kèm ảnh, danh sách thành viên                            |
+| Tài khoản đăng ký dở dang                             | 7 ngày                                                         | Xoá hẳn                                                          |
+| Tài khoản đã xoá                                      | Ẩn ngay, giữ 90 ngày                                           | Xoá tin, ảnh, hồ sơ                                              |
+| Dấu băm email kèm cảnh cáo                            | 2 năm cùng cảnh cáo                                            | Xoá                                                              |
+| Dấu băm email của tài khoản bị khoá vĩnh viễn         | Tới khi gỡ khoá; master xem lại mỗi 2 năm                      | Xoá khi gỡ khoá                                                  |
+| Dấu thiết bị, địa chỉ mạng lúc đăng ký                | 180 ngày                                                       | Xoá; chỉ dùng chống gian lận                                     |
+| Hội thoại                                             | Tới khi cả hai bên xoá, hoặc 1 năm không ai nhắn               | Xoá hẳn kèm ảnh                                                  |
+| Thông báo                                             | 90 ngày                                                        | Xoá                                                              |
+| Lịch sử xem tin, lịch sử tìm kiếm (mục gợi ý)         | 90 ngày; tối đa 200 tin đã xem, 100 lượt tìm mỗi người         | Xoá; xoá ngay khi người dùng bấm "Xoá lịch sử" hay xoá tài khoản |
+| Kết quả chấm điểm của máy                             | 180 ngày                                                       | Gộp thành số liệu thống kê                                       |
+| Cảnh cáo                                              | 2 năm sau khi hết hạn hoặc sau khi khoá                        | Ẩn danh hoá, kể cả nhật ký liên quan                             |
+| Quyết định, nhật ký kiểm toán                         | Mãi mãi                                                        | Không chứa nội dung tin; chỉ còn mã giả sau khi ẩn danh hoá      |
 
 > Toàn bộ bảng này, cùng dấu băm email (kể cả ngoại lệ khoá vĩnh viễn) và dấu thiết bị, cần luật sư đối chiếu với quy định bảo vệ dữ liệu cá nhân và quy định về nền tảng trực tuyến trước khi chạy thật.
 

@@ -25,6 +25,14 @@ import type { PostingFee } from './calc/fee.calc.js';
 export type TrustTier = 'T0' | 'T1' | 'T2' | 'T3';
 type Tx = Prisma.TransactionClient;
 
+/** Hội thoại hỏi mua của `messaging` mà mục "Gợi ý cho bạn" đọc (add-home-suggestions). */
+export interface ListingBuyerInterestPort {
+  /** Tin người này đã nhắn hỏi mua, mới hỏi trước. */
+  askedListingIds(accountId: string): Promise<string[]>;
+  /** Số người đã hỏi mua mỗi tin từ `since`; tin không ai hỏi thì vắng. */
+  inquiryCounts(listingIds: string[], since: Date): Promise<Map<string, number>>;
+}
+
 /** Chỗ cắm mức tin cậy: hạn mức lúc gửi (luật 12) và điểm gậy lúc lên bảng; `tierOf` còn là chỗ `app.ts` nối mức cho các module khác. */
 export interface ListingTrustPort {
   tierOf(accountId: string): Promise<TrustTier>;

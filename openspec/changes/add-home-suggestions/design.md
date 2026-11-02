@@ -21,8 +21,9 @@ thông báo đẩy.
 
 Gợi ý đọc chủ yếu bảng của `listing` (tin, tin đã lưu, tìm kiếm đã lưu, cột hiển thị), nên đặt ở
 `listing/read/suggestion.service.ts` cùng repository `listing/activity/activity.repository.ts`. Hai thứ ngoài `listing`
-đi qua cổng nối muộn trong `app.ts` (như `trust`): `messaging` trả mã tin người đó đã hỏi; `identity` trả công tắc và
-tỉnh nhà của hồ sơ.
+đi qua cổng nối muộn trong `app.ts` (như `trust`): `messaging` trả mã tin người đó đã hỏi và đếm lượt hỏi mua mỗi tin
+(`messaging/buyer-interest.repository.ts`, cùng chỗ với dữ kiện "có người hỏi mua" của tin sạch); `identity` trả công
+tắc và tỉnh nhà của hồ sơ.
 
 ### 2. Dữ liệu
 
@@ -31,20 +32,22 @@ tỉnh nhà của hồ sơ.
 - `search_history (id, account_id, q_folded, category_id, province_code, price_min, price_max, searched_at)`, chỉ mục
   `(account_id, searched_at DESC)`. Từ khoá lưu dạng đã gấp dấu (như `search_folded` của tin) — không giữ nguyên văn.
 - `accounts.personalized_suggestions BOOLEAN NOT NULL DEFAULT true`.
-- Trần mỗi người: 200 lượt xem, 100 lượt tìm gần nhất — xoá phần cũ hơn ngay lúc ghi (một câu `DELETE … WHERE id NOT IN
-(… LIMIT n)` theo chỉ mục), không chờ việc nền.
+- Trần mỗi người: 200 lượt xem, 100 lượt tìm gần nhất — xoá phần cũ hơn ngay lúc ghi (một câu `DELETE … IN (… OFFSET
+n)` theo chỉ mục), không chờ việc nền.
 
 ### 3. Ghi lịch sử — phía server, không cần app gửi sự kiện
 
 - Xem: `GET /listings/:id` của người đã đăng nhập, khác chủ tin, công tắc đang bật, tin xem được → upsert
-  `listing_views`. Ghi sau khi trả DTO, lỗi ghi chỉ log — xem tin không bao giờ hỏng vì lịch sử.
+  `listing_views`. Ghi sau khi đã dựng DTO (gói `get` / `feed` ở `listing.service.ts`), lỗi ghi chỉ log — xem tin không
+  bao giờ hỏng vì lịch sử.
 - Tìm: `GET /listings` có từ khoá hoặc ít nhất một bộ lọc (danh mục, tỉnh, khoảng giá), trang đầu (không có con trỏ),
   cùng điều kiện người dùng → thêm một dòng `search_history`; trùng y hệt lượt cuối trong 10 phút thì chỉ dời mốc.
 - Tắt công tắc: thôi ghi; lịch sử cũ giữ tới khi người dùng xoá hay hết hạn — tắt không phải xoá (Cài đặt nói rõ).
 
 ### 4. Hồ sơ quan tâm — tính khi đọc
 
-Từ dữ liệu 90 ngày (cũng là hạn lưu), mỗi nguồn một trọng số:
+Lịch sử xem và tìm kiếm trong 90 ngày (cũng là hạn lưu của chúng); tin đã lưu và tin đã hỏi lấy 100 tin mới nhất mỗi
+nguồn, không cắt theo ngày — còn lưu, còn hội thoại là còn quan tâm. Mỗi nguồn một trọng số:
 
 | Nguồn                      | Trọng số | Góp                                 |
 | -------------------------- | -------- | ----------------------------------- |
@@ -62,7 +65,8 @@ Ra: tối đa 5 danh mục kèm tỉ trọng, tối đa 10 từ khoá gần nh�
 - Ứng viên: bề mặt `feed` (sàn chung, hiển thị đầy đủ, người xem thấy được — `visibleWhere`), không phải tin của mình,
   không nằm trong tin đã lưu hay đã hỏi; thuộc các danh mục quan tâm **hoặc** khớp một từ khoá; 300 tin mới nhất theo
   `rank_at`.
-- Điểm (tính trong `suggestion.calc.ts`, hàm thuần có test): `0,5 × tỉ trọng danh mục + 0,2 × khớp từ khoá + 0,15 ×
+- Tin của mình, tin đã lưu, tin đã hỏi bị loại với mọi người đã đăng nhập — cả khi đã tắt công tắc, cả ở phần mục 6.
+- Điểm (tính trong `listing/calc/suggestion.calc.ts`, hàm thuần có test): `0,5 × tỉ trọng danh mục + 0,2 × khớp từ khoá + 0,15 ×
 hợp khoảng giá + 0,1 × cùng tỉnh quan tâm + 0,05 × độ mới (giảm dần theo 14 ngày) − 0,2 nếu đã xem trong 7 ngày`.
   Bằng điểm thì `rank_at` mới trước, rồi `id`.
 - Trang: 20 tin; con trỏ là vị trí trong danh sách đã xếp (`offset`), danh sách tính lại mỗi trang — vài tin có thể đổi
@@ -72,7 +76,7 @@ hợp khoảng giá + 0,1 × cùng tỉnh quan tâm + 0,05 × độ mới (giả
 ### 6. Chưa có lịch sử — "được quan tâm nhiều gần bạn"
 
 Khách, tài khoản chưa có tín hiệu, hay đã tắt công tắc: tin bề mặt `feed` trong tỉnh truyền lên (`provinceCode` của bộ
-lọc trang chủ; trống là toàn quốc), điểm = lượt lưu + 2 × lượt hỏi mua trong `suggestion.popularDays` ngày (khởi đầu 14),
+lọc trang chủ; trống là toàn quốc), điểm = lượt lưu + 2 × lượt hỏi mua trong `listing.suggestionPopularDays` ngày (khởi đầu 14),
 bằng nhau thì `rank_at` mới trước. Đếm trên 300 tin mới nhất của tỉnh để câu truy vấn có trần.
 
 ### 7. API

@@ -44,6 +44,7 @@ export type IdentityAccountService = Pick<
   | 'getPublicProfile'
   | 'getMe'
   | 'updateMe'
+  | 'suggestionPrefs'
   | 'setAvatar'
   | 'clearAvatar'
   | 'requestEmailChange'
@@ -154,7 +155,10 @@ export function createIdentityAccountService(
       return me(await accountOf(actor));
     },
 
-    async updateMe(actor, { displayName, phone, showActivity, homeProvinceCode }) {
+    async updateMe(
+      actor,
+      { displayName, phone, showActivity, homeProvinceCode, personalizedSuggestions },
+    ) {
       if (displayName !== undefined) assertDisplayNameAllowed(displayName);
       if (homeProvinceCode != null && deps.regions) {
         const issue = await deps.regions.validateRegion(homeProvinceCode, null);
@@ -165,8 +169,19 @@ export function createIdentityAccountService(
         ...(phone === undefined ? {} : { phone }),
         ...(showActivity === undefined ? {} : { showActivity }),
         ...(homeProvinceCode === undefined ? {} : { homeProvinceCode }),
+        ...(personalizedSuggestions === undefined ? {} : { personalizedSuggestions }),
       };
       return me(await repository.updateAccount(actor.accountId, patch));
+    },
+
+    async suggestionPrefs(accountId) {
+      const account = await repository.findAccountById(accountId);
+      return account && account.status !== 'deleted'
+        ? {
+            personalized: account.personalizedSuggestions,
+            homeProvinceCode: account.homeProvinceCode,
+          }
+        : { personalized: false, homeProvinceCode: null };
     },
 
     async setAvatar(actor, input) {

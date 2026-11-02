@@ -72,6 +72,7 @@ export type AccountPatch = Partial<
     | 'passwordChangedAt'
     | 'showActivity'
     | 'homeProvinceCode'
+    | 'personalizedSuggestions'
   >
 >;
 

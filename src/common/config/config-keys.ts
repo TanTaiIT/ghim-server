@@ -197,6 +197,8 @@ export const CONFIG_KEYS = {
   // Schema tin nhận tối đa 50 ảnh; tin gửi cần ít nhất 1 ảnh (CHECK).
   'listing.maxImages': int(6, LISTING, { max: 50 }),
   'listing.moveToMarketplaceDays': days(30, LISTING, { min: 0 }),
+  // "Được quan tâm nhiều gần bạn" của mục gợi ý (add-home-suggestions): cửa sổ đếm lượt lưu và lượt hỏi mua.
+  'listing.suggestionPopularDays': days(14, LISTING, { max: 90 }),
   // Lượt tìm đã lưu mỗi tài khoản (add-saved-searches, chốt 25/10/2026) — mỗi lượt là một lần khớp ngược khi có tin mới.
   'listing.maxSavedSearches': int(10, LISTING),
   // Đẩy tin của người quản trị (add-admin-boost) — gói trả Xu (add-promotions) dùng lại đúng các khoá này. 0 = không chờ.
@@ -250,6 +252,8 @@ export const CONFIG_KEYS = {
   'retention.purgeRemindBeforeDays': days(7, RETENTION),
   'retention.closedGroupDays': days(90, RETENTION),
   'retention.conversationIdleDays': days(365, RETENTION),
+  // Lịch sử xem và tìm kiếm của người dùng (add-home-suggestions) — chỉ phục vụ gợi ý cho chính người đó.
+  'retention.activityDays': days(90, RETENTION),
   'retention.notificationDays': days(90, RETENTION),
   'retention.screeningRunDays': days(180, RETENTION),
   'retention.strikeAnonymizeYears': years(2, RETENTION),

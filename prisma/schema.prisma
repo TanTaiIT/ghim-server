@@ -102,43 +102,45 @@ enum IdVerificationStatus {
 ///   accounts_avatar_source_check: NOT (avatar_image_id IS NOT NULL AND avatar_from_google)
 ///   accounts_avatar_google_check: NOT avatar_from_google OR google_picture_url IS NOT NULL
 model Account {
-  id                String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  id                      String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
   /// Email như người dùng gõ — chỉ để gửi thư. So trùng luôn dùng `emailNormalized`.
-  email             String
-  emailNormalized   String         @unique @map("email_normalized")
+  email                   String
+  emailNormalized         String         @unique @map("email_normalized")
   /// HMAC-SHA256 với `IDENTITY_HASH_KEY`: `trust` nối gậy qua lần đăng ký lại mà không giữ email.
-  emailHash         String         @map("email_hash")
-  passwordHash      String?        @map("password_hash")
-  googleSub         String?        @unique @map("google_sub")
-  status            AccountStatus  @default(pending_verification)
-  role              AccountRole    @default(user)
-  displayName       String         @map("display_name")
+  emailHash               String         @map("email_hash")
+  passwordHash            String?        @map("password_hash")
+  googleSub               String?        @unique @map("google_sub")
+  status                  AccountStatus  @default(pending_verification)
+  role                    AccountRole    @default(user)
+  displayName             String         @map("display_name")
   /// Ảnh của tài khoản Google, lấy lại mỗi lần đăng nhập Google — ngoại lệ duy nhất ngoài kho (TK 25).
-  googlePictureUrl  String?        @map("google_picture_url")
+  googlePictureUrl        String?        @map("google_picture_url")
   /// Mã ảnh của `media` (chủ `profile`), không FK chéo module: khoá trong kho suy từ mã nên cấp đường xem không
   /// phải hỏi `media`.
-  avatarImageId     String?        @map("avatar_image_id") @db.Uuid
-  avatarFromGoogle  Boolean        @default(false) @map("avatar_from_google")
+  avatarImageId           String?        @map("avatar_image_id") @db.Uuid
+  avatarFromGoogle        Boolean        @default(false) @map("avatar_from_google")
   /// Lần cuối hoạt động (add-activity-status): ghi khi một kết nối realtime mở và khi kết nối cuối cùng đóng; xoá khi xoá tài khoản.
-  lastSeenAt        DateTime?      @map("last_seen_at") @db.Timestamptz(3)
+  lastSeenAt              DateTime?      @map("last_seen_at") @db.Timestamptz(3)
   /// Công tắc hai chiều: tắt thì không ai thấy trạng thái của mình, mình cũng không thấy của ai.
-  showActivity      Boolean        @default(true) @map("show_activity")
-  phone             String?
+  showActivity            Boolean        @default(true) @map("show_activity")
+  phone                   String?
   /// Tỉnh/thành của tôi (add-home-province): chỉ chủ tài khoản thấy; app dùng cho "Gần bạn" và bộ lọc mặc định.
-  homeProvinceCode  Int?           @map("home_province_code")
-  lockedReason      String?        @map("locked_reason")
-  lockedAt          DateTime?      @map("locked_at") @db.Timestamptz(3)
-  lockedBy          String?        @map("locked_by") @db.Uuid
+  homeProvinceCode        Int?           @map("home_province_code")
+  /// "Gợi ý theo hoạt động" (add-home-suggestions): tắt thì server thôi ghi lịch sử xem / tìm và gợi ý trả như cho khách.
+  personalizedSuggestions Boolean        @default(true) @map("personalized_suggestions")
+  lockedReason            String?        @map("locked_reason")
+  lockedAt                DateTime?      @map("locked_at") @db.Timestamptz(3)
+  lockedBy                String?        @map("locked_by") @db.Uuid
   /// Trạng thái lúc bị khoá: mở khoá trả về đúng nó, email chưa xác nhận vẫn chưa xác nhận. CHECK
   /// `accounts_status_before_lock_check`: có giá trị khi và chỉ khi đang khoá, là `active` / `pending_verification`.
-  statusBeforeLock  AccountStatus? @map("status_before_lock")
-  deletedAt         DateTime?      @map("deleted_at") @db.Timestamptz(3)
-  emailChangedAt    DateTime?      @map("email_changed_at") @db.Timestamptz(3)
+  statusBeforeLock        AccountStatus? @map("status_before_lock")
+  deletedAt               DateTime?      @map("deleted_at") @db.Timestamptz(3)
+  emailChangedAt          DateTime?      @map("email_changed_at") @db.Timestamptz(3)
   /// Lượt xoá hẳn của `ops` đã qua (tin xoá, ảnh đại diện xoá, hồ sơ ẩn danh) — dòng giữ cho lịch sử chống gian lận.
-  purgedAt          DateTime?      @map("purged_at") @db.Timestamptz(3)
-  passwordChangedAt DateTime?      @map("password_changed_at") @db.Timestamptz(3)
-  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  purgedAt                DateTime?      @map("purged_at") @db.Timestamptz(3)
+  passwordChangedAt       DateTime?      @map("password_changed_at") @db.Timestamptz(3)
+  createdAt               DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   verificationCodes     VerificationCode[]
   sessions              Session[]
@@ -146,6 +148,8 @@ model Account {
   deviceLogins          DeviceLogin[]
   savedListings         SavedListing[]
   savedSearches         SavedSearch[]
+  listingViews          ListingView[]
+  searchHistory         SearchHistory[]
   homeProvince          Province?                @relation(fields: [homeProvinceCode], references: [code], onDelete: SetNull)
   deviceClearances      DeviceClearance[]
   flags                 AccountFlag[]
@@ -1240,6 +1244,7 @@ model Listing {
   reviewTasks      ReviewTask[]
   sampleCandidates ReviewSampleCandidate[]
   savedBy          SavedListing[]
+  viewedBy         ListingView[]
 
   /// Mỗi tin chuyển lên sàn chung một lần (ALREADY_MOVED) — kể cả hai lượt song song.
   @@unique([movedFromListingId], where: raw("moved_from_listing_id IS NOT NULL"), map: "listings_moved_from_key")
@@ -1292,6 +1297,42 @@ model SavedListing {
   @@index([accountId, savedAt(sort: Desc), listingId(sort: Desc)])
   @@index([listingId])
   @@map("saved_listings")
+}
+
+/// Lịch sử xem tin (add-home-suggestions): một dòng mỗi cặp người–tin, mở lại thì tăng đếm và dời mốc. Dữ liệu cá nhân —
+/// hạn `retention.activityDays`, trần 200 dòng mỗi người, không route nào trả cho người khác.
+model ListingView {
+  accountId    String   @map("account_id") @db.Uuid
+  listingId    String   @map("listing_id") @db.Uuid
+  viewCount    Int      @default(1) @map("view_count")
+  lastViewedAt DateTime @map("last_viewed_at") @db.Timestamptz(3)
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@id([accountId, listingId])
+  @@index([accountId, lastViewedAt(sort: Desc)])
+  @@index([lastViewedAt])
+  @@map("listing_views")
+}
+
+/// Lịch sử tìm kiếm (add-home-suggestions): từ khoá đã gấp dấu và bộ lọc của trang đầu một lượt tìm. Hạn và trần (100) như
+/// lịch sử xem. Danh mục không khoá ngoại: danh mục đã xoá chỉ thành tín hiệu không khớp tin nào.
+model SearchHistory {
+  id           String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  accountId    String   @map("account_id") @db.Uuid
+  qFolded      String?  @map("q_folded")
+  categoryId   String?  @map("category_id") @db.Uuid
+  provinceCode Int?     @map("province_code")
+  priceMin     BigInt?  @map("price_min")
+  priceMax     BigInt?  @map("price_max")
+  searchedAt   DateTime @map("searched_at") @db.Timestamptz(3)
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, searchedAt(sort: Desc)])
+  @@index([searchedAt])
+  @@map("search_history")
 }
 
 /// Lượt tìm trên sàn chung người dùng lưu để được báo tin mới khớp (add-saved-searches, TK 24). `key` = từ khoá đã bỏ
