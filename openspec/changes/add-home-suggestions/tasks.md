@@ -22,7 +22,7 @@
 
 ## 4. Tài liệu
 
-- [ ] 4.1 TK 25 thêm dòng hạn lưu; TK 15 (bảng tin) nêu mục gợi ý và công tắc; CLAUDE.md module `listing`, thứ tự change;
+- [x] 4.1 TK 25 thêm dòng hạn lưu; TK 15 (bảng tin) nêu mục gợi ý và công tắc; CLAUDE.md module `listing`, thứ tự change;
       `docs/VIEC-DANG-DO.md` (rà soát pháp lý TK 29 xét thêm hai bảng)
 
 ## 5. ghim-app
