@@ -27,12 +27,12 @@
 
 ## 5. ghim-app
 
-- [ ] 5.1 `npm run api:sync`; `api` + `queries` cho gợi ý (trang kế), công tắc, xoá lịch sử
-- [ ] 5.2 Trang chủ theo ảnh mẫu (theme teal): banner trượt ngang, dải nổi bật thẻ ảnh lớn, "Gợi ý cho bạn" lưới 2 cột + "Xem thêm"; dòng phụ theo cờ cá nhân hoá
-- [ ] 5.3 Cài đặt: công tắc "Gợi ý theo hoạt động" + "Xoá lịch sử xem và tìm kiếm" (hỏi lại)
+- [x] 5.1 `npm run api:sync`; `api` + `queries` cho gợi ý (trang kế), công tắc, xoá lịch sử
+- [x] 5.2 Trang chủ theo ảnh mẫu (theme teal): banner trượt ngang, dải nổi bật thẻ ảnh lớn, "Gợi ý cho bạn" lưới 2 cột + "Xem thêm"; dòng phụ theo cờ cá nhân hoá
+- [x] 5.3 Cài đặt: công tắc "Gợi ý theo hoạt động" + "Xoá lịch sử xem và tìm kiếm" (hỏi lại)
 - [ ] 5.4 Thử trên máy ảo trỏ Render: khách thấy "được quan tâm nhiều", người dùng lưu / hỏi / xem vài tin xe máy thì
       gợi ý đổi theo; tắt công tắc thì về như khách; xoá lịch sử
 
 ## 6. Kiểm tra
 
-- [ ] 6.1 `pnpm run check`, `build`, `db:drift`, `spec:validate` (ghim-server); `npm run check` (ghim-app)
+- [x] 6.1 `pnpm run check`, `build`, `db:drift`, `spec:validate` (ghim-server); `npm run check` (ghim-app)
