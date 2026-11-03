@@ -1,11 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import {
-  Prisma,
-  type PromotionProduct,
-  type PromotionPurchase,
-  type TrustTier,
-} from '@prisma/client';
+import { Prisma, type PromotionProduct, type PromotionPurchase } from '@prisma/client';
 
 import { auditActor, type AuditDetails } from '../../common/audit/audit.js';
 import type { Actor } from '../../common/auth/actor.js';
@@ -20,7 +15,7 @@ import {
 import { startOfDayVN } from '../../common/time/time.js';
 import { boostBlock } from '../listing/calc/boost.calc.js';
 import type { ReviewSubject } from '../listing/listing.ports.js';
-import { productIssue, STARTER_PRODUCTS, tierAt } from './calc/catalog.calc.js';
+import { productIssue, STARTER_PRODUCTS } from './calc/catalog.calc.js';
 import {
   expiryOf,
   type PurchaseBlock,
@@ -86,7 +81,6 @@ const toOpsProduct = (row: PromotionProduct): OpsProductDto => ({
   durationDays: row.durationDays,
   cooldownHours: row.cooldownHours,
   price: row.price,
-  minTier: row.minTier,
   scope: row.scope,
   active: row.active,
   sort: row.sort,
@@ -161,8 +155,7 @@ export function createPromotionService(deps: PromotionServiceDeps): PromotionSer
 
   /** Dữ kiện chung của mọi gói với một tin — đọc một lượt, không khoá. */
   const factsOf = async (actor: Actor, subject: ReviewSubject, now: Date) => {
-    const [tier, postingLockedUntil, group, balance, purchasesToday] = await Promise.all([
-      trust.tierOf(actor.accountId),
+    const [postingLockedUntil, group, balance, purchasesToday] = await Promise.all([
       trust.postingLockedUntil(actor.accountId),
       subject.placement !== 'marketplace' && subject.groupId
         ? groups.findGroup(subject.groupId)
@@ -171,7 +164,6 @@ export function createPromotionService(deps: PromotionServiceDeps): PromotionSer
       repository.countSince(actor.accountId, startOfDayVN(now)),
     ]);
     return {
-      tier,
       postingLockedUntil,
       groupAllows:
         subject.placement !== 'marketplace' && subject.groupId
@@ -206,7 +198,6 @@ export function createPromotionService(deps: PromotionServiceDeps): PromotionSer
             effect: product.effect,
             durationDays: product.durationDays,
             price: product.price,
-            minTier: product.minTier,
             purchasable: block === null,
             reason: block?.message ?? null,
             retryAt: block?.retryAt?.toISOString() ?? null,
@@ -383,7 +374,6 @@ export function createPromotionService(deps: PromotionServiceDeps): PromotionSer
         durationDays,
         cooldownHours: body.cooldownHours,
         price: body.price,
-        minTier: body.minTier,
         scope: body.scope,
         sort: body.sort ?? 0,
         createdBy: actor.accountId,
@@ -401,7 +391,6 @@ export function createPromotionService(deps: PromotionServiceDeps): PromotionSer
           durationDays,
           cooldownHours: body.cooldownHours,
           price: body.price,
-          minTier: body.minTier,
           scope: body.scope,
         },
       });
@@ -431,9 +420,7 @@ export function createPromotionService(deps: PromotionServiceDeps): PromotionSer
     },
 
     async ensureProducts() {
-      const minTier: TrustTier = tierAt(config.get('promotion.minTier'));
       const promotionProducts = await repository.seedProductsIfEmpty(STARTER_PRODUCTS, {
-        minTier,
         cooldownHours: config.get('promotion.bumpCooldownHours'),
         at: clock(),
       });

@@ -33,7 +33,7 @@ export interface PromotionRepository {
   /** Bộ khởi đầu khi bảng trống; có gói rồi thì không đụng (master đã sửa thì giữ bản của master). */
   seedProductsIfEmpty(
     products: readonly StarterProduct[],
-    defaults: { minTier: PromotionProduct['minTier']; cooldownHours: number; at: Date },
+    defaults: { cooldownHours: number; at: Date },
   ): Promise<number>;
 
   inTransaction<T>(run: (tx: Tx) => Promise<T>): Promise<T>;
@@ -107,7 +107,6 @@ export function createPromotionRepository(prisma: PrismaClient): PromotionReposi
       const result = await prisma.promotionProduct.createMany({
         data: products.map((product) => ({
           ...product,
-          minTier: defaults.minTier,
           cooldownHours: defaults.cooldownHours,
           createdBy: null,
           createdAt: defaults.at,

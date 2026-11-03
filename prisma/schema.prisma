@@ -2528,7 +2528,6 @@ model PromotionProduct {
   cooldownHours Int             @map("cooldown_hours")
   /// Xu.
   price         Int
-  minTier       TrustTier       @map("min_tier")
   scope         PromotionScope
   active        Boolean         @default(true)
   sort          Int             @default(0)
