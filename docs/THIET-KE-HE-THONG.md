@@ -182,7 +182,7 @@ Mọi luật ở các phần sau đều suy ra từ đây.
 - **Chủ nhóm**: đúng một người, do master giao; chuyển nhượng được, người nhận phải bấm đồng ý trong 14 ngày.
 - **Điều hành viên**: chủ nhóm bổ nhiệm; phụ trách cả nhóm hoặc một lớp, một phòng ban.
 - **Thành viên**: người đã vào nhóm.
-- Giữ vai chủ nhóm hay điều hành viên cần **mức T1 trở lên và không có cảnh cáo nặng**. Nhận cảnh cáo nặng hoặc bị khoá tài khoản thì tạm mất vai tới khi cảnh cáo hết hoặc được mở khoá. Mức chỉ xét lúc **nhận** vai: tụt dưới T1 sau đó không làm mất vai (chốt 12/10/2026).
+- Giữ vai chủ nhóm hay điều hành viên cần **không có cảnh cáo nặng**. Nhận cảnh cáo nặng hoặc bị khoá tài khoản thì tạm mất vai tới khi cảnh cáo hết hoặc được mở khoá. Nhận vai **không xét mức tin cậy**: được giao là nhận được, kể cả tài khoản T0 (chốt 03/11/2026 — trước đó cần T1).
 
 > **Vì sao staff là một quyền chứ không phải tài khoản riêng.** Mỗi người một tài khoản thì luật "không xử việc của mình" chỉ còn là phép so người duyệt có phải người đăng không. Khe hở còn lại — một người tự lập tài khoản thứ hai bằng email khác — được thu hẹp bằng dấu thiết bị (phần 8), nhật ký ghi tên người xử, và hậu kiểm quyết định của người duyệt (phần 16).
 

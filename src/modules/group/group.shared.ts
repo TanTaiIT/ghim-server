@@ -32,9 +32,11 @@ export interface PublicListingCounter {
   countInGroup(tx: Prisma.TransactionClient, groupId: string): Promise<number>;
 }
 
-/** Mức tin cậy của `trust` — nhận vai chủ nhóm / điều hành viên cần T1 trở lên (TK 5, spec group-roles). */
+/**
+ * Phần `trust` mà nhóm cần. Không có mức tin cậy: nhận vai chủ nhóm / điều hành viên không xét mức (chốt 03/11/2026,
+ * remove-role-trust-tier).
+ */
 export interface GroupTrustPort {
-  tierOf(accountId: string): Promise<'T0' | 'T1' | 'T2' | 'T3'>;
   /** Gậy nặng đang hiệu lực làm tạm mất vai chủ nhóm / điều hành viên (spec group-roles, add-strikes). */
   hasSevereStrike(accountId: string): Promise<boolean>;
 }
@@ -215,18 +217,6 @@ export function createGroupShared(deps: GroupServiceDeps) {
     return summary;
   };
 
-  /**
-   * Mức xét đúng lúc người nhận thật sự nhận vai — bấm đồng ý lời giao chủ, được bổ nhiệm điều hành viên — không lúc
-   * được giao: tụt về T0 giữa hai lúc đó thì lượt nhận bị từ chối (spec group-roles). Tụt mức sau khi đã nhận không bãi
-   * vai (design add-trust-tiers câu 7), nên không chỗ nào khác hỏi mức.
-   */
-  const requireTrustedForRole = async (accountId: string): Promise<void> => {
-    const tier = await deps.trust?.tierOf(accountId);
-    if (tier === 'T0') {
-      throw new ConflictError('Cần mức tin cậy T1 trở lên để nhận vai này', 'TRUST_TIER_TOO_LOW');
-    }
-  };
-
   /** Điều hành viên còn dùng được (tài khoản đang hoạt động), trừ người được loại — để đề cử và để biết nhóm còn ai giữ. */
   const usableModerators = async (
     groupId: string,
@@ -290,7 +280,6 @@ export function createGroupShared(deps: GroupServiceDeps) {
     requireState,
     masterAudit,
     requireEligible,
-    requireTrustedForRole,
     usableModerators,
     loseOwner,
     daysFrom,

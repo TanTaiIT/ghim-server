@@ -7,8 +7,8 @@ import { seedAccount, tokenFor } from './ops-helpers.js';
 import { repositories, TEST_NOW } from './test-app.js';
 
 /**
- * Ghi thẳng mức tin cậy như dữ liệu nền: nhận vai chủ nhóm / điều hành viên cần T1 (spec group-roles), mà lên T1 thật
- * cần 7 ngày tuổi và một tin hiện đủ 7 ngày. Ca kiểm luật đó tự dựng mức qua luồng thật (`trust-tiers.http.test.ts`).
+ * Ghi thẳng mức tin cậy như dữ liệu nền: lên T1 thật cần 7 ngày tuổi và một tin hiện đủ 7 ngày. Ca kiểm luật lên mức
+ * tự dựng qua luồng thật (`trust-tiers.http.test.ts`).
  */
 export async function seedTier(accountId: string, tier: 'T0' | 'T1' | 'T2' | 'T3' = 'T1') {
   const row = {
