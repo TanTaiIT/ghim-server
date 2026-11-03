@@ -409,7 +409,6 @@ export async function buildApp(overrides: AppOverrides = {}): Promise<FastifyIns
     config: deps.config,
     clock: deps.clock,
     trust: {
-      tierOf: (accountId) => trust.tierOf(accountId),
       hasSevereStrike: (accountId) => lateTrust().hasSevereStrike(accountId),
     },
     publicListings: {
