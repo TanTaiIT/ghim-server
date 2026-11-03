@@ -1,10 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import {
-  Prisma,
-  type PromotionProduct,
-  type PromotionPurchase,
-} from '@prisma/client';
+import { Prisma, type PromotionProduct, type PromotionPurchase } from '@prisma/client';
 
 import { auditActor, type AuditDetails } from '../../common/audit/audit.js';
 import type { Actor } from '../../common/auth/actor.js';
