@@ -29,7 +29,7 @@ Ba luật của TK mà gói đẩy **không được** phá, và cách giữ:
 2. **Vị trí trên bảng tin không đổi khi sửa hay gia hạn** (TK 19), tin trùng của chính mình kế thừa vị trí tin cũ (TK 14).
    Đẩy tin là **đường duy nhất** đổi vị trí, có trả phí và có thời gian chờ; "xoá rồi đăng lại để đẩy" vẫn bị chặn như
    hôm nay.
-3. **Máy không phạt, người dùng biết vì sao** (TK 4). Từ chối mua phải nói lý do (chưa đủ mức, tin đang hạn chế, còn
+3. **Máy không phạt, người dùng biết vì sao** (TK 4). Từ chối mua phải nói lý do (tin đang hạn chế, còn
    thời gian chờ, thiếu Xu); mọi lượt trừ Xu có dòng sổ cái người dùng tự đọc được.
 
 ## 2. Hệ cũ đã làm gì (`docs/VueSer`, `docs/market`)
@@ -90,8 +90,8 @@ cổng `listing.applyPromotion(tx, { listingId, version, effect, until })` **tro
 ### 4.3 Luật mua gói
 
 - Chỉ tin `live`, **hiển thị đầy đủ** (không lý do hạn chế), không tạm ẩn, của chính mình, chưa trong thời gian chờ của
-  gói đó; người mua không đang **tạm khoá đăng tin** (3 điểm gậy). Mức tối thiểu theo `product.min_tier` (đề xuất T1 —
-  để Xu không rơi vào tài khoản vừa lập; từ 28/10/2026 tin T0 vẫn lên bảng tin, nên hạ về T0 chỉ là đổi con số).
+  gói đó; người mua không đang **tạm khoá đăng tin** (3 điểm gậy). Không xét mức tin cậy: `product.min_tier`
+  (T1) đã bỏ ngày 03/11/2026 (`remove-promotion-tier`) — người mới xin được Xu mà chờ cả tuần mới dùng được.
 - `rank_to_top` trong nhóm: chỉ xếp lại trong bảng tin **của nhóm đó**; tin sàn chung chỉ trên sàn chung.
 - Sửa tin sau khi mua: qua máy lại như thường; máy giữ thì tin biến khỏi bảng và **đồng hồ gói vẫn chạy** (người đăng tự
   gây ra, như luật ngày hiển thị). Tin bị gỡ vì vi phạm: không hoàn. Tin bị từ chối lúc máy giữ sau khi sửa: không hoàn
@@ -113,7 +113,7 @@ cổng `listing.applyPromotion(tx, { listingId, version, effect, until })` **tro
 
 ### 4.5 Con số (bảng con số có phiên bản, nhóm "Đẩy tin")
 
-`promotion.featuredStripSize` 6 · `promotion.bumpCooldownHours` 24 · `promotion.minTier` 1 · `promotion.maxBumpsPerDay` 3.
+`promotion.featuredStripSize` 6 · `promotion.bumpCooldownHours` 24 · `promotion.maxBumpsPerDay` 3 (`promotion.minTier` bỏ 03/11/2026).
 Hoàn khi khiếu nại thắng là luật, không có con số bật tắt. Giá và thời hạn từng gói nằm trong catalog, không trong bảng con
 số — bộ khởi đầu (chốt 28/10/2026): "Đẩy lên đầu" 1 Xu, "Nổi bật 3 ngày" 2 Xu, "Nổi bật 7 ngày" 4 Xu.
 
@@ -175,7 +175,7 @@ nổi bật chưa dùng", dải nổi bật) **phải viết lại** trên spec 
    **chỉ master** cấp, miễn phí. Xu chỉ là lượt dùng gói — không doanh thu, không hoá đơn.
 1. **Giá và thời hạn khởi đầu**: "Đẩy lên đầu" 1 Xu, "Nổi bật 3 ngày" 2 Xu, "Nổi bật 7 ngày" 4 Xu — số nhỏ để master nhẩm
    (cấp 4 Xu = 4 lần đẩy hay một tuần nổi bật); chèn ở bước khởi động khi bảng gói trống, master sửa được.
-2. **Mức tối thiểu**: T1 — T0 đang hiển thị hạn chế nên đẩy cũng không ai thấy.
+2. **Mức tối thiểu**: T1 lúc đầu; bỏ 03/11/2026 (`remove-promotion-tier`) — gói không xét mức.
 3. **`extend_expiry`**: bỏ — gia hạn đang miễn phí (TK 19).
 4. **Hoàn Xu**: khiếu nại thắng / ân xá hoàn **đủ** giá gói (giá vài Xu, phần chưa hưởng ra số lẻ không đáng); tin bị gỡ vì
    vi phạm hay sai sót của người đăng — không hoàn.
@@ -193,7 +193,7 @@ nổi bật chưa dùng", dải nổi bật) **phải viết lại** trên spec 
   trống là lý do chính của bản kế hoạch này.
 - Xu không mua bằng tiền nhưng vẫn có giá trị (master phát có hạn): mọi đường ghi phải qua một hàm có `idempotencyKey`;
   app gọi lại sau mất mạng không được trừ hai lần; test song song hai lượt mua cùng tin, cùng ví.
-- Gói đẩy là động cơ cho kẻ lập nhiều tài khoản mua chéo: mức tối thiểu T1 + thời gian chờ + trần mỗi ngày chặn phần lớn;
+- Gói đẩy là động cơ cho kẻ lập nhiều tài khoản mua chéo: thời gian chờ + trần mỗi ngày + Xu do master cấp tay chặn phần lớn;
   phần còn lại là việc của máy duyệt như mọi tin.
 
 ## Phụ lục A — bản nháp phần TK "Gói đẩy tin và ví Xu" (chủ TK duyệt 28/10/2026)
@@ -214,10 +214,10 @@ Xu nhắn Hỗ trợ Ghim; chỉ master cấp, kèm lý do, vào nhật ký.
 **Hai hiệu ứng.** _Đẩy lên đầu_: tin đứng như vừa lên bảng, rồi trôi dần như thường. _Nổi bật_: tin vào dải "Tin nổi bật"
 (tối đa 6 tin; nhiều hơn thì mỗi lần tải lấy ngẫu nhiên 6) ở đầu bảng tin sàn chung, danh mục và bảng tin nhóm, trong N
 ngày. Gói do master soạn: giá Xu,
-thời hạn, thời gian chờ, mức tin cậy tối thiểu, phạm vi. Bộ khởi đầu: "Đẩy lên đầu" 1 Xu, "Nổi bật 3 ngày" 2 Xu, "Nổi bật
+thời hạn, thời gian chờ, phạm vi. Bộ khởi đầu: "Đẩy lên đầu" 1 Xu, "Nổi bật 3 ngày" 2 Xu, "Nổi bật
 7 ngày" 4 Xu.
 
-**Luật mua.** Chỉ tin đang hiển thị **đầy đủ**, không tạm ẩn; người mua không đang tạm khoá đăng tin; từ mức T1 trở lên;
+**Luật mua.** Chỉ tin đang hiển thị **đầy đủ**, không tạm ẩn; người mua không đang tạm khoá đăng tin; không xét mức tin cậy;
 mỗi tin một lần mỗi 24 giờ cho cùng gói, mỗi người tối đa 3 lượt mỗi ngày. Mua gói không mở tin, không gỡ lý do hạn chế,
 không đổi ngày hết hạn. Gói cho tin của nhóm chỉ xếp lại bảng tin nhóm đó; chủ nhóm tắt được gói trong nhóm mình. Tin bị
 gỡ vì vi phạm: không hoàn; khiếu nại thắng hay ân xá: hoàn đủ giá gói.
@@ -230,7 +230,6 @@ tin là đường duy nhất; từ chối mua phải nói lý do (phần 4).
 | Ví mới                                 | 0 Xu             |
 | Dải nổi bật, tối đa                    | 6 tin            |
 | Thời gian chờ giữa hai lần đẩy một tin | 24 giờ           |
-| Mức tối thiểu được mua gói             | T1               |
 | Số lượt mua mỗi người mỗi ngày         | 3                |
 | Hoàn Xu khi khiếu nại thắng            | có, đủ giá gói   |
 

@@ -23,7 +23,6 @@ const product = (over: object = {}) =>
       durationDays: 3,
       cooldownHours: 24,
       price: 2,
-      minTier: 'T1',
       scope: 'both',
       createdAt: TEST_NOW,
       updatedAt: TEST_NOW,

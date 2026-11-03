@@ -114,7 +114,8 @@ export interface PlatformService {
    * Chạy lúc khởi động: bảng rỗng → phiên bản 1 từ sổ đăng ký; phiên bản hiện hành thiếu khoá nào
    * của sổ đăng ký → phiên bản kế thêm đúng các khoá đó với giá trị khởi đầu. Mọi phiên bản vì thế
    * luôn mang TRỌN bộ con số, nên đổi giá trị khởi đầu trong code không âm thầm đổi nghĩa một phiên
-   * bản cũ (spec config-versions, rà soát 10/10/2026). `null` khi không phải làm gì.
+   * bản cũ (spec config-versions, rà soát 10/10/2026). Khoá đã gỡ khỏi sổ đăng ký cũng rơi khỏi
+   * phiên bản kế (remove-promotion-tier). `null` khi không phải làm gì.
    */
   ensureConfigVersion(): Promise<{ version: number; addedKeys: number } | null>;
   getCurrentConfig(): Promise<ConfigVersionDto>;
@@ -141,6 +142,15 @@ function toStaffDto(row: StaffPermissionRow): StaffPermissionDto {
     grantedAt: row.grantedAt.toISOString(),
   };
 }
+
+/**
+ * Bộ con số của một phiên bản mới: trọn sổ đăng ký, giá trị đang lưu đè giá trị khởi đầu. Khoá không còn trong sổ (code
+ * đã gỡ) bị bỏ — bàn vận hành hiện mọi khoá của phiên bản, không nên hiện một con số không ai đọc.
+ */
+const registryValues = (stored: Record<string, number>): typeof RUNTIME_CONFIG_DEFAULTS => ({
+  ...RUNTIME_CONFIG_DEFAULTS,
+  ...Object.fromEntries(Object.entries(stored).filter(([key]) => isConfigKey(key))),
+});
 
 function toConfigDto(row: ConfigVersion): ConfigVersionDto {
   return {
@@ -297,11 +307,20 @@ export function createPlatformService(deps: PlatformServiceDeps): PlatformServic
       if (!current) return null;
       const stored = current.values as Record<string, number>;
       const missing = CONFIG_KEY_LIST.filter((key) => !(key in stored));
-      if (missing.length === 0) return null;
+      const retired = Object.keys(stored).filter((key) => !isConfigKey(key));
+      if (missing.length === 0 && retired.length === 0) return null;
+      const changes = [
+        missing.length > 0
+          ? `thêm ${missing.length} con số mới của sổ đăng ký: ${missing.join(', ')}`
+          : null,
+        retired.length > 0
+          ? `bỏ ${retired.length} con số không còn dùng: ${retired.join(', ')}`
+          : null,
+      ].filter((part): part is string => part !== null);
       const row = await repository.createConfigVersion({
         baseVersion: current.version,
-        values: { ...RUNTIME_CONFIG_DEFAULTS, ...stored },
-        note: `Hệ thống thêm ${missing.length} con số mới của sổ đăng ký: ${missing.join(', ')}`,
+        values: registryValues(stored),
+        note: `Hệ thống ${changes.join('; ')}`,
         createdBy: SYSTEM_ACTOR_ID,
         at,
         audit: null,
@@ -344,11 +363,7 @@ export function createPlatformService(deps: PlatformServiceDeps): PlatformServic
         throw new ConflictError(`Bảng đã sang phiên bản ${current.version} — tải lại rồi sửa tiếp`);
       }
       // Trọn sổ đăng ký, không chỉ các khoá đang lưu: phiên bản mới luôn đủ bộ con số.
-      const values = {
-        ...RUNTIME_CONFIG_DEFAULTS,
-        ...(current.values as Record<string, number>),
-        ...changes,
-      };
+      const values = { ...registryValues(current.values as Record<string, number>), ...changes };
       // Kiểm trên cả bộ: đổi một khoá có thể làm lệch khoá khác không nằm trong thay đổi.
       const broken = configRelationIssues(values);
       if (broken.length > 0) {

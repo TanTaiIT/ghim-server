@@ -19,5 +19,5 @@
 
 ## 4. Kiểm tra
 
-- [ ] 4.1 `pnpm run check` (cần Postgres test đang chạy), `pnpm run build`, `pnpm run spec:validate`
+- [x] 4.1 `pnpm run check` (cần Postgres test đang chạy), `pnpm run build`, `pnpm run spec:validate` — 03/11/2026: `trust-roles.http`, `group-roles.http` xanh trên Postgres
 - [ ] 4.2 Deploy: master giao chủ cho một tài khoản T0, tài khoản đó bấm đồng ý thành chủ nhóm

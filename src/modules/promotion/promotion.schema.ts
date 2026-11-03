@@ -6,7 +6,6 @@ import { idempotencyKeySchema } from '../wallet/wallet.schema.js';
 export const PROMOTION_EFFECTS = ['rank_to_top', 'featured'] as const;
 export const PROMOTION_SCOPES = ['marketplace', 'group', 'both'] as const;
 export const PURCHASE_STATUSES = ['applied', 'refunded'] as const;
-export const TIERS = ['T0', 'T1', 'T2', 'T3'] as const;
 
 export type PromotionEffectDto = (typeof PROMOTION_EFFECTS)[number];
 export type PromotionScopeDto = (typeof PROMOTION_SCOPES)[number];
@@ -37,7 +36,6 @@ export const opsProductSchema = z.object({
   durationDays: z.number().int().nullable(),
   cooldownHours: z.number().int(),
   price: z.number().int(),
-  minTier: z.enum(TIERS),
   scope: z.enum(PROMOTION_SCOPES),
   active: z.boolean(),
   sort: z.number().int(),
@@ -52,7 +50,6 @@ const productFields = {
   durationDays: z.number().int().positive().nullable(),
   cooldownHours: z.number().int().min(0).max(COOLDOWN_MAX),
   price: z.number().int().min(1).max(PRICE_MAX),
-  minTier: z.enum(TIERS),
   scope: z.enum(PROMOTION_SCOPES),
   sort: z.number().int().min(0),
 };
@@ -86,7 +83,6 @@ export const ownerProductSchema = z.object({
   effect: z.enum(PROMOTION_EFFECTS),
   durationDays: z.number().int().nullable(),
   price: z.number().int(),
-  minTier: z.enum(TIERS),
   purchasable: z.boolean(),
   /** Câu người đăng đọc khi chưa mua được; `null` = mua được. */
   reason: z.string().nullable(),

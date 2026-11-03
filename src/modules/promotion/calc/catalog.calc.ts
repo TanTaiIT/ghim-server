@@ -1,6 +1,4 @@
-import type { PromotionEffect, PromotionScope, TrustTier } from '@prisma/client';
-
-import { TIERS } from '../promotion.schema.js';
+import type { PromotionEffect, PromotionScope } from '@prisma/client';
 
 /** Một gói như master gửi lên; `null` ở `durationDays` với `rank_to_top`. */
 export interface ProductInput {
@@ -19,9 +17,6 @@ export function productIssue(input: ProductInput, featuredMaxDays: number): stri
   }
   return input.durationDays === null ? null : 'Gói đẩy lên đầu không có thời hạn';
 }
-
-/** Số thứ tự mức (`promotion.minTier` là số 0–3) → mức. */
-export const tierAt = (index: number): TrustTier => TIERS[Math.min(Math.max(index, 0), 3)] ?? 'T0';
 
 export interface StarterProduct {
   code: string;

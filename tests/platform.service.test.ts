@@ -461,6 +461,42 @@ describe('bảng con số', () => {
     expect(await prisma.auditLog.count()).toBe(0);
   });
 
+  it('phiên bản hiện hành mang khoá đã gỡ khỏi sổ đăng ký: phiên bản kế bỏ khoá đó, phiên bản cũ nguyên', async () => {
+    const { service } = build();
+    // Khoá thật đã gỡ (remove-promotion-tier) — bảng trên Render còn mang nó.
+    await repository.seedConfigVersion(
+      { ...RUNTIME_CONFIG_DEFAULTS, 'promotion.minTier': 1 },
+      MASTER.accountId,
+      NOW,
+    );
+
+    expect(await service.ensureConfigVersion()).toEqual({ version: 2, addedKeys: 0 });
+    expect((await service.getConfigVersion(1)).values).toHaveProperty('promotion.minTier', 1);
+    const v2 = await service.getCurrentConfig();
+    expect(v2.values).not.toHaveProperty('promotion.minTier');
+    expect(Object.keys(v2.values).toSorted()).toEqual(
+      Object.keys(RUNTIME_CONFIG_DEFAULTS).toSorted(),
+    );
+    expect(v2.note).toContain('promotion.minTier');
+    expect(await service.ensureConfigVersion()).toBeNull();
+    expect(await prisma.auditLog.count()).toBe(0);
+  });
+
+  it('master đổi một con số khi bảng còn khoá đã gỡ: phiên bản mới không mang khoá đó', async () => {
+    const { service } = build();
+    await repository.seedConfigVersion(
+      { ...RUNTIME_CONFIG_DEFAULTS, 'promotion.minTier': 1 },
+      MASTER.accountId,
+      NOW,
+    );
+    const v2 = await service.changeConfig(MASTER, {
+      baseVersion: 1,
+      changes: { 'quota.liveListingsT1': 25 },
+    });
+    expect(v2.values).not.toHaveProperty('promotion.minTier');
+    expect(v2.values['quota.liveListingsT1']).toBe(25);
+  });
+
   it('master đổi một con số trên phiên bản thiếu khoá: phiên bản mới vẫn mang trọn sổ đăng ký', async () => {
     const { service } = build();
     const { 'quota.liveListingsT0': _dropped, ...older } = RUNTIME_CONFIG_DEFAULTS;

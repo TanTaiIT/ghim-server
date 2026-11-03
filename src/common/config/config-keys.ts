@@ -206,8 +206,7 @@ export const CONFIG_KEYS = {
   'promotion.featuredMaxDays': days(30, PROMOTION, { max: 365 }),
   // Dải là một trang, không con trỏ: trần bằng trần trang của server.
   'promotion.featuredStripSize': int(6, PROMOTION, { max: 50 }),
-  // Gói trả Xu (add-promotions): số thứ tự mức T0–T3; 0 lượt mỗi ngày = tắt mua; nhắc trước khi hết nổi bật.
-  'promotion.minTier': int(1, PROMOTION, { min: 0, max: 3 }),
+  // Gói trả Xu (add-promotions): 0 lượt mỗi ngày = tắt mua; nhắc trước khi hết nổi bật.
   'promotion.maxBumpsPerDay': int(3, PROMOTION, { min: 0 }),
   'promotion.featuredReminderHours': hours(24, PROMOTION),
   // Nhóm
