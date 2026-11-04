@@ -93,8 +93,9 @@ Mailpit).
 - `GET /health` — tiến trình còn sống không (không chạm DB)
 - `GET /health/ready` — nối được DB chưa (503 nếu chưa)
 - `GET /docs` — Swagger, sinh từ chính schema Zod (tắt ở production); mọi route nghiệp vụ dưới `/api/v1`
-- Biến môi trường của `identity` (`JWT_SECRET`, `IDENTITY_HASH_KEY`, `SECRETS_ENCRYPTION_KEY`, `SMTP_URL`,
-  `MAIL_FROM`, `GOOGLE_CLIENT_IDS`, `DISPOSABLE_DOMAINS_URL`): ý nghĩa và ràng buộc ở `src/config/env.ts`
+- Biến môi trường của `identity` (`JWT_SECRET`, `IDENTITY_HASH_KEY`, `SECRETS_ENCRYPTION_KEY`, `GMAIL_USER`,
+  `GMAIL_APP_PASSWORD`, `SMTP_URL`, `MAIL_FROM`, `GOOGLE_CLIENT_IDS`, `DISPOSABLE_DOMAINS_URL`): ý nghĩa và ràng buộc ở
+  `src/config/env.ts`
 - Thử trọn vòng tin đăng ở dev: máy duyệt chấm chữ ngay lúc gửi, tin đứng ở "đang kiểm" tới khi việc nền kiểm xong
   mọi ảnh (cần `STORAGE_URL` trỏ kho thật — `pnpm storage:up`). Tài khoản mới ở T0: tin công khai mang lý do "tài khoản mới" (chưa lên bảng tin) và gửi
   tối đa 3 lượt mỗi giờ — lên T1 sau 7 ngày tuổi và một tin hiện đủ 7 ngày. App gửi `x-device-id` ở mọi lượt gửi tin.

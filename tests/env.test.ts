@@ -116,6 +116,7 @@ describe('loadEnv — mỗi môi trường một DB (tên DB mang hậu tố mô
 });
 
 describe('loadEnv — khoá của identity', () => {
+  // MAIL_FROM: bắt buộc vì `base` gửi qua SMTP_URL.
   it.each(['JWT_SECRET', 'IDENTITY_HASH_KEY', 'SECRETS_ENCRYPTION_KEY', 'MAIL_FROM'])(
     'thiếu %s thì hỏng ngay ở khởi động',
     (name) => {
@@ -142,12 +143,32 @@ describe('loadEnv — khoá của identity', () => {
     );
   });
 
-  it('SMTP_URL chỉ được bỏ trống ở test', () => {
+  it('không Gmail, không SMTP_URL chỉ được ở test', () => {
     const { SMTP_URL: _omitted, ...withoutSmtp } = base;
     expect(() => loadEnv(withoutSmtp)).toThrow(/SMTP_URL/);
     expect(
       loadEnv({ ...withoutSmtp, NODE_ENV: 'test', DATABASE_URL: url('ghim_test') }).SMTP_URL,
     ).toBeUndefined();
+  });
+
+  it('Gmail đủ cặp thì không cần SMTP_URL, MAIL_FROM; mật khẩu ứng dụng bỏ khoảng trắng', () => {
+    const { SMTP_URL: _smtp, MAIL_FROM: _from, ...withoutSmtp } = base;
+    const result = loadEnv({
+      ...withoutSmtp,
+      GMAIL_USER: 'ghim.thu@gmail.com',
+      GMAIL_APP_PASSWORD: 'abcd efgh ijkl mnop',
+    });
+    expect(result.GMAIL_APP_PASSWORD).toBe('abcdefghijklmnop');
+    expect(result.SMTP_URL).toBeUndefined();
+  });
+
+  it('Gmail thiếu một nửa cặp thì hỏng ở khởi động', () => {
+    expect(() => loadEnv({ ...base, GMAIL_USER: 'ghim.thu@gmail.com' })).toThrow(
+      /GMAIL_APP_PASSWORD/,
+    );
+    expect(() => loadEnv({ ...base, GMAIL_APP_PASSWORD: 'abcdefghijklmnop' })).toThrow(
+      /GMAIL_USER/,
+    );
   });
 
   it('STORAGE_URL bắt buộc ở mọi môi trường và phải mang khoá cùng tên bucket', () => {

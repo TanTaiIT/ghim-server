@@ -26,7 +26,12 @@ import { registerSwagger } from './common/plugins/swagger.js';
 import { sequentially } from './common/utils/sequential.js';
 import { createJobs, type Jobs } from './lib/jobs.js';
 import { logger } from './lib/logger.js';
-import { createFakeMailer, createSmtpMailer, type Mailer } from './lib/mailer.js';
+import {
+  createFakeMailer,
+  createGmailMailer,
+  createSmtpMailer,
+  type Mailer,
+} from './lib/mailer.js';
 import { prisma } from './lib/prisma.js';
 import { createStorage } from './lib/storage/create-storage.js';
 import type { Storage } from './lib/storage/storage.js';
@@ -230,9 +235,14 @@ export type AppOverrides = Partial<Omit<AppDeps, 'repositories'>> & {
   screening?: ListingScreeningPort;
 };
 
-/** `SMTP_URL` chỉ được trống ở test (env.ts), và ở test thì thư vào mảng. */
+/** Gmail (production) thắng SMTP (Mailpit ở dev); chỉ test được thiếu cả hai (env.ts), và ở test thì thư vào mảng. */
 function defaultMailer(): Mailer {
-  return env.SMTP_URL ? createSmtpMailer(env.SMTP_URL, env.MAIL_FROM) : createFakeMailer();
+  if (env.GMAIL_USER && env.GMAIL_APP_PASSWORD) {
+    return createGmailMailer(env.GMAIL_USER, env.GMAIL_APP_PASSWORD);
+  }
+  return env.SMTP_URL && env.MAIL_FROM
+    ? createSmtpMailer(env.SMTP_URL, env.MAIL_FROM)
+    : createFakeMailer();
 }
 
 /**
