@@ -63,11 +63,21 @@ const envSchema = z
         message: 'phải là 32 byte base64 (openssl rand -base64 32)',
       }),
     /**
-     * `smtp(s)://user:pass@host:port`. Chỉ test được bỏ trống (mailer giả); dev dùng Mailpit vì
-     * mã xác nhận không bao giờ được ghi vào log — không có SMTP thì không có cách nào đọc mã.
+     * Gửi thư qua Gmail (production, như `docs/market`): hộp thư gửi và mật khẩu ứng dụng 16 ký tự (Tài khoản Google →
+     * Bảo mật → Xác minh 2 bước → Mật khẩu ứng dụng; mật khẩu chính không đăng nhập SMTP được). Có cặp này thì thắng
+     * `SMTP_URL`. Google hiện mật khẩu thành bốn nhóm cách nhau — khoảng trắng bị bỏ khi đọc.
+     */
+    GMAIL_USER: z.email().optional(),
+    GMAIL_APP_PASSWORD: z
+      .string()
+      .transform((value) => value.replace(/\s+/g, ''))
+      .optional(),
+    /**
+     * `smtp(s)://user:pass@host:port` — dev dùng Mailpit vì mã xác nhận không bao giờ được ghi vào log: không có máy chủ
+     * thư thì không có cách nào đọc mã. Đi cùng `MAIL_FROM`. Ngoài test phải có Gmail hoặc SMTP (mailer giả chỉ ở test).
      */
     SMTP_URL: z.string().url().optional(),
-    MAIL_FROM: z.string().min(3),
+    MAIL_FROM: z.string().min(3).optional(),
     /**
      * Kho ảnh: `cloudinary://<api_key>:<api_secret>@<cloud_name>?folder=…` (dùng tạm, change use-cloudinary-storage) hay
      * chuẩn S3 `http(s)://<key>:<secret>@<host>[:port]/<bucket>[?region=auto]` (R2 về sau; test là RustFS trong
@@ -113,12 +123,26 @@ const envSchema = z
         message: 'phải khác JWT_SECRET — hai khoá, hai vòng đời xoay khác nhau',
       });
     }
-    if (value.NODE_ENV !== 'test' && !value.SMTP_URL) {
+    if (Boolean(value.GMAIL_USER) !== Boolean(value.GMAIL_APP_PASSWORD)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: [value.GMAIL_USER ? 'GMAIL_APP_PASSWORD' : 'GMAIL_USER'],
+        message: 'GMAIL_USER và GMAIL_APP_PASSWORD đi cùng nhau',
+      });
+    }
+    if (value.SMTP_URL && !value.MAIL_FROM) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['MAIL_FROM'],
+        message: 'bắt buộc khi gửi qua SMTP_URL',
+      });
+    }
+    if (value.NODE_ENV !== 'test' && !value.GMAIL_USER && !value.SMTP_URL) {
       ctx.addIssue({
         code: 'custom',
         path: ['SMTP_URL'],
         message:
-          'bắt buộc ngoài test — dev dùng Mailpit (pnpm mail:up, smtp://ghim:ghim@localhost:1025)',
+          'cần GMAIL_USER + GMAIL_APP_PASSWORD hoặc SMTP_URL ngoài test — dev dùng Mailpit (pnpm mail:up, smtp://ghim:ghim@localhost:1025)',
       });
     }
     if (value.NODE_ENV === 'production' && value.CORS_ORIGIN.trim() === '*') {

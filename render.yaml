@@ -56,9 +56,10 @@ services:
         sync: false
       - key: SECRETS_ENCRYPTION_KEY
         sync: false
-      - key: SMTP_URL
+      # Thư qua Gmail + mật khẩu ứng dụng (.env.production.example). Gói trả phí mới mở cổng SMTP 465/587.
+      - key: GMAIL_USER
         sync: false
-      - key: MAIL_FROM
+      - key: GMAIL_APP_PASSWORD
         sync: false
       - key: STORAGE_URL
         sync: false
