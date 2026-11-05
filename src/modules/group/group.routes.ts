@@ -56,7 +56,11 @@ export const groupRoutes: FastifyPluginAsyncZod<GroupRoutesOptions> = async (app
       response: { 200: ok(paginated(groupSummarySchema)), 400: errorResponse },
     },
     handler: async (request) => {
-      const { items, total } = await group.search(request.query.q, toSkipTake(request.query));
+      const { items, total } = await group.search(
+        request.query.q,
+        request.query.provinceCode,
+        toSkipTake(request.query),
+      );
       return toOk(toPage(items, total, request.query));
     },
   });

@@ -7,7 +7,7 @@ import {
 } from '@prisma/client';
 
 import type { Actor } from '../../common/auth/actor.js';
-import { ConflictError, NotFoundError } from '../../common/errors/app-error.js';
+import { BadRequestError, ConflictError, NotFoundError } from '../../common/errors/app-error.js';
 import { fold } from '../../common/text/fold.js';
 import {
   ASSIGNABLE,
@@ -151,6 +151,7 @@ export function createGroupAdminService(
     toProfile,
     toMembership,
     toMember,
+    provinceOf,
     displayNames,
   } = shared;
 
@@ -159,12 +160,21 @@ export function createGroupAdminService(
     if (!allowsSettings(ctx.group.state, ctx.isMaster)) throw groupStateConflict();
   };
 
+  /** Tỉnh/thành gắn cho nhóm phải có thật (add-group-province); `null`/bỏ trống = toàn quốc, hợp lệ. */
+  const requireProvince = async (code: number | null | undefined): Promise<void> => {
+    if (code === null || code === undefined) return;
+    if (!(await repository.findProvince(code))) {
+      throw new BadRequestError('Không có tỉnh/thành này', 'VALIDATION_ERROR');
+    }
+  };
+
   const profile = async (ctx: GroupContext, group: Group): Promise<GroupProfileDto> => {
-    const [counts, units] = await Promise.all([
+    const [counts, units, province] = await Promise.all([
       repository.countMembers([group.id]),
       repository.listUnits(group.id),
+      provinceOf(group),
     ]);
-    return toProfile({ ...ctx, group }, counts.get(group.id) ?? 0, units);
+    return toProfile({ ...ctx, group }, counts.get(group.id) ?? 0, units, province);
   };
 
   const offerExpiry = (at: Date) => daysFrom(at, config.get('group.ownershipTransferExpiresDays'));
@@ -207,7 +217,8 @@ export function createGroupAdminService(
   return {
     // ── MASTER: LẬP, GIAO CHỦ, KHOÁ ─────────────────────────────────────────────────────────────
 
-    async create(actor, { name, kind, mode, description }) {
+    async create(actor, { name, kind, mode, description, provinceCode }) {
+      await requireProvince(provinceCode);
       const at = clock();
       const write = (code: string | null) =>
         repository.createGroup({
@@ -217,6 +228,7 @@ export function createGroupAdminService(
           kind,
           mode,
           code,
+          provinceCode: provinceCode ?? null,
           createdBy: actor.accountId,
           at,
           audit: {
@@ -249,12 +261,18 @@ export function createGroupAdminService(
     async getForOps(groupId) {
       const group = await loadGroup(groupId);
       const owner = await repository.findOwner(groupId);
-      const [counts, units] = await Promise.all([
+      const [counts, units, province] = await Promise.all([
         repository.countMembers([groupId]),
         repository.listUnits(groupId),
+        provinceOf(group),
       ]);
       return {
-        ...toProfile({ group, member: null, isMaster: true }, counts.get(groupId) ?? 0, units),
+        ...toProfile(
+          { group, member: null, isMaster: true },
+          counts.get(groupId) ?? 0,
+          units,
+          province,
+        ),
         ownerId: owner?.accountId ?? null,
         nomineeId: group.nomineeId,
         ownerlessSince: group.ownerlessSince?.toISOString() ?? null,
@@ -464,6 +482,7 @@ export function createGroupAdminService(
     async updateSettings(actor, groupId, input) {
       const ctx = await context(actor, groupId);
       requireSettings(ctx);
+      await requireProvince(input.provinceCode);
       const { group } = ctx;
 
       /**
@@ -520,6 +539,7 @@ export function createGroupAdminService(
           ...(input.allowPromotions !== undefined
             ? { allowPromotions: input.allowPromotions }
             : {}),
+          ...(input.provinceCode !== undefined ? { provinceCode: input.provinceCode } : {}),
         };
         const events: OutboxEventInput[] = [];
         if (plan?.kind === 'immediate') {

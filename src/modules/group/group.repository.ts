@@ -66,6 +66,7 @@ export interface NewGroup {
   kind: GroupKind;
   mode: GroupMode;
   code: string | null;
+  provinceCode: number | null;
   createdBy: string;
   at: Date;
   audit: AuditEntry;
@@ -75,7 +76,11 @@ export interface GroupRepository {
   // ── ĐỌC ──
   findGroup(id: string): Promise<Group | null>;
   findGroupByCode(code: string): Promise<Group | null>;
-  searchPublic(query: { folded: string } & SkipTake): Promise<Page<Group>>;
+  searchPublic(
+    query: { folded: string; provinceCode?: number | undefined } & SkipTake,
+  ): Promise<Page<Group>>;
+  /** Tỉnh/thành theo mã, để kiểm tồn tại và dựng hồ sơ nhóm (add-group-province). */
+  findProvince(code: number): Promise<{ code: number; name: string } | null>;
   listGroups(query: { states?: GroupState[] } & SkipTake): Promise<Page<Group>>;
   countMembers(groupIds: string[]): Promise<Map<string, number>>;
   findMember(groupId: string, accountId: string): Promise<GroupMember | null>;
@@ -533,17 +538,20 @@ export function createGroupRepository(prisma: PrismaClient): GroupRepository {
     findGroup: (id) => prisma.group.findUnique({ where: { id } }),
     findGroupByCode: (code) =>
       prisma.group.findFirst({ where: { code, state: { not: 'closed' } } }),
-    searchPublic: ({ folded, skip, take }) => {
+    searchPublic: ({ folded, provinceCode, skip, take }) => {
       const where: Prisma.GroupWhereInput = {
         mode: { in: ['public_open', 'public_review'] },
         state: { in: ['active', 'ownerless'] },
         ...(folded ? { nameFolded: { contains: folded } } : {}),
+        ...(provinceCode !== undefined ? { provinceCode } : {}),
       };
       return page(
         prisma.group.findMany({ where, orderBy: [{ name: 'asc' }, { id: 'asc' }], skip, take }),
         prisma.group.count({ where }),
       );
     },
+    findProvince: (code) =>
+      prisma.province.findUnique({ where: { code }, select: { code: true, name: true } }),
     listGroups: ({ states, skip, take }) => {
       const where: Prisma.GroupWhereInput = states ? { state: { in: states } } : {};
       return page(

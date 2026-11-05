@@ -8,7 +8,13 @@ import type { AccountSummary } from '../identity/identity.service.js';
 import { badgeEligible } from './calc/badges.calc.js';
 import { type ModeratorCandidate, pickNominee, roleIneligibility } from './calc/membership.calc.js';
 import type { GroupRepository } from './group.repository.js';
-import type { GroupProfileDto, GroupSummaryDto, MemberDto, MembershipDto } from './group.schema.js';
+import type {
+  GroupProfileDto,
+  GroupProvinceDto,
+  GroupSummaryDto,
+  MemberDto,
+  MembershipDto,
+} from './group.schema.js';
 
 export const DAY_MS = 86_400_000;
 
@@ -159,6 +165,7 @@ const toProfile = (
   ctx: { group: Group; member: GroupMember | null; isMaster: boolean },
   memberCount: number,
   units: GroupUnit[],
+  province: GroupProvinceDto | null,
 ): GroupProfileDto => {
   const manager = ctx.isMaster || ctx.member?.role === 'owner' || ctx.member?.role === 'moderator';
   return {
@@ -171,6 +178,7 @@ const toProfile = (
     allowPromotions: ctx.group.allowPromotions,
     code: manager ? ctx.group.code : null,
     lockedReason: manager ? ctx.group.lockedReason : null,
+    province,
     units: units.map((unit) => ({ id: unit.id, name: unit.name })),
     membership: ctx.member ? toMembership(ctx.member, ctx.group) : null,
   };
@@ -194,6 +202,12 @@ export function createGroupShared(deps: GroupServiceDeps) {
     if (!group) throw new NotFoundError('Không có nhóm này');
     return group;
   };
+
+  /** Tỉnh/thành của nhóm cho hồ sơ (add-group-province); `null` khi nhóm không gắn tỉnh. */
+  const provinceOf = (group: Group): Promise<GroupProvinceDto | null> =>
+    group.provinceCode === null
+      ? Promise.resolve(null)
+      : repository.findProvince(group.provinceCode);
 
   const context = async (actor: Actor, groupId: string): Promise<GroupContext> => {
     const isMaster = actor.role === 'master';
@@ -287,6 +301,7 @@ export function createGroupShared(deps: GroupServiceDeps) {
     toMembership,
     toProfile,
     toMember,
+    provinceOf,
     displayNames,
   };
 }

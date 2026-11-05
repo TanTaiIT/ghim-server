@@ -44,6 +44,8 @@ const ANNOUNCEMENT_BODY_CEILING = 10_000;
 
 const nameSchema = z.string().trim().min(1).max(GROUP_NAME_MAX);
 const descriptionSchema = z.string().trim().max(GROUP_DESCRIPTION_MAX);
+/** Mã tỉnh/thành của nhóm (add-group-province) — số dương, khớp `Province.code`; tồn tại thật do service kiểm. */
+const provinceCodeSchema = z.number().int().positive();
 
 export const groupIdParamsSchema = z.object({ groupId: z.uuid() });
 export const groupMemberParamsSchema = z.object({ groupId: z.uuid(), accountId: z.uuid() });
@@ -58,11 +60,13 @@ export const createGroupBodySchema = z
     kind: z.enum(GROUP_KINDS),
     mode: z.enum(GROUP_MODES),
     description: descriptionSchema.optional(),
+    provinceCode: provinceCodeSchema.optional(),
   })
   .strict();
 
 export const groupSearchQuerySchema = paginationQuerySchema.extend({
   q: z.string().trim().max(GROUP_NAME_MAX).optional(),
+  provinceCode: z.coerce.number().int().positive().optional(),
 });
 
 export const opsGroupListQuerySchema = paginationQuerySchema.extend({
@@ -80,6 +84,7 @@ export const groupSettingsBodySchema = z
     boardStyle: z.enum(GROUP_BOARD_STYLES).optional(),
     manualReview: z.boolean().optional(),
     allowPromotions: z.boolean().optional(),
+    provinceCode: provinceCodeSchema.nullable().optional(),
   })
   .strict()
   .refine((value) => Object.keys(value).length > 0, { message: 'Cần ít nhất một cài đặt' });
@@ -133,6 +138,9 @@ export const membershipSchema = z.object({
 
 export const unitSchema = z.object({ id: z.uuid(), name: z.string() });
 
+/** Tỉnh/thành của nhóm trong hồ sơ (add-group-province); `null` khi nhóm không gắn tỉnh (toàn quốc). */
+export const groupProvinceSchema = z.object({ code: z.number().int(), name: z.string() });
+
 /**
  * Hồ sơ đầy đủ — cho thành viên, khách xem nhóm công khai, và master. Mã nhóm và lý do khoá chỉ có khi người xem
  * là chủ nhóm, điều hành viên hay master; người ngoài nhóm riêng tư chỉ nhận `groupNameOnlySchema`.
@@ -148,6 +156,8 @@ export const groupProfileSchema = groupSummarySchema.extend({
   allowPromotions: z.boolean(),
   code: z.string().nullable(),
   lockedReason: z.string().nullable(),
+  /** Tỉnh/thành của nhóm (add-group-province); `null` = toàn quốc. */
+  province: groupProvinceSchema.nullable(),
   units: z.array(unitSchema),
   membership: membershipSchema.nullable(),
 });
@@ -264,6 +274,7 @@ export const rosterResultSchema = z.object({ added: z.number().int() });
 export type CreateGroupInput = z.infer<typeof createGroupBodySchema>;
 export type GroupSettingsInput = z.infer<typeof groupSettingsBodySchema>;
 export type GroupSummaryDto = z.infer<typeof groupSummarySchema>;
+export type GroupProvinceDto = z.infer<typeof groupProvinceSchema>;
 export type GroupProfileDto = z.infer<typeof groupProfileSchema>;
 export type GroupViewDto = z.infer<typeof groupViewSchema>;
 export type MembershipDto = z.infer<typeof membershipSchema>;

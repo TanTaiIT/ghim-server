@@ -229,7 +229,7 @@ screening, review, report, messaging, wallet, promotion, ops }`,
 | ---- | -------------- | ---------- | ------------------------------------------------------------------------------------------------------------ |
 | 1    | `identity`     | 7, 8       | Tài khoản, email chuẩn hoá + dấu băm, phiên đăng nhập, Google, dấu thiết bị                                  |
 | 1    | `platform`     | 5, 6, 28   | Master, quyền staff theo danh mục, **bảng con số có phiên bản**, nội dung trợ giúp                           |
-| 1    | `group`        | 9, 10      | Nhóm, chế độ, thành viên + đường vào, huy hiệu, đơn vị con, chủ nhóm                                         |
+| 1    | `group`        | 9, 10      | Nhóm, chế độ, tỉnh/thành, thành viên + đường vào, huy hiệu, đơn vị con, chủ nhóm                             |
 | 1    | `category`     | 11         | Danh mục, mẫu thông tin, trần giá, giá tham chiếu, mức rủi ro                                                |
 | 1    | `region`       | 11         | Tỉnh, phường sau sáp nhập, tên cũ, tìm bỏ dấu — tách khỏi `category` 24/10/2026, spec vẫn `category/regions` |
 | 2    | `media`        | 25         | Ảnh, nhãn "chưa xác nhận", dọn ảnh (kiểm ảnh thuộc `screening`)                                              |
@@ -377,7 +377,10 @@ bạn" theo tin đã xem, lưu, hỏi, tìm của từng người; khách hay ch
 nổi bật giữ nguyên — chủ dự án chốt 02/11/2026) → `remove-role-trust-tier` (nhận vai chủ nhóm / điều hành viên không xét
 mức tin cậy — chốt 03/11/2026; gộp `main` qua PR #41, archive 03/11/2026) → `remove-promotion-tier` (gói đẩy tin không còn
 mức tối thiểu, bỏ cột `min_tier` và con số `promotion.minTier`; bảng con số tự bỏ khoá đã gỡ lúc khởi động — chốt
-03/11/2026).
+03/11/2026) → `add-group-province` (nhóm gắn tỉnh/thành tuỳ chọn:
+`groups.province_code` nullable FK → `provinces.code` `SET NULL`; lập / sửa nhóm nhận `provinceCode`, `GET /groups` lọc
+theo tỉnh, hồ sơ nhóm trả `province`; nhãn khám phá, KHÔNG ràng buộc tỉnh của tin trong nhóm — chủ dự án chốt 05/11/2026;
+ngoài TK 29, chủ TK thêm dòng vào TK 9 khi duyệt).
 
 - `add-platform-roles` và `add-categories` cần nhau (quyền staff gắn theo danh mục; danh mục cần staff soạn
   mẫu) nên làm chung một lượt và archive trước `add-groups`; `add-groups` chỉ thêm requirement vào
