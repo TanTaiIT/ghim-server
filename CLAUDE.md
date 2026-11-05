@@ -72,11 +72,13 @@ Giống dự án `../booking` (cùng phiên bản, cùng lockfile gốc):
     Handler của việc theo lịch trả `JobOutcome | void` (`partial`, `summary`); `createJobs` bọc bằng `recordedRun`
     ghi mỗi lượt vào `job_runs` (`done` / `partial` / `failed` — TK 26 luật 2, add-data-retention) qua `runLog` =
     repository của `ops`; `GET /ops/jobs/runs` (master) đọc. Việc theo sự kiện không ghi.
-  - Gửi email (mã xác nhận, đổi email): **nodemailer** qua `SMTP_URL`, đứng sau interface `Mailer` ở
-    `src/lib/mailer.ts` (`createSmtpMailer`, `createFakeMailer` cho test). `SMTP_URL` bắt buộc ngoài
-    test vì mã xác nhận không bao giờ vào log — dev dùng **Mailpit** trong docker-compose
-    (`pnpm mail:up`; SMTP `localhost:1025`, hộp thư `http://localhost:8025`). Production: SMTP của
-    nhà cung cấp (Resend / Postmark / SES) — chọn khi deploy, code không đổi.
+  - Gửi email (mã xác nhận, đổi email): **nodemailer** đứng sau interface `Mailer` ở `src/lib/mailer.ts`.
+    Production gửi qua **Gmail + mật khẩu ứng dụng** như `docs/market` (`createGmailMailer`, `GMAIL_USER` +
+    `GMAIL_APP_PASSWORD`, người gửi `Ghim <GMAIL_USER>`): Ghim không có tên miền nên dịch vụ gửi thư nào cũng không
+    cho gửi tới người ngoài; trần ~500 thư/ngày; gói free của Render chặn cổng SMTP. Dev dùng **Mailpit** qua
+    `SMTP_URL` + `MAIL_FROM` (`createSmtpMailer`; `pnpm mail:up`; SMTP `localhost:1025`, hộp thư
+    `http://localhost:8025`). Ngoài test phải có một trong hai đường vì mã xác nhận không bao giờ vào log; test dùng
+    `createFakeMailer`. Thư mã có bản chữ và HTML (`identity.mail.ts`).
   - Đăng nhập Google: **google-auth-library** verify ID token do app gửi lên; không có OAuth redirect
     phía server. Đứng sau `GoogleTokenVerifier` (`google.verifier.ts`); `GOOGLE_CLIENT_IDS` trống =
     tắt (dev), production bắt buộc.
@@ -372,7 +374,10 @@ kế hoạch `docs/KE-HOACH-GOI-DAY-TIN.md`) → `add-admin-boost` (người qu�
 `add-wallet` (ví Xu, sổ cái, master cấp — làm 28/10/2026 sau khi chủ dự án chốt câu hỏi mở: Xu do master cấp miễn phí,
 không có `add-topup`, không thanh toán online; gộp `main` qua PR #33, archive 28/10/2026) → `add-promotions` (gói đẩy tin trả Xu — làm 28/10/2026 ngay sau `add-wallet`; dải nổi bật đổi sang lấy ngẫu nhiên; gộp `main` qua PR #35, archive 28/10/2026) → `remove-new-account-restriction` (bỏ lý do hạn chế "tài khoản mới" — chốt 28/10/2026 sau khi thử trên Render: máy cho qua là tin lên, T0 dải Thấp hiện đầy đủ; migration gỡ lý do trên tin đang có; gộp `main` qua PR #37, archive 01/11/2026) → `add-home-suggestions` (mục "Gợi ý cho
 bạn" theo tin đã xem, lưu, hỏi, tìm của từng người; khách hay chưa có lịch sử thì tin được quan tâm nhiều gần bạn; dải
-nổi bật giữ nguyên — chủ dự án chốt 02/11/2026) → `add-group-province` (nhóm gắn tỉnh/thành tuỳ chọn:
+nổi bật giữ nguyên — chủ dự án chốt 02/11/2026) → `remove-role-trust-tier` (nhận vai chủ nhóm / điều hành viên không xét
+mức tin cậy — chốt 03/11/2026; gộp `main` qua PR #41, archive 03/11/2026) → `remove-promotion-tier` (gói đẩy tin không còn
+mức tối thiểu, bỏ cột `min_tier` và con số `promotion.minTier`; bảng con số tự bỏ khoá đã gỡ lúc khởi động — chốt
+03/11/2026) → `add-group-province` (nhóm gắn tỉnh/thành tuỳ chọn:
 `groups.province_code` nullable FK → `provinces.code` `SET NULL`; lập / sửa nhóm nhận `provinceCode`, `GET /groups` lọc
 theo tỉnh, hồ sơ nhóm trả `province`; nhãn khám phá, KHÔNG ràng buộc tỉnh của tin trong nhóm — chủ dự án chốt 05/11/2026;
 ngoài TK 29, chủ TK thêm dòng vào TK 9 khi duyệt).

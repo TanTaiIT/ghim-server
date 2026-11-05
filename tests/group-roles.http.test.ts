@@ -19,7 +19,6 @@ import {
   deliverAll,
   newMaster,
   newUser,
-  seedTier,
 } from './group-helpers.js';
 import { liveListing, seedCategory, seedListing } from './listing-helpers.js';
 import { tokenFor } from './ops-helpers.js';
@@ -97,24 +96,14 @@ const offerOwner = (master: TestUser, groupId: string, accountId: string) =>
 const transfer = (owner: TestUser, groupId: string, accountId: string) =>
   api(app, 'POST', `/groups/${groupId}/owner-transfer`, owner.token, { accountId });
 
-// Người nhận vai ở T1 như dữ liệu nền: file này kiểm luật vai, luật mức tin cậy ở `trust-roles.http.test.ts`.
-const acceptOffer = async (user: TestUser, offerId: string) => {
-  await seedTier(user.id);
-  return api(app, 'POST', `/group-owner-offers/${offerId}/accept`, user.token);
-};
+const acceptOffer = (user: TestUser, offerId: string) =>
+  api(app, 'POST', `/group-owner-offers/${offerId}/accept`, user.token);
 
 const declineOffer = (user: TestUser, offerId: string) =>
   api(app, 'POST', `/group-owner-offers/${offerId}/decline`, user.token);
 
-const appoint = async (
-  actor: TestUser,
-  groupId: string,
-  accountId: string,
-  unitId: string | null,
-) => {
-  await seedTier(accountId);
-  return api(app, 'PUT', `/groups/${groupId}/moderators/${accountId}`, actor.token, { unitId });
-};
+const appoint = (actor: TestUser, groupId: string, accountId: string, unitId: string | null) =>
+  api(app, 'PUT', `/groups/${groupId}/moderators/${accountId}`, actor.token, { unitId });
 
 const deleteMe = (user: TestUser) => api(app, 'DELETE', '/me', user.token);
 

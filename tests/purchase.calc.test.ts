@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  productIssue,
-  STARTER_PRODUCTS,
-  tierAt,
-} from '../src/modules/promotion/calc/catalog.calc.js';
+import { productIssue, STARTER_PRODUCTS } from '../src/modules/promotion/calc/catalog.calc.js';
 import {
   expiryOf,
   purchaseBlock,
@@ -17,10 +13,9 @@ const NOW = new Date('2026-10-28T10:00:00+07:00');
 const HOUR_MS = 3_600_000;
 
 const facts = (over: Partial<PurchaseFacts> = {}): PurchaseFacts => ({
-  product: { scope: 'both', minTier: 'T1', cooldownHours: 24, price: 1 },
+  product: { scope: 'both', cooldownHours: 24, price: 1 },
   placement: 'marketplace',
   groupAllows: null,
-  tier: 'T2',
   postingLockedUntil: null,
   listingBlock: null,
   lastPurchaseAt: null,
@@ -42,14 +37,13 @@ describe('Gói hợp lệ', () => {
     expect(productIssue({ effect: 'rank_to_top', durationDays: null }, 30)).toBeNull();
   });
 
-  it('bộ khởi đầu: 1 / 2 / 4 Xu, cả hai phạm vi; số thứ tự mức', () => {
+  it('bộ khởi đầu: 1 / 2 / 4 Xu, cả hai phạm vi', () => {
     expect(STARTER_PRODUCTS.map((p) => [p.code, p.price, p.durationDays])).toEqual([
       ['rank_to_top', 1, null],
       ['featured_3d', 2, 3],
       ['featured_7d', 4, 7],
     ]);
     expect(STARTER_PRODUCTS.every((p) => p.scope === 'both')).toBe(true);
-    expect([tierAt(0), tierAt(1), tierAt(3), tierAt(9)]).toEqual(['T0', 'T1', 'T3', 'T3']);
   });
 
   it('phạm vi gói với nơi đăng của tin', () => {
@@ -66,10 +60,9 @@ describe('Vì sao chưa mua được', () => {
     expect(purchaseBlock(facts())).toBeNull();
   });
 
-  it('thứ tự: phạm vi → khoá đăng tin → mức → nhóm tắt → tin không đầy đủ → chờ → trần ngày → thiếu Xu', () => {
+  it('thứ tự: phạm vi → khoá đăng tin → nhóm tắt → tin không đầy đủ → chờ → trần ngày → thiếu Xu', () => {
     const all = facts({
-      product: { scope: 'group', minTier: 'T1', cooldownHours: 24, price: 1 },
-      tier: 'T0',
+      product: { scope: 'group', cooldownHours: 24, price: 1 },
       postingLockedUntil: new Date(NOW.getTime() + HOUR_MS),
       groupAllows: false,
       listingBlock: 'Tin đang chờ duyệt',
@@ -83,9 +76,7 @@ describe('Vì sao chưa mua được', () => {
       code: 'POSTING_LOCKED',
       retryAt: all.postingLockedUntil,
     });
-    const t0 = { ...inGroup, postingLockedUntil: null };
-    expect(purchaseBlock(t0)?.code).toBe('TRUST_TIER_TOO_LOW');
-    const unlocked = { ...t0, tier: 'T1' as const };
+    const unlocked = { ...inGroup, postingLockedUntil: null };
     expect(purchaseBlock(unlocked)?.code).toBe('GROUP_PROMOTIONS_OFF');
     const allowed = { ...unlocked, groupAllows: true };
     expect(purchaseBlock(allowed)).toMatchObject({
@@ -107,12 +98,11 @@ describe('Vì sao chưa mua được', () => {
     expect(purchaseBlock({ ...fresh, balance: 1 })).toBeNull();
   });
 
-  it('câu "cần mức T1"; thời gian chờ 0 không chờ; khoá đăng tin đã qua không chặn', () => {
-    expect(purchaseBlock(facts({ tier: 'T0' }))?.message).toBe('Cần mức T1 để dùng gói này');
+  it('thời gian chờ 0 không chờ; khoá đăng tin đã qua không chặn', () => {
     expect(
       purchaseBlock(
         facts({
-          product: { scope: 'both', minTier: 'T1', cooldownHours: 0, price: 1 },
+          product: { scope: 'both', cooldownHours: 0, price: 1 },
           lastPurchaseAt: NOW,
         }),
       ),

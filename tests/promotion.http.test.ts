@@ -62,7 +62,7 @@ const errorOf = (res: Res) =>
     .error;
 const key = () => `pk${(seq += 1).toString().padStart(8, '0')}`;
 
-/** Người đăng T1 có Xu — mặc định đủ cho vài gói. */
+/** Người đăng có Xu — mặc định đủ cho vài gói; mức chỉ để tin lên bảng như người dùng thật, gói không xét mức. */
 const buyer = async (xu = 5, tier: 'T0' | 'T1' | 'T2' = 'T1'): Promise<TestUser> => {
   const user = await newUser(app);
   await seedTier(user.id, tier);
@@ -96,15 +96,16 @@ const groupFeedIds = async (group: ActiveGroup, user: TestUser) =>
   ).items.map((item) => item.id);
 
 describe('Catalog', () => {
-  it('bộ khởi đầu chèn một lần: ba gói đúng giá, thời hạn, từ T1; master đổi giá rồi khởi động lại không chèn thêm', async () => {
-    const list = dataOf<
-      { code: string; price: number; durationDays: number | null; minTier: string }[]
-    >(await api(app, 'GET', '/ops/promotions/products', master.token));
-    expect(list.map((p) => [p.code, p.price, p.durationDays, p.minTier])).toEqual([
-      ['rank_to_top', 1, null, 'T1'],
-      ['featured_3d', 2, 3, 'T1'],
-      ['featured_7d', 4, 7, 'T1'],
+  it('bộ khởi đầu chèn một lần: ba gói đúng giá, thời hạn; master đổi giá rồi khởi động lại không chèn thêm', async () => {
+    const list = dataOf<{ code: string; price: number; durationDays: number | null }[]>(
+      await api(app, 'GET', '/ops/promotions/products', master.token),
+    );
+    expect(list.map((p) => [p.code, p.price, p.durationDays])).toEqual([
+      ['rank_to_top', 1, null],
+      ['featured_3d', 2, 3],
+      ['featured_7d', 4, 7],
     ]);
+    expect(list[0]).not.toHaveProperty('minTier');
     const changed = await api(app, 'PATCH', '/ops/promotions/products/rank_to_top', master.token, {
       price: 2,
     });
@@ -118,7 +119,7 @@ describe('Catalog', () => {
   });
 
   it('tạo gói nổi bật thiếu thời hạn → 400; đẩy lên đầu có thời hạn → 400; mã trùng → 409; staff → 403', async () => {
-    const base = { name: 'Thử', cooldownHours: 24, price: 1, minTier: 'T1', scope: 'both' };
+    const base = { name: 'Thử', cooldownHours: 24, price: 1, scope: 'both' };
     const missing = await api(app, 'POST', '/ops/promotions/products', master.token, {
       ...base,
       code: 'featured_x',
@@ -158,7 +159,6 @@ describe('Catalog', () => {
       durationDays: 1,
       cooldownHours: 0,
       price: 1,
-      minTier: 'T1',
       scope: 'marketplace',
     });
     expect(created.statusCode, created.body).toBe(201);
@@ -178,20 +178,19 @@ describe('Catalog', () => {
     });
   });
 
-  it('người đăng thấy gói hợp phạm vi kèm giá; T0 thấy gói với "Cần mức T1", không mua được', async () => {
+  it('người đăng thấy gói hợp phạm vi kèm giá; người ở T0 mua được như mọi mức', async () => {
     const t0 = await buyer(5, 'T0');
     const listing = await liveListingOf(app, t0, { categoryId: await seedCategory() });
     const { products: list, balance } = await products(t0, listing.id);
     expect(balance).toBe(5);
     expect(list.map((p) => [p.code, p.price, p.purchasable, p.reason])).toEqual([
-      ['rank_to_top', 1, false, 'Cần mức T1 để dùng gói này'],
-      ['featured_3d', 2, false, 'Cần mức T1 để dùng gói này'],
-      ['featured_7d', 4, false, 'Cần mức T1 để dùng gói này'],
+      ['rank_to_top', 1, true, null],
+      ['featured_3d', 2, true, null],
+      ['featured_7d', 4, true, null],
     ]);
     const res = await buy(t0, listing.id, 'rank_to_top');
-    expect(res.statusCode).toBe(409);
-    expect(errorOf(res).code).toBe('TRUST_TIER_TOO_LOW');
-    expect(await balanceOf(t0)).toBe(5);
+    expect(res.statusCode, res.body).toBe(200);
+    expect(await balanceOf(t0)).toBe(4);
   });
 });
 

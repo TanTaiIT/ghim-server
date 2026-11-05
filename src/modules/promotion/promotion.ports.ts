@@ -14,7 +14,7 @@ export type PromotionListingPort = Pick<ListingService, 'reviewSubject' | 'apply
 /** Sổ cái Xu: trừ trong transaction của lượt mua, đọc lại sau P2002, số dư để báo "mua được không". */
 export type PromotionWalletPort = Pick<WalletRepository, 'apply' | 'replay' | 'balanceOf'>;
 
-export type PromotionTrustPort = Pick<TrustService, 'tierOf' | 'postingLockedUntil'>;
+export type PromotionTrustPort = Pick<TrustService, 'postingLockedUntil'>;
 
 /** Nhóm của tin: còn cho thành viên dùng gói không. */
 export type PromotionGroupPort = Pick<GroupService, 'findGroup'>;

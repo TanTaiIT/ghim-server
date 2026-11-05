@@ -59,7 +59,7 @@ export const promotionRoutes: FastifyPluginAsyncZod<PromotionRoutesOptions> = as
       summary:
         'Mua gói cho tin của tôi — trừ Xu và áp hiệu ứng trong một lượt; gửi lại cùng khoá trả cùng lượt',
       description: [
-        'Tin không hiển thị đầy đủ → 409 `LISTING_NOT_PROMOTABLE`; chưa đủ mức → 409 `TRUST_TIER_TOO_LOW`; đang tạm khoá',
+        'Tin không hiển thị đầy đủ → 409 `LISTING_NOT_PROMOTABLE`; đang tạm khoá',
         'đăng tin → 409 `POSTING_LOCKED`; nhóm tắt gói → 409 `GROUP_PROMOTIONS_OFF`; thiếu Xu → 409',
         '`INSUFFICIENT_BALANCE` (tin không đổi); tin vừa sửa → 409 `CONFLICT` (không trừ); trong thời gian chờ → 429',
         '`PROMOTION_COOLDOWN`, quá trần ngày → 429 `PROMOTION_DAILY_LIMIT` — hai lỗi sau kèm `details.retryAt`.',

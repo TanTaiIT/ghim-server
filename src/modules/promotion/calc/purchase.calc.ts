@@ -1,18 +1,16 @@
-import type { ListingPlacement, PromotionScope, TrustTier } from '@prisma/client';
+import type { ListingPlacement, PromotionScope } from '@prisma/client';
 
 import { formatDateVN, formatMomentVN, startOfDayVN } from '../../../common/time/time.js';
-import { TIERS } from '../promotion.schema.js';
 
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
 
 /** Dữ kiện một lượt mua, gom từ cổng của `listing`, `trust`, `group`, `wallet` và chính `promotion`. */
 export interface PurchaseFacts {
-  product: { scope: PromotionScope; minTier: TrustTier; cooldownHours: number; price: number };
+  product: { scope: PromotionScope; cooldownHours: number; price: number };
   placement: ListingPlacement | null;
   /** Tin của nhóm: nhóm còn cho thành viên dùng gói không; tin sàn: `null`. */
   groupAllows: boolean | null;
-  tier: TrustTier;
   postingLockedUntil: Date | null;
   /** Câu của `boostBlock` khi tin không hiển thị đầy đủ; `null` = đẩy được. */
   listingBlock: string | null;
@@ -26,7 +24,6 @@ export interface PurchaseFacts {
 
 export type PurchaseBlockCode =
   | 'NOT_FOUND'
-  | 'TRUST_TIER_TOO_LOW'
   | 'POSTING_LOCKED'
   | 'GROUP_PROMOTIONS_OFF'
   | 'LISTING_NOT_PROMOTABLE'
@@ -44,13 +41,11 @@ export const scopeFits = (scope: PromotionScope, placement: ListingPlacement | n
   scope === 'both' ||
   (scope === 'marketplace' ? placement === 'marketplace' : placement !== 'marketplace');
 
-const tierIndex = (tier: TrustTier): number => TIERS.indexOf(tier);
-
 /**
- * Vì sao chưa mua được (spec promotion/purchase), theo thứ tự rẻ trước: gói không hợp phạm vi → khoá đăng tin → mức → nhóm
- * tắt → tin không hiển thị đầy đủ → thời gian chờ → trần ngày → thiếu Xu. Khoá đăng tin trước mức vì gậy hạ mức về T0:
- * người bị khoá cần nghe "đang tạm khoá tới …", không phải "cần mức T1". `null` = mua được. Thiếu Xu đứng cuối: là
- * lý do duy nhất người đăng sửa được ngay bằng cách xin Xu, và lượt mua thật kiểm nó trong transaction.
+ * Vì sao chưa mua được (spec promotion/purchase), theo thứ tự rẻ trước: gói không hợp phạm vi → khoá đăng tin → nhóm tắt
+ * → tin không hiển thị đầy đủ → thời gian chờ → trần ngày → thiếu Xu. Không xét mức tin cậy (chốt 03/11/2026,
+ * remove-promotion-tier). `null` = mua được. Thiếu Xu đứng cuối: là lý do duy nhất người đăng sửa được ngay bằng cách
+ * xin Xu, và lượt mua thật kiểm nó trong transaction.
  */
 export function purchaseBlock(facts: PurchaseFacts): PurchaseBlock | null {
   const { product, now } = facts;
@@ -63,9 +58,6 @@ export function purchaseBlock(facts: PurchaseFacts): PurchaseBlock | null {
       message: `Bạn đang tạm khoá đăng tin vì điểm vi phạm — dùng gói lại được từ ${formatDateVN(facts.postingLockedUntil)}`,
       retryAt: facts.postingLockedUntil,
     };
-  }
-  if (tierIndex(facts.tier) < tierIndex(product.minTier)) {
-    return { code: 'TRUST_TIER_TOO_LOW', message: `Cần mức ${product.minTier} để dùng gói này` };
   }
   if (facts.groupAllows === false) {
     return { code: 'GROUP_PROMOTIONS_OFF', message: 'Nhóm này không cho dùng gói đẩy tin' };

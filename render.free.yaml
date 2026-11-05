@@ -50,9 +50,11 @@ services:
         sync: false
       - key: SECRETS_ENCRYPTION_KEY
         sync: false
-      - key: SMTP_URL
+      # Gói free chặn cổng SMTP 25/465/587 (Render, 09/2025): thư Gmail sẽ hết giờ chờ — mã xác nhận chỉ tới được khi
+      # lên gói trả phí. Vẫn khai để app khởi động được (env.ts đòi một đường gửi thư).
+      - key: GMAIL_USER
         sync: false
-      - key: MAIL_FROM
+      - key: GMAIL_APP_PASSWORD
         sync: false
       - key: STORAGE_URL
         sync: false
