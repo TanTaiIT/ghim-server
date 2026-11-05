@@ -27,6 +27,7 @@ let pB: number;
 beforeAll(async () => {
   app = await buildTestApp();
   await app.ready();
+  await app.modules.region.seedRegionsIfEmpty();
   master = await newMaster(app);
   const provinces = await prisma.province.findMany({ orderBy: { code: 'asc' }, take: 2 });
   if (provinces.length < 2) throw new Error('Cần ít nhất 2 tỉnh/thành trong dữ liệu nền của test');
