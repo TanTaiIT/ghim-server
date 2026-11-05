@@ -227,7 +227,7 @@ screening, review, report, messaging, wallet, promotion, ops }`,
 | ---- | -------------- | ---------- | ------------------------------------------------------------------------------------------------------------ |
 | 1    | `identity`     | 7, 8       | Tài khoản, email chuẩn hoá + dấu băm, phiên đăng nhập, Google, dấu thiết bị                                  |
 | 1    | `platform`     | 5, 6, 28   | Master, quyền staff theo danh mục, **bảng con số có phiên bản**, nội dung trợ giúp                           |
-| 1    | `group`        | 9, 10      | Nhóm, chế độ, thành viên + đường vào, huy hiệu, đơn vị con, chủ nhóm                                         |
+| 1    | `group`        | 9, 10      | Nhóm, chế độ, tỉnh/thành, thành viên + đường vào, huy hiệu, đơn vị con, chủ nhóm                             |
 | 1    | `category`     | 11         | Danh mục, mẫu thông tin, trần giá, giá tham chiếu, mức rủi ro                                                |
 | 1    | `region`       | 11         | Tỉnh, phường sau sáp nhập, tên cũ, tìm bỏ dấu — tách khỏi `category` 24/10/2026, spec vẫn `category/regions` |
 | 2    | `media`        | 25         | Ảnh, nhãn "chưa xác nhận", dọn ảnh (kiểm ảnh thuộc `screening`)                                              |
@@ -372,7 +372,10 @@ kế hoạch `docs/KE-HOACH-GOI-DAY-TIN.md`) → `add-admin-boost` (người qu�
 `add-wallet` (ví Xu, sổ cái, master cấp — làm 28/10/2026 sau khi chủ dự án chốt câu hỏi mở: Xu do master cấp miễn phí,
 không có `add-topup`, không thanh toán online; gộp `main` qua PR #33, archive 28/10/2026) → `add-promotions` (gói đẩy tin trả Xu — làm 28/10/2026 ngay sau `add-wallet`; dải nổi bật đổi sang lấy ngẫu nhiên; gộp `main` qua PR #35, archive 28/10/2026) → `remove-new-account-restriction` (bỏ lý do hạn chế "tài khoản mới" — chốt 28/10/2026 sau khi thử trên Render: máy cho qua là tin lên, T0 dải Thấp hiện đầy đủ; migration gỡ lý do trên tin đang có; gộp `main` qua PR #37, archive 01/11/2026) → `add-home-suggestions` (mục "Gợi ý cho
 bạn" theo tin đã xem, lưu, hỏi, tìm của từng người; khách hay chưa có lịch sử thì tin được quan tâm nhiều gần bạn; dải
-nổi bật giữ nguyên — chủ dự án chốt 02/11/2026).
+nổi bật giữ nguyên — chủ dự án chốt 02/11/2026) → `add-group-province` (nhóm gắn tỉnh/thành tuỳ chọn:
+`groups.province_code` nullable FK → `provinces.code` `SET NULL`; lập / sửa nhóm nhận `provinceCode`, `GET /groups` lọc
+theo tỉnh, hồ sơ nhóm trả `province`; nhãn khám phá, KHÔNG ràng buộc tỉnh của tin trong nhóm — chủ dự án chốt 05/11/2026;
+ngoài TK 29, chủ TK thêm dòng vào TK 9 khi duyệt).
 
 - `add-platform-roles` và `add-categories` cần nhau (quyền staff gắn theo danh mục; danh mục cần staff soạn
   mẫu) nên làm chung một lượt và archive trước `add-groups`; `add-groups` chỉ thêm requirement vào

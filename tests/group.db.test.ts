@@ -400,3 +400,34 @@ describe('group_owner_offers', () => {
     ).resolves.toBe(UNIQUE);
   });
 });
+
+// Migration `add_group_province`: FK groups.province_code → provinces.code, ON DELETE SET NULL.
+const province = (code: number) =>
+  prisma.province.create({
+    data: {
+      code,
+      name: `Tỉnh ${code}`,
+      fullName: `Tỉnh thử ${code}`,
+      formerNames: [],
+      aliases: [],
+      searchText: `tinh ${code}`,
+    },
+  });
+
+describe('groups.province_code', () => {
+  it('FK chặn tỉnh/thành không có thật', async () => {
+    const id = (await account()).id;
+    await expect(
+      prismaErrorCode(prisma.group.create({ data: groupData(id, { provinceCode: 999_999 }) })),
+    ).resolves.toBe(FOREIGN_KEY);
+  });
+
+  it('xoá tỉnh đang gắn ⇒ province_code thành null, nhóm vẫn còn (ON DELETE SET NULL)', async () => {
+    const id = (await account()).id;
+    await province(79);
+    const group = await prisma.group.create({ data: groupData(id, { provinceCode: 79 }) });
+    await prisma.province.delete({ where: { code: 79 } });
+    const after = await prisma.group.findUnique({ where: { id: group.id } });
+    expect(after?.provinceCode).toBeNull();
+  });
+});

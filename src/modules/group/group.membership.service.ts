@@ -43,7 +43,11 @@ interface PageQuery {
 }
 
 export interface GroupMembershipService {
-  search(q: string | undefined, page: PageQuery): Promise<Page<GroupSummaryDto>>;
+  search(
+    q: string | undefined,
+    provinceCode: number | undefined,
+    page: PageQuery,
+  ): Promise<Page<GroupSummaryDto>>;
   view(actor: Actor | null, groupId: string): Promise<GroupViewDto>;
   lookupCode(actor: Actor, code: string): Promise<GroupSummaryDto>;
   join(actor: Actor, groupId: string, code: string | undefined): Promise<JoinResultDto>;
@@ -176,6 +180,7 @@ export function createGroupMembershipService(
     toProfile,
     toMembership,
     toMember,
+    provinceOf,
     displayNames,
   } = shared;
 
@@ -212,9 +217,10 @@ export function createGroupMembershipService(
   return {
     // ── NGƯỜI DÙNG ──────────────────────────────────────────────────────────────────────────────
 
-    async search(q, { skip, take }) {
+    async search(q, provinceCode, { skip, take }) {
       const { items, total } = await repository.searchPublic({
         folded: q ? fold(q) : '',
+        provinceCode,
         skip,
         take,
       });
@@ -246,12 +252,13 @@ export function createGroupMembershipService(
       if (!isPublicMode(group.mode) && !member && !isMaster) {
         return { visibility: 'name_only', id: group.id, name: group.name, joinRequest };
       }
-      const [counts, units] = await Promise.all([
+      const [counts, units, province] = await Promise.all([
         repository.countMembers([groupId]),
         repository.listUnits(groupId),
+        provinceOf(group),
       ]);
       return {
-        ...toProfile({ group, member, isMaster }, counts.get(groupId) ?? 0, units),
+        ...toProfile({ group, member, isMaster }, counts.get(groupId) ?? 0, units, province),
         joinRequest,
       };
     },

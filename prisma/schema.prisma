@@ -601,6 +601,7 @@ model Province {
   wards    Ward[]
   listings Listing[]
   homeOf   Account[]
+  groups   Group[]
 
   @@map("provinces")
 }
@@ -752,6 +753,8 @@ model Group {
   /// Thành viên dùng được gói đẩy tin trả Xu trong nhóm (add-promotions); tắt không đụng lượt đã mua.
   allowPromotions       Boolean         @default(true) @map("allow_promotions")
   boardStyle            GroupBoardStyle @default(list) @map("board_style")
+  /// Tỉnh/thành tuỳ chọn của nhóm (add-group-province) — nhãn để khám phá / lọc nhóm theo khu vực; null = toàn quốc, không ràng buộc tỉnh của tin trong nhóm.
+  provinceCode          Int?            @map("province_code")
   code                  String?         @unique
   ownerlessSince        DateTime?       @map("ownerless_since") @db.Timestamptz(3)
   nomineeId             String?         @map("nominee_id") @db.Uuid
@@ -767,6 +770,7 @@ model Group {
   createdAt             DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt             DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  province      Province?               @relation(fields: [provinceCode], references: [code], onDelete: SetNull)
   units         GroupUnit[]
   members       GroupMember[]
   bans          GroupBan[]
